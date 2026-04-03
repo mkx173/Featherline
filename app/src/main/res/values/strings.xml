@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">HRT Tracker</string>
+    <string name="tab_main">Main</string>
+    <string name="tab_settings">Settings</string>
+    <string name="dark_mode_follow_system">Follow system</string>
+    <string name="dark_mode_always_off">Always off</string>
+    <string name="dark_mode_always_on">Always on</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_dark_mode">Dark mode</string>
+    <string name="settings_adaptive_color">Adaptive color</string>
+</resources>
