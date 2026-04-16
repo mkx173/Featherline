@@ -33,20 +33,7 @@ class HrtTrackerApplication : Application() {
     }
 
     private fun applyDarkMode(option: DarkModeOption) {
-        AppCompatDelegate.setDefaultNightMode(
-            when (option) {
-                DarkModeOption.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-                DarkModeOption.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-                DarkModeOption.FOLLOW_SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            }
-        )
-
-        getSystemService(UiModeManager::class.java).setApplicationNightMode(
-            when (option) {
-                DarkModeOption.DARK -> UiModeManager.MODE_NIGHT_YES
-                DarkModeOption.LIGHT -> UiModeManager.MODE_NIGHT_NO
-                DarkModeOption.FOLLOW_SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
-            }
-        )
+        AppCompatDelegate.setDefaultNightMode(option.appCompatNightMode)
+        getSystemService(UiModeManager::class.java).setApplicationNightMode(option.applicationNightMode)
     }
 }

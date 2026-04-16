@@ -55,12 +55,8 @@ class SettingsRepository @Inject constructor(
     }
 
     private fun preferencesToSettingsState(preferences: Preferences): SettingsState {
-        val darkModeOption = preferences[darkModeKey]
-            ?.let(DarkModeOption::valueOf)
-            ?: DarkModeOption.FOLLOW_SYSTEM
-
         return SettingsState(
-            darkModeOption = darkModeOption,
+            darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true
         )
     }

@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.settings
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
 
@@ -35,7 +34,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val settingsState by viewModel.settingsState.collectAsState()
+    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
 
     Scaffold(
@@ -71,7 +70,7 @@ fun SettingsScreen(
                         Text(text = stringResource(R.string.settings_dark_mode))
                     },
                     supportingContent = {
-                        Text(text = stringResource(settingsState.darkModeOption.labelRes()))
+                        Text(text = stringResource(settingsState.darkModeOption.labelRes))
                     }
                 )
                 DropdownMenu(
@@ -81,7 +80,7 @@ fun SettingsScreen(
                 ) {
                     DarkModeOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(text = stringResource(option.labelRes())) },
+                            text = { Text(text = stringResource(option.labelRes)) },
                             onClick = {
                                 viewModel.setDarkModeOption(option)
                                 setDarkModeMenuExpanded(false)
@@ -109,11 +108,4 @@ fun SettingsScreen(
             )
         }
     }
-}
-
-@StringRes
-private fun DarkModeOption.labelRes(): Int = when (this) {
-    DarkModeOption.FOLLOW_SYSTEM -> R.string.dark_mode_follow_system
-    DarkModeOption.LIGHT -> R.string.dark_mode_always_off
-    DarkModeOption.DARK -> R.string.dark_mode_always_on
 }

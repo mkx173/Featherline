@@ -9,13 +9,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -50,9 +52,9 @@ fun HrtTrackerNavHost(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            NavigationBar {
+            ShortNavigationBar {
                 bottomNavItems.forEach { navItem ->
-                    NavigationBarItem(
+                    ShortNavigationBarItem(
                         selected = currentDestination
                             ?.hierarchy
                             ?.any { it.route == navItem.screen.route } == true,
@@ -68,8 +70,11 @@ fun HrtTrackerNavHost(
                         icon = {
                             Icon(
                                 imageVector = navItem.icon,
-                                contentDescription = null
+                                contentDescription = stringResource(navItem.screen.label)
                             )
+                        },
+                        label = {
+                            Text(text = stringResource(navItem.screen.label))
                         }
                     )
                 }

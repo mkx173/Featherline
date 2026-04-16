@@ -7,12 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.HrtTrackerApp
@@ -33,13 +33,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            val settingsState by settingsRepository.settingsState.collectAsState()
+            val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
-            val isDarkTheme = when (settingsState.darkModeOption) {
-                DarkModeOption.DARK -> true
-                DarkModeOption.LIGHT -> false
-                DarkModeOption.FOLLOW_SYSTEM -> isSystemInDarkTheme()
-            }
+            val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
 
             DisposableEffect(isDarkTheme) {
                 val barStyle = if (isDarkTheme) {
