@@ -40,14 +40,33 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object History : Screen("history", R.string.tab_history)
     data object Settings : Screen("settings", R.string.tab_settings)
-    data object AddEntry : Screen("add_entry?${AddEntryViewModel.ENTRY_ID_ARG}={${AddEntryViewModel.ENTRY_ID_ARG}}", R.string.add_entry) {
+    data object AddEntry : Screen(
+        "add_entry?" +
+            "${AddEntryViewModel.ENTRY_ID_ARG}={${AddEntryViewModel.ENTRY_ID_ARG}}" +
+            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.add_entry
+    ) {
         const val baseRoute = "add_entry"
 
-        fun createRoute(entryId: String? = null): String {
+        fun createRoute(
+            topLevelParentRoute: String,
+            entryId: String? = null
+        ): String {
             return if (entryId == null) {
-                baseRoute
+                "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
             } else {
-                "$baseRoute?${AddEntryViewModel.ENTRY_ID_ARG}=$entryId"
+                "$baseRoute?${AddEntryViewModel.ENTRY_ID_ARG}=$entryId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            }
+        }
+    }
+
+    companion object {
+        fun topLevelScreenForRoute(route: String?): Screen? {
+            return when (route) {
+                Main.route -> Main
+                History.route -> History
+                Settings.route -> Settings
+                else -> null
             }
         }
     }
@@ -69,49 +88,62 @@ fun HrtTrackerNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
-    val currentDestination = navController.currentBackStackEntryAsState().value?.destination
+    val currentBackStackEntry = navController.currentBackStackEntryAsState().value
+    val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val showBottomBar = bottomNavItems.any { it.screen.route == currentRoute }
+    val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
+
+    val selectedBottomScreen =
+        Screen.topLevelScreenForRoute(explicitParentRoute)
+            ?: bottomNavItems.firstOrNull { navItem ->
+                currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
+            }?.screen
 
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (showBottomBar) {
-                ShortNavigationBar {
-                    bottomNavItems.forEach { navItem ->
-                        ShortNavigationBarItem(
-                            selected = currentDestination
-                                ?.hierarchy
-                                ?.any { it.route == navItem.screen.route } == true,
-                            onClick = {
-                                if (currentDestination?.route != navItem.screen.route) {
-                                    navController.navigate(navItem.screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
+            ShortNavigationBar {
+                bottomNavItems.forEach { navItem ->
+                    ShortNavigationBarItem(
+                        selected = selectedBottomScreen == navItem.screen,
+                        onClick = {
+                            val isOnChildOfSelectedTopLevel =
+                                selectedBottomScreen == navItem.screen &&
+                                    currentRoute != navItem.screen.route
+
+                            if (isOnChildOfSelectedTopLevel) {
+                                navController.popBackStack(navItem.screen.route, false)
+                            } else if (currentDestination?.route != navItem.screen.route) {
+                                navController.navigate(navItem.screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
                                     }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = navItem.icon,
-                                    contentDescription = stringResource(navItem.screen.label)
-                                )
-                            },
-                            label = {
-                                Text(text = stringResource(navItem.screen.label))
                             }
-                        )
-                    }
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = navItem.icon,
+                                contentDescription = stringResource(navItem.screen.label)
+                            )
+                        },
+                        label = {
+                            Text(text = stringResource(navItem.screen.label))
+                        }
+                    )
                 }
             }
         },
         floatingActionButton = {
             if (currentRoute == Screen.Main.route) {
                 FloatingActionButton(
-                    onClick = { navController.navigate(Screen.AddEntry.createRoute()) }
+                    onClick = {
+                        navController.navigate(
+                            Screen.AddEntry.createRoute(topLevelParentRoute = Screen.Main.route)
+                        )
+                    }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -133,7 +165,12 @@ fun HrtTrackerNavHost(
             composable(Screen.History.route) {
                 HistoryScreen(
                     onEntryClick = { entryId ->
-                        navController.navigate(Screen.AddEntry.createRoute(entryId.toString()))
+                        navController.navigate(
+                            Screen.AddEntry.createRoute(
+                                topLevelParentRoute = Screen.History.route,
+                                entryId = entryId.toString()
+                            )
+                        )
                     }
                 )
             }
@@ -147,6 +184,10 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
+                    },
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Main.route
                     }
                 )
             ) {
@@ -167,3 +208,5 @@ fun HrtTrackerNavHost(
         }
     }
 }
+
+private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
