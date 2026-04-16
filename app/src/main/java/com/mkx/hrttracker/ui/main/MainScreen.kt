@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -20,5 +21,11 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 title = { Text(text = stringResource(R.string.tab_main)) }
             )
         }
-    ) { }
+    ) { innerPadding ->
+        MainContent(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        )
+    }
 }
