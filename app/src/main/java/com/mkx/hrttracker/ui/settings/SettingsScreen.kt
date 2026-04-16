@@ -27,12 +27,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mkx.hrttracker.R
-
-enum class DarkModeOption(@StringRes val label: Int) {
-    FOLLOW_SYSTEM(R.string.dark_mode_follow_system),
-    LIGHT(R.string.dark_mode_always_off),
-    DARK(R.string.dark_mode_always_on)
-}
+import com.mkx.hrttracker.model.settings.DarkModeOption
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +71,7 @@ fun SettingsScreen(
                         Text(text = stringResource(R.string.settings_dark_mode))
                     },
                     supportingContent = {
-                        Text(text = stringResource(settingsState.darkModeOption.label))
+                        Text(text = stringResource(settingsState.darkModeOption.labelRes()))
                     }
                 )
                 DropdownMenu(
@@ -86,7 +81,7 @@ fun SettingsScreen(
                 ) {
                     DarkModeOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(text = stringResource(option.label)) },
+                            text = { Text(text = stringResource(option.labelRes())) },
                             onClick = {
                                 viewModel.setDarkModeOption(option)
                                 setDarkModeMenuExpanded(false)
@@ -114,4 +109,11 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@StringRes
+private fun DarkModeOption.labelRes(): Int = when (this) {
+    DarkModeOption.FOLLOW_SYSTEM -> R.string.dark_mode_follow_system
+    DarkModeOption.LIGHT -> R.string.dark_mode_always_off
+    DarkModeOption.DARK -> R.string.dark_mode_always_on
 }

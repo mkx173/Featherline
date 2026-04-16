@@ -5,7 +5,7 @@ import android.app.UiModeManager
 import com.mkx.hrttracker.data.AppContainer
 import com.mkx.hrttracker.data.DefaultAppContainer
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.ui.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.util.ToastManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

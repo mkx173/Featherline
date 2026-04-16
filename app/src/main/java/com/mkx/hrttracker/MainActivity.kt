@@ -16,8 +16,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.HrtTrackerApp
-import com.mkx.hrttracker.ui.settings.DarkModeOption
 import com.mkx.hrttracker.ui.settings.SettingsViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
