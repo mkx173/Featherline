@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.util.AppLockSecurityManager
+import com.mkx.hrttracker.util.ElapsedRealtimeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,11 +19,13 @@ import javax.inject.Inject
 class AppLockViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
+    private val elapsedRealtimeProvider: ElapsedRealtimeProvider,
 ) : ViewModel() {
     private val isReady = MutableStateFlow(false)
     private val isUnlocked = MutableStateFlow(true)
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val errorMessageRes = MutableStateFlow<Int?>(null)
+    private var backgroundedAtElapsedRealtime: Long? = null
     private var nextPromptId = 0L
 
     val uiState: StateFlow<AppLockUiState> = combine(
@@ -35,6 +38,7 @@ class AppLockViewModel @Inject constructor(
         AppLockUiState(
             isReady = ready,
             screenLockProtectionEnabled = settingsState.screenLockProtectionEnabled,
+            appLockGracePeriodOption = settingsState.appLockGracePeriodOption,
             isUnlocked = if (settingsState.screenLockProtectionEnabled) unlocked else true,
             pendingPrompt = prompt,
             errorMessageRes = errorRes
@@ -56,6 +60,7 @@ class AppLockViewModel @Inject constructor(
 
             settingsRepository.settingsState.collect { settingsState ->
                 if (!settingsState.screenLockProtectionEnabled) {
+                    backgroundedAtElapsedRealtime = null
                     isUnlocked.value = true
                     pendingPrompt.value = null
                     errorMessageRes.value = null
@@ -66,20 +71,52 @@ class AppLockViewModel @Inject constructor(
 
     fun onForegrounded() {
         val state = uiState.value
-        if (!state.isReady || !state.screenLockProtectionEnabled || state.isUnlocked) {
+        if (!state.isReady || !state.screenLockProtectionEnabled) {
             return
+        }
+
+        if (state.isUnlocked) {
+            val backgroundedAt = backgroundedAtElapsedRealtime
+            if (backgroundedAt == null) {
+                return
+            }
+
+            val elapsedSinceLeaving = (elapsedRealtimeProvider.now() - backgroundedAt)
+                .coerceAtLeast(0L)
+
+            backgroundedAtElapsedRealtime = null
+            if (!state.appLockGracePeriodOption.shouldRelock(elapsedSinceLeaving)) {
+                return
+            }
+
+            appLockSecurityManager.clearUnlockedSession()
+            isUnlocked.value = false
         }
 
         requestUnlock()
     }
 
     fun onBackgrounded() {
-        if (!uiState.value.screenLockProtectionEnabled) {
+        val state = uiState.value
+        if (!state.screenLockProtectionEnabled) {
             return
         }
 
-        appLockSecurityManager.clearUnlockedSession()
-        isUnlocked.value = false
+        if (!state.isUnlocked) {
+            backgroundedAtElapsedRealtime = null
+            pendingPrompt.value = null
+            errorMessageRes.value = null
+            return
+        }
+
+        if (state.appLockGracePeriodOption.shouldRelock(0L)) {
+            appLockSecurityManager.clearUnlockedSession()
+            isUnlocked.value = false
+            backgroundedAtElapsedRealtime = null
+        } else {
+            backgroundedAtElapsedRealtime = elapsedRealtimeProvider.now()
+        }
+
         pendingPrompt.value = null
         errorMessageRes.value = null
     }
@@ -106,10 +143,12 @@ class AppLockViewModel @Inject constructor(
 
         runCatching { appLockSecurityManager.unlockApp() }
             .onSuccess {
+                backgroundedAtElapsedRealtime = null
                 isUnlocked.value = true
                 errorMessageRes.value = null
             }
             .onFailure {
+                backgroundedAtElapsedRealtime = null
                 isUnlocked.value = false
                 errorMessageRes.value = R.string.screen_lock_auth_failed
             }
@@ -128,6 +167,8 @@ class AppLockViewModel @Inject constructor(
 data class AppLockUiState(
     val isReady: Boolean = false,
     val screenLockProtectionEnabled: Boolean = false,
+    val appLockGracePeriodOption: com.mkx.hrttracker.model.settings.AppLockGracePeriodOption =
+        com.mkx.hrttracker.model.settings.AppLockGracePeriodOption.IMMEDIATELY,
     val isUnlocked: Boolean = false,
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val errorMessageRes: Int? = null,

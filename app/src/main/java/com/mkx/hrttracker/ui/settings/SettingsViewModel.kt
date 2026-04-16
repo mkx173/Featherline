@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
@@ -57,6 +58,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setAppLanguageOption(option: AppLanguageOption) {
         settingsRepository.setAppLanguageOption(option)
+    }
+
+    fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
+        viewModelScope.launch {
+            settingsRepository.setAppLockGracePeriodOption(option)
+        }
     }
 
     fun refreshAppLanguageOption() {

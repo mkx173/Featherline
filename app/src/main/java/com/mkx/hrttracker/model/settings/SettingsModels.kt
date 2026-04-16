@@ -64,9 +64,47 @@ enum class AppLanguageOption(
     }
 }
 
+enum class AppLockGracePeriodOption(
+    @get:StringRes val labelRes: Int,
+    val durationMillis: Long,
+) {
+    IMMEDIATELY(
+        labelRes = R.string.app_lock_grace_period_immediately,
+        durationMillis = 0L
+    ),
+    ONE_MINUTE(
+        labelRes = R.string.app_lock_grace_period_1_minute,
+        durationMillis = 60_000L
+    ),
+    FIVE_MINUTES(
+        labelRes = R.string.app_lock_grace_period_5_minutes,
+        durationMillis = 5 * 60_000L
+    ),
+    FIFTEEN_MINUTES(
+        labelRes = R.string.app_lock_grace_period_15_minutes,
+        durationMillis = 15 * 60_000L
+    ),
+    THIRTY_MINUTES(
+        labelRes = R.string.app_lock_grace_period_30_minutes,
+        durationMillis = 30 * 60_000L
+    );
+
+    fun shouldRelock(elapsedSinceLeavingMillis: Long): Boolean {
+        return durationMillis == 0L || elapsedSinceLeavingMillis >= durationMillis
+    }
+
+    companion object {
+        fun fromStorageValue(value: String?): AppLockGracePeriodOption {
+            return entries.firstOrNull { it.name == value } ?: IMMEDIATELY
+        }
+    }
+}
+
 data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val screenLockProtectionEnabled: Boolean = false,
+    val appLockGracePeriodOption: AppLockGracePeriodOption =
+        AppLockGracePeriodOption.IMMEDIATELY,
 )

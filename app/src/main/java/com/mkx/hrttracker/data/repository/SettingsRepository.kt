@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.core.os.LocaleListCompat
 import com.mkx.hrttracker.data.local.DatabasePassphraseProvider
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.currentAppLocale
@@ -35,6 +36,7 @@ class SettingsRepository @Inject constructor(
     private val databasePassphraseProvider: DatabasePassphraseProvider,
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
@@ -84,6 +86,12 @@ class SettingsRepository @Inject constructor(
         screenLockProtectionEnabled.value = enabled
     }
 
+    suspend fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
+        context.dataStore.edit { preferences ->
+            preferences[appLockGracePeriodKey] = option.name
+        }
+    }
+
     fun setAppLanguageOption(option: AppLanguageOption) {
         appLanguageOption.value = option
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
@@ -97,6 +105,9 @@ class SettingsRepository @Inject constructor(
         return SettingsState(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
+            appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
+                preferences[appLockGracePeriodKey]
+            ),
         )
     }
 

@@ -29,6 +29,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 
@@ -41,6 +42,8 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val configuration = LocalConfiguration.current
+    val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
+        remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
 
@@ -106,6 +109,37 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium))
                 )
+            }
+
+            if (settingsState.screenLockProtectionEnabled) {
+                Box {
+                    ListItem(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { setAppLockGracePeriodMenuExpanded(true) },
+                        headlineContent = {
+                            Text(text = stringResource(R.string.settings_app_lock_grace_period))
+                        },
+                        supportingContent = {
+                            Text(text = stringResource(settingsState.appLockGracePeriodOption.labelRes))
+                        }
+                    )
+                    DropdownMenu(
+                        expanded = isAppLockGracePeriodMenuExpanded,
+                        onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
+                        modifier = Modifier.width(IntrinsicSize.Min)
+                    ) {
+                        AppLockGracePeriodOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(option.labelRes)) },
+                                onClick = {
+                                    viewModel.setAppLockGracePeriodOption(option)
+                                    setAppLockGracePeriodMenuExpanded(false)
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             ListItem(

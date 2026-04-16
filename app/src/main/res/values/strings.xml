@@ -43,8 +43,14 @@
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_screen_lock_protection">App lock</string>
     <string name="settings_screen_lock_protection_summary">Require biometrics or screen lock credentials to open the app and decrypt local data.</string>
+    <string name="settings_app_lock_grace_period">Keep app unlocked after leaving</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
+    <string name="app_lock_grace_period_immediately">Immediately</string>
+    <string name="app_lock_grace_period_1_minute">1 minute</string>
+    <string name="app_lock_grace_period_5_minutes">5 minutes</string>
+    <string name="app_lock_grace_period_15_minutes">15 minutes</string>
+    <string name="app_lock_grace_period_30_minutes">30 minutes</string>
     <string name="enable_screen_lock_prompt_title">Enable app lock</string>
     <string name="enable_screen_lock_prompt_subtitle">Verify your identity to protect local data.</string>
     <string name="enable_screen_lock_prompt_description">This uses your device biometrics or screen lock credentials.</string>
