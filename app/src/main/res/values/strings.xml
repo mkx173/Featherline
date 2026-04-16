@@ -12,13 +12,12 @@
     <string name="field_route">Route of administration</string>
     <string name="field_medication_name">Medication name</string>
     <string name="field_dosage_mg">Dosage (mg as medicine)</string>
+    <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
-    <string name="field_time_format_hint">Use yyyy-MM-dd HH:mm</string>
     <string name="save_entry">Save Entry</string>
     <string name="cancel">Cancel</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>
-    <string name="validation_time_required">Enter a valid time using yyyy-MM-dd HH:mm.</string>
     <string name="entry_medicine_dose">Medicine dose: %1$s mg</string>
     <string name="entry_estradiol_dose">Estradiol equivalent: %1$s mg</string>
     <string name="entry_time_applied">Applied: %1$s</string>

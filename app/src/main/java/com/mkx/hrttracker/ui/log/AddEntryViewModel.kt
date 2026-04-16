@@ -12,11 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -63,10 +62,19 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    fun updateAppliedAt(appliedAtInput: String) {
+    fun updateAppliedDate(appliedDate: LocalDate) {
         _uiState.update {
             it.copy(
-                appliedAtInput = appliedAtInput,
+                appliedDate = appliedDate,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateAppliedTime(appliedTime: LocalTime) {
+        _uiState.update {
+            it.copy(
+                appliedTime = appliedTime.withSecond(0).withNano(0),
                 errorMessageRes = null
             )
         }
@@ -76,12 +84,14 @@ class AddEntryViewModel @Inject constructor(
         val currentState = _uiState.value
         val trimmedName = currentState.medicineName.trim()
         val parsedDose = currentState.dosageMg.toDoubleOrNull()
-        val parsedTime = parseAppliedAt(currentState.appliedAtInput)
+        val appliedAt = LocalDateTime.of(
+            currentState.appliedDate,
+            currentState.appliedTime
+        ).atZone(ZoneId.systemDefault()).toInstant()
 
         val errorRes = when {
             trimmedName.isEmpty() -> R.string.validation_name_required
             parsedDose == null || parsedDose <= 0.0 -> R.string.validation_dose_required
-            parsedTime == null -> R.string.validation_time_required
             else -> null
         }
 
@@ -100,7 +110,7 @@ class AddEntryViewModel @Inject constructor(
                 routeOfAdministration = currentState.routeOfAdministration,
                 medicineName = trimmedName,
                 dosageMgAsMedicine = parsedDose!!,
-                appliedAt = parsedTime!!
+                appliedAt = appliedAt
             )
 
             _uiState.update {
@@ -118,31 +128,20 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(isSaved = false) }
     }
 
-    private fun parseAppliedAt(input: String): Instant? {
-        return try {
-            LocalDateTime.parse(input, INPUT_TIME_FORMATTER)
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    }
-
     private fun loadEntryForEditing(entryId: String) {
         val uuid = runCatching { UUID.fromString(entryId) }.getOrNull() ?: return
 
         viewModelScope.launch {
             val entry = medicationLogRepository.getEntry(uuid) ?: return@launch
+            val appliedAt = entry.appliedAt.atZone(ZoneId.systemDefault())
 
             _uiState.value = AddEntryUiState(
                 editingEntryId = entry.uuid.toString(),
                 routeOfAdministration = entry.routeOfAdministration,
                 medicineName = entry.medicineName,
                 dosageMg = entry.dosageMgAsMedicine.toInputString(),
-                appliedAtInput = entry.appliedAt
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime()
-                    .format(INPUT_TIME_FORMATTER)
+                appliedDate = appliedAt.toLocalDate(),
+                appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
             )
         }
     }
@@ -165,7 +164,8 @@ data class AddEntryUiState(
     val routeOfAdministration: RouteOfAdministration = RouteOfAdministration.OTHER,
     val medicineName: String = "",
     val dosageMg: String = "",
-    val appliedAtInput: String = LocalDateTime.now().format(INPUT_TIME_FORMATTER),
+    val appliedDate: LocalDate = LocalDate.now(),
+    val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val errorMessageRes: Int? = null,
@@ -173,5 +173,3 @@ data class AddEntryUiState(
     val isEditing: Boolean
         get() = editingEntryId != null
 }
-
-val INPUT_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

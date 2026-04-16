@@ -1,6 +1,11 @@
 package com.mkx.hrttracker.ui.log
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.text.format.DateFormat
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -36,6 +42,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @Composable
 fun AddEntryScreen(
@@ -59,7 +69,8 @@ fun AddEntryScreen(
         onRouteSelected = viewModel::updateRoute,
         onMedicineNameChange = viewModel::updateMedicineName,
         onDosageChange = viewModel::updateDosageMg,
-        onAppliedAtChange = viewModel::updateAppliedAt,
+        onAppliedDateChange = viewModel::updateAppliedDate,
+        onAppliedTimeChange = viewModel::updateAppliedTime,
         onSaveClick = viewModel::saveEntry,
         modifier = modifier
     )
@@ -73,11 +84,19 @@ private fun AddEntryScreenContent(
     onRouteSelected: (RouteOfAdministration) -> Unit,
     onMedicineNameChange: (String) -> Unit,
     onDosageChange: (String) -> Unit,
-    onAppliedAtChange: (String) -> Unit,
+    onAppliedDateChange: (LocalDate) -> Unit,
+    onAppliedTimeChange: (LocalTime) -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isRouteMenuExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val formattedDate = remember(uiState.appliedDate) {
+        uiState.appliedDate.format(APPLIED_DATE_FORMATTER)
+    }
+    val formattedTime = remember(uiState.appliedTime) {
+        uiState.appliedTime.format(APPLIED_TIME_FORMATTER)
+    }
 
     Scaffold(
         modifier = modifier,
@@ -161,14 +180,36 @@ private fun AddEntryScreenContent(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
-            OutlinedTextField(
-                value = uiState.appliedAtInput,
-                onValueChange = onAppliedAtChange,
-                label = { Text(text = stringResource(R.string.field_time_of_application)) },
-                supportingText = { Text(text = stringResource(R.string.field_time_format_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii)
+            PickerField(
+                value = formattedDate,
+                label = stringResource(R.string.field_date_of_application),
+                onClick = {
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            onAppliedDateChange(LocalDate.of(year, month + 1, dayOfMonth))
+                        },
+                        uiState.appliedDate.year,
+                        uiState.appliedDate.monthValue - 1,
+                        uiState.appliedDate.dayOfMonth
+                    ).show()
+                }
+            )
+
+            PickerField(
+                value = formattedTime,
+                label = stringResource(R.string.field_time_of_application),
+                onClick = {
+                    TimePickerDialog(
+                        context,
+                        { _, hourOfDay, minute ->
+                            onAppliedTimeChange(LocalTime.of(hourOfDay, minute))
+                        },
+                        uiState.appliedTime.hour,
+                        uiState.appliedTime.minute,
+                        DateFormat.is24HourFormat(context)
+                    ).show()
+                }
             )
 
             uiState.errorMessageRes?.let { errorMessageRes ->
@@ -186,6 +227,33 @@ private fun AddEntryScreenContent(
     }
 }
 
+@Composable
+private fun PickerField(
+    value: String,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(text = label) },
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            singleLine = true
+        )
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(onClick = onClick)
+        )
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun AddEntryScreenPreview() {
@@ -196,14 +264,22 @@ private fun AddEntryScreenPreview() {
                 routeOfAdministration = RouteOfAdministration.SUBCUTANEOUS,
                 medicineName = "Estradiol cypionate",
                 dosageMg = "4.0",
-                appliedAtInput = "2026-04-16 21:15",
+                appliedDate = LocalDate.of(2026, 4, 16),
+                appliedTime = LocalTime.of(21, 15),
             ),
             onNavigateBack = { },
             onRouteSelected = { },
             onMedicineNameChange = { },
             onDosageChange = { },
-            onAppliedAtChange = { },
+            onAppliedDateChange = { },
+            onAppliedTimeChange = { },
             onSaveClick = { }
         )
     }
 }
+
+private val APPLIED_DATE_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+private val APPLIED_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
