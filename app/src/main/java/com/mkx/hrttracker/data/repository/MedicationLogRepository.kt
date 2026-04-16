@@ -24,6 +24,14 @@ class MedicationLogRepository @Inject constructor(
         return medicationLogDao.getEntry(uuid.toString())?.toModel()
     }
 
+    suspend fun deleteEntries(uuids: Collection<UUID>) {
+        if (uuids.isEmpty()) {
+            return
+        }
+
+        medicationLogDao.deleteEntries(uuids.map(UUID::toString))
+    }
+
     suspend fun saveEntry(
         uuid: UUID?,
         routeOfAdministration: RouteOfAdministration,

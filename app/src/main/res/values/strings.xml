@@ -9,6 +9,10 @@
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
+    <string name="delete_entries_fab">Delete selected entries</string>
+    <string name="delete_entries_title">Delete entries</string>
+    <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
+    <string name="delete_entries_confirm">Delete</string>
     <string name="field_route">Route of administration</string>
     <string name="field_medication_name">Medication name</string>
     <string name="field_dosage_mg">Dosage (mg as medicine)</string>

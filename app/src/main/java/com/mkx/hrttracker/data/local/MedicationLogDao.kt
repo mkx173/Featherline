@@ -25,6 +25,14 @@ interface MedicationLogDao {
     )
     suspend fun getEntry(uuid: String): MedicationLogEntryEntity?
 
+    @Query(
+        """
+        DELETE FROM medication_log_entries
+        WHERE uuid IN (:uuids)
+        """
+    )
+    suspend fun deleteEntries(uuids: List<String>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
 }
