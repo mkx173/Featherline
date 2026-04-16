@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.rememberNavController
 import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() {
                 darkTheme = isDarkTheme,
                 dynamicColor = settingsState.adaptiveColorEnabled
             ) {
+                val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
 
                 AppAuthenticationPromptEffect(
@@ -81,7 +83,7 @@ class MainActivity : AppCompatActivity() {
                             onUnlockClick = appLockViewModel::requestUnlock
                         )
                     }
-                    else -> HrtTrackerApp()
+                    else -> HrtTrackerApp(navController = navController)
                 }
             }
         }
