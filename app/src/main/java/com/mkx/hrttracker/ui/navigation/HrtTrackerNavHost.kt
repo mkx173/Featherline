@@ -25,7 +25,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 
-sealed class Screen(val route: String, @StringRes val label: Int) {
+sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object Settings : Screen("settings", R.string.tab_settings)
 }

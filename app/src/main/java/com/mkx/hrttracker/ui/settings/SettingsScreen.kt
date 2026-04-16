@@ -25,7 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.DarkModeOption
 
@@ -33,7 +33,7 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
-    viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settingsState by viewModel.settingsState.collectAsState()
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
