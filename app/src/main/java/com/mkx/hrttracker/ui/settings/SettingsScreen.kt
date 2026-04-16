@@ -21,8 +21,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +38,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val settingsState = uiState.settingsState
     val configuration = LocalConfiguration.current
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
@@ -45,6 +47,12 @@ fun SettingsScreen(
     LaunchedEffect(configuration) {
         viewModel.refreshAppLanguageOption()
     }
+
+    AppAuthenticationPromptEffect(
+        request = uiState.pendingPrompt,
+        onAuthenticated = viewModel::onScreenLockProtectionAuthenticated,
+        onError = viewModel::onScreenLockProtectionPromptError
+    )
 
     Scaffold(
         modifier = modifier,
@@ -59,6 +67,47 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .padding(dimensionResource(R.dimen.padding_small))
         ) {
+            ListItem(
+                modifier = Modifier.fillMaxWidth(),
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.settings_security),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            )
+
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.onScreenLockProtectionToggle(
+                            !settingsState.screenLockProtectionEnabled
+                        )
+                    },
+                headlineContent = {
+                    Text(text = stringResource(R.string.settings_screen_lock_protection))
+                },
+                supportingContent = {
+                    Text(text = stringResource(R.string.settings_screen_lock_protection_summary))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = settingsState.screenLockProtectionEnabled,
+                        onCheckedChange = viewModel::onScreenLockProtectionToggle
+                    )
+                }
+            )
+
+            uiState.securityErrorMessageRes?.let { messageRes ->
+                Text(
+                    text = stringResource(messageRes),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium))
+                )
+            }
+
             ListItem(
                 modifier = Modifier.fillMaxWidth(),
                 headlineContent = {

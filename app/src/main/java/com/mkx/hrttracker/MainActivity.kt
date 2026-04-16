@@ -15,12 +15,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
+import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockScreen
+import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import androidx.activity.viewModels
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+    private val appLockViewModel: AppLockViewModel by viewModels()
+
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
@@ -59,8 +65,37 @@ class MainActivity : AppCompatActivity() {
                 darkTheme = isDarkTheme,
                 dynamicColor = settingsState.adaptiveColorEnabled
             ) {
-                HrtTrackerApp()
+                val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+
+                AppAuthenticationPromptEffect(
+                    request = appLockUiState.pendingPrompt,
+                    onAuthenticated = appLockViewModel::onAuthenticationSucceeded,
+                    onError = appLockViewModel::onAuthenticationError
+                )
+
+                when {
+                    !appLockUiState.isReady -> Unit
+                    appLockUiState.shouldShowLockScreen -> {
+                        AppLockScreen(
+                            errorMessageRes = appLockUiState.errorMessageRes,
+                            onUnlockClick = appLockViewModel::requestUnlock
+                        )
+                    }
+                    else -> HrtTrackerApp()
+                }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        appLockViewModel.onForegrounded()
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) {
+            appLockViewModel.onBackgrounded()
+        }
+        super.onStop()
     }
 }

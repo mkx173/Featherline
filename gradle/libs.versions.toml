@@ -1,6 +1,7 @@
 [versions]
 agp = "9.1.1"
 appcompat = "1.7.1"
+biometric = "1.1.0"
 coreSplashscreen = "1.2.0"
 datastorePreferences = "1.2.1"
 hilt = "2.59.2"
@@ -21,6 +22,7 @@ sqlcipherAndroid = "4.5.4"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
