@@ -16,6 +16,15 @@ interface MedicationLogDao {
     )
     fun observeEntries(): Flow<List<MedicationLogEntryEntity>>
 
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
+        WHERE uuid = :uuid
+        LIMIT 1
+        """
+    )
+    suspend fun getEntry(uuid: String): MedicationLogEntryEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
 }

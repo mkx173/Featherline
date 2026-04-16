@@ -13,6 +13,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,7 +83,13 @@ private fun AddEntryScreenContent(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(R.string.add_entry)) },
+                title = {
+                    Text(
+                        text = stringResource(
+                            if (uiState.isEditing) R.string.edit_entry else R.string.add_entry
+                        )
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -114,7 +121,10 @@ private fun AddEntryScreenContent(
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRouteMenuExpanded)
                     },
                     modifier = Modifier
-                        .menuAnchor()
+                        .menuAnchor(
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        )
                         .fillMaxWidth()
                 )
 
@@ -182,6 +192,7 @@ private fun AddEntryScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         AddEntryScreenContent(
             uiState = AddEntryUiState(
+                editingEntryId = "f16ec8a7-5115-410a-b12d-f376fdb6f76b",
                 routeOfAdministration = RouteOfAdministration.SUBCUTANEOUS,
                 medicineName = "Estradiol cypionate",
                 dosageMg = "4.0",

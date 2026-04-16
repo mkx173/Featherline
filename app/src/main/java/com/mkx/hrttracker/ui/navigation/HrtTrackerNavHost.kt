@@ -24,12 +24,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
+import com.mkx.hrttracker.ui.log.AddEntryViewModel
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 
@@ -37,7 +40,17 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object History : Screen("history", R.string.tab_history)
     data object Settings : Screen("settings", R.string.tab_settings)
-    data object AddEntry : Screen("add_entry", R.string.add_entry)
+    data object AddEntry : Screen("add_entry?${AddEntryViewModel.ENTRY_ID_ARG}={${AddEntryViewModel.ENTRY_ID_ARG}}", R.string.add_entry) {
+        const val baseRoute = "add_entry"
+
+        fun createRoute(entryId: String? = null): String {
+            return if (entryId == null) {
+                baseRoute
+            } else {
+                "$baseRoute?${AddEntryViewModel.ENTRY_ID_ARG}=$entryId"
+            }
+        }
+    }
 }
 
 private data class NavigationItemContent(
@@ -98,7 +111,7 @@ fun HrtTrackerNavHost(
         floatingActionButton = {
             if (currentRoute == Screen.Main.route) {
                 FloatingActionButton(
-                    onClick = { navController.navigate(Screen.AddEntry.route) }
+                    onClick = { navController.navigate(Screen.AddEntry.createRoute()) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -118,12 +131,25 @@ fun HrtTrackerNavHost(
                 MainScreen()
             }
             composable(Screen.History.route) {
-                HistoryScreen()
+                HistoryScreen(
+                    onEntryClick = { entryId ->
+                        navController.navigate(Screen.AddEntry.createRoute(entryId.toString()))
+                    }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen()
             }
-            composable(Screen.AddEntry.route) {
+            composable(
+                route = Screen.AddEntry.route,
+                arguments = listOf(
+                    navArgument(AddEntryViewModel.ENTRY_ID_ARG) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) {
                 AddEntryScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onEntrySaved = {

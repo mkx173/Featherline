@@ -17,21 +17,15 @@ class MedicationLogRepository @Inject constructor(
     private val medicationLogDao: MedicationLogDao
 ) {
     fun observeEntries(): Flow<List<MedicationLogEntry>> {
-        return medicationLogDao.observeEntries().map { entries ->
-            entries.map { entry ->
-                MedicationLogEntry(
-                    uuid = UUID.fromString(entry.uuid),
-                    routeOfAdministration = RouteOfAdministration.fromStorageValue(entry.routeOfAdministration),
-                    medicineName = entry.medicineName,
-                    dosageMgAsMedicine = entry.dosageMgAsMedicine,
-                    dosageMgAsEstradiol = entry.dosageMgAsEstradiol,
-                    appliedAt = Instant.ofEpochMilli(entry.appliedAtEpochMillis)
-                )
-            }
-        }
+        return medicationLogDao.observeEntries().map { entries -> entries.map { entry -> entry.toModel() } }
     }
 
-    suspend fun addEntry(
+    suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
+        return medicationLogDao.getEntry(uuid.toString())?.toModel()
+    }
+
+    suspend fun saveEntry(
+        uuid: UUID?,
         routeOfAdministration: RouteOfAdministration,
         medicineName: String,
         dosageMgAsMedicine: Double,
@@ -39,7 +33,7 @@ class MedicationLogRepository @Inject constructor(
     ) {
         medicationLogDao.insertEntry(
             MedicationLogEntryEntity(
-                uuid = UUID.randomUUID().toString(),
+                uuid = (uuid ?: UUID.randomUUID()).toString(),
                 routeOfAdministration = routeOfAdministration.name,
                 medicineName = medicineName,
                 dosageMgAsMedicine = dosageMgAsMedicine,
@@ -49,6 +43,17 @@ class MedicationLogRepository @Inject constructor(
                 ),
                 appliedAtEpochMillis = appliedAt.toEpochMilli()
             )
+        )
+    }
+
+    private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
+        return MedicationLogEntry(
+            uuid = UUID.fromString(uuid),
+            routeOfAdministration = RouteOfAdministration.fromStorageValue(routeOfAdministration),
+            medicineName = medicineName,
+            dosageMgAsMedicine = dosageMgAsMedicine,
+            dosageMgAsEstradiol = dosageMgAsEstradiol,
+            appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis)
         )
     }
 }

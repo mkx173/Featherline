@@ -4,6 +4,7 @@
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="add_entry">Add Entry</string>
+    <string name="edit_entry">Edit Entry</string>
     <string name="main_empty_state">Log your next dose from here.</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="history_empty_state">No HRT entries yet.</string>
