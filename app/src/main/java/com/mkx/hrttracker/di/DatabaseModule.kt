@@ -10,7 +10,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Singleton
 
 @Module
@@ -22,7 +22,7 @@ object DatabaseModule {
         @ApplicationContext context: Context,
         databasePassphraseProvider: DatabasePassphraseProvider
     ): HrtTrackerDatabase {
-        val openHelperFactory = SupportFactory(databasePassphraseProvider.getPassphrase())
+        val openHelperFactory = SupportOpenHelperFactory(databasePassphraseProvider.getPassphrase())
 
         return Room.databaseBuilder(
             context,

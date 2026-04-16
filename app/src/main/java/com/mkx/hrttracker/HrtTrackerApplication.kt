@@ -30,6 +30,7 @@ class HrtTrackerApplication : Application() {
             }
         }
         ToastManager.init(this)
+        System.loadLibrary("sqlcipher");
     }
 
     private fun applyDarkMode(option: DarkModeOption) {
