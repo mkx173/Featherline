@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
 import com.mkx.hrttracker.R
+import java.util.Locale
 
 enum class DarkModeOption(
     @get:StringRes val labelRes: Int,
@@ -39,7 +40,32 @@ enum class DarkModeOption(
     }
 }
 
+enum class AppLanguageOption(
+    @get:StringRes val labelRes: Int,
+    val languageTag: String,
+) {
+    ENGLISH(
+        labelRes = R.string.app_language_english,
+        languageTag = "en"
+    ),
+    SIMPLIFIED_CHINESE(
+        labelRes = R.string.app_language_simplified_chinese,
+        languageTag = "zh-Hans"
+    );
+
+    companion object {
+        fun fromLocale(locale: Locale): AppLanguageOption {
+            return if (locale.language == "zh") {
+                SIMPLIFIED_CHINESE
+            } else {
+                ENGLISH
+            }
+        }
+    }
+}
+
 data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
+    val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
 )

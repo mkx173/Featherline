@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -91,11 +92,18 @@ private fun AddEntryScreenContent(
 ) {
     var isRouteMenuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val formattedDate = remember(uiState.appliedDate) {
-        uiState.appliedDate.format(APPLIED_DATE_FORMATTER)
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
-    val formattedTime = remember(uiState.appliedTime) {
-        uiState.appliedTime.format(APPLIED_TIME_FORMATTER)
+    val timeFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    }
+    val formattedDate = remember(uiState.appliedDate, dateFormatter) {
+        uiState.appliedDate.format(dateFormatter)
+    }
+    val formattedTime = remember(uiState.appliedTime, timeFormatter) {
+        uiState.appliedTime.format(timeFormatter)
     }
 
     Scaffold(
@@ -132,7 +140,7 @@ private fun AddEntryScreenContent(
                 onExpandedChange = { isRouteMenuExpanded = !isRouteMenuExpanded }
             ) {
                 OutlinedTextField(
-                    value = uiState.routeOfAdministration.displayName,
+                    value = stringResource(uiState.routeOfAdministration.labelRes),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(text = stringResource(R.string.field_route)) },
@@ -153,7 +161,7 @@ private fun AddEntryScreenContent(
                 ) {
                     RouteOfAdministration.entries.forEach { route ->
                         DropdownMenuItem(
-                            text = { Text(route.displayName) },
+                            text = { Text(text = stringResource(route.labelRes)) },
                             onClick = {
                                 onRouteSelected(route)
                                 isRouteMenuExpanded = false
@@ -277,9 +285,3 @@ private fun AddEntryScreenPreview() {
         )
     }
 }
-
-private val APPLIED_DATE_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-
-private val APPLIED_TIME_FORMATTER: DateTimeFormatter =
-    DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)

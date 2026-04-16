@@ -1,16 +1,18 @@
 package com.mkx.hrttracker.model.medication
 
+import androidx.annotation.StringRes
+import com.mkx.hrttracker.R
 import java.time.Instant
 import java.util.UUID
 
-enum class RouteOfAdministration(val displayName: String) {
-    ORAL("Oral"),
-    SUBLINGUAL("Sublingual"),
-    TRANSDERMAL("Transdermal"),
-    INTRAMUSCULAR("Intramuscular"),
-    SUBCUTANEOUS("Subcutaneous"),
-    TOPICAL("Topical"),
-    OTHER("Other");
+enum class RouteOfAdministration(@get:StringRes val labelRes: Int) {
+    ORAL(R.string.route_oral),
+    SUBLINGUAL(R.string.route_sublingual),
+    TRANSDERMAL(R.string.route_transdermal),
+    INTRAMUSCULAR(R.string.route_intramuscular),
+    SUBCUTANEOUS(R.string.route_subcutaneous),
+    TOPICAL(R.string.route_topical),
+    OTHER(R.string.route_other);
 
     companion object {
         fun fromStorageValue(value: String?): RouteOfAdministration {

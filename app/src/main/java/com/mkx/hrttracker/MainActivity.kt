@@ -1,7 +1,6 @@
 package com.mkx.hrttracker
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,15 +12,15 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
@@ -31,6 +30,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        settingsRepository.refreshAppLanguageOption(this)
 
         setContent {
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()

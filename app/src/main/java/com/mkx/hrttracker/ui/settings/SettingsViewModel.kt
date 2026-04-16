@@ -2,9 +2,10 @@ package com.mkx.hrttracker.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.SettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -26,5 +27,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setAdaptiveColorEnabled(enabled)
         }
+    }
+
+    fun setAppLanguageOption(option: AppLanguageOption) {
+        settingsRepository.setAppLanguageOption(option)
+    }
+
+    fun refreshAppLanguageOption() {
+        settingsRepository.refreshAppLanguageOption()
     }
 }

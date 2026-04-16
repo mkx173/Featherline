@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
@@ -36,9 +37,11 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
 
@@ -78,6 +81,13 @@ private fun HistoryScreenContent(
     onDeleteConfirm: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    }
+    val timeFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    }
     val groupedEntries = uiState.entries.groupBy { entry ->
         entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
     }
@@ -145,7 +155,7 @@ private fun HistoryScreenContent(
                 groupedEntries.forEach { (date, dateEntries) ->
                     item(key = "header-$date") {
                         Text(
-                            text = date.format(HISTORY_DATE_FORMATTER),
+                            text = date.format(dateFormatter),
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(
                                 top = dimensionResource(R.dimen.padding_small),
@@ -160,6 +170,8 @@ private fun HistoryScreenContent(
                     ) { entry ->
                         HistoryEntryCard(
                             entry = entry,
+                            appLocale = appLocale,
+                            timeFormatter = timeFormatter,
                             isSelected = entry.uuid in uiState.selectedEntryIds,
                             onClick = { onEntryClick(entry.uuid) },
                             onLongClick = { onEntryLongClick(entry.uuid) }
@@ -174,6 +186,8 @@ private fun HistoryScreenContent(
 @Composable
 private fun HistoryEntryCard(
     entry: MedicationLogEntry,
+    appLocale: Locale,
+    timeFormatter: DateTimeFormatter,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -193,7 +207,7 @@ private fun HistoryEntryCard(
             }
         ),
         overlineContent = {
-            Text(text = entry.routeOfAdministration.displayName)
+            Text(text = stringResource(entry.routeOfAdministration.labelRes))
         },
         headlineContent = {
             Text(text = entry.medicineName)
@@ -202,7 +216,7 @@ private fun HistoryEntryCard(
             Text(
                 text = entry.appliedAt
                     .atZone(ZoneId.systemDefault())
-                    .format(HISTORY_TIME_FORMATTER)
+                    .format(timeFormatter)
             )
         },
         supportingContent = {
@@ -210,12 +224,12 @@ private fun HistoryEntryCard(
                 Text(
                     text = stringResource(
                         R.string.entry_medicine_dose,
-                        entry.dosageMgAsMedicine.formatDose()
+                        entry.dosageMgAsMedicine.formatDose(appLocale)
                     )
                 )
                 Text(
                     text = entry.dosageMgAsEstradiol?.let {
-                        stringResource(R.string.entry_estradiol_dose, it.formatDose())
+                        stringResource(R.string.entry_estradiol_dose, it.formatDose(appLocale))
                     } ?: stringResource(R.string.history_unknown_estradiol_dose)
                 )
             }
@@ -266,13 +280,10 @@ private fun HistoryScreenPreview() {
     }
 }
 
-private fun Double.formatDose(): String {
+private fun Double.formatDose(locale: Locale): String {
     return if (this % 1.0 == 0.0) {
-        String.format(Locale.US, "%.0f", this)
+        String.format(locale, "%.0f", this)
     } else {
-        String.format(Locale.US, "%.2f", this)
+        String.format(locale, "%.2f", this)
     }
 }
-
-private val HISTORY_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-private val HISTORY_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

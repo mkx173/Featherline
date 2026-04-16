@@ -17,15 +17,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +38,13 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
+    val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+
+    LaunchedEffect(configuration) {
+        viewModel.refreshAppLanguageOption()
+    }
 
     Scaffold(
         modifier = modifier,
@@ -60,6 +69,35 @@ fun SettingsScreen(
                     )
                 }
             )
+
+            Box {
+                ListItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { setLanguageMenuExpanded(true) },
+                    headlineContent = {
+                        Text(text = stringResource(R.string.settings_app_language))
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(settingsState.appLanguageOption.labelRes))
+                    }
+                )
+                DropdownMenu(
+                    expanded = isLanguageMenuExpanded,
+                    onDismissRequest = { setLanguageMenuExpanded(false) },
+                    modifier = Modifier.width(IntrinsicSize.Min)
+                ) {
+                    AppLanguageOption.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(text = stringResource(option.labelRes)) },
+                            onClick = {
+                                viewModel.setAppLanguageOption(option)
+                                setLanguageMenuExpanded(false)
+                            }
+                        )
+                    }
+                }
+            }
 
             Box {
                 ListItem(
