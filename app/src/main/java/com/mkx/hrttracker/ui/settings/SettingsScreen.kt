@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -16,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +58,28 @@ fun SettingsScreen(
         onAuthenticated = viewModel::onScreenLockProtectionAuthenticated,
         onError = viewModel::onScreenLockProtectionPromptError
     )
+
+    if (uiState.isEnableScreenLockWarningVisible) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissEnableScreenLockWarning,
+            title = {
+                Text(text = stringResource(R.string.enable_screen_lock_warning_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.enable_screen_lock_warning_body))
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmEnableScreenLockWarning) {
+                    Text(text = stringResource(R.string.enable_screen_lock_warning_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissEnableScreenLockWarning) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier,

@@ -53,6 +53,9 @@
     <string name="app_lock_grace_period_5_minutes">5 分钟</string>
     <string name="app_lock_grace_period_15_minutes">15 分钟</string>
     <string name="app_lock_grace_period_30_minutes">30 分钟</string>
+    <string name="enable_screen_lock_warning_title">重要提示</string>
+    <string name="enable_screen_lock_warning_body">如果你之后从此设备移除所有生物识别和屏幕锁凭据，已加密的应用数据将永久丢失。</string>
+    <string name="enable_screen_lock_warning_confirm">继续</string>
     <string name="enable_screen_lock_prompt_title">启用应用锁</string>
     <string name="enable_screen_lock_prompt_subtitle">验证身份以保护本地数据。</string>
     <string name="enable_screen_lock_prompt_description">这会使用设备的生物识别或屏幕锁凭据。</string>

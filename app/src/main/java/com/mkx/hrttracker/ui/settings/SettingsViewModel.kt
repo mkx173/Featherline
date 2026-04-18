@@ -25,17 +25,20 @@ class SettingsViewModel @Inject constructor(
     private val appLockSecurityManager: AppLockSecurityManager,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
+    private val isEnableScreenLockWarningVisible = MutableStateFlow(false)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
     private var nextPromptId = 0L
 
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.settingsState,
         pendingPrompt,
+        isEnableScreenLockWarningVisible,
         securityErrorMessageRes
-    ) { settingsState, prompt, errorRes ->
+    ) { settingsState, prompt, enableWarningVisible, errorRes ->
         SettingsUiState(
             settingsState = settingsState,
             pendingPrompt = prompt,
+            isEnableScreenLockWarningVisible = enableWarningVisible,
             securityErrorMessageRes = errorRes
         )
     }.stateIn(
@@ -84,21 +87,18 @@ class SettingsViewModel @Inject constructor(
         if (enabled) {
             val availabilityError = appLockSecurityManager.availabilityErrorMessageRes()
             if (availabilityError != null) {
+                isEnableScreenLockWarningVisible.value = false
                 securityErrorMessageRes.value = availabilityError
                 pendingPrompt.value = null
                 return
             }
 
             securityErrorMessageRes.value = null
-            pendingPrompt.value = AuthenticationPromptRequest(
-                id = ++nextPromptId,
-                titleRes = R.string.enable_screen_lock_prompt_title,
-                subtitleRes = R.string.enable_screen_lock_prompt_subtitle,
-                descriptionRes = R.string.enable_screen_lock_prompt_description
-            )
+            isEnableScreenLockWarningVisible.value = true
             return
         }
 
+        isEnableScreenLockWarningVisible.value = false
         viewModelScope.launch {
             runCatching {
                 appLockSecurityManager.disableScreenLockProtection()
@@ -112,8 +112,24 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun dismissEnableScreenLockWarning() {
+        isEnableScreenLockWarningVisible.value = false
+    }
+
+    fun confirmEnableScreenLockWarning() {
+        isEnableScreenLockWarningVisible.value = false
+        securityErrorMessageRes.value = null
+        pendingPrompt.value = AuthenticationPromptRequest(
+            id = ++nextPromptId,
+            titleRes = R.string.enable_screen_lock_prompt_title,
+            subtitleRes = R.string.enable_screen_lock_prompt_subtitle,
+            descriptionRes = R.string.enable_screen_lock_prompt_description
+        )
+    }
+
     fun onScreenLockProtectionAuthenticated() {
         pendingPrompt.value = null
+        isEnableScreenLockWarningVisible.value = false
         viewModelScope.launch {
             runCatching {
                 appLockSecurityManager.enableScreenLockProtection()
@@ -128,6 +144,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onScreenLockProtectionPromptError(errorCode: Int) {
         pendingPrompt.value = null
+        isEnableScreenLockWarningVisible.value = false
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
 }
@@ -135,5 +152,6 @@ class SettingsViewModel @Inject constructor(
 data class SettingsUiState(
     val settingsState: SettingsState = SettingsState(),
     val pendingPrompt: AuthenticationPromptRequest? = null,
+    val isEnableScreenLockWarningVisible: Boolean = false,
     val securityErrorMessageRes: Int? = null,
 )
