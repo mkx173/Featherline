@@ -39,18 +39,34 @@ interface MedicationGroupDao {
     )
     suspend fun deleteItemsForGroup(groupUuid: String)
 
+    @Query(
+        """
+        DELETE FROM medication_group_schedule_times
+        WHERE groupUuid = :groupUuid
+        """
+    )
+    suspend fun deleteScheduleTimesForGroup(groupUuid: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItems(items: List<MedicationGroupItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertScheduleTimes(scheduleTimes: List<MedicationGroupScheduleTimeEntity>)
 
     @Transaction
     suspend fun upsertGroupWithItems(
         group: MedicationGroupEntity,
-        items: List<MedicationGroupItemEntity>
+        items: List<MedicationGroupItemEntity>,
+        scheduleTimes: List<MedicationGroupScheduleTimeEntity>
     ) {
         insertGroup(group)
         deleteItemsForGroup(group.uuid)
+        deleteScheduleTimesForGroup(group.uuid)
         if (items.isNotEmpty()) {
             insertItems(items)
+        }
+        if (scheduleTimes.isNotEmpty()) {
+            insertScheduleTimes(scheduleTimes)
         }
     }
 }

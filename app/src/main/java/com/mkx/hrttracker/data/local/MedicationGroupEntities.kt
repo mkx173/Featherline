@@ -11,6 +11,9 @@ import androidx.room.Relation
 data class MedicationGroupEntity(
     @PrimaryKey val uuid: String,
     val name: String,
+    val scheduleType: String,
+    val scheduleInterval: Int,
+    val weeklyDayOfWeek: Int?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
 )
@@ -36,6 +39,26 @@ data class MedicationGroupItemEntity(
     val dosageMgAsMedicine: Double,
 )
 
+@Entity(
+    tableName = "medication_group_schedule_times",
+    primaryKeys = ["groupUuid", "sortOrder"],
+    foreignKeys = [
+        ForeignKey(
+            entity = MedicationGroupEntity::class,
+            parentColumns = ["uuid"],
+            childColumns = ["groupUuid"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("groupUuid")]
+)
+data class MedicationGroupScheduleTimeEntity(
+    val groupUuid: String,
+    val sortOrder: Int,
+    val hourOfDay: Int,
+    val minuteOfHour: Int,
+)
+
 data class MedicationGroupWithItemsEntity(
     @Embedded val group: MedicationGroupEntity,
     @Relation(
@@ -43,4 +66,9 @@ data class MedicationGroupWithItemsEntity(
         entityColumn = "groupUuid"
     )
     val items: List<MedicationGroupItemEntity>,
+    @Relation(
+        parentColumn = "uuid",
+        entityColumn = "groupUuid"
+    )
+    val scheduleTimes: List<MedicationGroupScheduleTimeEntity>,
 )

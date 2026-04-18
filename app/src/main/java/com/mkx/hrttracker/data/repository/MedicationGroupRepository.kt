@@ -3,13 +3,18 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
+import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,6 +35,7 @@ class MedicationGroupRepository @Inject constructor(
     suspend fun saveGroup(
         uuid: UUID?,
         name: String,
+        schedule: MedicationGroupScheduleInput,
         medications: List<MedicationGroupMedicationInput>
     ) {
         val dao = databaseHolder.get().medicationGroupDao()
@@ -42,6 +48,9 @@ class MedicationGroupRepository @Inject constructor(
             group = MedicationGroupEntity(
                 uuid = groupUuid.toString(),
                 name = name,
+                scheduleType = schedule.type.name,
+                scheduleInterval = schedule.interval,
+                weeklyDayOfWeek = schedule.weeklyDayOfWeek?.value,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis
             ),
@@ -54,6 +63,14 @@ class MedicationGroupRepository @Inject constructor(
                     medicineName = medication.medicineName,
                     dosageMgAsMedicine = medication.dosageMgAsMedicine,
                 )
+            },
+            scheduleTimes = schedule.times.mapIndexed { index, time ->
+                MedicationGroupScheduleTimeEntity(
+                    groupUuid = groupUuid.toString(),
+                    sortOrder = index,
+                    hourOfDay = time.hour,
+                    minuteOfHour = time.minute
+                )
             }
         )
     }
@@ -62,6 +79,14 @@ class MedicationGroupRepository @Inject constructor(
         return MedicationGroup(
             uuid = UUID.fromString(group.uuid),
             name = group.name,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
+                interval = group.scheduleInterval,
+                weeklyDayOfWeek = group.weeklyDayOfWeek?.let(DayOfWeek::of),
+                times = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder).map { time ->
+                    LocalTime.of(time.hourOfDay, time.minuteOfHour)
+                }
+            ),
             medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
                 MedicationGroupMedication(
                     uuid = UUID.fromString(item.uuid),
@@ -81,4 +106,11 @@ data class MedicationGroupMedicationInput(
     val routeOfAdministration: RouteOfAdministration,
     val medicineName: String,
     val dosageMgAsMedicine: Double,
+)
+
+data class MedicationGroupScheduleInput(
+    val type: MedicationGroupScheduleType,
+    val interval: Int,
+    val weeklyDayOfWeek: DayOfWeek?,
+    val times: List<LocalTime>,
 )

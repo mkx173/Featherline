@@ -7,9 +7,10 @@ import androidx.room.RoomDatabase
     entities = [
         MedicationLogEntryEntity::class,
         MedicationGroupEntity::class,
-        MedicationGroupItemEntity::class
+        MedicationGroupItemEntity::class,
+        MedicationGroupScheduleTimeEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {

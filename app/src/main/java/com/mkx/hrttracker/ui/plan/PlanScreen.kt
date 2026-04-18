@@ -28,8 +28,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
 
@@ -56,6 +59,9 @@ private fun PlanScreenContent(
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
+    val timeFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    }
 
     Scaffold(
         modifier = modifier,
@@ -89,6 +95,7 @@ private fun PlanScreenContent(
                     MedicationGroupCard(
                         group = group,
                         appLocale = appLocale,
+                        timeFormatter = timeFormatter,
                         onClick = { onGroupClick(group.uuid) }
                     )
                 }
@@ -101,6 +108,7 @@ private fun PlanScreenContent(
 private fun MedicationGroupCard(
     group: MedicationGroup,
     appLocale: Locale,
+    timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
     ListItem(
@@ -123,6 +131,22 @@ private fun MedicationGroupCard(
             Column(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
+                Text(
+                    text = group.schedule.formatSummary(
+                        locale = appLocale,
+                        timeFormatter = timeFormatter,
+                        dailyLabel = stringResource(
+                            R.string.group_schedule_daily_summary,
+                            group.schedule.interval
+                        ),
+                        weeklyLabel = stringResource(
+                            R.string.group_schedule_weekly_summary,
+                            group.schedule.interval
+                        )
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+
                 group.medications.take(3).forEach { medication ->
                     Text(
                         text = stringResource(

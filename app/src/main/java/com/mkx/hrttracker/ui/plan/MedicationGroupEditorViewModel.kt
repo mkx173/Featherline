@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +15,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -36,6 +41,86 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 groupName = name,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateScheduleType(scheduleType: MedicationGroupScheduleType) {
+        _uiState.update {
+            it.copy(
+                scheduleType = scheduleType,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateWeeklyIntervalWeeks(intervalWeeks: String) {
+        _uiState.update {
+            it.copy(
+                weeklyIntervalWeeks = intervalWeeks,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateWeeklyDayOfWeek(dayOfWeek: DayOfWeek) {
+        _uiState.update {
+            it.copy(
+                weeklyDayOfWeek = dayOfWeek,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateWeeklyTime(time: LocalTime) {
+        _uiState.update {
+            it.copy(
+                weeklyTime = time.withSecond(0).withNano(0),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateDailyIntervalDays(intervalDays: String) {
+        _uiState.update {
+            it.copy(
+                dailyIntervalDays = intervalDays,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun addDailyTime() {
+        _uiState.update {
+            it.copy(
+                dailyTimes = it.dailyTimes + MedicationGroupScheduleTimeUiState(
+                    time = LocalTime.now().withSecond(0).withNano(0)
+                ),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateDailyTime(localId: String, time: LocalTime) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                dailyTimes = currentState.dailyTimes.map { dailyTime ->
+                    if (dailyTime.localId == localId) {
+                        dailyTime.copy(time = time.withSecond(0).withNano(0))
+                    } else {
+                        dailyTime
+                    }
+                },
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun removeDailyTime(localId: String) {
+        _uiState.update {
+            it.copy(
+                dailyTimes = it.dailyTimes.filterNot { dailyTime -> dailyTime.localId == localId },
                 errorMessageRes = null
             )
         }
@@ -155,9 +240,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun saveGroup() {
         val currentState = _uiState.value
         val trimmedGroupName = currentState.groupName.trim()
+        val parsedWeeklyInterval = currentState.weeklyIntervalWeeks.toIntOrNull()
+        val parsedDailyInterval = currentState.dailyIntervalDays.toIntOrNull()
 
         val errorRes = when {
             trimmedGroupName.isEmpty() -> R.string.validation_group_name_required
+            currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+                (parsedWeeklyInterval == null || parsedWeeklyInterval <= 0) ->
+                R.string.validation_group_weekly_interval_required
+            currentState.scheduleType == MedicationGroupScheduleType.DAILY &&
+                (parsedDailyInterval == null || parsedDailyInterval <= 0) ->
+                R.string.validation_group_daily_interval_required
+            currentState.scheduleType == MedicationGroupScheduleType.DAILY &&
+                currentState.dailyTimes.isEmpty() ->
+                R.string.validation_group_daily_times_required
             currentState.medications.isEmpty() -> R.string.validation_group_medications_required
             else -> null
         }
@@ -173,6 +269,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
             medicationGroupRepository.saveGroup(
                 uuid = currentState.editingGroupId?.let(UUID::fromString),
                 name = trimmedGroupName,
+                schedule = when (currentState.scheduleType) {
+                    MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
+                        type = MedicationGroupScheduleType.WEEKLY,
+                        interval = parsedWeeklyInterval!!,
+                        weeklyDayOfWeek = currentState.weeklyDayOfWeek,
+                        times = listOf(currentState.weeklyTime)
+                    )
+                    MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
+                        type = MedicationGroupScheduleType.DAILY,
+                        interval = parsedDailyInterval!!,
+                        weeklyDayOfWeek = null,
+                        times = currentState.dailyTimes
+                            .map(MedicationGroupScheduleTimeUiState::time)
+                            .sorted()
+                    )
+                },
                 medications = currentState.medications.map { medication ->
                     MedicationGroupMedicationInput(
                         uuid = medication.persistedMedicationId?.let(UUID::fromString),
@@ -207,6 +319,26 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.value = MedicationGroupEditorUiState(
                 editingGroupId = group.uuid.toString(),
                 groupName = group.name,
+                scheduleType = group.schedule.type,
+                weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
+                    group.schedule.interval.toString()
+                } else {
+                    "1"
+                },
+                weeklyDayOfWeek = group.schedule.weeklyDayOfWeek ?: DayOfWeek.MONDAY,
+                weeklyTime = group.schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
+                dailyIntervalDays = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
+                    group.schedule.interval.toString()
+                } else {
+                    "1"
+                },
+                dailyTimes = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
+                    group.schedule.times.sorted().map { time ->
+                        MedicationGroupScheduleTimeUiState(time = time)
+                    }
+                } else {
+                    listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+                },
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -247,6 +379,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
+    val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.WEEKLY,
+    val weeklyIntervalWeeks: String = "1",
+    val weeklyDayOfWeek: DayOfWeek = LocalDate.now().dayOfWeek,
+    val weeklyTime: LocalTime = LocalTime.of(9, 0),
+    val dailyIntervalDays: String = "1",
+    val dailyTimes: List<MedicationGroupScheduleTimeUiState> = listOf(
+        MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))
+    ),
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val editingMedication: MedicationGroupMedicationItemUiState? = null,
     val isMedicationEditorSaved: Boolean = false,
@@ -265,4 +405,9 @@ data class MedicationGroupMedicationItemUiState(
     val routeOfAdministration: RouteOfAdministration = RouteOfAdministration.OTHER,
     val medicineName: String = "",
     val dosageMg: String = "",
+)
+
+data class MedicationGroupScheduleTimeUiState(
+    val localId: String = UUID.randomUUID().toString(),
+    val time: LocalTime,
 )
