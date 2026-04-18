@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.ui.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,11 +44,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -55,10 +61,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kizitonwose.calendar.compose.CalendarLayoutInfo
 import com.kizitonwose.calendar.compose.CalendarState
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
+import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -69,6 +77,8 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filterNotNull
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -133,11 +143,9 @@ private fun HistoryScreenContent(
         firstVisibleMonth = uiState.calendarEndMonth,
         firstDayOfWeek = uiState.calendarFirstDayOfWeek
     )
-    val displayedMonth by remember(calendarState) {
-        derivedStateOf { calendarState.firstVisibleMonth.yearMonth }
-    }
+    val displayedMonth = rememberFirstMostVisibleMonth(calendarState, viewportPercent = 90f)
 
-    LaunchedEffect(displayedMonth) {
+    LaunchedEffect(displayedMonth.yearMonth) {
         onDisplayedMonthChange()
     }
 
@@ -145,15 +153,15 @@ private fun HistoryScreenContent(
         buildPlanCalendarDayUiState(
             groups = uiState.medicationGroups,
             entries = uiState.entries,
-            startDate = displayedMonth.atDay(1),
-            endDate = displayedMonth.atEndOfMonth()
+            startDate = displayedMonth.yearMonth.atDay(1),
+            endDate = displayedMonth.yearMonth.atEndOfMonth()
         )
     }
-    val visibleEntries = remember(uiState.entries, displayedMonth) {
+    val visibleEntries = remember(uiState.entries, displayedMonth.yearMonth) {
         uiState.entries
             .filter { entry ->
                 YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()) ==
-                    displayedMonth
+                        displayedMonth.yearMonth
             }
             .sortedByDescending { it.appliedAt }
     }
@@ -216,7 +224,7 @@ private fun HistoryScreenContent(
             item(key = "calendar") {
                 HistoryMonthCalendar(
                     calendarState = calendarState,
-                    displayedMonth = displayedMonth,
+                    displayedMonth = displayedMonth.yearMonth,
                     today = today,
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     dayStates = monthDayStates,
@@ -447,22 +455,52 @@ private fun HistoryCalendarDay(
             if (isFuture) {
                 Box(modifier = Modifier.size(12.dp))
             } else {
-                HistoryCalendarDayIndicator(dayStatus ?: PlanCalendarDayStatus.NONE)
+                HistoryCalendarDayIndicator(
+                    date = day.date,
+                    today = today,
+                    dayStatus = dayStatus ?: PlanCalendarDayStatus.NONE
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HistoryCalendarDayIndicator(dayStatus: PlanCalendarDayStatus) {
+private fun HistoryCalendarDayIndicator(
+    date: LocalDate,
+    today: LocalDate,
+    dayStatus: PlanCalendarDayStatus
+) {
+    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
+    val scheduledIndicatorColor = if (date.isBefore(today)) {
+        OverdueScheduledIndicatorColor
+    } else {
+        neutralIndicatorColor
+    }
+    val partialIndicatorColor = if (date.isBefore(today)) {
+        OverduePartialIndicatorColor
+    } else {
+        neutralIndicatorColor
+    }
+
     when (dayStatus) {
         PlanCalendarDayStatus.NONE -> {
             Box(
                 modifier = Modifier
                     .size(width = 10.dp, height = 2.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.outline,
+                        color = neutralIndicatorColor,
                         shape = RoundedCornerShape(percent = 50)
+                    )
+            )
+        }
+        PlanCalendarDayStatus.UNPLANNED -> {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = neutralIndicatorColor,
+                        shape = CircleShape
                     )
             )
         }
@@ -470,11 +508,31 @@ private fun HistoryCalendarDayIndicator(dayStatus: PlanCalendarDayStatus) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.outline,
+                    .border(
+                        width = 1.5.dp,
+                        color = scheduledIndicatorColor,
                         shape = CircleShape
                     )
             )
+        }
+        PlanCalendarDayStatus.PARTIAL -> {
+            Canvas(modifier = Modifier.size(10.dp)) {
+                val strokeWidth = 1.5.dp.toPx()
+                drawCircle(
+                    color = partialIndicatorColor,
+                    style = Stroke(width = strokeWidth)
+                )
+                drawArc(
+                    color = partialIndicatorColor,
+                    startAngle = -90f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
         }
         PlanCalendarDayStatus.FULFILLED -> {
             Icon(
@@ -629,3 +687,34 @@ private fun historyDayOfWeekLabels(
 }
 
 private val HistoryFulfilledIndicatorColor = Color(0xFF2E7D32)
+private val OverdueScheduledIndicatorColor = Color(0xFFC62828)
+private val OverduePartialIndicatorColor = Color(0xFFEF6C00)
+
+@Composable
+fun rememberFirstMostVisibleMonth(
+    state: CalendarState,
+    viewportPercent: Float = 50f,
+): CalendarMonth {
+    val visibleMonth = remember(state) { mutableStateOf(state.firstVisibleMonth) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.firstMostVisibleMonth(viewportPercent) }
+            .filterNotNull()
+            .collect { month -> visibleMonth.value = month }
+    }
+    return visibleMonth.value
+}
+
+private fun CalendarLayoutInfo.firstMostVisibleMonth(viewportPercent: Float = 50f): CalendarMonth? {
+    return if (visibleMonthsInfo.isEmpty()) {
+        null
+    } else {
+        val viewportSize = (viewportEndOffset + viewportStartOffset) * viewportPercent / 100f
+        visibleMonthsInfo.firstOrNull { itemInfo ->
+            if (itemInfo.offset < 0) {
+                itemInfo.offset + itemInfo.size >= viewportSize
+            } else {
+                itemInfo.size - itemInfo.offset >= viewportSize
+            }
+        }?.month
+    }
+}

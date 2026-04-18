@@ -8,28 +8,30 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import java.util.UUID
-import kotlin.math.abs
 
 enum class PlanCalendarDayStatus {
     NONE,
+    UNPLANNED,
     SCHEDULED,
+    PARTIAL,
     FULFILLED,
 }
 
 data class PlanCalendarDayUiState(
-    val scheduledGroupIds: Set<UUID> = emptySet(),
-    val fulfilledGroupIds: Set<UUID> = emptySet(),
+    val expectedOccurrenceCount: Int = 0,
+    val matchedOccurrenceCount: Int = 0,
+    val hasUnplannedRecord: Boolean = false,
 ) {
     val status: PlanCalendarDayStatus
         get() = when {
-            scheduledGroupIds.isEmpty() -> PlanCalendarDayStatus.NONE
-            fulfilledGroupIds.containsAll(scheduledGroupIds) -> PlanCalendarDayStatus.FULFILLED
-            else -> PlanCalendarDayStatus.SCHEDULED
+            expectedOccurrenceCount <= 0 && hasUnplannedRecord -> PlanCalendarDayStatus.UNPLANNED
+            expectedOccurrenceCount <= 0 -> PlanCalendarDayStatus.NONE
+            matchedOccurrenceCount <= 0 -> PlanCalendarDayStatus.SCHEDULED
+            matchedOccurrenceCount < expectedOccurrenceCount -> PlanCalendarDayStatus.PARTIAL
+            else -> PlanCalendarDayStatus.FULFILLED
         }
 }
 
@@ -48,21 +50,21 @@ fun buildPlanCalendarDayUiState(
 
     while (!currentDate.isAfter(endDate)) {
         val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(currentDate) }
-        val scheduledGroupIds = scheduledGroups.mapTo(linkedSetOf()) { group -> group.uuid }
         val dayEntries = entriesByDate[currentDate].orEmpty()
-        val fulfilledGroupIds = scheduledGroups
-            .filter { group ->
-                val fulfilledOccurrenceCount = countFulfilledOccurrences(
-                    group = group,
-                    dayEntries = dayEntries
-                )
-                fulfilledOccurrenceCount == group.schedule.times.size
-            }
-            .mapTo(linkedSetOf()) { group -> group.uuid }
+        val expectedOccurrenceCount = scheduledGroups.sumOf { group ->
+            group.schedule.times.size
+        }
+        val matchedOccurrenceCount = scheduledGroups.sumOf { group ->
+            countFulfilledOccurrences(
+                group = group,
+                dayEntries = dayEntries
+            )
+        }.coerceAtMost(expectedOccurrenceCount)
 
         dayStates[currentDate] = PlanCalendarDayUiState(
-            scheduledGroupIds = scheduledGroupIds,
-            fulfilledGroupIds = fulfilledGroupIds
+            expectedOccurrenceCount = expectedOccurrenceCount,
+            matchedOccurrenceCount = matchedOccurrenceCount,
+            hasUnplannedRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty()
         )
         currentDate = currentDate.plusDays(1)
     }

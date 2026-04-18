@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.log
 
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -88,6 +90,7 @@ fun QuickAddMedicationGroupSheet(
         },
         onGroupSelected = viewModel::selectGroup,
         onChangeGroupClick = viewModel::clearSelectedGroup,
+        onItemDateChange = viewModel::updateItemDate,
         onItemTimeChange = viewModel::updateItemTime,
         onSaveClick = viewModel::saveEntries,
         modifier = modifier
@@ -103,12 +106,16 @@ private fun QuickAddMedicationGroupSheetContent(
     onCloseClick: () -> Unit,
     onGroupSelected: (UUID) -> Unit,
     onChangeGroupClick: () -> Unit,
+    onItemDateChange: (String, LocalDate) -> Unit,
     onItemTimeChange: (String, LocalTime) -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val appLocale = rememberAppLocale()
+    val dateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    }
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
@@ -158,7 +165,22 @@ private fun QuickAddMedicationGroupSheetContent(
                     QuickAddMedicationGroupEntryRow(
                         entry = entry,
                         appLocale = appLocale,
+                        dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
+                        onDateClick = {
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    onItemDateChange(
+                                        entry.localId,
+                                        LocalDate.of(year, month + 1, dayOfMonth)
+                                    )
+                                },
+                                entry.appliedDate.year,
+                                entry.appliedDate.monthValue - 1,
+                                entry.appliedDate.dayOfMonth
+                            ).show()
+                        },
                         onTimeClick = {
                             TimePickerDialog(
                                 context,
@@ -265,7 +287,9 @@ private fun MedicationGroupSelectionRow(
 private fun QuickAddMedicationGroupEntryRow(
     entry: QuickAddMedicationGroupItemUiState,
     appLocale: Locale,
+    dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    onDateClick: () -> Unit,
     onTimeClick: () -> Unit
 ) {
     ListItem(
@@ -285,10 +309,15 @@ private fun QuickAddMedicationGroupEntryRow(
             )
         },
         trailingContent = {
-            TextButton(onClick = onTimeClick) {
-                Text(
-                    text = entry.appliedTime.format(timeFormatter)
-                )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+            ) {
+                TextButton(onClick = onDateClick) {
+                    Text(text = entry.appliedDate.format(dateFormatter))
+                }
+                TextButton(onClick = onTimeClick) {
+                    Text(text = entry.appliedTime.format(timeFormatter))
+                }
             }
         }
     )

@@ -97,6 +97,18 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
         }
     }
 
+    fun updateItemDate(localId: String, appliedDate: LocalDate) {
+        draftEntries.update { currentEntries ->
+            currentEntries.map { entry ->
+                if (entry.localId == localId) {
+                    entry.copy(appliedDate = appliedDate)
+                } else {
+                    entry
+                }
+            }
+        }
+    }
+
     fun saveEntries() {
         val currentEntries = draftEntries.value
         val currentGroupId = selectedGroupId.value

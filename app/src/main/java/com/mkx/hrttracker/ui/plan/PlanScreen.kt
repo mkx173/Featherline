@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -121,6 +125,7 @@ private fun PlanScreenContent(
                 dayContent = { day ->
                     Day(
                         date = day.date,
+                        today = uiState.today,
                         dayStatus = uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE,
                         isSelected = selection == day.date
                     ) { clicked ->
@@ -317,10 +322,13 @@ private fun MedicationGroupCard(
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
 private val fulfilledIndicatorColor = Color(0xFF2E7D32)
+private val overdueScheduledIndicatorColor = Color(0xFFC62828)
+private val overduePartialIndicatorColor = Color(0xFFEF6C00)
 
 @Composable
 private fun Day(
     date: LocalDate,
+    today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
     isSelected: Boolean,
     onClick: (LocalDate) -> Unit
@@ -352,7 +360,11 @@ private fun Day(
                 color = dayNumberColor,
                 fontWeight = FontWeight.Bold,
             )
-            DayStatusIndicator(dayStatus = dayStatus)
+            DayStatusIndicator(
+                date = date,
+                today = today,
+                dayStatus = dayStatus
+            )
         }
         if (isSelected) {
             Box(
@@ -367,15 +379,41 @@ private fun Day(
 }
 
 @Composable
-private fun DayStatusIndicator(dayStatus: PlanCalendarDayStatus) {
+private fun DayStatusIndicator(
+    date: LocalDate,
+    today: LocalDate,
+    dayStatus: PlanCalendarDayStatus
+) {
+    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
+    val scheduledIndicatorColor = if (date.isBefore(today)) {
+        overdueScheduledIndicatorColor
+    } else {
+        neutralIndicatorColor
+    }
+    val partialIndicatorColor = if (date.isBefore(today)) {
+        overduePartialIndicatorColor
+    } else {
+        neutralIndicatorColor
+    }
+
     when (dayStatus) {
         PlanCalendarDayStatus.NONE -> {
             Box(
                 modifier = Modifier
                     .size(width = 10.dp, height = 2.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.outline,
+                        color = neutralIndicatorColor,
                         shape = RoundedCornerShape(percent = 50)
+                    )
+            )
+        }
+        PlanCalendarDayStatus.UNPLANNED -> {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = neutralIndicatorColor,
+                        shape = CircleShape
                     )
             )
         }
@@ -383,11 +421,31 @@ private fun DayStatusIndicator(dayStatus: PlanCalendarDayStatus) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.outline,
+                    .border(
+                        width = 1.5.dp,
+                        color = scheduledIndicatorColor,
                         shape = CircleShape
                     )
             )
+        }
+        PlanCalendarDayStatus.PARTIAL -> {
+            Canvas(modifier = Modifier.size(10.dp)) {
+                val strokeWidth = 1.5.dp.toPx()
+                drawCircle(
+                    color = partialIndicatorColor,
+                    style = Stroke(width = strokeWidth)
+                )
+                drawArc(
+                    color = partialIndicatorColor,
+                    startAngle = -90f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
         }
         PlanCalendarDayStatus.FULFILLED -> {
             Icon(

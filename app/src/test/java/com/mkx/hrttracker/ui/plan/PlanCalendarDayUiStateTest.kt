@@ -18,7 +18,7 @@ import java.util.UUID
 
 class PlanCalendarDayUiStateTest {
     @Test
-    fun buildPlanCalendarDayUiState_marks_unscheduled_scheduled_and_fulfilled_days() {
+    fun buildPlanCalendarDayUiState_marks_none_unplanned_scheduled_partial_and_fulfilled_days() {
         val dailyGroup = medicationGroup(
             uuid = UUID.fromString("73fa49ec-b396-4179-b834-e0d783f2defd"),
             schedule = MedicationGroupSchedule(
@@ -65,6 +65,12 @@ class PlanCalendarDayUiStateTest {
         val dayStates = buildPlanCalendarDayUiState(
             groups = listOf(dailyGroup, weeklyGroup),
             entries = listOf(
+                manualEntry(
+                    route = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosage = 2.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0)
+                ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
                     route = RouteOfAdministration.ORAL,
@@ -90,16 +96,31 @@ class PlanCalendarDayUiStateTest {
                     medicineName = "Progesterone",
                     dosage = 100.0,
                     appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0)
+                ),
+                groupEntry(
+                    groupUuid = dailyGroup.uuid,
+                    route = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosage = 2.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0)
+                ),
+                groupEntry(
+                    groupUuid = dailyGroup.uuid,
+                    route = RouteOfAdministration.TOPICAL,
+                    medicineName = "Progesterone",
+                    dosage = 100.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0)
                 )
             ),
             startDate = LocalDate.of(2026, 4, 15),
-            endDate = LocalDate.of(2026, 4, 18)
+            endDate = LocalDate.of(2026, 4, 19)
         )
 
-        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 15)).status)
+        assertEquals(PlanCalendarDayStatus.UNPLANNED, dayStates.getValue(LocalDate.of(2026, 4, 15)).status)
         assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
         assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
-        assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 18)).status)
+        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 18)).status)
+        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 19)).status)
     }
 
     @Test
@@ -190,6 +211,45 @@ class PlanCalendarDayUiStateTest {
         )
 
         assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+    }
+
+    @Test
+    fun buildPlanCalendarDayUiState_marks_unplanned_when_day_has_off_schedule_group_record() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("6a6fc487-44d5-4979-b3bb-87cbc2df3f15"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 14),
+                weeklyDayOfWeek = LocalDate.of(2026, 4, 18).dayOfWeek,
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("2ef68ea5-c921-416f-96e7-dc1a3c75eb7a"),
+                    route = RouteOfAdministration.ORAL,
+                    name = "Estradiol",
+                    dosage = 2.0
+                )
+            )
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = group.uuid,
+                    route = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosage = 2.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 17, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 17),
+            endDate = LocalDate.of(2026, 4, 17)
+        )
+
+        assertEquals(PlanCalendarDayStatus.UNPLANNED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
     }
 
     private fun medicationGroup(
