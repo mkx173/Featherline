@@ -25,6 +25,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
@@ -32,6 +33,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.log.MedicationEditorSheet
 import com.mkx.hrttracker.util.rememberAppLocale
 
@@ -59,6 +61,7 @@ fun MedicationGroupEditorScreen(
         onMedicationClick = viewModel::showMedicationEditor,
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
+        onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
         onMedicationRouteChange = viewModel::updateEditingMedicationRoute,
         onMedicationNameChange = viewModel::updateEditingMedicationName,
         onMedicationDosageChange = viewModel::updateEditingMedicationDosage,
@@ -78,6 +81,7 @@ private fun MedicationGroupEditorScreenContent(
     onMedicationClick: (String) -> Unit,
     onRemoveMedication: (String) -> Unit,
     onDismissMedicationEditor: () -> Unit,
+    onConsumeMedicationEditorSaved: () -> Unit,
     onMedicationRouteChange: (com.mkx.hrttracker.model.medication.RouteOfAdministration) -> Unit,
     onMedicationNameChange: (String) -> Unit,
     onMedicationDosageChange: (String) -> Unit,
@@ -89,6 +93,16 @@ private fun MedicationGroupEditorScreenContent(
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
     )
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(uiState.isMedicationEditorSaved) {
+        if (uiState.isMedicationEditorSaved) {
+            hideBottomSheet(scope, sheetState) {
+                onConsumeMedicationEditorSaved()
+                onDismissMedicationEditor()
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -191,6 +205,9 @@ private fun MedicationGroupEditorScreenContent(
             sheetState = sheetState,
             confirmButtonText = stringResource(R.string.save_medication),
             onDismissRequest = onDismissMedicationEditor,
+            onCloseClick = {
+                hideBottomSheet(scope, sheetState, onDismissMedicationEditor)
+            },
             routeOfAdministration = medication.routeOfAdministration,
             medicineName = medication.medicineName,
             dosageMg = medication.dosageMg,

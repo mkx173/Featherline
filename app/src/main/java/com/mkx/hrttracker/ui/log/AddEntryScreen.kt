@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +46,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -52,6 +54,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEntryScreen(
     entryId: String?,
@@ -61,6 +64,10 @@ fun AddEntryScreen(
     viewModel: AddEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(entryId) {
         viewModel.initialize(entryId)
@@ -68,14 +75,20 @@ fun AddEntryScreen(
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
-            viewModel.consumeSavedState()
-            onEntrySaved()
+            hideBottomSheet(scope, sheetState) {
+                viewModel.consumeSavedState()
+                onEntrySaved()
+            }
         }
     }
 
     AddEntryScreenContent(
         uiState = uiState,
+        sheetState = sheetState,
         onDismissRequest = onDismissRequest,
+        onCloseClick = {
+            hideBottomSheet(scope, sheetState, onDismissRequest)
+        },
         onRouteSelected = viewModel::updateRoute,
         onMedicineNameChange = viewModel::updateMedicineName,
         onDosageChange = viewModel::updateDosageMg,
@@ -90,7 +103,9 @@ fun AddEntryScreen(
 @Composable
 private fun AddEntryScreenContent(
     uiState: AddEntryUiState,
+    sheetState: SheetState,
     onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     onRouteSelected: (RouteOfAdministration) -> Unit,
     onMedicineNameChange: (String) -> Unit,
     onDosageChange: (String) -> Unit,
@@ -99,15 +114,13 @@ private fun AddEntryScreenContent(
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
-    )
     MedicationEditorSheet(
         modifier = modifier,
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
         confirmButtonText = stringResource(R.string.save_entry),
         onDismissRequest = onDismissRequest,
+        onCloseClick = onCloseClick,
         routeOfAdministration = uiState.routeOfAdministration,
         medicineName = uiState.medicineName,
         dosageMg = uiState.dosageMg,
@@ -132,6 +145,7 @@ fun MedicationEditorSheet(
     sheetState: SheetState,
     confirmButtonText: String,
     onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     routeOfAdministration: RouteOfAdministration,
     medicineName: String,
     dosageMg: String,
@@ -189,7 +203,7 @@ fun MedicationEditorSheet(
                     text = title,
                     style = MaterialTheme.typography.titleLarge
                 )
-                TextButton(onClick = onDismissRequest) {
+                TextButton(onClick = onCloseClick) {
                     Text(text = stringResource(R.string.cancel))
                 }
             }
@@ -324,6 +338,7 @@ private fun PickerField(
 }
 
 @Preview(showBackground = true)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddEntryScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
@@ -336,7 +351,9 @@ private fun AddEntryScreenPreview() {
                 appliedDate = LocalDate.of(2026, 4, 16),
                 appliedTime = LocalTime.of(21, 15),
             ),
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             onDismissRequest = { },
+            onCloseClick = { },
             onRouteSelected = { },
             onMedicineNameChange = { },
             onDosageChange = { },

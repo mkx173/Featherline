@@ -45,6 +45,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 editingMedication = MedicationGroupMedicationItemUiState(),
+                isMedicationEditorSaved = false,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
             )
@@ -64,6 +65,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 editingMedication = currentState.medications.firstOrNull { it.localId == localId },
+                isMedicationEditorSaved = false,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
             )
@@ -71,7 +73,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun dismissMedicationEditor() {
-        _uiState.update { it.copy(editingMedication = null, medicationEditorErrorMessageRes = null) }
+        _uiState.update {
+            it.copy(
+                editingMedication = null,
+                isMedicationEditorSaved = false,
+                medicationEditorErrorMessageRes = null
+            )
+        }
+    }
+
+    fun consumeMedicationEditorSaved() {
+        _uiState.update {
+            it.copy(
+                isMedicationEditorSaved = false
+            )
+        }
     }
 
     fun updateEditingMedicationRoute(routeOfAdministration: RouteOfAdministration) {
@@ -128,7 +144,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
             it.copy(
                 medications = updatedMedications,
-                editingMedication = null,
+                editingMedication = savedMedication,
+                isMedicationEditorSaved = true,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
             )
@@ -232,6 +249,7 @@ data class MedicationGroupEditorUiState(
     val groupName: String = "",
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val editingMedication: MedicationGroupMedicationItemUiState? = null,
+    val isMedicationEditorSaved: Boolean = false,
     val medicationEditorErrorMessageRes: Int? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,

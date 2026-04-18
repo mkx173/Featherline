@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -39,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -56,6 +58,7 @@ fun QuickAddMedicationGroupSheet(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         viewModel.initialize()
@@ -63,8 +66,10 @@ fun QuickAddMedicationGroupSheet(
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
-            viewModel.reset()
-            onEntriesSaved()
+            hideBottomSheet(scope, sheetState) {
+                viewModel.reset()
+                onEntriesSaved()
+            }
         }
     }
 
@@ -74,6 +79,12 @@ fun QuickAddMedicationGroupSheet(
         onDismissRequest = {
             viewModel.reset()
             onDismissRequest()
+        },
+        onCloseClick = {
+            hideBottomSheet(scope, sheetState) {
+                viewModel.reset()
+                onDismissRequest()
+            }
         },
         onGroupSelected = viewModel::selectGroup,
         onChangeGroupClick = viewModel::clearSelectedGroup,
@@ -89,6 +100,7 @@ private fun QuickAddMedicationGroupSheetContent(
     uiState: QuickAddMedicationGroupUiState,
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     onGroupSelected: (UUID) -> Unit,
     onChangeGroupClick: () -> Unit,
     onItemTimeChange: (String, LocalTime) -> Unit,
@@ -120,7 +132,7 @@ private fun QuickAddMedicationGroupSheetContent(
         ) {
             QuickAddMedicationGroupSheetHeader(
                 selectedGroup = uiState.selectedGroup,
-                onDismissRequest = onDismissRequest,
+                onCloseClick = onCloseClick,
                 onChangeGroupClick = onChangeGroupClick
             )
 
@@ -179,7 +191,7 @@ private fun QuickAddMedicationGroupSheetContent(
 @Composable
 private fun QuickAddMedicationGroupSheetHeader(
     selectedGroup: MedicationGroup?,
-    onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     onChangeGroupClick: () -> Unit
 ) {
     Row(
@@ -206,7 +218,7 @@ private fun QuickAddMedicationGroupSheetHeader(
             }
         }
 
-        TextButton(onClick = onDismissRequest) {
+        TextButton(onClick = onCloseClick) {
             Text(text = stringResource(R.string.cancel))
         }
     }
