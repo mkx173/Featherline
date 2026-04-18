@@ -28,12 +28,14 @@
     <string name="group_schedule_daily">Daily</string>
     <string name="group_schedule_every_weeks">Once per x weeks</string>
     <string name="group_schedule_every_days">Every x days</string>
+    <string name="group_schedule_since">Since</string>
     <string name="group_schedule_day_of_week">Day of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>
     <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_weekly_summary">Every %1$s week(s)</string>
     <string name="group_schedule_daily_summary">Every %1$s day(s)</string>
+    <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
     <string name="save_entry">Save Entry</string>

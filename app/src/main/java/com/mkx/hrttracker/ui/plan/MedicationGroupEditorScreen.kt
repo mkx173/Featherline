@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.log.MedicationEditorSheet
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -78,6 +80,7 @@ fun MedicationGroupEditorScreen(
         onNavigateBack = onNavigateBack,
         onGroupNameChange = viewModel::updateGroupName,
         onScheduleTypeChange = viewModel::updateScheduleType,
+        onSinceDateChange = viewModel::updateSinceDate,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::updateWeeklyDayOfWeek,
         onWeeklyTimeChange = viewModel::updateWeeklyTime,
@@ -106,6 +109,7 @@ private fun MedicationGroupEditorScreenContent(
     onNavigateBack: () -> Unit,
     onGroupNameChange: (String) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
+    onSinceDateChange: (LocalDate) -> Unit,
     onWeeklyIntervalChange: (String) -> Unit,
     onWeeklyDayChange: (DayOfWeek) -> Unit,
     onWeeklyTimeChange: (LocalTime) -> Unit,
@@ -133,6 +137,9 @@ private fun MedicationGroupEditorScreenContent(
     val scope = rememberCoroutineScope()
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    }
+    val dateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
 
     LaunchedEffect(uiState.isMedicationEditorSaved) {
@@ -223,11 +230,24 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                     WeeklyScheduleEditor(
+                        sinceDate = uiState.sinceDate,
                         intervalWeeks = uiState.weeklyIntervalWeeks,
                         dayOfWeek = uiState.weeklyDayOfWeek,
                         time = uiState.weeklyTime,
                         appLocale = appLocale,
+                        dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
+                        onSinceDateChange = { currentDate ->
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    onSinceDateChange(LocalDate.of(year, month + 1, dayOfMonth))
+                                },
+                                currentDate.year,
+                                currentDate.monthValue - 1,
+                                currentDate.dayOfMonth
+                            ).show()
+                        },
                         onIntervalChange = onWeeklyIntervalChange,
                         onDayChange = onWeeklyDayChange,
                         onTimeChange = { currentTime ->
@@ -244,10 +264,22 @@ private fun MedicationGroupEditorScreenContent(
                     )
                 } else {
                     DailyScheduleEditor(
+                        sinceDate = uiState.sinceDate,
                         intervalDays = uiState.dailyIntervalDays,
                         dailyTimes = uiState.dailyTimes,
-                        appLocale = appLocale,
+                        dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
+                        onSinceDateChange = { currentDate ->
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    onSinceDateChange(LocalDate.of(year, month + 1, dayOfMonth))
+                                },
+                                currentDate.year,
+                                currentDate.monthValue - 1,
+                                currentDate.dayOfMonth
+                            ).show()
+                        },
                         onIntervalChange = onDailyIntervalChange,
                         onAddTime = onAddDailyTime,
                         onTimeClick = { localId, currentTime ->
@@ -342,11 +374,14 @@ private fun MedicationGroupEditorScreenContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WeeklyScheduleEditor(
+    sinceDate: LocalDate,
     intervalWeeks: String,
     dayOfWeek: DayOfWeek,
     time: LocalTime,
     appLocale: java.util.Locale,
+    dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
     onTimeChange: (LocalTime) -> Unit
@@ -356,6 +391,12 @@ private fun WeeklyScheduleEditor(
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
     ) {
+        DateRow(
+            label = stringResource(R.string.group_schedule_since),
+            formattedDate = sinceDate.format(dateFormatter),
+            onClick = { onSinceDateChange(sinceDate) }
+        )
+
         OutlinedTextField(
             value = intervalWeeks,
             onValueChange = onIntervalChange,
@@ -410,10 +451,12 @@ private fun WeeklyScheduleEditor(
 
 @Composable
 private fun DailyScheduleEditor(
+    sinceDate: LocalDate,
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
-    appLocale: java.util.Locale,
+    dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
@@ -422,6 +465,12 @@ private fun DailyScheduleEditor(
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
     ) {
+        DateRow(
+            label = stringResource(R.string.group_schedule_since),
+            formattedDate = sinceDate.format(dateFormatter),
+            onClick = { onSinceDateChange(sinceDate) }
+        )
+
         OutlinedTextField(
             value = intervalDays,
             onValueChange = onIntervalChange,
@@ -489,6 +538,25 @@ private fun TimeRow(
         },
         headlineContent = {
             Text(text = formattedTime)
+        }
+    )
+}
+
+@Composable
+private fun DateRow(
+    label: String,
+    formattedDate: String,
+    onClick: () -> Unit
+) {
+    ListItem(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        overlineContent = {
+            Text(text = label)
+        },
+        headlineContent = {
+            Text(text = formattedDate)
         }
     )
 }

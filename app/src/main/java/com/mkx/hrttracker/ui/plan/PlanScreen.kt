@@ -79,6 +79,9 @@ private fun PlanScreenContent(
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
+    val dateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    }
 
     val currentDate = remember { LocalDate.now() }
     val startDate = remember { currentDate.minusWeeks(1) }
@@ -137,6 +140,7 @@ private fun PlanScreenContent(
                         MedicationGroupCard(
                             group = group,
                             appLocale = appLocale,
+                            dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onClick = { onGroupClick(group.uuid) }
                         )
@@ -151,6 +155,7 @@ private fun PlanScreenContent(
 private fun MedicationGroupCard(
     group: MedicationGroup,
     appLocale: Locale,
+    dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
@@ -186,6 +191,14 @@ private fun MedicationGroupCard(
                             R.string.group_schedule_weekly_summary,
                             group.schedule.interval
                         )
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = stringResource(
+                        R.string.group_schedule_since_summary,
+                        group.schedule.since.format(dateFormatter)
                     ),
                     style = MaterialTheme.typography.bodySmall
                 )

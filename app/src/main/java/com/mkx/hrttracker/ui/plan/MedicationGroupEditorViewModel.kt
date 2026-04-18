@@ -82,6 +82,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateSinceDate(date: LocalDate) {
+        _uiState.update {
+            it.copy(
+                sinceDate = date,
+                errorMessageRes = null
+            )
+        }
+    }
+
     fun updateDailyIntervalDays(intervalDays: String) {
         _uiState.update {
             it.copy(
@@ -273,12 +282,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.WEEKLY,
                         interval = parsedWeeklyInterval!!,
+                        since = currentState.sinceDate,
                         weeklyDayOfWeek = currentState.weeklyDayOfWeek,
                         times = listOf(currentState.weeklyTime)
                     )
                     MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.DAILY,
                         interval = parsedDailyInterval!!,
+                        since = currentState.sinceDate,
                         weeklyDayOfWeek = null,
                         times = currentState.dailyTimes
                             .map(MedicationGroupScheduleTimeUiState::time)
@@ -320,6 +331,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 editingGroupId = group.uuid.toString(),
                 groupName = group.name,
                 scheduleType = group.schedule.type,
+                sinceDate = group.schedule.since,
                 weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
                     group.schedule.interval.toString()
                 } else {
@@ -380,6 +392,7 @@ data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.WEEKLY,
+    val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
     val weeklyDayOfWeek: DayOfWeek = LocalDate.now().dayOfWeek,
     val weeklyTime: LocalTime = LocalTime.of(9, 0),

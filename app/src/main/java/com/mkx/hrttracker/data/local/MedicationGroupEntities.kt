@@ -13,6 +13,7 @@ data class MedicationGroupEntity(
     val name: String,
     val scheduleType: String,
     val scheduleInterval: Int,
+    val scheduleSinceEpochDay: Long,
     val weeklyDayOfWeek: Int?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,

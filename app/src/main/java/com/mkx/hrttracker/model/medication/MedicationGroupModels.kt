@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.DayOfWeek
 import java.util.UUID
@@ -35,6 +36,7 @@ enum class MedicationGroupScheduleType {
 data class MedicationGroupSchedule(
     val type: MedicationGroupScheduleType,
     val interval: Int,
+    val since: LocalDate,
     val weeklyDayOfWeek: DayOfWeek?,
     val times: List<LocalTime>,
 )

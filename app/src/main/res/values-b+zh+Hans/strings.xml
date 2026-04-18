@@ -28,12 +28,14 @@
     <string name="group_schedule_daily">每日</string>
     <string name="group_schedule_every_weeks">每 x 周一次</string>
     <string name="group_schedule_every_days">每 x 天一次</string>
+    <string name="group_schedule_since">开始于</string>
     <string name="group_schedule_day_of_week">星期</string>
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>
     <string name="group_schedule_time_item">%1$s</string>
     <string name="group_schedule_weekly_summary">每 %1$s 周</string>
     <string name="group_schedule_daily_summary">每 %1$s 天</string>
+    <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>
     <string name="field_time_of_application">用药时间</string>
     <string name="save_entry">保存记录</string>

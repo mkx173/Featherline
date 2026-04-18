@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
@@ -50,6 +51,7 @@ class MedicationGroupRepository @Inject constructor(
                 name = name,
                 scheduleType = schedule.type.name,
                 scheduleInterval = schedule.interval,
+                scheduleSinceEpochDay = schedule.since.toEpochDay(),
                 weeklyDayOfWeek = schedule.weeklyDayOfWeek?.value,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis
@@ -82,6 +84,7 @@ class MedicationGroupRepository @Inject constructor(
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
                 interval = group.scheduleInterval,
+                since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
                 weeklyDayOfWeek = group.weeklyDayOfWeek?.let(DayOfWeek::of),
                 times = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder).map { time ->
                     LocalTime.of(time.hourOfDay, time.minuteOfHour)
@@ -111,6 +114,7 @@ data class MedicationGroupMedicationInput(
 data class MedicationGroupScheduleInput(
     val type: MedicationGroupScheduleType,
     val interval: Int,
+    val since: LocalDate,
     val weeklyDayOfWeek: DayOfWeek?,
     val times: List<LocalTime>,
 )
