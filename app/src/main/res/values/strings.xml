@@ -16,6 +16,7 @@
     <string name="plan_selected_day_records_title">Records on %1$s</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
     <string name="history_empty_state">No HRT entries yet.</string>
+    <string name="history_month_empty_state">No HRT entries for this month.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
     <string name="history_entry_source_manual">Manual entry</string>
     <string name="history_entry_source_group_manual">Entry from medication group</string>
