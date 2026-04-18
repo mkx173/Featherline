@@ -10,4 +10,5 @@
     <exclude domain="database" path="hrt_tracker.db-shm" />
     <exclude domain="database" path="hrt_tracker.db-wal" />
     <exclude domain="sharedpref" path="hrt_tracker_secure_storage.xml" />
+    <exclude domain="file" path="datastore/settings.preferences_pb" />
 </full-backup-content>
