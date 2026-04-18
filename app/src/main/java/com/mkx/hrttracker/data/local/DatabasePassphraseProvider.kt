@@ -44,28 +44,40 @@ class DatabasePassphraseProvider @Inject constructor(
                 }
             }
 
-            cachePassphrase(passphrase)
-            return passphrase.copyOf()
+            try {
+                cachePassphrase(passphrase)
+                return passphrase.copyOf()
+            } finally {
+                passphrase.fill(0)
+            }
         }
 
         val passphrase = ByteArray(PASSPHRASE_SIZE_BYTES).also(SecureRandom()::nextBytes)
-        persistEncryptedBlob(
-            encryptedBlob = encryptWithStandardKey(passphrase),
-            mode = MasterKeyMode.STANDARD
-        )
-        cachePassphrase(passphrase)
-        return passphrase.copyOf()
+        try {
+            persistEncryptedBlob(
+                encryptedBlob = encryptWithStandardKey(passphrase),
+                mode = MasterKeyMode.STANDARD
+            )
+            cachePassphrase(passphrase)
+            return passphrase.copyOf()
+        } finally {
+            passphrase.fill(0)
+        }
     }
 
     @Throws(UserNotAuthenticatedException::class)
     fun enableScreenLockProtection() {
         val passphrase = loadOrCreatePassphraseForMigration()
-        val encryptedBlob = encryptWithScreenLockKey(passphrase)
-        persistEncryptedBlob(
-            encryptedBlob = encryptedBlob,
-            mode = MasterKeyMode.SCREEN_LOCK
-        )
-        cachePassphrase(passphrase)
+        try {
+            val encryptedBlob = encryptWithScreenLockKey(passphrase)
+            persistEncryptedBlob(
+                encryptedBlob = encryptedBlob,
+                mode = MasterKeyMode.SCREEN_LOCK
+            )
+            cachePassphrase(passphrase)
+        } finally {
+            passphrase.fill(0)
+        }
     }
 
     fun disableScreenLockProtection() {
@@ -77,11 +89,15 @@ class DatabasePassphraseProvider @Inject constructor(
                 }
             }
 
-        persistEncryptedBlob(
-            encryptedBlob = encryptWithStandardKey(passphrase),
-            mode = MasterKeyMode.STANDARD
-        )
-        cachePassphrase(passphrase)
+        try {
+            persistEncryptedBlob(
+                encryptedBlob = encryptWithStandardKey(passphrase),
+                mode = MasterKeyMode.STANDARD
+            )
+            cachePassphrase(passphrase)
+        } finally {
+            passphrase.fill(0)
+        }
     }
 
     @Throws(UserNotAuthenticatedException::class)
@@ -99,10 +115,15 @@ class DatabasePassphraseProvider @Inject constructor(
             encryptedBytes = Base64.decode(encryptedPassphrase, Base64.NO_WRAP),
             iv = Base64.decode(iv, Base64.NO_WRAP)
         )
-        cachePassphrase(passphrase)
+        try {
+            cachePassphrase(passphrase)
+        } finally {
+            passphrase.fill(0)
+        }
     }
 
     fun clearPassphraseCache() {
+        cachedPassphrase?.fill(0)
         cachedPassphrase = null
     }
 
@@ -186,6 +207,7 @@ class DatabasePassphraseProvider @Inject constructor(
     }
 
     private fun cachePassphrase(passphrase: ByteArray) {
+        cachedPassphrase?.fill(0)
         cachedPassphrase = passphrase.copyOf()
     }
 
