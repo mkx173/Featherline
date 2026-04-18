@@ -15,6 +15,9 @@
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
+    <string name="history_entry_source_manual">Manual entry</string>
+    <string name="history_entry_source_group_manual">Entry from medication group</string>
+    <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
     <string name="delete_entries_title">Delete entries</string>
     <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>

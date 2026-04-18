@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,7 +99,11 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
 
     fun saveEntries() {
         val currentEntries = draftEntries.value
+        val currentGroupId = selectedGroupId.value
         if (currentEntries.isEmpty()) {
+            return
+        }
+        if (currentGroupId == null) {
             return
         }
 
@@ -115,6 +120,8 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
                     routeOfAdministration = entry.routeOfAdministration,
                     medicineName = entry.medicineName,
                     dosageMgAsMedicine = entry.dosageMgAsMedicine,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = currentGroupId,
                     appliedAt = appliedAt
                 )
             }

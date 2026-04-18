@@ -10,5 +10,7 @@ data class MedicationLogEntryEntity(
     val medicineName: String,
     val dosageMgAsMedicine: Double,
     val dosageMgAsEstradiol: Double?,
+    val sourceType: String,
+    val sourceGroupUuid: String?,
     val appliedAtEpochMillis: Long,
 )

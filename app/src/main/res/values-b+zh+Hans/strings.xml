@@ -15,6 +15,9 @@
     <string name="plan_empty_state">暂无用药分组。</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
+    <string name="history_entry_source_manual">手动记录</string>
+    <string name="history_entry_source_group_manual">来自用药分组的记录</string>
+    <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
     <string name="delete_entries_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>

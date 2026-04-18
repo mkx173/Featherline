@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -37,6 +38,8 @@ class MedicationLogRepository @Inject constructor(
         routeOfAdministration: RouteOfAdministration,
         medicineName: String,
         dosageMgAsMedicine: Double,
+        sourceType: MedicationLogEntrySourceType,
+        sourceGroupUuid: UUID?,
         appliedAt: Instant
     ) {
         databaseHolder.get().medicationLogDao().insertEntry(
@@ -49,6 +52,8 @@ class MedicationLogRepository @Inject constructor(
                     medicineName = medicineName,
                     dosageMgAsMedicine = dosageMgAsMedicine
                 ),
+                sourceType = sourceType.name,
+                sourceGroupUuid = sourceGroupUuid?.toString(),
                 appliedAtEpochMillis = appliedAt.toEpochMilli()
             )
         )
@@ -61,6 +66,8 @@ class MedicationLogRepository @Inject constructor(
             medicineName = medicineName,
             dosageMgAsMedicine = dosageMgAsMedicine,
             dosageMgAsEstradiol = dosageMgAsEstradiol,
+            sourceType = MedicationLogEntrySourceType.fromStorageValue(sourceType),
+            sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
             appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis)
         )
     }

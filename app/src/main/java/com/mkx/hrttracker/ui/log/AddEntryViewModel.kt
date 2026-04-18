@@ -4,14 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -113,6 +113,8 @@ class AddEntryViewModel @Inject constructor(
                 routeOfAdministration = currentState.routeOfAdministration,
                 medicineName = trimmedName,
                 dosageMgAsMedicine = parsedDose!!,
+                sourceType = currentState.sourceType,
+                sourceGroupUuid = currentState.sourceGroupUuid,
                 appliedAt = appliedAt
             )
 
@@ -143,6 +145,8 @@ class AddEntryViewModel @Inject constructor(
                 routeOfAdministration = entry.routeOfAdministration,
                 medicineName = entry.medicineName,
                 dosageMg = entry.dosageMgAsMedicine.toInputString(),
+                sourceType = entry.sourceType,
+                sourceGroupUuid = entry.sourceGroupUuid,
                 appliedDate = appliedAt.toLocalDate(),
                 appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
             )
@@ -163,6 +167,8 @@ data class AddEntryUiState(
     val routeOfAdministration: RouteOfAdministration = RouteOfAdministration.OTHER,
     val medicineName: String = "",
     val dosageMg: String = "",
+    val sourceType: MedicationLogEntrySourceType = MedicationLogEntrySourceType.MANUAL,
+    val sourceGroupUuid: UUID? = null,
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,

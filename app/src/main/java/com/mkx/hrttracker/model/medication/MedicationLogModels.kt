@@ -21,11 +21,25 @@ enum class RouteOfAdministration(@get:StringRes val labelRes: Int) {
     }
 }
 
+enum class MedicationLogEntrySourceType {
+    MANUAL,
+    GROUP_MANUAL,
+    GROUP_SCHEDULE;
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationLogEntrySourceType {
+            return entries.firstOrNull { it.name == value } ?: MANUAL
+        }
+    }
+}
+
 data class MedicationLogEntry(
     val uuid: UUID,
     val routeOfAdministration: RouteOfAdministration,
     val medicineName: String,
     val dosageMgAsMedicine: Double,
     val dosageMgAsEstradiol: Double?,
+    val sourceType: MedicationLogEntrySourceType,
+    val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
 )
