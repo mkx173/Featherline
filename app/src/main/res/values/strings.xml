@@ -10,6 +10,7 @@
     <string name="edit_medication_group">Edit Group</string>
     <string name="main_empty_state">Log your next dose from here.</string>
     <string name="fab_add_entry">Add medication log entry</string>
+    <string name="fab_add_entry_from_group">Add from medication group</string>
     <string name="fab_add_medication_group">Add medication group</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="history_empty_state">No HRT entries yet.</string>
@@ -30,6 +31,11 @@
     <string name="add_medication_to_group">Add medication</string>
     <string name="edit_medication">Edit medication</string>
     <string name="remove_medication_from_group">Remove medication</string>
+    <string name="quick_add_group_title">Quick add from group</string>
+    <string name="quick_add_group_pick_group">Select a medication group to log.</string>
+    <string name="quick_add_group_empty_state">Create a medication group in Plan first.</string>
+    <string name="quick_add_group_change_group">Choose another group</string>
+    <string name="quick_add_group_save_entries">Save group entries</string>
     <string name="cancel">Cancel</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>

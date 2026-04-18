@@ -2,10 +2,13 @@ package com.mkx.hrttracker.ui.navigation
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
@@ -15,6 +18,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
@@ -25,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -37,6 +42,7 @@ import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
+import com.mkx.hrttracker.ui.log.QuickAddMedicationGroupSheet
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -99,6 +105,7 @@ fun HrtTrackerNavHost(
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
+    var isQuickAddGroupSheetVisible by remember { mutableStateOf(false) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
@@ -150,15 +157,30 @@ fun HrtTrackerNavHost(
         floatingActionButton = {
             when (currentRoute) {
                 Screen.Main.route -> {
-                    FloatingActionButton(
-                        onClick = {
-                            addEntrySheetRequest = AddEntrySheetRequest(entryId = null)
-                        }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.fab_add_entry)
-                        )
+                        SmallFloatingActionButton(
+                            onClick = {
+                                isQuickAddGroupSheetVisible = true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ViewList,
+                                contentDescription = stringResource(R.string.fab_add_entry_from_group)
+                            )
+                        }
+
+                        FloatingActionButton(
+                            onClick = {
+                                addEntrySheetRequest = AddEntrySheetRequest(entryId = null)
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = stringResource(R.string.fab_add_entry)
+                            )
+                        }
                     }
                 }
 
@@ -241,6 +263,13 @@ fun HrtTrackerNavHost(
             entryId = request.entryId,
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
+        )
+    }
+
+    if (isQuickAddGroupSheetVisible) {
+        QuickAddMedicationGroupSheet(
+            onDismissRequest = { isQuickAddGroupSheetVisible = false },
+            onEntriesSaved = { isQuickAddGroupSheetVisible = false }
         )
     }
 }
