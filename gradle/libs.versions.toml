@@ -19,6 +19,7 @@ material = "1.13.0"
 navigationCompose = "2.9.7"
 room = "2.8.4"
 sqlcipherAndroid = "4.14.1"
+kizitonwose-calendar = "2.10.1"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -49,6 +50,7 @@ material = { module = "com.google.android.material:material", version.ref = "mat
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipherAndroid" }
+kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

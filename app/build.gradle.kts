@@ -70,6 +70,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)
 
+    implementation(libs.kizitonwose.calendar)
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.junit)
