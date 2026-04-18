@@ -13,11 +13,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
+import com.mkx.hrttracker.ui.history.HistoryViewModel
+import com.mkx.hrttracker.ui.plan.PlanViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -75,6 +78,9 @@ class MainActivity : AppCompatActivity() {
             ) {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+
+                hiltViewModel<PlanViewModel>(viewModelStoreOwner = this@MainActivity)
+                hiltViewModel<HistoryViewModel>(viewModelStoreOwner = this@MainActivity)
 
                 AppAuthenticationPromptEffect(
                     request = appLockUiState.pendingPrompt,

@@ -27,33 +27,49 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
+    private val displayedMonth = MutableStateFlow(YearMonth.now())
 
     val uiState: StateFlow<HistoryUiState> = combine(
-        medicationLogRepository.observeEntries(),
-        medicationGroupRepository.observeGroups(),
+        combine(
+            medicationLogRepository.observeEntries(),
+            medicationGroupRepository.observeGroups(),
+            ::Pair
+        ),
         selectedEntryIds,
-        isDeleteConfirmationVisible
-    ) { entries, groups, currentSelection, deleteConfirmationVisible ->
+        isDeleteConfirmationVisible,
+        displayedMonth
+    ) { (entries, groups), currentSelection, deleteConfirmationVisible, month ->
         val currentMonth = YearMonth.now()
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
         }
         val calendarStartMonth = earliestEntryMonth ?: currentMonth
+        val calendarEndMonth = currentMonth
         val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
         HistoryUiState(
             entries = entries,
             medicationGroups = groups,
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
             calendarStartMonth = calendarStartMonth,
-            calendarEndMonth = currentMonth,
+            calendarEndMonth = calendarEndMonth,
+            displayedMonth = month.coerceIn(calendarStartMonth, calendarEndMonth),
             selectedEntryIds = visibleSelection,
             isDeleteConfirmationVisible = deleteConfirmationVisible && visibleSelection.isNotEmpty()
         )
     }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = HistoryUiState()
         )
+
+    fun setDisplayedMonth(month: YearMonth) {
+        if (displayedMonth.value == month) {
+            return
+        }
+        displayedMonth.value = month
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
+    }
 
     fun toggleEntrySelection(entryId: UUID) {
         selectedEntryIds.update { currentSelection ->
@@ -104,6 +120,7 @@ data class HistoryUiState(
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartMonth: YearMonth = YearMonth.now(),
     val calendarEndMonth: YearMonth = YearMonth.now(),
+    val displayedMonth: YearMonth = YearMonth.now(),
     val selectedEntryIds: Set<UUID> = emptySet(),
     val isDeleteConfirmationVisible: Boolean = false,
 ) {

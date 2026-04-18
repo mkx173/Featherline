@@ -49,10 +49,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -95,7 +97,9 @@ import kotlinx.coroutines.launch
 fun HistoryScreen(
     onEntryClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: HistoryViewModel = hiltViewModel()
+    viewModel: HistoryViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalContext.current as ComponentActivity
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -112,7 +116,7 @@ fun HistoryScreen(
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteSelectedEntries,
-        onDisplayedMonthChange = viewModel::clearSelection,
+        onDisplayedMonthChange = viewModel::setDisplayedMonth,
         modifier = modifier
     )
 }
@@ -126,7 +130,7 @@ private fun HistoryScreenContent(
     onDeleteSelectedClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
-    onDisplayedMonthChange: () -> Unit,
+    onDisplayedMonthChange: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -140,13 +144,13 @@ private fun HistoryScreenContent(
     val calendarState = rememberCalendarState(
         startMonth = uiState.calendarStartMonth,
         endMonth = uiState.calendarEndMonth,
-        firstVisibleMonth = uiState.calendarEndMonth,
+        firstVisibleMonth = uiState.displayedMonth,
         firstDayOfWeek = uiState.calendarFirstDayOfWeek
     )
     val displayedMonth = rememberFirstMostVisibleMonth(calendarState, viewportPercent = 90f)
 
     LaunchedEffect(displayedMonth.yearMonth) {
-        onDisplayedMonthChange()
+        onDisplayedMonthChange(displayedMonth.yearMonth)
     }
 
     val monthDayStates = remember(uiState.medicationGroups, uiState.entries, displayedMonth) {
@@ -648,7 +652,7 @@ private fun HistoryScreenPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
-            onDisplayedMonthChange = { }
+            onDisplayedMonthChange = { _ -> }
         )
     }
 }

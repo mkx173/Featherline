@@ -6,6 +6,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Inject
@@ -18,23 +21,24 @@ class DatabaseHolder @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    @Volatile
-    private var database: HrtTrackerDatabase? = null
+    private val _databaseFlow = MutableStateFlow<HrtTrackerDatabase?>(null)
+    val databaseFlow: StateFlow<HrtTrackerDatabase?> = _databaseFlow.asStateFlow()
+
     private var generation = 0L
 
     fun get(): HrtTrackerDatabase {
-        database?.let { return it }
+        _databaseFlow.value?.let { return it }
 
         return synchronized(this) {
-            database ?: buildDatabase().also { database = it }
+            _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
         }
     }
 
     fun close() {
         val databaseToClose = synchronized(this) {
             generation++
-            val currentDatabase = database ?: return@synchronized null
-            database = null
+            val currentDatabase = _databaseFlow.value ?: return@synchronized null
+            _databaseFlow.value = null
             currentDatabase
         }
 
@@ -50,16 +54,16 @@ class DatabaseHolder @Inject constructor(
                         return@runCatching
                     }
 
-                    database ?: buildDatabase().also { database = it }
+                    _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
                 }
 
                 databaseToWarm.openHelper.writableDatabase
 
                 val staleDatabase = synchronized(this@DatabaseHolder) {
-                    if (generation == generationAtLaunch || database !== databaseToWarm) {
+                    if (generation == generationAtLaunch || _databaseFlow.value !== databaseToWarm) {
                         null
                     } else {
-                        database = null
+                        _databaseFlow.value = null
                         databaseToWarm
                     }
                 }

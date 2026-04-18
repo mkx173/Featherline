@@ -5,6 +5,7 @@ import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
@@ -12,8 +13,16 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import androidx.room.withTransaction
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -24,12 +33,28 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicationGroupRepository @Inject constructor(
-    private val databaseHolder: DatabaseHolder
+    private val databaseHolder: DatabaseHolder,
+    @AppScope appScope: CoroutineScope,
 ) {
-    fun observeGroups(): Flow<List<MedicationGroup>> {
-        return databaseHolder.get().medicationGroupDao().observeGroups()
-            .map { groups -> groups.map { group -> group.toModel() } }
-    }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val groupsFlow: StateFlow<List<MedicationGroup>> =
+        databaseHolder.databaseFlow
+            .flatMapLatest { database ->
+                if (database == null) {
+                    flowOf(emptyList())
+                } else {
+                    database.medicationGroupDao().observeGroups()
+                        .map { groups -> groups.map { it.toModel() } }
+                        .catch { emit(emptyList()) }
+                }
+            }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = emptyList()
+            )
+
+    fun observeGroups(): Flow<List<MedicationGroup>> = groupsFlow
 
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
         return databaseHolder.get().medicationGroupDao().getGroup(uuid.toString())?.toModel()

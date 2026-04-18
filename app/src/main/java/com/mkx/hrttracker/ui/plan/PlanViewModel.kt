@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -20,21 +21,26 @@ class PlanViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     medicationLogRepository: MedicationLogRepository
 ) : ViewModel() {
+    private val selectedDate = MutableStateFlow(LocalDate.now())
+
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
-        medicationLogRepository.observeEntries()
-    ) { groups, entries ->
+        medicationLogRepository.observeEntries(),
+        selectedDate
+    ) { groups, entries, selection ->
         val today = LocalDate.now()
         val calendarRange = buildPlanCalendarRange(
             today = today,
             firstDayOfWeek = DayOfWeek.MONDAY
         )
+        val clampedSelection = selection.coerceIn(calendarRange.startDate, calendarRange.endDate)
 
         PlanUiState(
             today = today,
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
             calendarEndDate = calendarRange.endDate,
+            selectedDate = clampedSelection,
             entries = entries,
             medicationGroups = groups,
             calendarDays = buildPlanCalendarDayUiState(
@@ -47,9 +53,16 @@ class PlanViewModel @Inject constructor(
     }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = PlanUiState()
         )
+
+    fun setSelectedDate(date: LocalDate) {
+        if (selectedDate.value == date) {
+            return
+        }
+        selectedDate.value = date
+    }
 }
 
 data class PlanUiState(
@@ -63,6 +76,7 @@ data class PlanUiState(
         today = today,
         firstDayOfWeek = calendarFirstDayOfWeek
     ).endDate,
+    val selectedDate: LocalDate = today,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),

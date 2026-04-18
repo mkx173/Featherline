@@ -2,11 +2,20 @@ package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
@@ -14,12 +23,28 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicationLogRepository @Inject constructor(
-    private val databaseHolder: DatabaseHolder
+    private val databaseHolder: DatabaseHolder,
+    @AppScope appScope: CoroutineScope,
 ) {
-    fun observeEntries(): Flow<List<MedicationLogEntry>> {
-        return databaseHolder.get().medicationLogDao().observeEntries()
-            .map { entries -> entries.map { entry -> entry.toModel() } }
-    }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val entriesFlow: StateFlow<List<MedicationLogEntry>> =
+        databaseHolder.databaseFlow
+            .flatMapLatest { database ->
+                if (database == null) {
+                    flowOf(emptyList())
+                } else {
+                    database.medicationLogDao().observeEntries()
+                        .map { entries -> entries.map { it.toModel() } }
+                        .catch { emit(emptyList()) }
+                }
+            }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = emptyList()
+            )
+
+    fun observeEntries(): Flow<List<MedicationLogEntry>> = entriesFlow
 
     suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
         return databaseHolder.get().medicationLogDao().getEntry(uuid.toString())?.toModel()

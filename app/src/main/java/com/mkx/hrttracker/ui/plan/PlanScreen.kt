@@ -27,11 +27,11 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -66,13 +66,16 @@ import java.util.UUID
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: PlanViewModel = hiltViewModel()
+    viewModel: PlanViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalContext.current as ComponentActivity
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     PlanScreenContent(
         uiState = uiState,
         onGroupClick = onGroupClick,
+        onDateSelected = viewModel::setSelectedDate,
         modifier = modifier
     )
 }
@@ -82,6 +85,7 @@ fun PlanScreen(
 private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -91,7 +95,7 @@ private fun PlanScreenContent(
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
-    var selection by remember(uiState.today) { mutableStateOf(uiState.today) }
+    val selection = uiState.selectedDate
     val selectedDayEntries = remember(uiState.entries, selection) {
         uiState.entries
             .filter { entry ->
@@ -103,7 +107,7 @@ private fun PlanScreenContent(
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
         endDate = uiState.calendarEndDate,
-        firstVisibleWeekDate = uiState.today,
+        firstVisibleWeekDate = selection,
         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
     )
 
@@ -129,9 +133,7 @@ private fun PlanScreenContent(
                         dayStatus = uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE,
                         isSelected = selection == day.date
                     ) { clicked ->
-                        if (selection != clicked) {
-                            selection = clicked
-                        }
+                        onDateSelected(clicked)
                     }
                 },
             )
