@@ -75,21 +75,15 @@ class AppLockViewModel @Inject constructor(
             return
         }
 
-        if (state.isUnlocked) {
-            val backgroundedAt = backgroundedAtElapsedRealtime
-            if (backgroundedAt == null) {
-                return
-            }
-
+        val backgroundedAt = backgroundedAtElapsedRealtime
+        backgroundedAtElapsedRealtime = null
+        if (backgroundedAt != null) {
             val elapsedSinceLeaving = (elapsedRealtimeProvider.now() - backgroundedAt)
                 .coerceAtLeast(0L)
-
-            backgroundedAtElapsedRealtime = null
             if (!state.appLockGracePeriodOption.shouldRelock(elapsedSinceLeaving)) {
+                isUnlocked.value = true
                 return
             }
-
-            isUnlocked.value = false
             appLockSecurityManager.clearUnlockedSession()
         }
 
@@ -109,8 +103,9 @@ class AppLockViewModel @Inject constructor(
             return
         }
 
+        isUnlocked.value = false
+
         if (state.appLockGracePeriodOption.shouldRelock(0L)) {
-            isUnlocked.value = false
             appLockSecurityManager.clearUnlockedSession()
             backgroundedAtElapsedRealtime = null
         } else {
