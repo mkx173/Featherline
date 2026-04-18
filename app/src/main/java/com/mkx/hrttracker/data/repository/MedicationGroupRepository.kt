@@ -9,7 +9,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
@@ -31,6 +33,18 @@ class MedicationGroupRepository @Inject constructor(
 
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
         return databaseHolder.get().medicationGroupDao().getGroup(uuid.toString())?.toModel()
+    }
+
+    suspend fun deleteGroup(uuid: UUID) {
+        val database = databaseHolder.get()
+        val groupUuid = uuid.toString()
+        database.withTransaction {
+            database.medicationLogDao().reclassifyEntriesForDeletedGroup(
+                groupUuid = groupUuid,
+                manualSourceType = MedicationLogEntrySourceType.MANUAL.name
+            )
+            database.medicationGroupDao().deleteGroup(groupUuid)
+        }
     }
 
     suspend fun saveGroup(

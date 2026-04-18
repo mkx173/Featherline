@@ -44,6 +44,9 @@
     <string name="save_entry">Save Entry</string>
     <string name="save_medication">Save medication</string>
     <string name="save_medication_group">Save Group</string>
+    <string name="delete_medication_group">Delete Group</string>
+    <string name="delete_medication_group_title">Delete group</string>
+    <string name="delete_medication_group_confirmation">Delete this medication group? Related history entries will be kept and converted to manual entries.</string>
     <string name="add_medication_to_group">Add medication</string>
     <string name="add_time">Add time</string>
     <string name="edit_time">Edit</string>

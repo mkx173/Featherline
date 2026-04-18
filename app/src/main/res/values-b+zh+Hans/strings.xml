@@ -44,6 +44,9 @@
     <string name="save_entry">保存记录</string>
     <string name="save_medication">保存药物</string>
     <string name="save_medication_group">保存分组</string>
+    <string name="delete_medication_group">删除分组</string>
+    <string name="delete_medication_group_title">删除分组</string>
+    <string name="delete_medication_group_confirmation">要删除这个用药分组吗？相关历史记录会被保留，并转换为手动记录。</string>
     <string name="add_medication_to_group">添加药物</string>
     <string name="add_time">添加时间</string>
     <string name="edit_time">编辑</string>

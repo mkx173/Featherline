@@ -53,6 +53,14 @@ interface MedicationGroupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertScheduleTimes(scheduleTimes: List<MedicationGroupScheduleTimeEntity>)
 
+    @Query(
+        """
+        DELETE FROM medication_groups
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun deleteGroup(uuid: String)
+
     @Transaction
     suspend fun upsertGroupWithItems(
         group: MedicationGroupEntity,

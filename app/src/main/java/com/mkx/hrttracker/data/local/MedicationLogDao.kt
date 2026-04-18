@@ -33,6 +33,19 @@ interface MedicationLogDao {
     )
     suspend fun deleteEntries(uuids: List<String>)
 
+    @Query(
+        """
+        UPDATE medication_log_entries
+        SET sourceType = :manualSourceType,
+            sourceGroupUuid = NULL
+        WHERE sourceGroupUuid = :groupUuid
+        """
+    )
+    suspend fun reclassifyEntriesForDeletedGroup(
+        groupUuid: String,
+        manualSourceType: String
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
 }

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +32,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +78,13 @@ fun MedicationGroupEditorScreen(
         }
     }
 
+    LaunchedEffect(uiState.isDeleted) {
+        if (uiState.isDeleted) {
+            viewModel.consumeDeletedState()
+            onGroupSaved()
+        }
+    }
+
     MedicationGroupEditorScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
@@ -98,6 +108,9 @@ fun MedicationGroupEditorScreen(
         onMedicationDosageChange = viewModel::updateEditingMedicationDosage,
         onSaveMedicationClick = viewModel::saveEditingMedication,
         onSaveClick = viewModel::saveGroup,
+        onDeleteClick = viewModel::showDeleteConfirmation,
+        onDeleteDismiss = viewModel::dismissDeleteConfirmation,
+        onDeleteConfirm = viewModel::deleteGroup,
         modifier = modifier
     )
 }
@@ -127,6 +140,9 @@ private fun MedicationGroupEditorScreenContent(
     onMedicationDosageChange: (String) -> Unit,
     onSaveMedicationClick: () -> Unit,
     onSaveClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onDeleteDismiss: () -> Unit,
+    onDeleteConfirm: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -149,6 +165,24 @@ private fun MedicationGroupEditorScreenContent(
                 onDismissMedicationEditor()
             }
         }
+    }
+
+    if (uiState.isDeleteConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = onDeleteDismiss,
+            title = { Text(text = stringResource(R.string.delete_medication_group_title)) },
+            text = { Text(text = stringResource(R.string.delete_medication_group_confirmation)) },
+            confirmButton = {
+                TextButton(onClick = onDeleteConfirm) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDeleteDismiss) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -336,9 +370,32 @@ private fun MedicationGroupEditorScreenContent(
                 Button(
                     onClick = onSaveClick,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving && !uiState.isDeleting
                 ) {
                     Text(text = stringResource(R.string.save_medication_group))
+                }
+            }
+
+            if (uiState.isEditing) {
+                item {
+                    Button(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isSaving && !uiState.isDeleting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null
+                        )
+                        Text(
+                            text = stringResource(R.string.delete_medication_group),
+                            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall))
+                        )
+                    }
                 }
             }
         }

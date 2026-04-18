@@ -2,25 +2,29 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DatePickerDefaults.dateFormatter
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -82,16 +85,13 @@ private fun PlanScreenContent(
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
-
-    val currentDate = remember { LocalDate.now() }
-    val startDate = remember { currentDate.minusWeeks(1) }
-    val endDate = remember { currentDate.plusWeeks(1) }
-    var selection by remember { mutableStateOf(currentDate) }
+    var selection by remember(uiState.today) { mutableStateOf(uiState.today) }
 
     val state = rememberWeekCalendarState(
-        startDate = startDate,
-        endDate = endDate,
-        firstVisibleWeekDate = currentDate,
+        startDate = uiState.calendarStartDate,
+        endDate = uiState.calendarEndDate,
+        firstVisibleWeekDate = uiState.today,
+        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
     )
 
     Scaffold(
@@ -110,7 +110,11 @@ private fun PlanScreenContent(
             WeekCalendar(
                 state = state,
                 dayContent = { day ->
-                    Day(day.date, isSelected = selection == day.date) { clicked ->
+                    Day(
+                        date = day.date,
+                        dayStatus = uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE,
+                        isSelected = selection == day.date
+                    ) { clicked ->
                         if (selection != clicked) {
                             selection = clicked
                         }
@@ -231,9 +235,18 @@ private fun MedicationGroupCard(
 }
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
+private val fulfilledIndicatorColor = Color(0xFF2E7D32)
 
 @Composable
-private fun Day(date: LocalDate, isSelected: Boolean, onClick: (LocalDate) -> Unit) {
+private fun Day(
+    date: LocalDate,
+    dayStatus: PlanCalendarDayStatus,
+    isSelected: Boolean,
+    onClick: (LocalDate) -> Unit
+) {
+    val dayLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val dayNumberColor = MaterialTheme.colorScheme.onSurface
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -249,23 +262,58 @@ private fun Day(date: LocalDate, isSelected: Boolean, onClick: (LocalDate) -> Un
             Text(
                 text = date.dayOfWeek.displayText(),
                 fontSize = 12.sp,
-                color = Color.Black,
+                color = dayLabelColor,
                 fontWeight = FontWeight.Light,
             )
             Text(
                 text = dateFormatter.format(date),
                 fontSize = 14.sp,
-                color = Color.Black,
+                color = dayNumberColor,
                 fontWeight = FontWeight.Bold,
             )
+            DayStatusIndicator(dayStatus = dayStatus)
         }
         if (isSelected) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(5.dp)
-                    .background(Color.Gray)
+                    .background(MaterialTheme.colorScheme.primary)
                     .align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayStatusIndicator(dayStatus: PlanCalendarDayStatus) {
+    when (dayStatus) {
+        PlanCalendarDayStatus.NONE -> {
+            Box(
+                modifier = Modifier
+                    .size(width = 10.dp, height = 2.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(percent = 50)
+                    )
+            )
+        }
+        PlanCalendarDayStatus.SCHEDULED -> {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = CircleShape
+                    )
+            )
+        }
+        PlanCalendarDayStatus.FULFILLED -> {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = fulfilledIndicatorColor,
+                modifier = Modifier.size(12.dp)
             )
         }
     }

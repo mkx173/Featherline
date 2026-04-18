@@ -1,0 +1,145 @@
+package com.mkx.hrttracker.ui.plan
+
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
+import java.util.UUID
+import kotlin.math.abs
+
+enum class PlanCalendarDayStatus {
+    NONE,
+    SCHEDULED,
+    FULFILLED,
+}
+
+data class PlanCalendarDayUiState(
+    val scheduledGroupIds: Set<UUID> = emptySet(),
+    val fulfilledGroupIds: Set<UUID> = emptySet(),
+) {
+    val status: PlanCalendarDayStatus
+        get() = when {
+            scheduledGroupIds.isEmpty() -> PlanCalendarDayStatus.NONE
+            fulfilledGroupIds.containsAll(scheduledGroupIds) -> PlanCalendarDayStatus.FULFILLED
+            else -> PlanCalendarDayStatus.SCHEDULED
+        }
+}
+
+fun buildPlanCalendarDayUiState(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    startDate: LocalDate,
+    endDate: LocalDate
+): Map<LocalDate, PlanCalendarDayUiState> {
+    val entriesByDate = entries.groupBy { entry ->
+        entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
+    }
+
+    val dayStates = linkedMapOf<LocalDate, PlanCalendarDayUiState>()
+    var currentDate = startDate
+
+    while (!currentDate.isAfter(endDate)) {
+        val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(currentDate) }
+        val scheduledGroupIds = scheduledGroups.mapTo(linkedSetOf()) { group -> group.uuid }
+        val dayEntries = entriesByDate[currentDate].orEmpty()
+        val fulfilledGroupIds = scheduledGroups
+            .filter { group ->
+                val fulfilledOccurrenceCount = countFulfilledOccurrences(
+                    group = group,
+                    dayEntries = dayEntries
+                )
+                fulfilledOccurrenceCount == group.schedule.times.size
+            }
+            .mapTo(linkedSetOf()) { group -> group.uuid }
+
+        dayStates[currentDate] = PlanCalendarDayUiState(
+            scheduledGroupIds = scheduledGroupIds,
+            fulfilledGroupIds = fulfilledGroupIds
+        )
+        currentDate = currentDate.plusDays(1)
+    }
+
+    return dayStates
+}
+
+private fun countFulfilledOccurrences(
+    group: MedicationGroup,
+    dayEntries: List<MedicationLogEntry>
+): Int {
+    if (group.medications.isEmpty()) {
+        return 0
+    }
+
+    val requiredCounts = group.medications
+        .groupingBy(MedicationSignature::fromGroupMedication)
+        .eachCount()
+
+    return dayEntries
+        .groupBy { entry ->
+            entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime().withSecond(0).withNano(0)
+        }
+        .count { (_, entriesAtTime) ->
+            val matchedEntries = entriesAtTime
+                .filter { entry ->
+                    entry.sourceGroupUuid == group.uuid ||
+                        entry.sourceType == MedicationLogEntrySourceType.MANUAL
+                }
+                .groupingBy(MedicationSignature::fromLogEntry)
+                .eachCount()
+
+            requiredCounts.all { (signature, requiredCount) ->
+                matchedEntries.getOrDefault(signature, 0) >= requiredCount
+            }
+        }
+}
+
+private fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
+    val normalizedInterval = interval.coerceAtLeast(1)
+
+    return when (type) {
+        MedicationGroupScheduleType.DAILY -> {
+            !date.isBefore(since) &&
+                ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
+        }
+        MedicationGroupScheduleType.WEEKLY -> {
+            val scheduledDayOfWeek = weeklyDayOfWeek ?: return false
+            val firstScheduledDate = since.with(TemporalAdjusters.nextOrSame(scheduledDayOfWeek))
+
+            !date.isBefore(firstScheduledDate) &&
+                date.dayOfWeek == scheduledDayOfWeek &&
+                ChronoUnit.WEEKS.between(firstScheduledDate, date) % normalizedInterval.toLong() == 0L
+        }
+    }
+}
+
+private data class MedicationSignature(
+    val routeOfAdministration: RouteOfAdministration,
+    val normalizedMedicineName: String,
+    val dosageMgAsMedicine: Double,
+) {
+    companion object {
+        fun fromGroupMedication(medication: MedicationGroupMedication): MedicationSignature {
+            return MedicationSignature(
+                routeOfAdministration = medication.routeOfAdministration,
+                normalizedMedicineName = medication.medicineName.trim().lowercase(),
+                dosageMgAsMedicine = medication.dosageMgAsMedicine
+            )
+        }
+
+        fun fromLogEntry(entry: MedicationLogEntry): MedicationSignature {
+            return MedicationSignature(
+                routeOfAdministration = entry.routeOfAdministration,
+                normalizedMedicineName = entry.medicineName.trim().lowercase(),
+                dosageMgAsMedicine = entry.dosageMgAsMedicine
+            )
+        }
+    }
+}

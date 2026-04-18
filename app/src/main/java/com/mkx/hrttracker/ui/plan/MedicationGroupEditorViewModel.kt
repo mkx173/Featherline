@@ -317,8 +317,54 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun showDeleteConfirmation() {
+        if (_uiState.value.isEditing) {
+            _uiState.update {
+                it.copy(
+                    isDeleteConfirmationVisible = true,
+                    errorMessageRes = null
+                )
+            }
+        }
+    }
+
+    fun dismissDeleteConfirmation() {
+        _uiState.update {
+            it.copy(isDeleteConfirmationVisible = false)
+        }
+    }
+
+    fun deleteGroup() {
+        val groupId = _uiState.value.editingGroupId ?: return
+        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDeleting = true,
+                    isDeleteConfirmationVisible = false,
+                    errorMessageRes = null
+                )
+            }
+
+            medicationGroupRepository.deleteGroup(uuid)
+
+            _uiState.update {
+                it.copy(
+                    isDeleting = false,
+                    isDeleted = true,
+                    errorMessageRes = null
+                )
+            }
+        }
+    }
+
     fun consumeSavedState() {
         _uiState.update { it.copy(isSaved = false) }
+    }
+
+    fun consumeDeletedState() {
+        _uiState.update { it.copy(isDeleted = false) }
     }
 
     private fun loadGroupForEditing(groupId: String) {
@@ -405,7 +451,10 @@ data class MedicationGroupEditorUiState(
     val isMedicationEditorSaved: Boolean = false,
     val medicationEditorErrorMessageRes: Int? = null,
     val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
+    val isDeleted: Boolean = false,
+    val isDeleteConfirmationVisible: Boolean = false,
     val errorMessageRes: Int? = null,
 ) {
     val isEditing: Boolean
