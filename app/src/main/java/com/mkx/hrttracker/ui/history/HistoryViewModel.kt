@@ -99,11 +99,6 @@ class HistoryViewModel @Inject constructor(
         isDeleteConfirmationVisible.value = false
     }
 
-    fun clearSelection() {
-        selectedEntryIds.value = emptySet()
-        isDeleteConfirmationVisible.value = false
-    }
-
     fun deleteSelectedEntries() {
         val entryIdsToDelete = selectedEntryIds.value
         if (entryIdsToDelete.isEmpty()) {

@@ -43,7 +43,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +50,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -80,7 +80,6 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterNotNull
 import java.time.DayOfWeek
 import java.time.Instant
@@ -99,7 +98,7 @@ fun HistoryScreen(
     onEntryClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HistoryViewModel = hiltViewModel(
-        viewModelStoreOwner = LocalContext.current as ComponentActivity
+        viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -717,7 +716,7 @@ private val OverdueScheduledIndicatorColor = Color(0xFFC62828)
 private val OverduePartialIndicatorColor = Color(0xFFEF6C00)
 
 @Composable
-fun rememberFirstMostVisibleMonth(
+private fun rememberFirstMostVisibleMonth(
     state: CalendarState,
     viewportPercent: Float = 50f,
 ): CalendarMonth {
