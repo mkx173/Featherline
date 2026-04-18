@@ -154,12 +154,22 @@ private fun HistoryScreenContent(
         onDisplayedMonthChange(displayedMonth.yearMonth)
     }
 
-    val monthDayStates = remember(uiState.medicationGroups, uiState.entries, displayedMonth) {
+    val monthDayStates = remember(
+        uiState.medicationGroups,
+        uiState.entries,
+        displayedMonth.yearMonth,
+        uiState.calendarStartMonth,
+        uiState.calendarEndMonth
+    ) {
+        val rangeStartMonth = displayedMonth.yearMonth.minusMonths(2)
+            .coerceAtLeast(uiState.calendarStartMonth)
+        val rangeEndMonth = displayedMonth.yearMonth.plusMonths(2)
+            .coerceAtMost(uiState.calendarEndMonth)
         buildPlanCalendarDayUiState(
             groups = uiState.medicationGroups,
             entries = uiState.entries,
-            startDate = displayedMonth.yearMonth.atDay(1),
-            endDate = displayedMonth.yearMonth.atEndOfMonth()
+            startDate = rangeStartMonth.atDay(1),
+            endDate = rangeEndMonth.atEndOfMonth()
         )
     }
     val visibleEntries = remember(uiState.entries, displayedMonth.yearMonth) {
