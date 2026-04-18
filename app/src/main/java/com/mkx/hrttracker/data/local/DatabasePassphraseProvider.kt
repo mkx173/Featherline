@@ -95,6 +95,7 @@ class DatabasePassphraseProvider @Inject constructor(
                 mode = MasterKeyMode.STANDARD
             )
             cachePassphrase(passphrase)
+            runCatching { deleteKeyEntry(SCREEN_LOCK_KEY_ALIAS) }
         } finally {
             passphrase.fill(0)
         }
@@ -212,7 +213,7 @@ class DatabasePassphraseProvider @Inject constructor(
     }
 
     private fun getOrCreateStandardMasterKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
+        val keyStore = loadKeyStore()
         val existingKey = keyStore.getKey(STANDARD_KEY_ALIAS, null) as? SecretKey
         if (existingKey != null) {
             return existingKey
@@ -238,7 +239,7 @@ class DatabasePassphraseProvider @Inject constructor(
     }
 
     private fun getOrCreateScreenLockMasterKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
+        val keyStore = loadKeyStore()
         val existingKey = keyStore.getKey(SCREEN_LOCK_KEY_ALIAS, null) as? SecretKey
         if (existingKey != null) {
             return existingKey
@@ -266,6 +267,17 @@ class DatabasePassphraseProvider @Inject constructor(
 
         keyGenerator.init(spec)
         return keyGenerator.generateKey()
+    }
+
+    private fun deleteKeyEntry(alias: String) {
+        val keyStore = loadKeyStore()
+        if (keyStore.containsAlias(alias)) {
+            keyStore.deleteEntry(alias)
+        }
+    }
+
+    private fun loadKeyStore(): KeyStore {
+        return KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
     }
 
     private fun readMasterKeyMode(): MasterKeyMode {
