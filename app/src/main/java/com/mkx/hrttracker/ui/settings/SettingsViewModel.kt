@@ -66,6 +66,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setHideScreenContentEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHideScreenContentEnabled(enabled)
+        }
+    }
+
     fun refreshAppLanguageOption() {
         settingsRepository.refreshAppLanguageOption()
     }

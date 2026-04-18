@@ -39,6 +39,7 @@ class SettingsRepository @Inject constructor(
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
+    private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
     private val screenLockProtectionEnabled =
         MutableStateFlow(databasePassphraseProvider.isScreenLockProtectionEnabled())
@@ -92,6 +93,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setHideScreenContentEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[hideScreenContentKey] = enabled
+        }
+    }
+
     fun setAppLanguageOption(option: AppLanguageOption) {
         appLanguageOption.value = option
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
@@ -108,6 +115,7 @@ class SettingsRepository @Inject constructor(
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
                 preferences[appLockGracePeriodKey]
             ),
+            hideScreenContentEnabled = preferences[hideScreenContentKey] ?: false,
         )
     }
 

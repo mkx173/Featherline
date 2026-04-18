@@ -107,4 +107,5 @@ data class SettingsState(
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
         AppLockGracePeriodOption.IMMEDIATELY,
+    val hideScreenContentEnabled: Boolean = false,
 )

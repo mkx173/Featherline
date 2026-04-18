@@ -1,6 +1,8 @@
 package com.mkx.hrttracker
 
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -43,6 +45,11 @@ class MainActivity : AppCompatActivity() {
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
+
+            DisposableEffect(settingsState.hideScreenContentEnabled) {
+                applyHideScreenContent(enabled = settingsState.hideScreenContentEnabled)
+                onDispose { }
+            }
 
             DisposableEffect(isDarkTheme) {
                 val barStyle = if (isDarkTheme) {
@@ -99,5 +106,17 @@ class MainActivity : AppCompatActivity() {
             appLockViewModel.onBackgrounded()
         }
         super.onStop()
+    }
+
+    private fun applyHideScreenContent(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(!enabled)
+        }
     }
 }

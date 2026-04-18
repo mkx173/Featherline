@@ -143,6 +143,28 @@ fun SettingsScreen(
             }
 
             ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.setHideScreenContentEnabled(
+                            !settingsState.hideScreenContentEnabled
+                        )
+                    },
+                headlineContent = {
+                    Text(text = stringResource(R.string.settings_hide_screen_content))
+                },
+                supportingContent = {
+                    Text(text = stringResource(R.string.settings_hide_screen_content_summary))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = settingsState.hideScreenContentEnabled,
+                        onCheckedChange = viewModel::setHideScreenContentEnabled
+                    )
+                }
+            )
+
+            ListItem(
                 modifier = Modifier.fillMaxWidth(),
                 headlineContent = {
                     Text(
