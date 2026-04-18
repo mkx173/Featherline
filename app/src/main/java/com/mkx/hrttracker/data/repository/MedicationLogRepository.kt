@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
-import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
@@ -14,14 +14,15 @@ import javax.inject.Singleton
 
 @Singleton
 class MedicationLogRepository @Inject constructor(
-    private val medicationLogDao: MedicationLogDao
+    private val databaseHolder: DatabaseHolder
 ) {
     fun observeEntries(): Flow<List<MedicationLogEntry>> {
-        return medicationLogDao.observeEntries().map { entries -> entries.map { entry -> entry.toModel() } }
+        return databaseHolder.get().medicationLogDao().observeEntries()
+            .map { entries -> entries.map { entry -> entry.toModel() } }
     }
 
     suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
-        return medicationLogDao.getEntry(uuid.toString())?.toModel()
+        return databaseHolder.get().medicationLogDao().getEntry(uuid.toString())?.toModel()
     }
 
     suspend fun deleteEntries(uuids: Collection<UUID>) {
@@ -29,7 +30,7 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
-        medicationLogDao.deleteEntries(uuids.map(UUID::toString))
+        databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
     }
 
     suspend fun saveEntry(
@@ -39,7 +40,7 @@ class MedicationLogRepository @Inject constructor(
         dosageMgAsMedicine: Double,
         appliedAt: Instant
     ) {
-        medicationLogDao.insertEntry(
+        databaseHolder.get().medicationLogDao().insertEntry(
             MedicationLogEntryEntity(
                 uuid = (uuid ?: UUID.randomUUID()).toString(),
                 routeOfAdministration = routeOfAdministration.name,

@@ -89,8 +89,8 @@ class AppLockViewModel @Inject constructor(
                 return
             }
 
-            appLockSecurityManager.clearUnlockedSession()
             isUnlocked.value = false
+            appLockSecurityManager.clearUnlockedSession()
         }
 
         requestUnlock()
@@ -110,8 +110,8 @@ class AppLockViewModel @Inject constructor(
         }
 
         if (state.appLockGracePeriodOption.shouldRelock(0L)) {
-            appLockSecurityManager.clearUnlockedSession()
             isUnlocked.value = false
+            appLockSecurityManager.clearUnlockedSession()
             backgroundedAtElapsedRealtime = null
         } else {
             backgroundedAtElapsedRealtime = elapsedRealtimeProvider.now()

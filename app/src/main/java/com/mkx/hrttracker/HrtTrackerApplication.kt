@@ -3,8 +3,8 @@ package com.mkx.hrttracker
 import android.app.Application
 import android.app.UiModeManager
 import androidx.appcompat.app.AppCompatDelegate
+import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.DatabasePassphraseProvider
-import com.mkx.hrttracker.data.local.DatabaseWarmUp
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.util.ToastManager
@@ -24,7 +24,7 @@ class HrtTrackerApplication : Application() {
     lateinit var databasePassphraseProvider: DatabasePassphraseProvider
 
     @Inject
-    lateinit var databaseWarmUp: DatabaseWarmUp
+    lateinit var databaseHolder: DatabaseHolder
 
     override fun onCreate() {
         super.onCreate()
@@ -41,7 +41,7 @@ class HrtTrackerApplication : Application() {
         System.loadLibrary("sqlcipher");
 
         if (!databasePassphraseProvider.isScreenLockProtectionEnabled()) {
-            databaseWarmUp.warmUp()
+            databaseHolder.warmUp()
         }
     }
 
