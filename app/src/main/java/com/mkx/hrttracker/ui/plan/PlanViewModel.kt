@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,7 @@ class PlanViewModel @Inject constructor(
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
             calendarEndDate = calendarRange.endDate,
+            entries = entries,
             medicationGroups = groups,
             calendarDays = buildPlanCalendarDayUiState(
                 groups = groups,
@@ -61,6 +63,7 @@ data class PlanUiState(
         today = today,
         firstDayOfWeek = calendarFirstDayOfWeek
     ).endDate,
+    val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
 )

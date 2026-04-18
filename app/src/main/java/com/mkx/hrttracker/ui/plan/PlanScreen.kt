@@ -45,11 +45,13 @@ import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -86,6 +88,13 @@ private fun PlanScreenContent(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
     var selection by remember(uiState.today) { mutableStateOf(uiState.today) }
+    val selectedDayEntries = remember(uiState.entries, selection) {
+        uiState.entries
+            .filter { entry ->
+                entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate() == selection
+            }
+            .sortedByDescending { it.appliedAt }
+    }
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
@@ -122,21 +131,61 @@ private fun PlanScreenContent(
                 },
             )
 
-            if (uiState.medicationGroups.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = stringResource(R.string.plan_empty_state))
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_small)),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+            ) {
+                item(key = "records-title") {
+                    Text(
+                        text = stringResource(
+                            R.string.plan_selected_day_records_title,
+                            selection.format(dateFormatter)
+                        ),
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    contentPadding = PaddingValues(dimensionResource(R.dimen.padding_small)),
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
-                ) {
+
+                if (selectedDayEntries.isEmpty()) {
+                    item(key = "records-empty") {
+                        Text(
+                            text = stringResource(R.string.plan_selected_day_records_empty),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    items(
+                        items = selectedDayEntries,
+                        key = { it.uuid }
+                    ) { entry ->
+                        SelectedDayEntryCard(
+                            entry = entry,
+                            appLocale = appLocale,
+                            timeFormatter = timeFormatter
+                        )
+                    }
+                }
+
+                item(key = "groups-title") {
+                    Text(
+                        text = stringResource(R.string.tab_plan),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+
+                if (uiState.medicationGroups.isEmpty()) {
+                    item(key = "groups-empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = dimensionResource(R.dimen.padding_large)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = stringResource(R.string.plan_empty_state))
+                        }
+                    }
+                } else {
                     items(
                         items = uiState.medicationGroups,
                         key = { it.uuid }
@@ -153,6 +202,38 @@ private fun PlanScreenContent(
             }
         }
     }
+}
+
+@Composable
+private fun SelectedDayEntryCard(
+    entry: MedicationLogEntry,
+    appLocale: Locale,
+    timeFormatter: DateTimeFormatter
+) {
+    ListItem(
+        modifier = Modifier.fillMaxWidth(),
+        overlineContent = {
+            Text(text = stringResource(entry.routeOfAdministration.labelRes))
+        },
+        headlineContent = {
+            Text(text = entry.medicineName)
+        },
+        supportingContent = {
+            Text(
+                text = stringResource(
+                    R.string.entry_medicine_dose,
+                    entry.dosageMgAsMedicine.formatDose(appLocale)
+                )
+            )
+        },
+        trailingContent = {
+            Text(
+                text = entry.appliedAt
+                    .atZone(ZoneId.systemDefault())
+                    .format(timeFormatter)
+            )
+        }
+    )
 }
 
 @Composable

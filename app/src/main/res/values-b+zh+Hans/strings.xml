@@ -13,6 +13,8 @@
     <string name="fab_add_entry_from_group">从用药分组添加</string>
     <string name="fab_add_medication_group">添加用药分组</string>
     <string name="plan_empty_state">暂无用药分组。</string>
+    <string name="plan_selected_day_records_title">%1$s 的记录</string>
+    <string name="plan_selected_day_records_empty">这一天暂无记录。</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
     <string name="history_entry_source_manual">手动记录</string>

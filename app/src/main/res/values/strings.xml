@@ -13,6 +13,8 @@
     <string name="fab_add_entry_from_group">Add from medication group</string>
     <string name="fab_add_medication_group">Add medication group</string>
     <string name="plan_empty_state">No medication groups yet.</string>
+    <string name="plan_selected_day_records_title">Records on %1$s</string>
+    <string name="plan_selected_day_records_empty">No records for this day.</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
     <string name="history_entry_source_manual">Manual entry</string>
