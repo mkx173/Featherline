@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -18,6 +19,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -32,30 +37,33 @@ import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
-import com.mkx.hrttracker.ui.log.AddEntryViewModel
 import com.mkx.hrttracker.ui.main.MainScreen
+import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
+import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
+import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
+    data object Plan : Screen("plan", R.string.tab_plan)
     data object History : Screen("history", R.string.tab_history)
     data object Settings : Screen("settings", R.string.tab_settings)
-    data object AddEntry : Screen(
-        "add_entry?" +
-            "${AddEntryViewModel.ENTRY_ID_ARG}={${AddEntryViewModel.ENTRY_ID_ARG}}" +
+    data object EditMedicationGroup : Screen(
+        "edit_medication_group?" +
+            "${MedicationGroupEditorViewModel.GROUP_ID_ARG}={${MedicationGroupEditorViewModel.GROUP_ID_ARG}}" +
             "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
-        R.string.add_entry
+        R.string.add_medication_group
     ) {
-        const val baseRoute = "add_entry"
+        const val baseRoute = "edit_medication_group"
 
         fun createRoute(
             topLevelParentRoute: String,
-            entryId: String? = null
+            groupId: String? = null
         ): String {
-            return if (entryId == null) {
+            return if (groupId == null) {
                 "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
             } else {
-                "$baseRoute?${AddEntryViewModel.ENTRY_ID_ARG}=$entryId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+                "$baseRoute?${MedicationGroupEditorViewModel.GROUP_ID_ARG}=$groupId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
             }
         }
     }
@@ -64,6 +72,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         fun topLevelScreenForRoute(route: String?): Screen? {
             return when (route) {
                 Main.route -> Main
+                Plan.route -> Plan
                 History.route -> History
                 Settings.route -> Settings
                 else -> null
@@ -79,6 +88,7 @@ private data class NavigationItemContent(
 
 private val bottomNavItems = listOf(
     NavigationItemContent(Screen.Main, Icons.Default.Home),
+    NavigationItemContent(Screen.Plan, Icons.Default.CalendarMonth),
     NavigationItemContent(Screen.History, Icons.Default.History),
     NavigationItemContent(Screen.Settings, Icons.Default.Settings)
 )
@@ -88,6 +98,7 @@ fun HrtTrackerNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
@@ -137,19 +148,38 @@ fun HrtTrackerNavHost(
             }
         },
         floatingActionButton = {
-            if (currentRoute == Screen.Main.route) {
-                FloatingActionButton(
-                    onClick = {
-                        navController.navigate(
-                            Screen.AddEntry.createRoute(topLevelParentRoute = Screen.Main.route)
+            when (currentRoute) {
+                Screen.Main.route -> {
+                    FloatingActionButton(
+                        onClick = {
+                            addEntrySheetRequest = AddEntrySheetRequest(entryId = null)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.fab_add_entry)
                         )
                     }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.fab_add_entry)
-                    )
                 }
+
+                Screen.Plan.route -> {
+                    FloatingActionButton(
+                        onClick = {
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route
+                                )
+                            )
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.fab_add_medication_group)
+                        )
+                    }
+                }
+
+                else -> Unit
             }
         },
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.statusBars)
@@ -162,15 +192,22 @@ fun HrtTrackerNavHost(
             composable(Screen.Main.route) {
                 MainScreen()
             }
+            composable(Screen.Plan.route) {
+                PlanScreen(
+                    onGroupClick = { groupId ->
+                        navController.navigate(
+                            Screen.EditMedicationGroup.createRoute(
+                                topLevelParentRoute = Screen.Plan.route,
+                                groupId = groupId.toString()
+                            )
+                        )
+                    }
+                )
+            }
             composable(Screen.History.route) {
                 HistoryScreen(
                     onEntryClick = { entryId ->
-                        navController.navigate(
-                            Screen.AddEntry.createRoute(
-                                topLevelParentRoute = Screen.History.route,
-                                entryId = entryId.toString()
-                            )
-                        )
+                        addEntrySheetRequest = AddEntrySheetRequest(entryId = entryId.toString())
                     }
                 )
             }
@@ -178,35 +215,38 @@ fun HrtTrackerNavHost(
                 SettingsScreen()
             }
             composable(
-                route = Screen.AddEntry.route,
+                route = Screen.EditMedicationGroup.route,
                 arguments = listOf(
-                    navArgument(AddEntryViewModel.ENTRY_ID_ARG) {
+                    navArgument(MedicationGroupEditorViewModel.GROUP_ID_ARG) {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
                     },
                     navArgument(TOP_LEVEL_PARENT_ARG) {
                         type = NavType.StringType
-                        defaultValue = Screen.Main.route
+                        defaultValue = Screen.Plan.route
                     }
                 )
             ) {
-                AddEntryScreen(
+                MedicationGroupEditorScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onEntrySaved = {
-                        navController.popBackStack()
-                        navController.navigate(Screen.History.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
+                    onGroupSaved = { navController.popBackStack() }
                 )
             }
         }
     }
+
+    addEntrySheetRequest?.let { request ->
+        AddEntryScreen(
+            entryId = request.entryId,
+            onDismissRequest = { addEntrySheetRequest = null },
+            onEntrySaved = { addEntrySheetRequest = null }
+        )
+    }
 }
 
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+
+private data class AddEntrySheetRequest(
+    val entryId: String?,
+)

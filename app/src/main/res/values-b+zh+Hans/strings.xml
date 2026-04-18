@@ -1,12 +1,17 @@
 <resources>
     <string name="app_name">HRT 记录</string>
     <string name="tab_main">首页</string>
+    <string name="tab_plan">计划</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
     <string name="add_entry">添加记录</string>
     <string name="edit_entry">编辑记录</string>
+    <string name="add_medication_group">添加分组</string>
+    <string name="edit_medication_group">编辑分组</string>
     <string name="main_empty_state">在这里记录下一次用药。</string>
     <string name="fab_add_entry">添加用药记录</string>
+    <string name="fab_add_medication_group">添加用药分组</string>
+    <string name="plan_empty_state">暂无用药分组。</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
     <string name="delete_entries_fab">删除所选记录</string>
@@ -16,16 +21,28 @@
     <string name="field_route">给药途径</string>
     <string name="field_medication_name">药物名称</string>
     <string name="field_dosage_mg">剂量（按药物 mg）</string>
+    <string name="field_medication_group_name">分组名称</string>
     <string name="field_date_of_application">用药日期</string>
     <string name="field_time_of_application">用药时间</string>
     <string name="save_entry">保存记录</string>
+    <string name="save_medication">保存药物</string>
+    <string name="save_medication_group">保存分组</string>
+    <string name="add_medication_to_group">添加药物</string>
+    <string name="edit_medication">编辑药物</string>
+    <string name="remove_medication_from_group">移除药物</string>
     <string name="cancel">取消</string>
     <string name="validation_name_required">请输入药物名称。</string>
     <string name="validation_dose_required">请输入有效的 mg 剂量。</string>
+    <string name="validation_group_name_required">请输入分组名称。</string>
+    <string name="validation_group_medications_required">请至少添加一种药物。</string>
+    <string name="validation_group_medication_name_required">每种药物都需要名称。</string>
+    <string name="validation_group_medication_dose_required">每种药物都需要有效的 mg 剂量。</string>
     <string name="entry_medicine_dose">药物剂量：%1$s mg</string>
     <string name="entry_estradiol_dose">雌二醇当量：%1$s mg</string>
     <string name="entry_time_applied">用药时间：%1$s</string>
     <string name="entry_uuid">UUID：%1$s</string>
+    <string name="plan_group_medication_summary">%1$s，%3$s，%2$s mg</string>
+    <string name="plan_group_more_medications">另 %1$d 项</string>
     <string name="route_oral">口服</string>
     <string name="route_sublingual">舌下</string>
     <string name="route_transdermal">透皮</string>
@@ -74,4 +91,8 @@
     <string name="screen_lock_auth_failed">认证失败。</string>
     <string name="screen_lock_enable_failed">无法启用应用锁。</string>
     <string name="screen_lock_disable_failed">无法停用应用锁。</string>
+
+    <plurals name="plan_group_medication_count">
+        <item quantity="other">%1$d 种药物</item>
+    </plurals>
 </resources>

@@ -4,27 +4,31 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,12 +54,17 @@ import java.time.format.FormatStyle
 
 @Composable
 fun AddEntryScreen(
-    onNavigateBack: () -> Unit,
+    entryId: String?,
+    onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AddEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(entryId) {
+        viewModel.initialize(entryId)
+    }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
@@ -66,7 +75,7 @@ fun AddEntryScreen(
 
     AddEntryScreenContent(
         uiState = uiState,
-        onNavigateBack = onNavigateBack,
+        onDismissRequest = onDismissRequest,
         onRouteSelected = viewModel::updateRoute,
         onMedicineNameChange = viewModel::updateMedicineName,
         onDosageChange = viewModel::updateDosageMg,
@@ -81,7 +90,7 @@ fun AddEntryScreen(
 @Composable
 private fun AddEntryScreenContent(
     uiState: AddEntryUiState,
-    onNavigateBack: () -> Unit,
+    onDismissRequest: () -> Unit,
     onRouteSelected: (RouteOfAdministration) -> Unit,
     onMedicineNameChange: (String) -> Unit,
     onDosageChange: (String) -> Unit,
@@ -89,6 +98,55 @@ private fun AddEntryScreenContent(
     onAppliedTimeChange: (LocalTime) -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier
+) {
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
+    MedicationEditorSheet(
+        modifier = modifier,
+        sheetState = sheetState,
+        title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
+        confirmButtonText = stringResource(R.string.save_entry),
+        onDismissRequest = onDismissRequest,
+        routeOfAdministration = uiState.routeOfAdministration,
+        medicineName = uiState.medicineName,
+        dosageMg = uiState.dosageMg,
+        onRouteSelected = onRouteSelected,
+        onMedicineNameChange = onMedicineNameChange,
+        onDosageChange = onDosageChange,
+        appliedDate = uiState.appliedDate,
+        appliedTime = uiState.appliedTime,
+        onAppliedDateChange = onAppliedDateChange,
+        onAppliedTimeChange = onAppliedTimeChange,
+        showAppliedAtFields = true,
+        errorMessageRes = uiState.errorMessageRes,
+        isSaving = uiState.isSaving,
+        onConfirm = onSaveClick
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MedicationEditorSheet(
+    title: String,
+    sheetState: SheetState,
+    confirmButtonText: String,
+    onDismissRequest: () -> Unit,
+    routeOfAdministration: RouteOfAdministration,
+    medicineName: String,
+    dosageMg: String,
+    onRouteSelected: (RouteOfAdministration) -> Unit,
+    onMedicineNameChange: (String) -> Unit,
+    onDosageChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    appliedDate: LocalDate? = null,
+    appliedTime: LocalTime? = null,
+    onAppliedDateChange: ((LocalDate) -> Unit)? = null,
+    onAppliedTimeChange: ((LocalTime) -> Unit)? = null,
+    showAppliedAtFields: Boolean = false,
+    errorMessageRes: Int? = null,
+    isSaving: Boolean = false,
+    onConfirm: () -> Unit,
 ) {
     var isRouteMenuExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -99,48 +157,49 @@ private fun AddEntryScreenContent(
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
-    val formattedDate = remember(uiState.appliedDate, dateFormatter) {
-        uiState.appliedDate.format(dateFormatter)
+    val formattedDate = remember(appliedDate, dateFormatter) {
+        appliedDate?.format(dateFormatter).orEmpty()
     }
-    val formattedTime = remember(uiState.appliedTime, timeFormatter) {
-        uiState.appliedTime.format(timeFormatter)
+    val formattedTime = remember(appliedTime, timeFormatter) {
+        appliedTime?.format(timeFormatter).orEmpty()
     }
 
-    Scaffold(
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
         modifier = modifier,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(
-                            if (uiState.isEditing) R.string.edit_entry else R.string.add_entry
-                        )
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cancel)
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+        sheetState = sheetState
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(dimensionResource(R.dimen.padding_medium)),
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = dimensionResource(R.dimen.padding_medium),
+                    end = dimensionResource(R.dimen.padding_medium),
+                    bottom = dimensionResource(R.dimen.padding_medium)
+                ),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                TextButton(onClick = onDismissRequest) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+
             ExposedDropdownMenuBox(
                 expanded = isRouteMenuExpanded,
                 onExpandedChange = { isRouteMenuExpanded = !isRouteMenuExpanded }
             ) {
                 OutlinedTextField(
-                    value = stringResource(uiState.routeOfAdministration.labelRes),
+                    value = stringResource(routeOfAdministration.labelRes),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(text = stringResource(R.string.field_route)) },
@@ -172,7 +231,7 @@ private fun AddEntryScreenContent(
             }
 
             OutlinedTextField(
-                value = uiState.medicineName,
+                value = medicineName,
                 onValueChange = onMedicineNameChange,
                 label = { Text(text = stringResource(R.string.field_medication_name)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -180,7 +239,7 @@ private fun AddEntryScreenContent(
             )
 
             OutlinedTextField(
-                value = uiState.dosageMg,
+                value = dosageMg,
                 onValueChange = onDosageChange,
                 label = { Text(text = stringResource(R.string.field_dosage_mg)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -188,48 +247,50 @@ private fun AddEntryScreenContent(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
-            PickerField(
-                value = formattedDate,
-                label = stringResource(R.string.field_date_of_application),
-                onClick = {
-                    DatePickerDialog(
-                        context,
-                        { _, year, month, dayOfMonth ->
-                            onAppliedDateChange(LocalDate.of(year, month + 1, dayOfMonth))
-                        },
-                        uiState.appliedDate.year,
-                        uiState.appliedDate.monthValue - 1,
-                        uiState.appliedDate.dayOfMonth
-                    ).show()
-                }
-            )
+            if (showAppliedAtFields && appliedDate != null && appliedTime != null) {
+                PickerField(
+                    value = formattedDate,
+                    label = stringResource(R.string.field_date_of_application),
+                    onClick = {
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, dayOfMonth ->
+                                onAppliedDateChange?.invoke(LocalDate.of(year, month + 1, dayOfMonth))
+                            },
+                            appliedDate.year,
+                            appliedDate.monthValue - 1,
+                            appliedDate.dayOfMonth
+                        ).show()
+                    }
+                )
 
-            PickerField(
-                value = formattedTime,
-                label = stringResource(R.string.field_time_of_application),
-                onClick = {
-                    TimePickerDialog(
-                        context,
-                        { _, hourOfDay, minute ->
-                            onAppliedTimeChange(LocalTime.of(hourOfDay, minute))
-                        },
-                        uiState.appliedTime.hour,
-                        uiState.appliedTime.minute,
-                        DateFormat.is24HourFormat(context)
-                    ).show()
-                }
-            )
+                PickerField(
+                    value = formattedTime,
+                    label = stringResource(R.string.field_time_of_application),
+                    onClick = {
+                        TimePickerDialog(
+                            context,
+                            { _, hourOfDay, minute ->
+                                onAppliedTimeChange?.invoke(LocalTime.of(hourOfDay, minute))
+                            },
+                            appliedTime.hour,
+                            appliedTime.minute,
+                            DateFormat.is24HourFormat(context)
+                        ).show()
+                    }
+                )
+            }
 
-            uiState.errorMessageRes?.let { errorMessageRes ->
-                Text(text = stringResource(errorMessageRes))
+            errorMessageRes?.let { messageRes ->
+                Text(text = stringResource(messageRes))
             }
 
             Button(
-                onClick = onSaveClick,
+                onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isSaving
+                enabled = !isSaving
             ) {
-                Text(text = stringResource(R.string.save_entry))
+                Text(text = confirmButtonText)
             }
         }
     }
@@ -275,7 +336,7 @@ private fun AddEntryScreenPreview() {
                 appliedDate = LocalDate.of(2026, 4, 16),
                 appliedTime = LocalTime.of(21, 15),
             ),
-            onNavigateBack = { },
+            onDismissRequest = { },
             onRouteSelected = { },
             onMedicineNameChange = { },
             onDosageChange = { },

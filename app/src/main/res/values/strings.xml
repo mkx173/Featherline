@@ -1,12 +1,17 @@
 <resources>
     <string name="app_name">HRT Tracker</string>
     <string name="tab_main">Home</string>
+    <string name="tab_plan">Plan</string>
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="add_entry">Add Entry</string>
     <string name="edit_entry">Edit Entry</string>
+    <string name="add_medication_group">Add Group</string>
+    <string name="edit_medication_group">Edit Group</string>
     <string name="main_empty_state">Log your next dose from here.</string>
     <string name="fab_add_entry">Add medication log entry</string>
+    <string name="fab_add_medication_group">Add medication group</string>
+    <string name="plan_empty_state">No medication groups yet.</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
     <string name="delete_entries_fab">Delete selected entries</string>
@@ -16,16 +21,28 @@
     <string name="field_route">Route of administration</string>
     <string name="field_medication_name">Medication name</string>
     <string name="field_dosage_mg">Dosage (mg as medicine)</string>
+    <string name="field_medication_group_name">Group name</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
     <string name="save_entry">Save Entry</string>
+    <string name="save_medication">Save medication</string>
+    <string name="save_medication_group">Save Group</string>
+    <string name="add_medication_to_group">Add medication</string>
+    <string name="edit_medication">Edit medication</string>
+    <string name="remove_medication_from_group">Remove medication</string>
     <string name="cancel">Cancel</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>
+    <string name="validation_group_name_required">Enter a group name.</string>
+    <string name="validation_group_medications_required">Add at least one medication.</string>
+    <string name="validation_group_medication_name_required">Each medication needs a name.</string>
+    <string name="validation_group_medication_dose_required">Each medication needs a valid dosage in mg.</string>
     <string name="entry_medicine_dose">Medicine dose: %1$s mg</string>
     <string name="entry_estradiol_dose">Estradiol equivalent: %1$s mg</string>
     <string name="entry_time_applied">Applied: %1$s</string>
     <string name="entry_uuid">UUID: %1$s</string>
+    <string name="plan_group_medication_summary">%1$s, %2$s mg, %3$s</string>
+    <string name="plan_group_more_medications">%1$d more</string>
     <string name="route_oral">Oral</string>
     <string name="route_sublingual">Sublingual</string>
     <string name="route_transdermal">Transdermal</string>
@@ -74,4 +91,9 @@
     <string name="screen_lock_auth_failed">Authentication failed.</string>
     <string name="screen_lock_enable_failed">Could not enable app lock.</string>
     <string name="screen_lock_disable_failed">Could not disable app lock.</string>
+
+    <plurals name="plan_group_medication_count">
+        <item quantity="one">%1$d medication</item>
+        <item quantity="other">%1$d medications</item>
+    </plurals>
 </resources>

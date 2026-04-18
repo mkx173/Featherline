@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.history
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Instant
@@ -220,19 +220,12 @@ private fun HistoryEntryCard(
             )
         },
         supportingContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))) {
-                Text(
-                    text = stringResource(
-                        R.string.entry_medicine_dose,
-                        entry.dosageMgAsMedicine.formatDose(appLocale)
-                    )
+            Text(
+                text = stringResource(
+                    R.string.entry_medicine_dose,
+                    entry.dosageMgAsMedicine.formatDose(appLocale)
                 )
-                Text(
-                    text = entry.dosageMgAsEstradiol?.let {
-                        stringResource(R.string.entry_estradiol_dose, it.formatDose(appLocale))
-                    } ?: stringResource(R.string.history_unknown_estradiol_dose)
-                )
-            }
+            )
         }
     )
 }
@@ -277,13 +270,5 @@ private fun HistoryScreenPreview() {
             onDeleteDismiss = { },
             onDeleteConfirm = { }
         )
-    }
-}
-
-private fun Double.formatDose(locale: Locale): String {
-    return if (this % 1.0 == 0.0) {
-        String.format(locale, "%.0f", this)
-    } else {
-        String.format(locale, "%.2f", this)
     }
 }

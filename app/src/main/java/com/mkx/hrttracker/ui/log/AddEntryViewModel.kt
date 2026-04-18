@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
@@ -11,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -22,16 +23,18 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AddEntryViewModel @Inject constructor(
-    private val medicationLogRepository: MedicationLogRepository,
-    savedStateHandle: SavedStateHandle
+    private val medicationLogRepository: MedicationLogRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
-    private val editingEntryId = savedStateHandle.get<String>(ENTRY_ID_ARG)
+    private var loadEntryJob: Job? = null
 
-    init {
-        if (editingEntryId != null) {
-            loadEntryForEditing(editingEntryId)
+    fun initialize(entryId: String?) {
+        loadEntryJob?.cancel()
+        _uiState.value = AddEntryUiState(editingEntryId = entryId)
+
+        if (entryId != null) {
+            loadEntryForEditing(entryId)
         }
     }
 
@@ -131,7 +134,7 @@ class AddEntryViewModel @Inject constructor(
     private fun loadEntryForEditing(entryId: String) {
         val uuid = runCatching { UUID.fromString(entryId) }.getOrNull() ?: return
 
-        viewModelScope.launch {
+        loadEntryJob = viewModelScope.launch {
             val entry = medicationLogRepository.getEntry(uuid) ?: return@launch
             val appliedAt = entry.appliedAt.atZone(ZoneId.systemDefault())
 
@@ -152,10 +155,6 @@ class AddEntryViewModel @Inject constructor(
         } else {
             String.format(Locale.US, "%.2f", this)
         }
-    }
-
-    companion object {
-        const val ENTRY_ID_ARG = "entryId"
     }
 }
 
