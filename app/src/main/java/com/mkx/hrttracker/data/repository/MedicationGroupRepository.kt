@@ -37,24 +37,26 @@ class MedicationGroupRepository @Inject constructor(
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val groupsFlow: StateFlow<List<MedicationGroup>> =
+    private val groupsFlow: StateFlow<List<MedicationGroup>?> =
         databaseHolder.databaseFlow
             .flatMapLatest { database ->
                 if (database == null) {
-                    flowOf(emptyList())
+                    flowOf<List<MedicationGroup>?>(null)
                 } else {
                     database.medicationGroupDao().observeGroups()
-                        .map { groups -> groups.map { it.toModel() } }
+                        .map<List<MedicationGroupWithItemsEntity>, List<MedicationGroup>?> { groups ->
+                            groups.map { it.toModel() }
+                        }
                         .catch { emit(emptyList()) }
                 }
             }
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.Eagerly,
-                initialValue = emptyList()
+                initialValue = null
             )
 
-    fun observeGroups(): Flow<List<MedicationGroup>> = groupsFlow
+    fun observeGroups(): Flow<List<MedicationGroup>?> = groupsFlow
 
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
         return databaseHolder.get().medicationGroupDao().getGroup(uuid.toString())?.toModel()

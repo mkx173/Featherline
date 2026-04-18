@@ -38,7 +38,10 @@ class HistoryViewModel @Inject constructor(
         selectedEntryIds,
         isDeleteConfirmationVisible,
         displayedMonth
-    ) { (entries, groups), currentSelection, deleteConfirmationVisible, month ->
+    ) { (entriesOrNull, groupsOrNull), currentSelection, deleteConfirmationVisible, month ->
+        val isLoading = entriesOrNull == null || groupsOrNull == null
+        val entries = entriesOrNull.orEmpty()
+        val groups = groupsOrNull.orEmpty()
         val currentMonth = YearMonth.now()
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
@@ -47,6 +50,7 @@ class HistoryViewModel @Inject constructor(
         val calendarEndMonth = currentMonth
         val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
         HistoryUiState(
+            isLoading = isLoading,
             entries = entries,
             medicationGroups = groups,
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
@@ -115,6 +119,7 @@ class HistoryViewModel @Inject constructor(
 }
 
 data class HistoryUiState(
+    val isLoading: Boolean = true,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,

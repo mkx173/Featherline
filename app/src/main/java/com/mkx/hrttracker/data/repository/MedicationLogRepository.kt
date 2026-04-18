@@ -27,24 +27,26 @@ class MedicationLogRepository @Inject constructor(
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val entriesFlow: StateFlow<List<MedicationLogEntry>> =
+    private val entriesFlow: StateFlow<List<MedicationLogEntry>?> =
         databaseHolder.databaseFlow
             .flatMapLatest { database ->
                 if (database == null) {
-                    flowOf(emptyList())
+                    flowOf<List<MedicationLogEntry>?>(null)
                 } else {
                     database.medicationLogDao().observeEntries()
-                        .map { entries -> entries.map { it.toModel() } }
+                        .map<List<MedicationLogEntryEntity>, List<MedicationLogEntry>?> { entries ->
+                            entries.map { it.toModel() }
+                        }
                         .catch { emit(emptyList()) }
                 }
             }
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.Eagerly,
-                initialValue = emptyList()
+                initialValue = null
             )
 
-    fun observeEntries(): Flow<List<MedicationLogEntry>> = entriesFlow
+    fun observeEntries(): Flow<List<MedicationLogEntry>?> = entriesFlow
 
     suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
         return databaseHolder.get().medicationLogDao().getEntry(uuid.toString())?.toModel()

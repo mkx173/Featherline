@@ -27,7 +27,10 @@ class PlanViewModel @Inject constructor(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
         selectedDate
-    ) { groups, entries, selection ->
+    ) { groupsOrNull, entriesOrNull, selection ->
+        val isLoading = groupsOrNull == null || entriesOrNull == null
+        val groups = groupsOrNull.orEmpty()
+        val entries = entriesOrNull.orEmpty()
         val today = LocalDate.now()
         val calendarRange = buildPlanCalendarRange(
             today = today,
@@ -36,6 +39,7 @@ class PlanViewModel @Inject constructor(
         val clampedSelection = selection.coerceIn(calendarRange.startDate, calendarRange.endDate)
 
         PlanUiState(
+            isLoading = isLoading,
             today = today,
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
@@ -66,6 +70,7 @@ class PlanViewModel @Inject constructor(
 }
 
 data class PlanUiState(
+    val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartDate: LocalDate = buildPlanCalendarRange(
