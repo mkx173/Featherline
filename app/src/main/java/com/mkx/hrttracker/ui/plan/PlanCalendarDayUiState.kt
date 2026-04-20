@@ -3,10 +3,11 @@ package com.mkx.hrttracker.ui.plan
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.model.medication.isScheduledOn
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 
 enum class PlanCalendarDayStatus {
@@ -52,10 +53,9 @@ fun buildPlanCalendarDayUiState(
             group.schedule.times.size
         }
         val matchedOccurrenceCount = scheduledGroups.sumOf { group ->
-            countFulfilledOccurrences(
-                group = group,
-                dayEntries = dayEntries
-            )
+            group.schedule.times.count { time ->
+                isSlotFulfilled(group, currentDate, time, entries)
+            }
         }.coerceAtMost(expectedOccurrenceCount)
 
         dayStates[currentDate] = PlanCalendarDayUiState(
@@ -69,38 +69,37 @@ fun buildPlanCalendarDayUiState(
     return dayStates
 }
 
-private fun countFulfilledOccurrences(
+internal fun isSlotFulfilled(
     group: MedicationGroup,
-    dayEntries: List<MedicationLogEntry>
-): Int {
+    date: LocalDate,
+    time: LocalTime,
+    entries: List<MedicationLogEntry>
+): Boolean {
     if (group.medications.isEmpty()) {
-        return 0
+        return false
+    }
+
+    val slotDateTime = LocalDateTime.of(date, time)
+    val slotLogs = entries.filter { entry ->
+        entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
+    }
+    if (slotLogs.isEmpty()) {
+        return false
     }
 
     val requiredCounts = group.medications
         .groupingBy(MedicationSignature::fromGroupMedication)
         .eachCount()
+    val loggedCounts = slotLogs
+        .groupingBy(MedicationSignature::fromLogEntry)
+        .eachCount()
 
-    return dayEntries
-        .groupBy { entry ->
-            entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime().withSecond(0).withNano(0)
-        }
-        .count { (_, entriesAtTime) ->
-            val matchedEntries = entriesAtTime
-                .filter { entry ->
-                    entry.sourceGroupUuid == group.uuid ||
-                        entry.sourceType == MedicationLogEntrySourceType.MANUAL
-                }
-                .groupingBy(MedicationSignature::fromLogEntry)
-                .eachCount()
-
-            requiredCounts.all { (signature, requiredCount) ->
-                matchedEntries.getOrDefault(signature, 0) >= requiredCount
-            }
-        }
+    return requiredCounts.all { (signature, requiredCount) ->
+        loggedCounts.getOrDefault(signature, 0) >= requiredCount
+    }
 }
 
-private data class MedicationSignature(
+internal data class MedicationSignature(
     val routeOfAdministration: RouteOfAdministration,
     val normalizedMedicineName: String,
     val dosageMgAsMedicine: Double,

@@ -15,6 +15,16 @@
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_title">Records on %1$s</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
+    <string name="plan_selected_day_schedule_title">Scheduled on %1$s</string>
+    <string name="plan_selected_day_schedule_empty">Nothing scheduled for this day.</string>
+    <string name="plan_selected_day_unplanned_title">Unplanned entries</string>
+    <string name="plan_schedule_entry_not_logged">Not logged yet</string>
+    <string name="plan_schedule_entry_logged">Logged</string>
+    <string name="plan_entry_label_manual">Manual</string>
+    <string name="plan_group_upcoming_title">Upcoming</string>
+    <string name="plan_group_upcoming_format">%1$s · %2$s</string>
+    <string name="plan_group_upcoming_today">Today</string>
+    <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_month_empty_state">No HRT entries for this month.</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>

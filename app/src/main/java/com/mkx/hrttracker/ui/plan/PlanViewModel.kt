@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -37,6 +40,18 @@ class PlanViewModel @Inject constructor(
             firstDayOfWeek = DayOfWeek.MONDAY
         )
         val clampedSelection = selection.coerceIn(calendarRange.startDate, calendarRange.endDate)
+        val daySchedule = buildPlanDaySchedule(
+            date = clampedSelection,
+            groups = groups,
+            entries = entries
+        )
+        val nextOccurrencesFrom = LocalDateTime.of(today, java.time.LocalTime.MIN)
+        val nextOccurrencesByGroup = groups.associate { group ->
+            group.uuid to group.schedule.nextOccurrencesFrom(
+                start = nextOccurrencesFrom,
+                limit = UPCOMING_OCCURRENCES_LIMIT
+            )
+        }
 
         PlanUiState(
             isLoading = isLoading,
@@ -52,7 +67,9 @@ class PlanViewModel @Inject constructor(
                 entries = entries,
                 startDate = calendarRange.startDate,
                 endDate = calendarRange.endDate
-            )
+            ),
+            daySchedule = daySchedule,
+            nextOccurrencesByGroup = nextOccurrencesByGroup
         )
     }
         .stateIn(
@@ -66,6 +83,10 @@ class PlanViewModel @Inject constructor(
             return
         }
         selectedDate.value = date
+    }
+
+    private companion object {
+        const val UPCOMING_OCCURRENCES_LIMIT = 3
     }
 }
 
@@ -85,4 +106,10 @@ data class PlanUiState(
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
+    val daySchedule: PlanDaySchedule = PlanDaySchedule(
+        date = selectedDate,
+        scheduledEntries = emptyList(),
+        unplannedEntries = emptyList()
+    ),
+    val nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>> = emptyMap(),
 )

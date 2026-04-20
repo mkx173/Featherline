@@ -15,6 +15,16 @@
     <string name="plan_empty_state">暂无用药分组。</string>
     <string name="plan_selected_day_records_title">%1$s 的记录</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录。</string>
+    <string name="plan_selected_day_schedule_title">%1$s 的计划</string>
+    <string name="plan_selected_day_schedule_empty">这一天暂无计划。</string>
+    <string name="plan_selected_day_unplanned_title">未计划的记录</string>
+    <string name="plan_schedule_entry_not_logged">尚未记录</string>
+    <string name="plan_schedule_entry_logged">已记录</string>
+    <string name="plan_entry_label_manual">手动</string>
+    <string name="plan_group_upcoming_title">即将到来</string>
+    <string name="plan_group_upcoming_format">%1$s · %2$s</string>
+    <string name="plan_group_upcoming_today">今天</string>
+    <string name="plan_group_upcoming_tomorrow">明天</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_month_empty_state">这个月暂无 HRT 记录。</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>

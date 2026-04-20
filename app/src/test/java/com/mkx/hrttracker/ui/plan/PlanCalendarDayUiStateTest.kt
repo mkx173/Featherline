@@ -76,40 +76,48 @@ class PlanCalendarDayUiStateTest {
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
                     route = RouteOfAdministration.TOPICAL,
                     medicineName = "Progesterone",
                     dosage = 100.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
-                ),
-                manualEntry(
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0)
-                ),
-                manualEntry(
-                    route = RouteOfAdministration.TOPICAL,
-                    medicineName = "Progesterone",
-                    dosage = 100.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 21, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
                     route = RouteOfAdministration.TOPICAL,
                     medicineName = "Progesterone",
                     dosage = 100.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 21, 0)
+                ),
+                groupEntry(
+                    groupUuid = dailyGroup.uuid,
+                    route = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosage = 2.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+                ),
+                groupEntry(
+                    groupUuid = dailyGroup.uuid,
+                    route = RouteOfAdministration.TOPICAL,
+                    medicineName = "Progesterone",
+                    dosage = 100.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
                 )
             ),
             startDate = LocalDate.of(2026, 4, 15),
@@ -124,7 +132,7 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
-    fun buildPlanCalendarDayUiState_counts_one_fulfilled_occurrence_per_matching_time() {
+    fun buildPlanCalendarDayUiState_counts_each_scheduled_slot_at_most_once() {
         val group = medicationGroup(
             uuid = UUID.fromString("9f532a81-f4b3-4927-9db1-0a86751df861"),
             schedule = MedicationGroupSchedule(
@@ -152,14 +160,16 @@ class PlanCalendarDayUiStateTest {
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = group.uuid,
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 )
             ),
             startDate = LocalDate.of(2026, 4, 16),
@@ -170,7 +180,7 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
-    fun buildPlanCalendarDayUiState_requires_full_group_match_for_manual_entries() {
+    fun buildPlanCalendarDayUiState_does_not_treat_manual_entries_as_fulfillment() {
         val group = medicationGroup(
             uuid = UUID.fromString("bb94b15b-35fe-4f9d-a8ba-3b423480e2ca"),
             schedule = MedicationGroupSchedule(
@@ -203,6 +213,12 @@ class PlanCalendarDayUiStateTest {
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
+                ),
+                manualEntry(
+                    route = RouteOfAdministration.TOPICAL,
+                    medicineName = "Progesterone",
+                    dosage = 100.0,
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
                 )
             ),
@@ -242,7 +258,8 @@ class PlanCalendarDayUiStateTest {
                     route = RouteOfAdministration.ORAL,
                     medicineName = "Estradiol",
                     dosage = 2.0,
-                    appliedAt = LocalDateTime.of(2026, 4, 17, 9, 0)
+                    appliedAt = LocalDateTime.of(2026, 4, 17, 9, 0),
+                    scheduledFor = null
                 )
             ),
             startDate = LocalDate.of(2026, 4, 17),
@@ -272,7 +289,8 @@ class PlanCalendarDayUiStateTest {
         route: RouteOfAdministration,
         medicineName: String,
         dosage: Double,
-        appliedAt: LocalDateTime
+        appliedAt: LocalDateTime,
+        scheduledFor: LocalDateTime? = null
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
@@ -282,7 +300,8 @@ class PlanCalendarDayUiStateTest {
             dosageMgAsEstradiol = dosage,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
-            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant()
+            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant(),
+            scheduledFor = scheduledFor
         )
     }
 

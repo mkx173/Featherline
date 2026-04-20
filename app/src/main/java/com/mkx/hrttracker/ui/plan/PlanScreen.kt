@@ -57,6 +57,7 @@ import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -98,13 +99,7 @@ private fun PlanScreenContent(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
     val selection = uiState.selectedDate
-    val selectedDayEntries = remember(uiState.entries, selection) {
-        uiState.entries
-            .filter { entry ->
-                entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate() == selection
-            }
-            .sortedByDescending { it.appliedAt }
-    }
+    val daySchedule = uiState.daySchedule
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
@@ -157,26 +152,45 @@ private fun PlanScreenContent(
                 contentPadding = PaddingValues(dimensionResource(R.dimen.padding_small)),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
             ) {
-                item(key = "records-title") {
+                item(key = "schedule-title") {
                     Text(
                         text = stringResource(
-                            R.string.plan_selected_day_records_title,
+                            R.string.plan_selected_day_schedule_title,
                             selection.format(dateFormatter)
                         ),
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
 
-                if (selectedDayEntries.isEmpty()) {
-                    item(key = "records-empty") {
+                if (daySchedule.scheduledEntries.isEmpty()) {
+                    item(key = "schedule-empty") {
                         Text(
-                            text = stringResource(R.string.plan_selected_day_records_empty),
+                            text = stringResource(R.string.plan_selected_day_schedule_empty),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 } else {
                     items(
-                        items = selectedDayEntries,
+                        items = daySchedule.scheduledEntries,
+                        key = { "${it.groupUuid}|${it.scheduledTime}" }
+                    ) { scheduled ->
+                        PlanScheduleEntryCard(
+                            entry = scheduled,
+                            appLocale = appLocale,
+                            timeFormatter = timeFormatter
+                        )
+                    }
+                }
+
+                if (daySchedule.unplannedEntries.isNotEmpty()) {
+                    item(key = "unplanned-title") {
+                        Text(
+                            text = stringResource(R.string.plan_selected_day_unplanned_title),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    items(
+                        items = daySchedule.unplannedEntries,
                         key = { it.uuid }
                     ) { entry ->
                         SelectedDayEntryCard(
@@ -215,6 +229,8 @@ private fun PlanScreenContent(
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
+                            upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
+                            today = uiState.today,
                             onClick = { onGroupClick(group.uuid) }
                         )
                     }
@@ -239,12 +255,21 @@ private fun SelectedDayEntryCard(
             Text(text = entry.medicineName)
         },
         supportingContent = {
-            Text(
-                text = stringResource(
-                    R.string.entry_medicine_dose,
-                    entry.dosageMgAsMedicine.formatDose(appLocale)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.entry_medicine_dose,
+                        entry.dosageMgAsMedicine.formatDose(appLocale)
+                    )
                 )
-            )
+                Text(
+                    text = stringResource(R.string.plan_entry_label_manual),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         },
         trailingContent = {
             Text(
@@ -257,11 +282,88 @@ private fun SelectedDayEntryCard(
 }
 
 @Composable
+private fun PlanScheduleEntryCard(
+    entry: PlanDayScheduleEntry,
+    appLocale: Locale,
+    timeFormatter: DateTimeFormatter
+) {
+    val statusLabel = if (entry.isFulfilled) {
+        stringResource(R.string.plan_schedule_entry_logged)
+    } else {
+        stringResource(R.string.plan_schedule_entry_not_logged)
+    }
+    val statusColor = if (entry.isFulfilled) {
+        fulfilledIndicatorColor
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    ListItem(
+        modifier = Modifier.fillMaxWidth(),
+        leadingContent = {
+            if (entry.isFulfilled) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = fulfilledIndicatorColor
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .border(
+                            width = 1.5.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = CircleShape
+                        )
+                )
+            }
+        },
+        overlineContent = {
+            Text(text = entry.scheduledTime.format(timeFormatter))
+        },
+        headlineContent = {
+            Text(text = entry.groupName)
+        },
+        supportingContent = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+            ) {
+                entry.medications.take(3).forEach { medication ->
+                    Text(
+                        text = stringResource(
+                            R.string.plan_group_medication_summary,
+                            medication.medicineName,
+                            medication.dosageMgAsMedicine.formatDose(appLocale),
+                            stringResource(medication.routeOfAdministration.labelRes)
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                val hiddenCount = entry.medications.size - 3
+                if (hiddenCount > 0) {
+                    Text(
+                        text = stringResource(R.string.plan_group_more_medications, hiddenCount),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Text(
+                    text = statusLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor
+                )
+            }
+        }
+    )
+}
+
+@Composable
 private fun MedicationGroupCard(
     group: MedicationGroup,
     appLocale: Locale,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    upcomingOccurrences: List<LocalDateTime>,
+    today: LocalDate,
     onClick: () -> Unit
 ) {
     ListItem(
@@ -329,6 +431,29 @@ private fun MedicationGroupCard(
                         ),
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+
+                if (upcomingOccurrences.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.plan_group_upcoming_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    upcomingOccurrences.forEach { occurrence ->
+                        val dayLabel = when (occurrence.toLocalDate()) {
+                            today -> stringResource(R.string.plan_group_upcoming_today)
+                            today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
+                            else -> occurrence.toLocalDate().format(dateFormatter)
+                        }
+                        Text(
+                            text = stringResource(
+                                R.string.plan_group_upcoming_format,
+                                dayLabel,
+                                occurrence.toLocalTime().format(timeFormatter)
+                            ),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         }

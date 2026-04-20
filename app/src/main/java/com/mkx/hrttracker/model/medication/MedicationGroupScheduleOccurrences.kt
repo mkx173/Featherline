@@ -45,3 +45,31 @@ fun MedicationGroupSchedule.occurrencesBetween(
     }
     return result
 }
+
+fun MedicationGroupSchedule.nextOccurrencesFrom(
+    start: LocalDateTime,
+    limit: Int,
+    lookaheadDays: Long = 90L
+): List<LocalDateTime> {
+    if (limit <= 0 || times.isEmpty()) {
+        return emptyList()
+    }
+
+    val sortedTimes = times.sorted()
+    val maxDate = start.toLocalDate().plusDays(lookaheadDays)
+    val result = mutableListOf<LocalDateTime>()
+    var currentDate = start.toLocalDate()
+    while (!currentDate.isAfter(maxDate) && result.size < limit) {
+        if (isScheduledOn(currentDate)) {
+            for (time in sortedTimes) {
+                val occurrence = LocalDateTime.of(currentDate, time)
+                if (!occurrence.isBefore(start)) {
+                    result += occurrence
+                    if (result.size >= limit) break
+                }
+            }
+        }
+        currentDate = currentDate.plusDays(1)
+    }
+    return result
+}
