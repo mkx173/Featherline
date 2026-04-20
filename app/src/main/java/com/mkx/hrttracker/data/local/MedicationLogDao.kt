@@ -37,7 +37,8 @@ interface MedicationLogDao {
         """
         UPDATE medication_log_entries
         SET sourceType = :manualSourceType,
-            sourceGroupUuid = NULL
+            sourceGroupUuid = NULL,
+            scheduledForIso = NULL
         WHERE sourceGroupUuid = :groupUuid
         """
     )

@@ -594,8 +594,8 @@ private fun HistoryEntryCard(
             }
         ),
         leadingContent = {
-            val sourceVisual = remember(entry.sourceType) {
-                entry.sourceType.toHistorySourceVisual()
+            val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
+                historySourceVisual(entry.sourceType, entry.scheduledFor != null)
             }
             Icon(
                 imageVector = sourceVisual.icon,
@@ -659,9 +659,10 @@ private fun HistoryScreenPreview() {
                         medicineName = "Estradiol",
                         dosageMgAsMedicine = 1.0,
                         dosageMgAsEstradiol = 1.0,
-                        sourceType = MedicationLogEntrySourceType.GROUP_SCHEDULE,
+                        sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                         sourceGroupUuid = UUID.fromString("a563870c-7f67-4c29-83d3-7592f40e5845"),
-                        appliedAt = Instant.parse("2026-04-16T19:00:00Z")
+                        appliedAt = Instant.parse("2026-04-16T19:00:00Z"),
+                        scheduledFor = java.time.LocalDateTime.parse("2026-04-16T19:00:00")
                     )
                 ),
                 calendarStartMonth = YearMonth.of(2026, 4),
@@ -683,8 +684,17 @@ private data class HistorySourceVisual(
     val contentDescriptionRes: Int
 )
 
-private fun MedicationLogEntrySourceType.toHistorySourceVisual(): HistorySourceVisual {
-    return when (this) {
+private fun historySourceVisual(
+    sourceType: MedicationLogEntrySourceType,
+    fulfillsSchedule: Boolean
+): HistorySourceVisual {
+    if (fulfillsSchedule) {
+        return HistorySourceVisual(
+            icon = Icons.Default.CalendarMonth,
+            contentDescriptionRes = R.string.history_entry_source_group_schedule
+        )
+    }
+    return when (sourceType) {
         MedicationLogEntrySourceType.MANUAL -> HistorySourceVisual(
             icon = Icons.Default.Edit,
             contentDescriptionRes = R.string.history_entry_source_manual
@@ -692,10 +702,6 @@ private fun MedicationLogEntrySourceType.toHistorySourceVisual(): HistorySourceV
         MedicationLogEntrySourceType.GROUP_MANUAL -> HistorySourceVisual(
             icon = Icons.AutoMirrored.Filled.ViewList,
             contentDescriptionRes = R.string.history_entry_source_group_manual
-        )
-        MedicationLogEntrySourceType.GROUP_SCHEDULE -> HistorySourceVisual(
-            icon = Icons.Default.CalendarMonth,
-            contentDescriptionRes = R.string.history_entry_source_group_schedule
         )
     }
 }

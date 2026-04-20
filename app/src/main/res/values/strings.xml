@@ -61,6 +61,12 @@
     <string name="quick_add_group_empty_state">Create a medication group in Plan first.</string>
     <string name="quick_add_group_change_group">Choose another group</string>
     <string name="quick_add_group_save_entries">Save group entries</string>
+    <string name="quick_add_group_planned_slot_label">Planned dose</string>
+    <string name="quick_add_group_planned_slot_unplanned">Unplanned</string>
+    <string name="quick_add_group_planned_slot_today">Today</string>
+    <string name="quick_add_group_planned_slot_yesterday">Yesterday</string>
+    <string name="quick_add_group_planned_slot_tomorrow">Tomorrow</string>
+    <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">Cancel</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
+import java.time.LocalDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -67,7 +68,8 @@ class MedicationLogRepository @Inject constructor(
         dosageMgAsMedicine: Double,
         sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
-        appliedAt: Instant
+        appliedAt: Instant,
+        scheduledFor: LocalDateTime? = null
     ) {
         databaseHolder.get().medicationLogDao().insertEntry(
             MedicationLogEntryEntity(
@@ -81,7 +83,8 @@ class MedicationLogRepository @Inject constructor(
                 ),
                 sourceType = sourceType.name,
                 sourceGroupUuid = sourceGroupUuid?.toString(),
-                appliedAtEpochMillis = appliedAt.toEpochMilli()
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                scheduledForIso = scheduledFor?.toString()
             )
         )
     }
@@ -95,7 +98,8 @@ class MedicationLogRepository @Inject constructor(
             dosageMgAsEstradiol = dosageMgAsEstradiol,
             sourceType = MedicationLogEntrySourceType.fromStorageValue(sourceType),
             sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
-            appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis)
+            appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
+            scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
         )
     }
 }

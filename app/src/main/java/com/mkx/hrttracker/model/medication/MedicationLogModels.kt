@@ -3,6 +3,7 @@ package com.mkx.hrttracker.model.medication
 import androidx.annotation.StringRes
 import com.mkx.hrttracker.R
 import java.time.Instant
+import java.time.LocalDateTime
 import java.util.UUID
 
 enum class RouteOfAdministration(@get:StringRes val labelRes: Int) {
@@ -23,8 +24,7 @@ enum class RouteOfAdministration(@get:StringRes val labelRes: Int) {
 
 enum class MedicationLogEntrySourceType {
     MANUAL,
-    GROUP_MANUAL,
-    GROUP_SCHEDULE;
+    GROUP_MANUAL;
 
     companion object {
         fun fromStorageValue(value: String?): MedicationLogEntrySourceType {
@@ -42,4 +42,5 @@ data class MedicationLogEntry(
     val sourceType: MedicationLogEntrySourceType,
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
+    val scheduledFor: LocalDateTime? = null,
 )

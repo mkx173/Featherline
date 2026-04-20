@@ -2,15 +2,12 @@ package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
-import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
-import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.isScheduledOn
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 
 enum class PlanCalendarDayStatus {
     NONE,
@@ -101,25 +98,6 @@ private fun countFulfilledOccurrences(
                 matchedEntries.getOrDefault(signature, 0) >= requiredCount
             }
         }
-}
-
-private fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
-    val normalizedInterval = interval.coerceAtLeast(1)
-
-    return when (type) {
-        MedicationGroupScheduleType.DAILY -> {
-            !date.isBefore(since) &&
-                ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
-        }
-        MedicationGroupScheduleType.WEEKLY -> {
-            val scheduledDayOfWeek = weeklyDayOfWeek ?: return false
-            val firstScheduledDate = since.with(TemporalAdjusters.nextOrSame(scheduledDayOfWeek))
-
-            !date.isBefore(firstScheduledDate) &&
-                date.dayOfWeek == scheduledDayOfWeek &&
-                ChronoUnit.WEEKS.between(firstScheduledDate, date) % normalizedInterval.toLong() == 0L
-        }
-    }
 }
 
 private data class MedicationSignature(

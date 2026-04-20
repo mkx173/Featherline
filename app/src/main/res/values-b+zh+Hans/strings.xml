@@ -61,6 +61,12 @@
     <string name="quick_add_group_empty_state">请先在计划页创建用药分组。</string>
     <string name="quick_add_group_change_group">选择其他分组</string>
     <string name="quick_add_group_save_entries">保存分组记录</string>
+    <string name="quick_add_group_planned_slot_label">对应计划</string>
+    <string name="quick_add_group_planned_slot_unplanned">未计划</string>
+    <string name="quick_add_group_planned_slot_today">今天</string>
+    <string name="quick_add_group_planned_slot_yesterday">昨天</string>
+    <string name="quick_add_group_planned_slot_tomorrow">明天</string>
+    <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">取消</string>
     <string name="validation_name_required">请输入药物名称。</string>
     <string name="validation_dose_required">请输入有效的 mg 剂量。</string>

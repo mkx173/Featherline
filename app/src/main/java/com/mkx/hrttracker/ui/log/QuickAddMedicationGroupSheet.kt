@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -90,6 +92,7 @@ fun QuickAddMedicationGroupSheet(
         },
         onGroupSelected = viewModel::selectGroup,
         onChangeGroupClick = viewModel::clearSelectedGroup,
+        onSlotSelected = viewModel::selectSlot,
         onItemDateChange = viewModel::updateItemDate,
         onItemTimeChange = viewModel::updateItemTime,
         onSaveClick = viewModel::saveEntries,
@@ -106,6 +109,7 @@ private fun QuickAddMedicationGroupSheetContent(
     onCloseClick: () -> Unit,
     onGroupSelected: (UUID) -> Unit,
     onChangeGroupClick: () -> Unit,
+    onSlotSelected: (String?) -> Unit,
     onItemDateChange: (String, LocalDate) -> Unit,
     onItemTimeChange: (String, LocalTime) -> Unit,
     onSaveClick: () -> Unit,
@@ -161,6 +165,17 @@ private fun QuickAddMedicationGroupSheetContent(
                     }
                 }
             } else {
+                if (uiState.availableSlots.isNotEmpty()) {
+                    QuickAddPlannedSlotRow(
+                        slots = uiState.availableSlots,
+                        selectedSlotId = uiState.selectedSlotId,
+                        timeFormatter = timeFormatter,
+                        dateFormatter = dateFormatter,
+                        today = remember { LocalDate.now() },
+                        onSlotSelected = onSlotSelected
+                    )
+                }
+
                 uiState.draftEntries.forEach { entry ->
                     QuickAddMedicationGroupEntryRow(
                         entry = entry,
@@ -281,6 +296,59 @@ private fun MedicationGroupSelectionRow(
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickAddPlannedSlotRow(
+    slots: List<QuickAddScheduleSlotUiOption>,
+    selectedSlotId: String?,
+    timeFormatter: DateTimeFormatter,
+    dateFormatter: DateTimeFormatter,
+    today: LocalDate,
+    onSlotSelected: (String?) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+    ) {
+        Text(
+            text = stringResource(R.string.quick_add_group_planned_slot_label),
+            style = MaterialTheme.typography.labelLarge
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+        ) {
+            FilterChip(
+                selected = selectedSlotId == null,
+                onClick = { onSlotSelected(null) },
+                label = { Text(text = stringResource(R.string.quick_add_group_planned_slot_unplanned)) }
+            )
+            slots.forEach { slot ->
+                val dayLabel = when (slot.date) {
+                    today -> stringResource(R.string.quick_add_group_planned_slot_today)
+                    today.minusDays(1) -> stringResource(R.string.quick_add_group_planned_slot_yesterday)
+                    today.plusDays(1) -> stringResource(R.string.quick_add_group_planned_slot_tomorrow)
+                    else -> slot.date.format(dateFormatter)
+                }
+                val label = stringResource(
+                    R.string.quick_add_group_planned_slot_format,
+                    dayLabel,
+                    slot.time.format(timeFormatter)
+                )
+                FilterChip(
+                    selected = selectedSlotId == slot.slotId,
+                    onClick = {
+                        val next = if (selectedSlotId == slot.slotId) null else slot.slotId
+                        onSlotSelected(next)
+                    },
+                    label = { Text(text = label) }
+                )
+            }
+        }
+    }
 }
 
 @Composable
