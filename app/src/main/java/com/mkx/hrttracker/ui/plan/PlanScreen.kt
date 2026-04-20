@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -287,15 +288,15 @@ private fun PlanScheduleEntryCard(
     appLocale: Locale,
     timeFormatter: DateTimeFormatter
 ) {
-    val statusLabel = if (entry.isFulfilled) {
-        stringResource(R.string.plan_schedule_entry_logged)
-    } else {
-        stringResource(R.string.plan_schedule_entry_not_logged)
+    val statusLabel = when {
+        entry.isFulfilled -> stringResource(R.string.plan_schedule_entry_logged)
+        entry.isDueSoon -> stringResource(R.string.plan_schedule_entry_due_soon)
+        else -> stringResource(R.string.plan_schedule_entry_not_logged)
     }
-    val statusColor = if (entry.isFulfilled) {
-        fulfilledIndicatorColor
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+    val statusColor = when {
+        entry.isFulfilled -> fulfilledIndicatorColor
+        entry.isDueSoon -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     ListItem(
         modifier = Modifier.fillMaxWidth(),
@@ -305,6 +306,12 @@ private fun PlanScheduleEntryCard(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
                     tint = fulfilledIndicatorColor
+                )
+            } else if (entry.isDueSoon) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
             } else {
                 Box(

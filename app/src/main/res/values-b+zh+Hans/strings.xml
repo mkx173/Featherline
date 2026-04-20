@@ -20,6 +20,7 @@
     <string name="plan_selected_day_unplanned_title">未计划的记录</string>
     <string name="plan_schedule_entry_not_logged">尚未记录</string>
     <string name="plan_schedule_entry_logged">已记录</string>
+    <string name="plan_schedule_entry_due_soon">即将到点</string>
     <string name="plan_entry_label_manual">手动</string>
     <string name="plan_group_upcoming_title">即将到来</string>
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>

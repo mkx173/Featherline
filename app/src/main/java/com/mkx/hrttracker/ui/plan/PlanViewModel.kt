@@ -6,12 +6,14 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
+import com.mkx.hrttracker.model.medication.occurrencesBetween
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -25,16 +27,23 @@ class PlanViewModel @Inject constructor(
     medicationLogRepository: MedicationLogRepository
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow(LocalDate.now())
+    private val currentDateTime = flow {
+        while (true) {
+            emit(LocalDateTime.now())
+            delay(CURRENT_TIME_REFRESH_INTERVAL_MILLIS)
+        }
+    }
 
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
-        selectedDate
-    ) { groupsOrNull, entriesOrNull, selection ->
+        selectedDate,
+        currentDateTime
+    ) { groupsOrNull, entriesOrNull, selection, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
         val groups = groupsOrNull.orEmpty()
         val entries = entriesOrNull.orEmpty()
-        val today = LocalDate.now()
+        val today = now.toLocalDate()
         val calendarRange = buildPlanCalendarRange(
             today = today,
             firstDayOfWeek = DayOfWeek.MONDAY
@@ -43,15 +52,15 @@ class PlanViewModel @Inject constructor(
         val daySchedule = buildPlanDaySchedule(
             date = clampedSelection,
             groups = groups,
-            entries = entries
+            entries = entries,
+            now = now
         )
-        val nextOccurrencesFrom = LocalDateTime.of(today, java.time.LocalTime.MIN)
-        val nextOccurrencesByGroup = groups.associate { group ->
-            group.uuid to group.schedule.nextOccurrencesFrom(
-                start = nextOccurrencesFrom,
-                limit = UPCOMING_OCCURRENCES_LIMIT
-            )
-        }
+        val nextOccurrencesByGroup = buildNextOccurrencesByGroup(
+            groups = groups,
+            entries = entries,
+            start = now,
+            limit = UPCOMING_OCCURRENCES_LIMIT
+        )
 
         PlanUiState(
             isLoading = isLoading,
@@ -87,6 +96,35 @@ class PlanViewModel @Inject constructor(
 
     private companion object {
         const val UPCOMING_OCCURRENCES_LIMIT = 3
+        const val CURRENT_TIME_REFRESH_INTERVAL_MILLIS = 60_000L
+    }
+}
+
+internal fun buildNextOccurrencesByGroup(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    start: LocalDateTime,
+    limit: Int,
+    lookaheadDays: Long = 90L
+): Map<UUID, List<LocalDateTime>> {
+    return groups.associate { group ->
+        group.uuid to group.schedule
+            .occurrencesBetween(
+                startDate = start.toLocalDate(),
+                endDate = start.toLocalDate().plusDays(lookaheadDays)
+            )
+            .asSequence()
+            .filter { occurrence -> !occurrence.isBefore(start) }
+            .filterNot { occurrence ->
+                isSlotFulfilled(
+                    group = group,
+                    date = occurrence.toLocalDate(),
+                    time = occurrence.toLocalTime(),
+                    entries = entries
+                )
+            }
+            .take(limit)
+            .toList()
     }
 }
 

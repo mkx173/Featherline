@@ -17,6 +17,7 @@ data class PlanDayScheduleEntry(
     val medications: List<MedicationGroupMedication>,
     val fulfillingEntryUuids: List<UUID>,
     val isFulfilled: Boolean,
+    val isDueSoon: Boolean,
 )
 
 data class PlanDaySchedule(
@@ -29,6 +30,7 @@ fun buildPlanDaySchedule(
     date: LocalDate,
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
+    now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault()
 ): PlanDaySchedule {
     val scheduledEntries = groups
@@ -39,13 +41,15 @@ fun buildPlanDaySchedule(
                 val fulfillingEntries = entries.filter { entry ->
                     entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
                 }
+                val isFulfilled = isSlotFulfilled(group, date, time, entries)
                 PlanDayScheduleEntry(
                     groupUuid = group.uuid,
                     groupName = group.name,
                     scheduledTime = time,
                     medications = group.medications,
                     fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
-                    isFulfilled = isSlotFulfilled(group, date, time, entries)
+                    isFulfilled = isFulfilled,
+                    isDueSoon = !isFulfilled && isDueSoon(slotDateTime, now)
                 )
             }
         }
@@ -63,4 +67,11 @@ fun buildPlanDaySchedule(
         scheduledEntries = scheduledEntries,
         unplannedEntries = unplannedEntries
     )
+}
+
+internal fun isDueSoon(
+    scheduledAt: LocalDateTime,
+    now: LocalDateTime
+): Boolean {
+    return !scheduledAt.isBefore(now) && !scheduledAt.isAfter(now.plusHours(1))
 }
