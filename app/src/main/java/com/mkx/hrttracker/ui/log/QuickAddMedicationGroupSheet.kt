@@ -31,7 +31,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -58,56 +57,15 @@ import java.util.UUID
 fun QuickAddMedicationGroupSheet(
     onDismissRequest: () -> Unit,
     onEntriesSaved: () -> Unit,
-    initialGroupId: UUID? = null,
-    initialSlotId: String? = null,
     modifier: Modifier = Modifier,
     viewModel: QuickAddMedicationGroupViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    val (hasAppliedInitialSelection, setHasAppliedInitialSelection) = remember(initialGroupId, initialSlotId) {
-        mutableStateOf(false)
-    }
 
     LaunchedEffect(Unit) {
         viewModel.initialize()
-    }
-
-    LaunchedEffect(
-        uiState.groups,
-        uiState.selectedGroup?.uuid,
-        uiState.availableSlots,
-        uiState.selectedSlotId,
-        initialGroupId,
-        initialSlotId,
-        hasAppliedInitialSelection
-    ) {
-        if (hasAppliedInitialSelection) {
-            return@LaunchedEffect
-        }
-        if (initialGroupId == null) {
-            setHasAppliedInitialSelection(true)
-            return@LaunchedEffect
-        }
-        if (uiState.selectedGroup?.uuid != initialGroupId) {
-            if (uiState.groups.any { it.uuid == initialGroupId }) {
-                viewModel.selectGroup(initialGroupId)
-            }
-            return@LaunchedEffect
-        }
-        if (initialSlotId == null) {
-            setHasAppliedInitialSelection(true)
-            return@LaunchedEffect
-        }
-        if (uiState.selectedSlotId == initialSlotId) {
-            setHasAppliedInitialSelection(true)
-            return@LaunchedEffect
-        }
-        if (uiState.availableSlots.any { it.slotId == initialSlotId }) {
-            viewModel.selectSlot(initialSlotId)
-            setHasAppliedInitialSelection(true)
-        }
     }
 
     LaunchedEffect(uiState.isSaved) {

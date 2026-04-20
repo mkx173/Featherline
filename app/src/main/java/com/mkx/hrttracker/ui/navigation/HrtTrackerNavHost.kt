@@ -43,6 +43,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.log.QuickAddMedicationGroupSheet
+import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -107,7 +108,8 @@ fun HrtTrackerNavHost(
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
-    var quickAddGroupSheetRequest by remember { mutableStateOf<QuickAddGroupSheetRequest?>(null) }
+    var quickAddGroupSheetVisible by remember { mutableStateOf(false) }
+    var quickLogPlannedDoseRequest by remember { mutableStateOf<QuickLogPlannedDoseRequest?>(null) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
@@ -164,7 +166,7 @@ fun HrtTrackerNavHost(
                     ) {
                         SmallFloatingActionButton(
                             onClick = {
-                                quickAddGroupSheetRequest = QuickAddGroupSheetRequest()
+                                quickAddGroupSheetVisible = true
                             }
                         ) {
                             Icon(
@@ -216,9 +218,9 @@ fun HrtTrackerNavHost(
             composable(Screen.Main.route) {
                 MainScreen(
                     onQuickLogDoseClick = { groupId, scheduledAt ->
-                        quickAddGroupSheetRequest = QuickAddGroupSheetRequest(
-                            initialGroupId = groupId,
-                            initialSlotId = scheduledAt.toString()
+                        quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
+                            groupId = groupId,
+                            scheduledFor = scheduledAt
                         )
                     }
                 )
@@ -275,12 +277,19 @@ fun HrtTrackerNavHost(
         )
     }
 
-    quickAddGroupSheetRequest?.let { request ->
+    if (quickAddGroupSheetVisible) {
         QuickAddMedicationGroupSheet(
-            initialGroupId = request.initialGroupId,
-            initialSlotId = request.initialSlotId,
-            onDismissRequest = { quickAddGroupSheetRequest = null },
-            onEntriesSaved = { quickAddGroupSheetRequest = null }
+            onDismissRequest = { quickAddGroupSheetVisible = false },
+            onEntriesSaved = { quickAddGroupSheetVisible = false }
+        )
+    }
+
+    quickLogPlannedDoseRequest?.let { request ->
+        QuickLogPlannedDoseSheet(
+            groupId = request.groupId,
+            scheduledFor = request.scheduledFor,
+            onDismissRequest = { quickLogPlannedDoseRequest = null },
+            onEntriesSaved = { quickLogPlannedDoseRequest = null }
         )
     }
 }
@@ -291,7 +300,7 @@ private data class AddEntrySheetRequest(
     val entryId: String?,
 )
 
-private data class QuickAddGroupSheetRequest(
-    val initialGroupId: UUID? = null,
-    val initialSlotId: String? = null,
+private data class QuickLogPlannedDoseRequest(
+    val groupId: UUID,
+    val scheduledFor: LocalDateTime,
 )
