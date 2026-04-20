@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,7 +29,8 @@ import javax.inject.Inject
 @HiltViewModel
 class QuickAddMedicationGroupViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
-    private val medicationLogRepository: MedicationLogRepository
+    private val medicationLogRepository: MedicationLogRepository,
+    private val medicationReminderScheduler: MedicationReminderScheduler
 ) : ViewModel() {
     private val groups = medicationGroupRepository.observeGroups()
         .map { it.orEmpty() }
@@ -177,6 +179,8 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
                     scheduledFor = scheduledFor
                 )
             }
+
+            medicationReminderScheduler.rescheduleAll()
 
             isSaving.value = false
             isSaved.value = true

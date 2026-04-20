@@ -6,6 +6,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AddEntryViewModel @Inject constructor(
-    private val medicationLogRepository: MedicationLogRepository
+    private val medicationLogRepository: MedicationLogRepository,
+    private val medicationReminderScheduler: MedicationReminderScheduler
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
@@ -117,6 +119,7 @@ class AddEntryViewModel @Inject constructor(
                 sourceGroupUuid = currentState.sourceGroupUuid,
                 appliedAt = appliedAt
             )
+            medicationReminderScheduler.rescheduleAll()
 
             _uiState.update {
                 it.copy(

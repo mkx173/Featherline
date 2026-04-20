@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +25,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
-    medicationGroupRepository: MedicationGroupRepository
+    medicationGroupRepository: MedicationGroupRepository,
+    private val medicationReminderScheduler: MedicationReminderScheduler
 ) : ViewModel() {
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
@@ -124,6 +126,7 @@ class HistoryViewModel @Inject constructor(
 
         viewModelScope.launch {
             medicationLogRepository.deleteEntries(entryIdsToDelete)
+            medicationReminderScheduler.rescheduleAll()
             selectedEntryIds.value = emptySet()
             isDeleteConfirmationVisible.value = false
         }

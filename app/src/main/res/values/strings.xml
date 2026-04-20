@@ -22,6 +22,9 @@
     <string name="main_today_status_overdue">Missed / overdue</string>
     <string name="main_today_quick_log">Quick log</string>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
+    <string name="reminder_notification_channel_name">Dose reminders</string>
+    <string name="reminder_notification_channel_description">Notifications for planned medication doses.</string>
+    <string name="reminder_notification_body">It is time for your planned dose.</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="fab_add_entry_from_group">Add from medication group</string>
     <string name="fab_add_medication_group">Add medication group</string>
@@ -61,6 +64,8 @@
     <string name="field_medication_name">Medication name</string>
     <string name="field_dosage_mg">Dosage (mg as medicine)</string>
     <string name="field_medication_group_name">Group name</string>
+    <string name="group_notifications_title">Dose reminders</string>
+    <string name="group_notifications_summary">Notify me when this group is scheduled.</string>
     <string name="group_schedule_title">Interval</string>
     <string name="group_schedule_weekly">Weekly</string>
     <string name="group_schedule_daily">Daily</string>

@@ -1,8 +1,17 @@
 package com.mkx.hrttracker.ui.plan
 
+import android.Manifest
+import android.app.AlarmManager
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.text.format.DateFormat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -70,6 +81,18 @@ fun MedicationGroupEditorScreen(
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.updateNotificationsEnabled(isGranted)
+        if (isGranted) {
+            maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+        }
+    }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
@@ -91,6 +114,22 @@ fun MedicationGroupEditorScreen(
         onGroupNameChange = viewModel::updateGroupName,
         onScheduleTypeChange = viewModel::updateScheduleType,
         onSinceDateChange = viewModel::updateSinceDate,
+        onNotificationsEnabledChange = { enabled ->
+            if (!enabled) {
+                viewModel.updateNotificationsEnabled(false)
+            } else if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                viewModel.updateNotificationsEnabled(true)
+                maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+            }
+        },
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::updateWeeklyDayOfWeek,
         onWeeklyTimeChange = viewModel::updateWeeklyTime,
@@ -123,6 +162,7 @@ private fun MedicationGroupEditorScreenContent(
     onGroupNameChange: (String) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
+    onNotificationsEnabledChange: (Boolean) -> Unit,
     onWeeklyIntervalChange: (String) -> Unit,
     onWeeklyDayChange: (DayOfWeek) -> Unit,
     onWeeklyTimeChange: (LocalTime) -> Unit,
@@ -330,6 +370,24 @@ private fun MedicationGroupEditorScreenContent(
                         onRemoveTime = onRemoveDailyTime
                     )
                 }
+            }
+
+            item {
+                ListItem(
+                    modifier = Modifier.fillMaxWidth(),
+                    headlineContent = {
+                        Text(text = stringResource(R.string.group_notifications_title))
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.group_notifications_summary))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.notificationsEnabled,
+                            onCheckedChange = onNotificationsEnabledChange
+                        )
+                    }
+                )
             }
 
             items(
@@ -578,6 +636,23 @@ private fun DailyScheduleEditor(
             Text(text = stringResource(R.string.add_time))
         }
     }
+}
+
+private fun maybeRequestExactAlarmAccess(
+    context: android.content.Context,
+    launch: (Intent) -> Unit
+) {
+    val alarmManager = context.getSystemService(AlarmManager::class.java)
+    if (alarmManager.canScheduleExactAlarms()) {
+        return
+    }
+
+    launch(
+        Intent(
+            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+            Uri.parse("package:${context.packageName}")
+        )
+    )
 }
 
 @Composable

@@ -27,6 +27,25 @@ interface MedicationLogDao {
 
     @Query(
         """
+        SELECT * FROM medication_log_entries
+        ORDER BY appliedAtEpochMillis DESC
+        """
+    )
+    suspend fun getEntries(): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
+        WHERE sourceGroupUuid IS NOT NULL
+          AND scheduledForIso IS NOT NULL
+          AND scheduledForIso >= :sinceIso
+        ORDER BY appliedAtEpochMillis DESC
+        """
+    )
+    suspend fun getScheduledGroupEntriesSince(sinceIso: String): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
         DELETE FROM medication_log_entries
         WHERE uuid IN (:uuids)
         """

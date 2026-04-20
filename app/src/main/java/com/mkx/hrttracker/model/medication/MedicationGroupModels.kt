@@ -11,6 +11,7 @@ data class MedicationGroup(
     val name: String,
     val schedule: MedicationGroupSchedule,
     val medications: List<MedicationGroupMedication>,
+    val notificationsEnabled: Boolean = false,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

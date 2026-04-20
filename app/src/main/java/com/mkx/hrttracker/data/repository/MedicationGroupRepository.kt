@@ -58,6 +58,10 @@ class MedicationGroupRepository @Inject constructor(
 
     fun observeGroups(): Flow<List<MedicationGroup>?> = groupsFlow
 
+    suspend fun getGroups(): List<MedicationGroup> {
+        return databaseHolder.get().medicationGroupDao().getGroups().map { it.toModel() }
+    }
+
     suspend fun getGroup(uuid: UUID): MedicationGroup? {
         return databaseHolder.get().medicationGroupDao().getGroup(uuid.toString())?.toModel()
     }
@@ -78,8 +82,9 @@ class MedicationGroupRepository @Inject constructor(
         uuid: UUID?,
         name: String,
         schedule: MedicationGroupScheduleInput,
-        medications: List<MedicationGroupMedicationInput>
-    ) {
+        medications: List<MedicationGroupMedicationInput>,
+        notificationsEnabled: Boolean = false
+    ): UUID {
         val dao = databaseHolder.get().medicationGroupDao()
         val nowEpochMillis = Instant.now().toEpochMilli()
         val groupUuid = uuid ?: UUID.randomUUID()
@@ -90,6 +95,7 @@ class MedicationGroupRepository @Inject constructor(
             group = MedicationGroupEntity(
                 uuid = groupUuid.toString(),
                 name = name,
+                notificationsEnabled = notificationsEnabled,
                 scheduleType = schedule.type.name,
                 scheduleInterval = schedule.interval,
                 scheduleSinceEpochDay = schedule.since.toEpochDay(),
@@ -116,6 +122,8 @@ class MedicationGroupRepository @Inject constructor(
                 )
             }
         )
+
+        return groupUuid
     }
 
     private fun MedicationGroupWithItemsEntity.toModel(): MedicationGroup {
@@ -139,6 +147,7 @@ class MedicationGroupRepository @Inject constructor(
                     dosageMgAsMedicine = item.dosageMgAsMedicine,
                 )
             },
+            notificationsEnabled = group.notificationsEnabled,
             createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis)
         )

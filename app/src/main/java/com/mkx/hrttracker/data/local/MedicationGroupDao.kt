@@ -28,6 +28,15 @@ interface MedicationGroupDao {
     )
     suspend fun getGroup(uuid: String): MedicationGroupWithItemsEntity?
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM medication_groups
+        ORDER BY updatedAtEpochMillis DESC, createdAtEpochMillis DESC
+        """
+    )
+    suspend fun getGroups(): List<MedicationGroupWithItemsEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGroup(group: MedicationGroupEntity)
 

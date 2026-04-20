@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
+    private val medicationReminderScheduler: MedicationReminderScheduler,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MedicationGroupEditorUiState())
@@ -95,6 +97,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 dailyIntervalDays = intervalDays,
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateNotificationsEnabled(enabled: Boolean) {
+        _uiState.update {
+            it.copy(
+                notificationsEnabled = enabled,
                 errorMessageRes = null
             )
         }
@@ -275,7 +286,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
 
-            medicationGroupRepository.saveGroup(
+            val savedGroupUuid = medicationGroupRepository.saveGroup(
                 uuid = currentState.editingGroupId?.let(UUID::fromString),
                 name = trimmedGroupName,
                 schedule = when (currentState.scheduleType) {
@@ -303,8 +314,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         medicineName = medication.medicineName.trim(),
                         dosageMgAsMedicine = medication.dosageMg.toDouble()
                     )
-                }
+                },
+                notificationsEnabled = currentState.notificationsEnabled
             )
+            medicationReminderScheduler.rescheduleGroup(savedGroupUuid)
 
             _uiState.update {
                 it.copy(
@@ -347,6 +360,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
 
+            medicationReminderScheduler.cancelReminder(uuid)
             medicationGroupRepository.deleteGroup(uuid)
 
             _uiState.update {
@@ -397,6 +411,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 } else {
                     listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
                 },
+                notificationsEnabled = group.notificationsEnabled,
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -446,6 +461,7 @@ data class MedicationGroupEditorUiState(
     val dailyTimes: List<MedicationGroupScheduleTimeUiState> = listOf(
         MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))
     ),
+    val notificationsEnabled: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val editingMedication: MedicationGroupMedicationItemUiState? = null,
     val isMedicationEditorSaved: Boolean = false,

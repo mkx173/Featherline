@@ -22,6 +22,9 @@
     <string name="main_today_status_overdue">已错过 / 逾期</string>
     <string name="main_today_quick_log">快速记录</string>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
+    <string name="reminder_notification_channel_name">用药提醒</string>
+    <string name="reminder_notification_channel_description">计划用药时间的通知。</string>
+    <string name="reminder_notification_body">到了计划用药时间。</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="fab_add_entry_from_group">从用药分组添加</string>
     <string name="fab_add_medication_group">添加用药分组</string>
@@ -61,6 +64,8 @@
     <string name="field_medication_name">药物名称</string>
     <string name="field_dosage_mg">剂量（按药物 mg）</string>
     <string name="field_medication_group_name">分组名称</string>
+    <string name="group_notifications_title">用药提醒</string>
+    <string name="group_notifications_summary">当这个分组到达计划时间时通知我。</string>
     <string name="group_schedule_title">间隔</string>
     <string name="group_schedule_weekly">每周</string>
     <string name="group_schedule_daily">每日</string>

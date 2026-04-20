@@ -49,6 +49,16 @@ class MedicationLogRepository @Inject constructor(
 
     fun observeEntries(): Flow<List<MedicationLogEntry>?> = entriesFlow
 
+    suspend fun getEntries(): List<MedicationLogEntry> {
+        return databaseHolder.get().medicationLogDao().getEntries().map { it.toModel() }
+    }
+
+    suspend fun getScheduledGroupEntriesSince(since: LocalDateTime): List<MedicationLogEntry> {
+        return databaseHolder.get().medicationLogDao()
+            .getScheduledGroupEntriesSince(since.toString())
+            .map { it.toModel() }
+    }
+
     suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
         return databaseHolder.get().medicationLogDao().getEntry(uuid.toString())?.toModel()
     }
