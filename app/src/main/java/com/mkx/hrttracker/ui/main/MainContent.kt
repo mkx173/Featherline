@@ -15,6 +15,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -25,12 +26,15 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.UUID
 
 @Composable
 fun MainContent(
     uiState: MainUiState,
+    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -60,7 +64,8 @@ fun MainContent(
             MainTodaySection(
                 section = uiState.todaySection,
                 dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter
+                timeFormatter = timeFormatter,
+                onQuickLogDoseClick = onQuickLogDoseClick
             )
         }
 
@@ -79,6 +84,7 @@ private fun MainTodaySection(
     section: MainTodaySectionUiState,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
+    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -107,7 +113,8 @@ private fun MainTodaySection(
                     section.rows.forEachIndexed { index, row ->
                         MainTodayDoseRow(
                             row = row,
-                            timeFormatter = timeFormatter
+                            timeFormatter = timeFormatter,
+                            onQuickLogDoseClick = onQuickLogDoseClick
                         )
                         if (index < section.rows.lastIndex) {
                             HorizontalDivider()
@@ -172,6 +179,7 @@ private fun MainUpcomingSection(
 private fun MainTodayDoseRow(
     row: MainTodayDoseRowUiState,
     timeFormatter: DateTimeFormatter,
+    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val statusText = when (row.status) {
@@ -207,6 +215,17 @@ private fun MainTodayDoseRow(
                     color = statusColor,
                     style = MaterialTheme.typography.labelMedium
                 )
+            }
+        },
+        trailingContent = {
+            if (row.status != MainTodayDoseStatus.DONE) {
+                TextButton(
+                    onClick = {
+                        onQuickLogDoseClick(row.groupUuid, row.scheduledAt)
+                    }
+                ) {
+                    Text(text = stringResource(R.string.main_today_quick_log))
+                }
             }
         }
     )

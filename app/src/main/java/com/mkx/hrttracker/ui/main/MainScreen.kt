@@ -15,11 +15,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import java.time.LocalDateTime
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
+    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit = { _, _ -> },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -36,6 +39,7 @@ fun MainScreen(
     ) { innerPadding ->
         MainContent(
             uiState = uiState,
+            onQuickLogDoseClick = onQuickLogDoseClick,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)

@@ -20,6 +20,7 @@
     <string name="main_today_status_due_soon">即将到点</string>
     <string name="main_today_status_upcoming">今天稍后</string>
     <string name="main_today_status_overdue">已错过 / 逾期</string>
+    <string name="main_today_quick_log">快速记录</string>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="fab_add_entry_from_group">从用药分组添加</string>
