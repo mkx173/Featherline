@@ -104,6 +104,7 @@ data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    val remindersEnabled: Boolean = true,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
         AppLockGracePeriodOption.IMMEDIATELY,

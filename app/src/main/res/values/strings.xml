@@ -137,6 +137,12 @@
     <string name="dark_mode_always_off">Always off</string>
     <string name="dark_mode_always_on">Always on</string>
     <string name="settings_security">Security</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_reminders">Dose reminders</string>
+    <string name="settings_reminders_summary">Master switch for reminders. Turning this off disables all reminders without changing group-level settings.</string>
+    <string name="settings_reminders_permission_off_summary">App notification access is off. Enable notifications to turn reminders back on.</string>
+    <string name="settings_reminders_permission_denied">Notification permission was denied. Reminders remain off.</string>
+    <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings first.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_app_language">App language</string>
     <string name="settings_dark_mode">Dark mode</string>

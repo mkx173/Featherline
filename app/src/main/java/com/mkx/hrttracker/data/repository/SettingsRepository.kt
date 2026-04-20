@@ -37,6 +37,7 @@ class SettingsRepository @Inject constructor(
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
+    private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
@@ -67,6 +68,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setAdaptiveColorEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[adaptiveColorKey] = enabled
+        }
+    }
+
+    suspend fun setRemindersEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[remindersEnabledKey] = enabled
         }
     }
 
@@ -101,6 +108,7 @@ class SettingsRepository @Inject constructor(
         return SettingsState(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
+            remindersEnabled = preferences[remindersEnabledKey] ?: true,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
                 preferences[appLockGracePeriodKey]
             ),

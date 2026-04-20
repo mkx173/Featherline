@@ -1,5 +1,12 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +24,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
@@ -41,14 +56,59 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
+    var showInexactReminderWarning by remember { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    val reminderPermissionDeniedMessage =
+        stringResource(R.string.settings_reminders_permission_denied)
+    val reminderNotificationsUnavailableMessage =
+        stringResource(R.string.settings_reminders_notifications_unavailable)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setRemindersEnabled(true)
+            hasNotificationAccess = canPostNotifications(context)
+        } else {
+            viewModel.setRemindersEnabled(false)
+            hasNotificationAccess = false
+            Toast.makeText(context, reminderPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LaunchedEffect(configuration) {
         viewModel.refreshAppLanguageOption()
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotificationAccess = canPostNotifications(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(hasNotificationAccess, settingsState.remindersEnabled) {
+        if (!hasNotificationAccess && settingsState.remindersEnabled) {
+            viewModel.setRemindersEnabled(false)
+        }
+    }
+
+    LaunchedEffect(hasNotificationAccess, settingsState.remindersEnabled) {
+        showInexactReminderWarning =
+            hasNotificationAccess &&
+                settingsState.remindersEnabled &&
+                !canScheduleExactAlarms(context)
     }
 
     AppAuthenticationPromptEffect(
@@ -70,6 +130,92 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .padding(dimensionResource(R.dimen.padding_small))
         ) {
+            ListItem(
+                modifier = Modifier.fillMaxWidth(),
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.settings_notifications),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            )
+
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        if (settingsState.remindersEnabled) {
+                            viewModel.setRemindersEnabled(false)
+                        } else if (
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                            Toast.makeText(
+                                context,
+                                reminderNotificationsUnavailableMessage,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            viewModel.setRemindersEnabled(true)
+                        }
+                    },
+                headlineContent = {
+                    Text(text = stringResource(R.string.settings_reminders))
+                },
+                supportingContent = {
+                    Column {
+                        Text(
+                            text = stringResource(
+                                if (hasNotificationAccess) {
+                                    R.string.settings_reminders_summary
+                                } else {
+                                    R.string.settings_reminders_permission_off_summary
+                                }
+                            )
+                        )
+                        if (showInexactReminderWarning) {
+                            Text(
+                                text = stringResource(R.string.group_notifications_inexact_warning),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                trailingContent = {
+                    Switch(
+                        checked = settingsState.remindersEnabled && hasNotificationAccess,
+                        onCheckedChange = { enabled ->
+                            if (!enabled) {
+                                viewModel.setRemindersEnabled(false)
+                            } else if (
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                                Toast.makeText(
+                                    context,
+                                    reminderNotificationsUnavailableMessage,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                viewModel.setRemindersEnabled(true)
+                            }
+                        }
+                    )
+                }
+            )
+
             ListItem(
                 modifier = Modifier.fillMaxWidth(),
                 headlineContent = {
@@ -251,4 +397,20 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+private fun canPostNotifications(context: android.content.Context): Boolean {
+    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+        return false
+    }
+
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+}
+
+private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
+    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 }

@@ -7,6 +7,7 @@ import android.content.Intent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -17,13 +18,22 @@ import javax.inject.Singleton
 class MedicationReminderScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val medicationGroupRepository: MedicationGroupRepository,
-    private val medicationLogRepository: MedicationLogRepository
+    private val medicationLogRepository: MedicationLogRepository,
+    private val settingsRepository: SettingsRepository
 ) {
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
         val groups = medicationGroupRepository.getGroups()
+
+        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            groups.forEach { group ->
+                cancelReminder(group.uuid)
+            }
+            return
+        }
+
         val entries = medicationLogRepository.getScheduledGroupEntriesSince(now)
         val plans = buildNextMedicationReminderPlans(
             groups = groups,
@@ -44,6 +54,10 @@ class MedicationReminderScheduler @Inject constructor(
         after: LocalDateTime = LocalDateTime.now()
     ) {
         cancelReminder(groupUuid)
+
+        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            return
+        }
 
         val group = medicationGroupRepository.getGroup(groupUuid) ?: return
         if (!group.notificationsEnabled) {

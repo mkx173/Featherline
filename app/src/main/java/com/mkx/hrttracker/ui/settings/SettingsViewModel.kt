@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
+    private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
@@ -53,6 +55,13 @@ class SettingsViewModel @Inject constructor(
     fun setAdaptiveColorEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setAdaptiveColorEnabled(enabled)
+        }
+    }
+
+    fun setRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setRemindersEnabled(enabled)
+            medicationReminderScheduler.rescheduleAll()
         }
     }
 

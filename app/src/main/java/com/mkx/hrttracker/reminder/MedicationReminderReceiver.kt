@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,6 +28,9 @@ class MedicationReminderReceiver : BroadcastReceiver() {
     lateinit var medicationLogRepository: MedicationLogRepository
 
     @Inject
+    lateinit var settingsRepository: SettingsRepository
+
+    @Inject
     lateinit var medicationReminderScheduler: MedicationReminderScheduler
 
     @Inject
@@ -43,6 +47,11 @@ class MedicationReminderReceiver : BroadcastReceiver() {
 
         appScope.launch {
             runCatching {
+                if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+                    medicationReminderScheduler.cancelReminder(groupUuid)
+                    return@runCatching
+                }
+
                 val group = medicationGroupRepository.getGroup(groupUuid)
                 if (group != null && group.notificationsEnabled) {
                     val entries = medicationLogRepository.getScheduledGroupEntriesSince(scheduledAt)

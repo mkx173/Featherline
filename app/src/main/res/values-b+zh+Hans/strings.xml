@@ -137,6 +137,12 @@
     <string name="dark_mode_always_off">始终关闭</string>
     <string name="dark_mode_always_on">始终开启</string>
     <string name="settings_security">安全</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_reminders">用药提醒</string>
+    <string name="settings_reminders_summary">提醒总开关。关闭后会停用所有提醒，但不会修改各分组的提醒设置。</string>
+    <string name="settings_reminders_permission_off_summary">应用通知权限当前已关闭。请先启用通知，再重新开启提醒。</string>
+    <string name="settings_reminders_permission_denied">通知权限被拒绝，提醒将保持关闭。</string>
+    <string name="settings_reminders_notifications_unavailable">请先在系统设置中启用应用通知。</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>
