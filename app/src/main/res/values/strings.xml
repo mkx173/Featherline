@@ -66,6 +66,12 @@
     <string name="field_medication_group_name">Group name</string>
     <string name="group_notifications_title">Dose reminders</string>
     <string name="group_notifications_summary">Notify me when this group is scheduled.</string>
+    <string name="group_notifications_inexact_warning">Exact alarm access is off, so reminders may be delayed.</string>
+    <string name="group_notifications_permission_denied">Notification permission was denied. Dose reminders remain off.</string>
+    <string name="group_notifications_exact_alarm_title">Allow exact reminders?</string>
+    <string name="group_notifications_exact_alarm_message">Without exact alarm access, Android may delay reminder delivery. You can continue anyway, or open settings and allow exact alarms.</string>
+    <string name="group_notifications_exact_alarm_settings">Open settings</string>
+    <string name="group_notifications_exact_alarm_skip">Skip</string>
     <string name="group_schedule_title">Interval</string>
     <string name="group_schedule_weekly">Weekly</string>
     <string name="group_schedule_daily">Daily</string>

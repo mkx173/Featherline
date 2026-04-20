@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.format.DateFormat
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -51,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -82,15 +84,29 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val notificationPermissionDeniedMessage =
+        stringResource(R.string.group_notifications_permission_denied)
+    var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
-    ) { }
+    ) {
+        isExactAlarmDialogVisible = false
+        showInexactReminderWarning = !canScheduleExactAlarms(context)
+    }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        viewModel.updateNotificationsEnabled(isGranted)
         if (isGranted) {
-            maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+            viewModel.updateNotificationsEnabled(true)
+            if (canScheduleExactAlarms(context)) {
+                showInexactReminderWarning = false
+            } else {
+                isExactAlarmDialogVisible = true
+            }
+        } else {
+            viewModel.updateNotificationsEnabled(false)
+            Toast.makeText(context, notificationPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -108,6 +124,40 @@ fun MedicationGroupEditorScreen(
         }
     }
 
+    if (isExactAlarmDialogVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                isExactAlarmDialogVisible = false
+                showInexactReminderWarning = true
+            },
+            title = {
+                Text(text = stringResource(R.string.group_notifications_exact_alarm_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.group_notifications_exact_alarm_message))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+                    }
+                ) {
+                    Text(text = stringResource(R.string.group_notifications_exact_alarm_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        isExactAlarmDialogVisible = false
+                        showInexactReminderWarning = true
+                    }
+                ) {
+                    Text(text = stringResource(R.string.group_notifications_exact_alarm_skip))
+                }
+            }
+        )
+    }
+
     MedicationGroupEditorScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
@@ -117,6 +167,8 @@ fun MedicationGroupEditorScreen(
         onNotificationsEnabledChange = { enabled ->
             if (!enabled) {
                 viewModel.updateNotificationsEnabled(false)
+                isExactAlarmDialogVisible = false
+                showInexactReminderWarning = false
             } else if (
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(
@@ -127,9 +179,14 @@ fun MedicationGroupEditorScreen(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 viewModel.updateNotificationsEnabled(true)
-                maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+                if (canScheduleExactAlarms(context)) {
+                    showInexactReminderWarning = false
+                } else {
+                    isExactAlarmDialogVisible = true
+                }
             }
         },
+        showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::updateWeeklyDayOfWeek,
         onWeeklyTimeChange = viewModel::updateWeeklyTime,
@@ -163,6 +220,7 @@ private fun MedicationGroupEditorScreenContent(
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
+    showInexactReminderWarning: Boolean,
     onWeeklyIntervalChange: (String) -> Unit,
     onWeeklyDayChange: (DayOfWeek) -> Unit,
     onWeeklyTimeChange: (LocalTime) -> Unit,
@@ -379,7 +437,18 @@ private fun MedicationGroupEditorScreenContent(
                         Text(text = stringResource(R.string.group_notifications_title))
                     },
                     supportingContent = {
-                        Text(text = stringResource(R.string.group_notifications_summary))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+                        ) {
+                            Text(text = stringResource(R.string.group_notifications_summary))
+                            if (showInexactReminderWarning) {
+                                Text(
+                                    text = stringResource(R.string.group_notifications_inexact_warning),
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     },
                     trailingContent = {
                         Switch(
@@ -642,17 +711,21 @@ private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,
     launch: (Intent) -> Unit
 ) {
-    val alarmManager = context.getSystemService(AlarmManager::class.java)
-    if (alarmManager.canScheduleExactAlarms()) {
+    if (canScheduleExactAlarms(context)) {
         return
     }
 
-    launch(
-        Intent(
-            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-            Uri.parse("package:${context.packageName}")
-        )
+    val intent = Intent(
+        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+        Uri.parse("package:${context.packageName}")
     )
+    launch(
+        intent
+    )
+}
+
+private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
+    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 }
 
 @Composable

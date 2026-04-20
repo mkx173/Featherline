@@ -66,6 +66,12 @@
     <string name="field_medication_group_name">分组名称</string>
     <string name="group_notifications_title">用药提醒</string>
     <string name="group_notifications_summary">当这个分组到达计划时间时通知我。</string>
+    <string name="group_notifications_inexact_warning">未启用精确闹钟权限，提醒可能会延迟。</string>
+    <string name="group_notifications_permission_denied">通知权限被拒绝，用药提醒将保持关闭。</string>
+    <string name="group_notifications_exact_alarm_title">允许精确提醒？</string>
+    <string name="group_notifications_exact_alarm_message">如果没有精确闹钟权限，Android 可能会延迟提醒。你可以继续，或打开设置允许精确闹钟。</string>
+    <string name="group_notifications_exact_alarm_settings">打开设置</string>
+    <string name="group_notifications_exact_alarm_skip">跳过</string>
     <string name="group_schedule_title">间隔</string>
     <string name="group_schedule_weekly">每周</string>
     <string name="group_schedule_daily">每日</string>
