@@ -234,6 +234,15 @@ fun HrtTrackerNavHost(
                                 groupId = groupId.toString()
                             )
                         )
+                    },
+                    onEntryClick = { entryId ->
+                        addEntrySheetRequest = AddEntrySheetRequest(entryId = entryId.toString())
+                    },
+                    onQuickLogClick = { groupId, scheduledAt ->
+                        quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
+                            groupId = groupId,
+                            scheduledFor = scheduledAt
+                        )
                     }
                 )
             }

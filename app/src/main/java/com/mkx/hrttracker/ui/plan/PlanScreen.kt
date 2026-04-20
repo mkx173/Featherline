@@ -69,6 +69,8 @@ import java.util.UUID
 @Composable
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
+    onEntryClick: (UUID) -> Unit,
+    onQuickLogClick: (UUID, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -79,6 +81,8 @@ fun PlanScreen(
     PlanScreenContent(
         uiState = uiState,
         onGroupClick = onGroupClick,
+        onEntryClick = onEntryClick,
+        onQuickLogClick = onQuickLogClick,
         onDateSelected = viewModel::setSelectedDate,
         modifier = modifier
     )
@@ -89,6 +93,8 @@ fun PlanScreen(
 private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
+    onEntryClick: (UUID) -> Unit,
+    onQuickLogClick: (UUID, LocalDateTime) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -178,7 +184,18 @@ private fun PlanScreenContent(
                         PlanScheduleEntryCard(
                             entry = scheduled,
                             appLocale = appLocale,
-                            timeFormatter = timeFormatter
+                            timeFormatter = timeFormatter,
+                            onClick = {
+                                val fulfillingEntryUuid = scheduled.fulfillingEntryUuids.firstOrNull()
+                                if (fulfillingEntryUuid != null) {
+                                    onEntryClick(fulfillingEntryUuid)
+                                } else {
+                                    onQuickLogClick(
+                                        scheduled.groupUuid,
+                                        LocalDateTime.of(daySchedule.date, scheduled.scheduledTime)
+                                    )
+                                }
+                            }
                         )
                     }
                 }
@@ -197,7 +214,8 @@ private fun PlanScreenContent(
                         SelectedDayEntryCard(
                             entry = entry,
                             appLocale = appLocale,
-                            timeFormatter = timeFormatter
+                            timeFormatter = timeFormatter,
+                            onClick = { onEntryClick(entry.uuid) }
                         )
                     }
                 }
@@ -245,10 +263,13 @@ private fun PlanScreenContent(
 private fun SelectedDayEntryCard(
     entry: MedicationLogEntry,
     appLocale: Locale,
-    timeFormatter: DateTimeFormatter
+    timeFormatter: DateTimeFormatter,
+    onClick: () -> Unit
 ) {
     ListItem(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         overlineContent = {
             Text(text = stringResource(entry.routeOfAdministration.labelRes))
         },
@@ -286,7 +307,8 @@ private fun SelectedDayEntryCard(
 private fun PlanScheduleEntryCard(
     entry: PlanDayScheduleEntry,
     appLocale: Locale,
-    timeFormatter: DateTimeFormatter
+    timeFormatter: DateTimeFormatter,
+    onClick: () -> Unit
 ) {
     val statusLabel = when {
         entry.isFulfilled -> stringResource(R.string.plan_schedule_entry_logged)
@@ -299,7 +321,9 @@ private fun PlanScheduleEntryCard(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     ListItem(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         leadingContent = {
             if (entry.isFulfilled) {
                 Icon(
