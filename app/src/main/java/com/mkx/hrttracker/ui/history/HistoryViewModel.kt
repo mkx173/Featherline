@@ -51,7 +51,13 @@ class HistoryViewModel @Inject constructor(
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
         }
-        val calendarStartMonth = earliestEntryMonth ?: currentMonth
+        val earliestGroupMonth = groups.minOfOrNull { group ->
+            YearMonth.from(group.schedule.since)
+        }
+        val calendarStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
+            .minOrNull()
+            ?.coerceAtMost(currentMonth)
+            ?: currentMonth
         val calendarEndMonth = currentMonth
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
         val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
