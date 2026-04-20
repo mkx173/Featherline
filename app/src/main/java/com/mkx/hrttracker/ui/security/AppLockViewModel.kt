@@ -84,7 +84,6 @@ class AppLockViewModel @Inject constructor(
                 isUnlocked.value = true
                 return
             }
-            appLockSecurityManager.clearUnlockedSession()
         }
 
         requestUnlock()
@@ -106,7 +105,6 @@ class AppLockViewModel @Inject constructor(
         isUnlocked.value = false
 
         if (state.appLockGracePeriodOption.shouldRelock(0L)) {
-            appLockSecurityManager.clearUnlockedSession()
             backgroundedAtElapsedRealtime = null
         } else {
             backgroundedAtElapsedRealtime = elapsedRealtimeProvider.now()
@@ -135,18 +133,9 @@ class AppLockViewModel @Inject constructor(
 
     fun onAuthenticationSucceeded() {
         pendingPrompt.value = null
-
-        runCatching { appLockSecurityManager.unlockApp() }
-            .onSuccess {
-                backgroundedAtElapsedRealtime = null
-                isUnlocked.value = true
-                errorMessageRes.value = null
-            }
-            .onFailure {
-                backgroundedAtElapsedRealtime = null
-                isUnlocked.value = false
-                errorMessageRes.value = R.string.screen_lock_auth_failed
-            }
+        backgroundedAtElapsedRealtime = null
+        isUnlocked.value = true
+        errorMessageRes.value = null
     }
 
     fun onAuthenticationError(errorCode: Int) {

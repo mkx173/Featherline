@@ -1,12 +1,9 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
-import androidx.annotation.StringRes
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.local.DatabaseHolder
-import com.mkx.hrttracker.data.local.DatabasePassphraseProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,8 +11,6 @@ import javax.inject.Singleton
 @Singleton
 class AppLockSecurityManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val databasePassphraseProvider: DatabasePassphraseProvider,
-    private val databaseHolder: DatabaseHolder,
 ) {
     fun availabilityErrorMessageRes(): Int? {
         return when (BiometricManager.from(context).canAuthenticate(ALLOWED_AUTHENTICATORS)) {
@@ -51,24 +46,6 @@ class AppLockSecurityManager @Inject constructor(
                 R.string.screen_lock_auth_locked_out
             else -> R.string.screen_lock_auth_failed
         }
-    }
-
-    fun enableScreenLockProtection() {
-        databasePassphraseProvider.enableScreenLockProtection()
-    }
-
-    fun disableScreenLockProtection() {
-        databasePassphraseProvider.disableScreenLockProtection()
-    }
-
-    fun unlockApp() {
-        databasePassphraseProvider.primeScreenLockPassphraseCache()
-        databaseHolder.warmUp()
-    }
-
-    fun clearUnlockedSession() {
-        databaseHolder.close()
-        databasePassphraseProvider.clearPassphraseCache()
     }
 
     companion object {

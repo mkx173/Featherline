@@ -24,8 +24,6 @@ class DatabaseHolder @Inject constructor(
     private val _databaseFlow = MutableStateFlow<HrtTrackerDatabase?>(null)
     val databaseFlow: StateFlow<HrtTrackerDatabase?> = _databaseFlow.asStateFlow()
 
-    private var generation = 0L
-
     fun get(): HrtTrackerDatabase {
         _databaseFlow.value?.let { return it }
 
@@ -34,41 +32,13 @@ class DatabaseHolder @Inject constructor(
         }
     }
 
-    fun close() {
-        val databaseToClose = synchronized(this) {
-            generation++
-            val currentDatabase = _databaseFlow.value ?: return@synchronized null
-            _databaseFlow.value = null
-            currentDatabase
-        }
-
-        databaseToClose?.close()
-    }
-
     fun warmUp() {
-        val generationAtLaunch = synchronized(this) { generation }
         scope.launch {
             runCatching {
-                val databaseToWarm = synchronized(this@DatabaseHolder) {
-                    if (generation != generationAtLaunch) {
-                        return@runCatching
-                    }
-
+                val database = synchronized(this@DatabaseHolder) {
                     _databaseFlow.value ?: buildDatabase().also { _databaseFlow.value = it }
                 }
-
-                databaseToWarm.openHelper.writableDatabase
-
-                val staleDatabase = synchronized(this@DatabaseHolder) {
-                    if (generation == generationAtLaunch || _databaseFlow.value !== databaseToWarm) {
-                        null
-                    } else {
-                        _databaseFlow.value = null
-                        databaseToWarm
-                    }
-                }
-
-                staleDatabase?.close()
+                database.openHelper.writableDatabase
             }
         }
     }

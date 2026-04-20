@@ -4,7 +4,6 @@ import android.app.Application
 import android.app.UiModeManager
 import androidx.appcompat.app.AppCompatDelegate
 import com.mkx.hrttracker.data.local.DatabaseHolder
-import com.mkx.hrttracker.data.local.DatabasePassphraseProvider
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.util.ToastManager
@@ -21,9 +20,6 @@ class HrtTrackerApplication : Application() {
     lateinit var settingsRepository: SettingsRepository
 
     @Inject
-    lateinit var databasePassphraseProvider: DatabasePassphraseProvider
-
-    @Inject
     lateinit var databaseHolder: DatabaseHolder
 
     override fun onCreate() {
@@ -38,11 +34,9 @@ class HrtTrackerApplication : Application() {
             }
         }
         ToastManager.init(this)
-        System.loadLibrary("sqlcipher");
+        System.loadLibrary("sqlcipher")
 
-        if (!databasePassphraseProvider.isScreenLockProtectionEnabled()) {
-            databaseHolder.warmUp()
-        }
+        databaseHolder.warmUp()
     }
 
     private fun applyDarkMode(option: DarkModeOption) {

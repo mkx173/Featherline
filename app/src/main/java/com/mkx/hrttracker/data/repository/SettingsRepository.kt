@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.core.os.LocaleListCompat
-import com.mkx.hrttracker.data.local.DatabasePassphraseProvider
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -33,42 +32,30 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 @Singleton
 class SettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val databasePassphraseProvider: DatabasePassphraseProvider,
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
+    private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
-    private val screenLockProtectionEnabled =
-        MutableStateFlow(databasePassphraseProvider.isScreenLockProtectionEnabled())
 
     val settingsState: StateFlow<SettingsState> = combine(
         context.dataStore.data.map(::preferencesToStoredSettingsState),
-        appLanguageOption,
-        screenLockProtectionEnabled
-    ) { storedSettingsState, currentAppLanguageOption, isScreenLockProtectionEnabled ->
-        storedSettingsState.copy(
-            appLanguageOption = currentAppLanguageOption,
-            screenLockProtectionEnabled = isScreenLockProtectionEnabled
-        )
+        appLanguageOption
+    ) { storedSettingsState, currentAppLanguageOption ->
+        storedSettingsState.copy(appLanguageOption = currentAppLanguageOption)
     }
         .stateIn(
             scope = repositoryScope,
             started = SharingStarted.Eagerly,
-            initialValue = SettingsState(
-                appLanguageOption = appLanguageOption.value,
-                screenLockProtectionEnabled = screenLockProtectionEnabled.value
-            )
+            initialValue = SettingsState(appLanguageOption = appLanguageOption.value)
         )
 
     suspend fun getCurrentSettings(): SettingsState {
         return preferencesToStoredSettingsState(context.dataStore.data.first())
-            .copy(
-                appLanguageOption = appLanguageOption.value,
-                screenLockProtectionEnabled = screenLockProtectionEnabled.value
-            )
+            .copy(appLanguageOption = appLanguageOption.value)
     }
 
     suspend fun setDarkModeOption(option: DarkModeOption) {
@@ -84,7 +71,9 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setScreenLockProtectionEnabled(enabled: Boolean) {
-        screenLockProtectionEnabled.value = enabled
+        context.dataStore.edit { preferences ->
+            preferences[screenLockProtectionKey] = enabled
+        }
     }
 
     suspend fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
@@ -116,6 +105,7 @@ class SettingsRepository @Inject constructor(
                 preferences[appLockGracePeriodKey]
             ),
             hideScreenContentEnabled = preferences[hideScreenContentKey] ?: false,
+            screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
         )
     }
 

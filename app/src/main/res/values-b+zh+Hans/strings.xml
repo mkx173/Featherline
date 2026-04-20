@@ -93,7 +93,7 @@
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
     <string name="settings_screen_lock_protection">应用锁</string>
-    <string name="settings_screen_lock_protection_summary">使用生物识别或屏幕锁凭据打开应用并解密本地数据。</string>
+    <string name="settings_screen_lock_protection_summary">使用生物识别或屏幕锁凭据打开应用。</string>
     <string name="settings_app_lock_grace_period">离开后保持解锁</string>
     <string name="settings_hide_screen_content">隐藏屏幕内容</string>
     <string name="settings_hide_screen_content_summary">阻止截屏，并在最近任务中隐藏应用内容。</string>
@@ -104,9 +104,6 @@
     <string name="app_lock_grace_period_5_minutes">5 分钟</string>
     <string name="app_lock_grace_period_15_minutes">15 分钟</string>
     <string name="app_lock_grace_period_30_minutes">30 分钟</string>
-    <string name="enable_screen_lock_warning_title">重要提示</string>
-    <string name="enable_screen_lock_warning_body">如果你之后从此设备移除所有生物识别和屏幕锁凭据，已加密的应用数据将永久丢失。</string>
-    <string name="enable_screen_lock_warning_confirm">继续</string>
     <string name="enable_screen_lock_prompt_title">启用应用锁</string>
     <string name="enable_screen_lock_prompt_subtitle">验证身份以保护本地数据。</string>
     <string name="enable_screen_lock_prompt_description">这会使用设备的生物识别或屏幕锁凭据。</string>
@@ -123,8 +120,6 @@
     <string name="screen_lock_auth_unavailable_generic">此设备无法使用安全认证。</string>
     <string name="screen_lock_auth_locked_out">失败次数过多，请稍后再试。</string>
     <string name="screen_lock_auth_failed">认证失败。</string>
-    <string name="screen_lock_enable_failed">无法启用应用锁。</string>
-    <string name="screen_lock_disable_failed">无法停用应用锁。</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>

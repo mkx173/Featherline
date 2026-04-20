@@ -93,7 +93,7 @@
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_screen_lock_protection">App lock</string>
-    <string name="settings_screen_lock_protection_summary">Require biometrics or screen lock credentials to open the app and decrypt local data.</string>
+    <string name="settings_screen_lock_protection_summary">Require biometrics or screen lock credentials to open the app.</string>
     <string name="settings_app_lock_grace_period">Keep app unlocked after leaving</string>
     <string name="settings_hide_screen_content">Hide screen content</string>
     <string name="settings_hide_screen_content_summary">Block screenshots and hide app content in the recent apps list.</string>
@@ -104,9 +104,6 @@
     <string name="app_lock_grace_period_5_minutes">5 minutes</string>
     <string name="app_lock_grace_period_15_minutes">15 minutes</string>
     <string name="app_lock_grace_period_30_minutes">30 minutes</string>
-    <string name="enable_screen_lock_warning_title">Important</string>
-    <string name="enable_screen_lock_warning_body">If you later remove all biometrics and screen lock credentials from this device, your encrypted app data will be permanently lost.</string>
-    <string name="enable_screen_lock_warning_confirm">Continue</string>
     <string name="enable_screen_lock_prompt_title">Enable app lock</string>
     <string name="enable_screen_lock_prompt_subtitle">Verify your identity to protect local data.</string>
     <string name="enable_screen_lock_prompt_description">This uses your device biometrics or screen lock credentials.</string>
@@ -123,8 +120,6 @@
     <string name="screen_lock_auth_unavailable_generic">Secure authentication is not available on this device.</string>
     <string name="screen_lock_auth_locked_out">Too many failed attempts. Try again later.</string>
     <string name="screen_lock_auth_failed">Authentication failed.</string>
-    <string name="screen_lock_enable_failed">Could not enable app lock.</string>
-    <string name="screen_lock_disable_failed">Could not disable app lock.</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="one">%1$d medication</item>
