@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.UUID
@@ -28,6 +29,7 @@ class HistoryViewModel @Inject constructor(
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
     private val displayedMonth = MutableStateFlow(YearMonth.now())
+    private val selectedDate = MutableStateFlow<LocalDate?>(null)
 
     val uiState: StateFlow<HistoryUiState> = combine(
         combine(
@@ -37,8 +39,9 @@ class HistoryViewModel @Inject constructor(
         ),
         selectedEntryIds,
         isDeleteConfirmationVisible,
-        displayedMonth
-    ) { (entriesOrNull, groupsOrNull), currentSelection, deleteConfirmationVisible, month ->
+        displayedMonth,
+        selectedDate
+    ) { (entriesOrNull, groupsOrNull), currentSelection, deleteConfirmationVisible, month, selectedDay ->
         val isLoading = entriesOrNull == null || groupsOrNull == null
         val entries = entriesOrNull.orEmpty()
         val groups = groupsOrNull.orEmpty()
@@ -48,7 +51,9 @@ class HistoryViewModel @Inject constructor(
         }
         val calendarStartMonth = earliestEntryMonth ?: currentMonth
         val calendarEndMonth = currentMonth
+        val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
         val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
+        val visibleSelectedDate = selectedDay?.takeIf { YearMonth.from(it) == visibleMonth }
         HistoryUiState(
             isLoading = isLoading,
             entries = entries,
@@ -56,7 +61,8 @@ class HistoryViewModel @Inject constructor(
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
-            displayedMonth = month.coerceIn(calendarStartMonth, calendarEndMonth),
+            displayedMonth = visibleMonth,
+            selectedDate = visibleSelectedDate,
             selectedEntryIds = visibleSelection,
             isDeleteConfirmationVisible = deleteConfirmationVisible && visibleSelection.isNotEmpty()
         )
@@ -71,6 +77,17 @@ class HistoryViewModel @Inject constructor(
             return
         }
         displayedMonth.value = month
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
+        selectedDate.value = null
+    }
+
+    fun toggleSelectedDate(date: LocalDate) {
+        selectedDate.value = if (selectedDate.value == date) {
+            null
+        } else {
+            date
+        }
         selectedEntryIds.value = emptySet()
         isDeleteConfirmationVisible.value = false
     }
@@ -121,6 +138,7 @@ data class HistoryUiState(
     val calendarStartMonth: YearMonth = YearMonth.now(),
     val calendarEndMonth: YearMonth = YearMonth.now(),
     val displayedMonth: YearMonth = YearMonth.now(),
+    val selectedDate: LocalDate? = null,
     val selectedEntryIds: Set<UUID> = emptySet(),
     val isDeleteConfirmationVisible: Boolean = false,
 ) {
