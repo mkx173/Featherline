@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -84,6 +85,7 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val hasNotificationAccess = canPostNotifications(context)
     val notificationPermissionDeniedMessage =
         stringResource(R.string.group_notifications_permission_denied)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
@@ -121,6 +123,22 @@ fun MedicationGroupEditorScreen(
         if (uiState.isDeleted) {
             viewModel.consumeDeletedState()
             onGroupSaved()
+        }
+    }
+
+    LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled) {
+        if (!hasNotificationAccess && uiState.notificationsEnabled) {
+            viewModel.updateNotificationsEnabled(false)
+            isExactAlarmDialogVisible = false
+            showInexactReminderWarning = false
+        }
+    }
+
+    LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled, isExactAlarmDialogVisible) {
+        if (!hasNotificationAccess || !uiState.notificationsEnabled) {
+            showInexactReminderWarning = false
+        } else if (!isExactAlarmDialogVisible) {
+            showInexactReminderWarning = !canScheduleExactAlarms(context)
         }
     }
 
@@ -726,6 +744,18 @@ private fun maybeRequestExactAlarmAccess(
 
 private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
     return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+}
+
+private fun canPostNotifications(context: android.content.Context): Boolean {
+    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+        return false
+    }
+
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
 }
 
 @Composable
