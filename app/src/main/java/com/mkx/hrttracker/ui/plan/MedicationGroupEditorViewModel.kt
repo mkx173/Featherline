@@ -7,6 +7,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -26,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
+    private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -34,6 +36,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val editingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
 
     init {
+        viewModelScope.launch {
+            settingsRepository.settingsState.collect { settingsState ->
+                _uiState.update { currentState ->
+                    currentState.copy(remindersEnabled = settingsState.remindersEnabled)
+                }
+            }
+        }
+
         if (editingGroupId != null) {
             loadGroupForEditing(editingGroupId)
         }
@@ -386,6 +396,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             val group = medicationGroupRepository.getGroup(uuid) ?: return@launch
+            val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
             _uiState.value = MedicationGroupEditorUiState(
                 editingGroupId = group.uuid.toString(),
@@ -411,6 +422,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 } else {
                     listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
                 },
+                remindersEnabled = remindersEnabled,
                 notificationsEnabled = group.notificationsEnabled,
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
@@ -461,6 +473,7 @@ data class MedicationGroupEditorUiState(
     val dailyTimes: List<MedicationGroupScheduleTimeUiState> = listOf(
         MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))
     ),
+    val remindersEnabled: Boolean = true,
     val notificationsEnabled: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val editingMedication: MedicationGroupMedicationItemUiState? = null,

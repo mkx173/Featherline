@@ -42,6 +42,8 @@
     <string name="plan_group_upcoming_format">%1$s · %2$s</string>
     <string name="plan_group_upcoming_today">Today</string>
     <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
+    <string name="plan_group_notifications_enabled">Dose reminders are on for this group</string>
+    <string name="plan_group_notifications_disabled">Dose reminders are currently off for this group</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_month_empty_state">No HRT entries for this month.</string>
     <string name="history_selected_day_records_title">Records on %1$s</string>
@@ -66,6 +68,7 @@
     <string name="field_medication_group_name">Group name</string>
     <string name="group_notifications_title">Dose reminders</string>
     <string name="group_notifications_summary">Notify me when this group is scheduled.</string>
+    <string name="group_notifications_master_disabled">The master reminder switch is off in Settings, so this group will not notify until reminders are turned back on there.</string>
     <string name="group_notifications_inexact_warning">Exact alarm access is off, so reminders may be delayed.</string>
     <string name="group_notifications_permission_denied">Notification permission was denied. Dose reminders remain off.</string>
     <string name="group_notifications_exact_alarm_title">Allow exact reminders?</string>

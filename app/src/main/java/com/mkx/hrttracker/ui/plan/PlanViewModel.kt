@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
@@ -24,7 +25,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
-    medicationLogRepository: MedicationLogRepository
+    medicationLogRepository: MedicationLogRepository,
+    settingsRepository: SettingsRepository
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow(LocalDate.now())
     private val currentDateTime = flow {
@@ -37,9 +39,10 @@ class PlanViewModel @Inject constructor(
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
+        settingsRepository.settingsState,
         selectedDate,
         currentDateTime
-    ) { groupsOrNull, entriesOrNull, selection, now ->
+    ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
         val groups = groupsOrNull.orEmpty()
         val entries = entriesOrNull.orEmpty()
@@ -71,6 +74,7 @@ class PlanViewModel @Inject constructor(
             selectedDate = clampedSelection,
             entries = entries,
             medicationGroups = groups,
+            remindersEnabled = settingsState.remindersEnabled,
             calendarDays = buildPlanCalendarDayUiState(
                 groups = groups,
                 entries = entries,
@@ -142,6 +146,7 @@ data class PlanUiState(
     val selectedDate: LocalDate = today,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
+    val remindersEnabled: Boolean = true,
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
     val daySchedule: PlanDaySchedule = PlanDaySchedule(
         date = selectedDate,

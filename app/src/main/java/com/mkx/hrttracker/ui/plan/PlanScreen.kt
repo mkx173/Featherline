@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -245,6 +247,7 @@ private fun PlanScreenContent(
                     ) { group ->
                         MedicationGroupCard(
                             group = group,
+                            remindersEnabled = uiState.remindersEnabled,
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
@@ -390,6 +393,7 @@ private fun PlanScheduleEntryCard(
 @Composable
 private fun MedicationGroupCard(
     group: MedicationGroup,
+    remindersEnabled: Boolean,
     appLocale: Locale,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
@@ -412,6 +416,30 @@ private fun MedicationGroupCard(
         },
         headlineContent = {
             Text(text = group.name)
+        },
+        trailingContent = {
+            if (remindersEnabled) {
+                val notificationsEnabled = group.notificationsEnabled
+                Icon(
+                    imageVector = if (notificationsEnabled) {
+                        Icons.Default.Notifications
+                    } else {
+                        Icons.Default.NotificationsOff
+                    },
+                    contentDescription = stringResource(
+                        if (notificationsEnabled) {
+                            R.string.plan_group_notifications_enabled
+                        } else {
+                            R.string.plan_group_notifications_disabled
+                        }
+                    ),
+                    tint = if (notificationsEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
         },
         supportingContent = {
             Column(

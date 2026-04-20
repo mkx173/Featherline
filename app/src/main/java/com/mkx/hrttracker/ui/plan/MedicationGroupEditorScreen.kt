@@ -204,6 +204,7 @@ fun MedicationGroupEditorScreen(
                 }
             }
         },
+        notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::updateWeeklyDayOfWeek,
@@ -238,6 +239,7 @@ private fun MedicationGroupEditorScreenContent(
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
+    notificationsToggleEnabled: Boolean,
     showInexactReminderWarning: Boolean,
     onWeeklyIntervalChange: (String) -> Unit,
     onWeeklyDayChange: (DayOfWeek) -> Unit,
@@ -459,6 +461,13 @@ private fun MedicationGroupEditorScreenContent(
                             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
                         ) {
                             Text(text = stringResource(R.string.group_notifications_summary))
+                            if (!uiState.remindersEnabled) {
+                                Text(
+                                    text = stringResource(R.string.group_notifications_master_disabled),
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             if (showInexactReminderWarning) {
                                 Text(
                                     text = stringResource(R.string.group_notifications_inexact_warning),
@@ -471,7 +480,8 @@ private fun MedicationGroupEditorScreenContent(
                     trailingContent = {
                         Switch(
                             checked = uiState.notificationsEnabled,
-                            onCheckedChange = onNotificationsEnabledChange
+                            onCheckedChange = onNotificationsEnabledChange,
+                            enabled = notificationsToggleEnabled
                         )
                     }
                 )
