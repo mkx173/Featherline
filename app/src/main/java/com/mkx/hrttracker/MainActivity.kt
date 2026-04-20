@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.history.HistoryViewModel
+import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.plan.PlanViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
@@ -32,16 +33,19 @@ import androidx.activity.viewModels
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     private val appLockViewModel: AppLockViewModel by viewModels()
+    private val mainViewModel: MainViewModel by viewModels()
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
-        splashScreen.setKeepOnScreenCondition { false }
         enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition {
+            mainViewModel.uiState.value.isLoading || !appLockViewModel.uiState.value.isReady
+        }
         settingsRepository.refreshAppLanguageOption(this)
 
         setContent {
