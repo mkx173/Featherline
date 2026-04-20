@@ -114,7 +114,6 @@ internal fun buildNextOccurrencesByGroup(
                 endDate = start.toLocalDate().plusDays(lookaheadDays)
             )
             .asSequence()
-            .filter { occurrence -> !occurrence.isBefore(start) }
             .filterNot { occurrence ->
                 isSlotFulfilled(
                     group = group,

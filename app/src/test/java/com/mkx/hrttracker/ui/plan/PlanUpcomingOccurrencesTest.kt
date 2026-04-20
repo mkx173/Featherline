@@ -18,7 +18,7 @@ import java.util.UUID
 
 class PlanUpcomingOccurrencesTest {
     @Test
-    fun buildNextOccurrencesByGroup_excludes_earlier_slots_on_the_same_day() {
+    fun buildNextOccurrencesByGroup_includes_past_slots_on_today() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.DAILY,
@@ -38,9 +38,9 @@ class PlanUpcomingOccurrencesTest {
 
         assertEquals(
             listOf(
+                LocalDateTime.of(2026, 4, 18, 8, 0),
                 LocalDateTime.of(2026, 4, 18, 20, 0),
-                LocalDateTime.of(2026, 4, 19, 8, 0),
-                LocalDateTime.of(2026, 4, 19, 20, 0)
+                LocalDateTime.of(2026, 4, 19, 8, 0)
             ),
             upcoming
         )
@@ -72,9 +72,9 @@ class PlanUpcomingOccurrencesTest {
 
         assertEquals(
             listOf(
+                LocalDateTime.of(2026, 4, 18, 8, 0),
                 LocalDateTime.of(2026, 4, 19, 8, 0),
-                LocalDateTime.of(2026, 4, 19, 20, 0),
-                LocalDateTime.of(2026, 4, 20, 8, 0)
+                LocalDateTime.of(2026, 4, 19, 20, 0)
             ),
             upcoming
         )
