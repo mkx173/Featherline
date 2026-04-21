@@ -77,6 +77,10 @@ import com.kizitonwose.calendar.core.CalendarDay
 import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
@@ -88,6 +92,8 @@ import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1216,47 +1222,40 @@ private fun buildHistoryEntrySupportingText(
     }
 }
 
-@Preview(showBackground = true)
+@Preview(
+    name = "History Month",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 900
+)
 @Composable
-private fun HistoryScreenPreview() {
+private fun HistoryScreenMonthPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         HistoryScreenContent(
-            uiState = HistoryUiState(
-                entries = listOf(
-                    MedicationLogEntry(
-                        uuid = UUID.fromString("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
-                        routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
-                        medicineName = "Estradiol valerate",
-                        dosageMgAsMedicine = 5.0,
-                        dosageMgAsEstradiol = 3.82,
-                        sourceType = MedicationLogEntrySourceType.MANUAL,
-                        sourceGroupUuid = null,
-                        appliedAt = Instant.parse("2026-04-16T08:30:00Z")
-                    ),
-                    MedicationLogEntry(
-                        uuid = UUID.fromString("9b9a1efe-6df3-43da-871d-9584370fbca8"),
-                        routeOfAdministration = RouteOfAdministration.ORAL,
-                        medicineName = "Estradiol",
-                        dosageMgAsMedicine = 2.0,
-                        dosageMgAsEstradiol = 2.0,
-                        sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                        sourceGroupUuid = UUID.fromString("3e11ae72-a197-4315-8f89-b5db6f21c2f9"),
-                        appliedAt = Instant.parse("2026-04-15T22:00:00Z")
-                    ),
-                    MedicationLogEntry(
-                        uuid = UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"),
-                        routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
-                        medicineName = "Estradiol",
-                        dosageMgAsMedicine = 1.0,
-                        dosageMgAsEstradiol = 1.0,
-                        sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                        sourceGroupUuid = UUID.fromString("a563870c-7f67-4c29-83d3-7592f40e5845"),
-                        appliedAt = Instant.parse("2026-04-16T19:00:00Z"),
-                        scheduledFor = java.time.LocalDateTime.parse("2026-04-16T19:00:00")
-                    )
-                ),
-                calendarStartMonth = YearMonth.of(2026, 4),
-                calendarEndMonth = YearMonth.of(2026, 4),
+            uiState = buildHistoryPreviewUiState(),
+            onEntryClick = { },
+            onEntryLongClick = { },
+            onDayClick = { },
+            onDeleteSelectedClick = { },
+            onDeleteDismiss = { },
+            onDeleteConfirm = { },
+            onDisplayedMonthChange = { _ -> }
+        )
+    }
+}
+
+@Preview(
+    name = "History Selected Day",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 900
+)
+@Composable
+private fun HistoryScreenSelectedDayPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        HistoryScreenContent(
+            uiState = buildHistoryPreviewUiState(
+                selectedDate = LocalDate.now(),
                 selectedEntryIds = setOf(UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"))
             ),
             onEntryClick = { },
@@ -1311,6 +1310,128 @@ private fun historyDayOfWeekLabels(
 private val HistoryFulfilledIndicatorColor = Color(0xFF2E7D32)
 private val OverdueScheduledIndicatorColor = Color(0xFFC62828)
 private val OverduePartialIndicatorColor = Color(0xFFEF6C00)
+
+private fun buildHistoryPreviewUiState(
+    selectedDate: LocalDate? = null,
+    selectedEntryIds: Set<UUID> = emptySet()
+): HistoryUiState {
+    val zoneId = ZoneId.systemDefault()
+    val today = LocalDate.now()
+    val month = YearMonth.from(today)
+    val oralGroupId = UUID.fromString("3e11ae72-a197-4315-8f89-b5db6f21c2f9")
+    val nightlyGroupId = UUID.fromString("a563870c-7f67-4c29-83d3-7592f40e5845")
+
+    val entries = listOf(
+        MedicationLogEntry(
+            uuid = UUID.fromString("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
+            routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
+            medicineName = "Estradiol valerate",
+            dosageMgAsMedicine = 5.0,
+            dosageMgAsEstradiol = 3.82,
+            sourceType = MedicationLogEntrySourceType.MANUAL,
+            sourceGroupUuid = null,
+            appliedAt = previewInstant(today, LocalTime.of(8, 30), zoneId)
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("9b9a1efe-6df3-43da-871d-9584370fbca8"),
+            routeOfAdministration = RouteOfAdministration.ORAL,
+            medicineName = "Estradiol",
+            dosageMgAsMedicine = 2.0,
+            dosageMgAsEstradiol = 2.0,
+            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = oralGroupId,
+            appliedAt = previewInstant(today.minusDays(1), LocalTime.of(22, 0), zoneId)
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"),
+            routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
+            medicineName = "Estradiol",
+            dosageMgAsMedicine = 1.0,
+            dosageMgAsEstradiol = 1.0,
+            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = nightlyGroupId,
+            appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
+            scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("0db2cb5b-bf7b-45aa-9f42-d1bddcb00c88"),
+            routeOfAdministration = RouteOfAdministration.TOPICAL,
+            medicineName = "Estradiol gel",
+            dosageMgAsMedicine = 1.5,
+            dosageMgAsEstradiol = 1.5,
+            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = oralGroupId,
+            appliedAt = previewInstant(today.minusDays(3), LocalTime.of(7, 45), zoneId),
+            scheduledFor = LocalDateTime.of(today.minusDays(3), LocalTime.of(7, 30))
+        )
+    )
+
+    val groups = listOf(
+        MedicationGroup(
+            uuid = oralGroupId,
+            name = "Morning estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today.minusMonths(2),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("c6ebfec7-5412-49a6-9040-a845cd5dd9f3"),
+                    routeOfAdministration = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosageMgAsMedicine = 2.0
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = previewInstant(today.minusMonths(2), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today.minusDays(1), LocalTime.NOON, zoneId)
+        ),
+        MedicationGroup(
+            uuid = nightlyGroupId,
+            name = "Nightly estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today.minusMonths(1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(19, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("b08dbe5d-f225-491f-b2b0-07beb7fe47f3"),
+                    routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
+                    medicineName = "Estradiol",
+                    dosageMgAsMedicine = 1.0
+                )
+            ),
+            notificationsEnabled = false,
+            createdAt = previewInstant(today.minusMonths(1), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today, LocalTime.NOON, zoneId)
+        )
+    )
+
+    return HistoryUiState(
+        isLoading = false,
+        entries = entries,
+        medicationGroups = groups,
+        calendarStartMonth = month.minusMonths(1),
+        calendarEndMonth = month,
+        displayedMonth = month,
+        selectedDate = selectedDate,
+        selectedEntryIds = selectedEntryIds
+    )
+}
+
+private fun previewInstant(
+    date: LocalDate,
+    time: LocalTime,
+    zoneId: ZoneId
+): Instant {
+    return LocalDateTime.of(date, time).atZone(zoneId).toInstant()
+}
 
 @Composable
 private fun rememberFirstMostVisibleMonth(
