@@ -25,7 +25,7 @@ class PlanCalendarDayUiStateTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 2,
                 since = LocalDate.of(2026, 4, 14),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0), LocalTime.of(21, 0))
             ),
             medications = listOf(
@@ -49,7 +49,7 @@ class PlanCalendarDayUiStateTest {
                 type = MedicationGroupScheduleType.WEEKLY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 14),
-                weeklyDayOfWeek = LocalDate.of(2026, 4, 17).dayOfWeek,
+                weeklyDaysOfWeek = setOf(LocalDate.of(2026, 4, 17).dayOfWeek),
                 times = listOf(LocalTime.of(8, 0))
             ),
             medications = listOf(
@@ -139,7 +139,7 @@ class PlanCalendarDayUiStateTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 16),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0))
             ),
             medications = listOf(
@@ -187,7 +187,7 @@ class PlanCalendarDayUiStateTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 16),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0))
             ),
             medications = listOf(
@@ -237,7 +237,7 @@ class PlanCalendarDayUiStateTest {
                 type = MedicationGroupScheduleType.WEEKLY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 14),
-                weeklyDayOfWeek = LocalDate.of(2026, 4, 18).dayOfWeek,
+                weeklyDaysOfWeek = setOf(LocalDate.of(2026, 4, 18).dayOfWeek),
                 times = listOf(LocalTime.of(9, 0))
             ),
             medications = listOf(

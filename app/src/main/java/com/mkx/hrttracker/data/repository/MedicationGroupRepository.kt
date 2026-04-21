@@ -100,7 +100,6 @@ class MedicationGroupRepository @Inject constructor(
                 scheduleType = schedule.type.name,
                 scheduleInterval = schedule.interval,
                 scheduleSinceEpochDay = schedule.since.toEpochDay(),
-                weeklyDayOfWeek = schedule.weeklyDayOfWeek?.value,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis
             ),
@@ -145,10 +144,7 @@ class MedicationGroupRepository @Inject constructor(
                 since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
                 weeklyDaysOfWeek = weeklyDays
                     .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
-                    .toSet()
-                    .ifEmpty {
-                        group.weeklyDayOfWeek?.let(DayOfWeek::of)?.let(::setOf).orEmpty()
-                    },
+                    .toSet(),
                 times = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder).map { time ->
                     LocalTime.of(time.hourOfDay, time.minuteOfHour)
                 }
@@ -181,21 +177,4 @@ data class MedicationGroupScheduleInput(
     val since: LocalDate,
     val weeklyDaysOfWeek: Set<DayOfWeek>,
     val times: List<LocalTime>,
-) {
-    constructor(
-        type: MedicationGroupScheduleType,
-        interval: Int,
-        since: LocalDate,
-        weeklyDayOfWeek: DayOfWeek?,
-        times: List<LocalTime>,
-    ) : this(
-        type = type,
-        interval = interval,
-        since = since,
-        weeklyDaysOfWeek = weeklyDayOfWeek?.let(::setOf).orEmpty(),
-        times = times,
-    )
-
-    val weeklyDayOfWeek: DayOfWeek?
-        get() = weeklyDaysOfWeek.sortedBy { it.value }.firstOrNull()
-}
+)

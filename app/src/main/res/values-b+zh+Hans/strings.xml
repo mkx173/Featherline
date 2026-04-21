@@ -100,7 +100,6 @@
     <string name="group_schedule_every_weeks">每 x 周一次</string>
     <string name="group_schedule_every_days">每 x 天一次</string>
     <string name="group_schedule_since">开始于</string>
-    <string name="group_schedule_day_of_week">星期</string>
     <string name="group_schedule_days_of_week">星期选择</string>
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>

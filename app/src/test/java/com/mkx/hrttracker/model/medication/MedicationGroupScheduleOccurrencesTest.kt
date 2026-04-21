@@ -26,7 +26,7 @@ class MedicationGroupScheduleOccurrencesTest {
     }
 
     @Test
-    fun isScheduledOn_applies_interval_per_selected_weekday_anchor() {
+    fun isScheduledOn_groups_selected_days_within_same_iso_week_cycle() {
         val schedule = MedicationGroupSchedule(
             type = MedicationGroupScheduleType.WEEKLY,
             interval = 2,
@@ -35,13 +35,17 @@ class MedicationGroupScheduleOccurrencesTest {
             times = listOf(LocalTime.of(9, 0))
         )
 
+        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 13)))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 16)))
+
+        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 20)))
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 23)))
+
+        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 27)))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 30)))
 
-        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 20)))
-        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 27)))
-        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 5, 4)))
+        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 5, 4)))
+        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 5, 7)))
     }
 
     @Test

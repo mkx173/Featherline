@@ -27,7 +27,7 @@ class MainUiModelsTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(
                     LocalTime.of(8, 0),
                     LocalTime.of(9, 0),
@@ -72,7 +72,7 @@ class MainUiModelsTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
             )
         )
@@ -103,7 +103,7 @@ class MainUiModelsTest {
                 type = MedicationGroupScheduleType.WEEKLY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = LocalDate.of(2026, 4, 20).dayOfWeek,
+                weeklyDaysOfWeek = setOf(LocalDate.of(2026, 4, 20).dayOfWeek),
                 times = listOf(LocalTime.of(13, 30))
             )
         )
@@ -134,7 +134,7 @@ class MainUiModelsTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0))
             )
         )

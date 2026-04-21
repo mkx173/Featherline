@@ -24,7 +24,7 @@ class PlanUpcomingOccurrencesTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
             )
         )
@@ -53,7 +53,7 @@ class PlanUpcomingOccurrencesTest {
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
-                weeklyDayOfWeek = null,
+                weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
             )
         )

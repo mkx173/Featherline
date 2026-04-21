@@ -100,7 +100,6 @@
     <string name="group_schedule_every_weeks">Once per x weeks</string>
     <string name="group_schedule_every_days">Every x days</string>
     <string name="group_schedule_since">Since</string>
-    <string name="group_schedule_day_of_week">Day of week</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>

@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -14,14 +15,15 @@ fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
                 ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
         }
         MedicationGroupScheduleType.WEEKLY -> {
-            val scheduledDaysOfWeek = weeklyDaysOfWeek
-            if (scheduledDaysOfWeek.isEmpty() || date.dayOfWeek !in scheduledDaysOfWeek) {
+            if (date.isBefore(since) ||
+                weeklyDaysOfWeek.isEmpty() ||
+                date.dayOfWeek !in weeklyDaysOfWeek
+            ) {
                 return false
             }
-            val firstScheduledDate = since.with(TemporalAdjusters.nextOrSame(date.dayOfWeek))
-
-            !date.isBefore(firstScheduledDate) &&
-                ChronoUnit.WEEKS.between(firstScheduledDate, date) % normalizedInterval.toLong() == 0L
+            val sinceWeekStart = since.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val dateWeekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            ChronoUnit.WEEKS.between(sinceWeekStart, dateWeekStart) % normalizedInterval.toLong() == 0L
         }
     }
 }

@@ -55,7 +55,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
-            .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+            .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
             .build()
     }
 
@@ -115,6 +115,12 @@ class DatabaseHolder @Inject constructor(
                     WHERE weeklyDayOfWeek IS NOT NULL
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medication_groups DROP COLUMN weeklyDayOfWeek")
             }
         }
     }

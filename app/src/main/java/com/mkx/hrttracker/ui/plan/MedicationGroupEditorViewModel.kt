@@ -314,7 +314,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         type = MedicationGroupScheduleType.DAILY,
                         interval = parsedDailyInterval!!,
                         since = currentState.sinceDate,
-                        weeklyDayOfWeek = null,
+                        weeklyDaysOfWeek = emptySet(),
                         times = currentState.dailyTimes
                             .map(MedicationGroupScheduleTimeUiState::time)
                             .sorted()
