@@ -8,12 +8,14 @@ import androidx.room.RoomDatabase
         MedicationLogEntryEntity::class,
         MedicationGroupEntity::class,
         MedicationGroupItemEntity::class,
-        MedicationGroupScheduleTimeEntity::class
+        MedicationGroupScheduleTimeEntity::class,
+        UserProfileEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicationLogDao(): MedicationLogDao
     abstract fun medicationGroupDao(): MedicationGroupDao
+    abstract fun userProfileDao(): UserProfileDao
 }

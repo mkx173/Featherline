@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -42,6 +43,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -62,6 +64,7 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     var showInexactReminderWarning by remember { mutableStateOf(false) }
+    var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
@@ -131,6 +134,29 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .padding(dimensionResource(R.dimen.padding_small))
         ) {
+            ListItem(
+                modifier = Modifier.fillMaxWidth(),
+                headlineContent = {
+                    Text(
+                        text = stringResource(R.string.settings_personalization),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            )
+
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showWeightDialog = true },
+                headlineContent = {
+                    Text(text = stringResource(R.string.personalization_weight))
+                },
+                supportingContent = {
+                    Text(text = formatWeightSummary(uiState.userProfile))
+                }
+            )
+
             ListItem(
                 modifier = Modifier.fillMaxWidth(),
                 headlineContent = {
@@ -379,6 +405,41 @@ fun SettingsScreen(
                 }
             )
         }
+    }
+
+    if (showWeightDialog) {
+        WeightDialog(
+            profile = uiState.userProfile,
+            onSave = { value, unit ->
+                viewModel.setWeight(value, unit)
+                showWeightDialog = false
+            },
+            onClear = {
+                viewModel.clearWeight()
+                showWeightDialog = false
+            },
+            onDismiss = { showWeightDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun formatWeightSummary(profile: UserProfile): String {
+    val value = profile.weightOriginalValue
+    val unit = profile.weightOriginalUnit
+    return if (value == null) {
+        stringResource(R.string.personalization_weight_not_set)
+    } else {
+        val formatted = if (value == value.toLong().toDouble()) {
+            value.toLong().toString()
+        } else {
+            value.toString()
+        }
+        stringResource(
+            R.string.personalization_weight_display,
+            formatted,
+            stringResource(unit.shortLabelRes)
+        )
     }
 }
 

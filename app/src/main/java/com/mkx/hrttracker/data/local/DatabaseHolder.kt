@@ -55,7 +55,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
-            .addMigrations(MIGRATION_7_8)
+            .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
             .build()
     }
 
@@ -68,6 +68,22 @@ class DatabaseHolder @Inject constructor(
                     """
                     ALTER TABLE medication_groups
                     ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 0
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_profile (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        weightKg REAL,
+                        weightOriginalValue REAL,
+                        weightOriginalUnit TEXT,
+                        updatedAtEpochMillis INTEGER NOT NULL
+                    )
                     """.trimIndent()
                 )
             }

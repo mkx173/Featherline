@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -23,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val userProfileRepository: UserProfileRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
 ) : ViewModel() {
@@ -32,11 +36,13 @@ class SettingsViewModel @Inject constructor(
 
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.settingsState,
+        userProfileRepository.observeProfile(),
         pendingPrompt,
         securityErrorMessageRes
-    ) { settingsState, prompt, errorRes ->
+    ) { settingsState, profile, prompt, errorRes ->
         SettingsUiState(
             settingsState = settingsState,
+            userProfile = profile ?: UserProfile(),
             pendingPrompt = prompt,
             securityErrorMessageRes = errorRes
         )
@@ -45,6 +51,18 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = SettingsUiState()
     )
+
+    fun setWeight(value: Double, unit: WeightUnit) {
+        viewModelScope.launch {
+            userProfileRepository.setWeight(value, unit)
+        }
+    }
+
+    fun clearWeight() {
+        viewModelScope.launch {
+            userProfileRepository.clearWeight()
+        }
+    }
 
     fun setDarkModeOption(option: DarkModeOption) {
         viewModelScope.launch {
@@ -131,6 +149,7 @@ class SettingsViewModel @Inject constructor(
 
 data class SettingsUiState(
     val settingsState: SettingsState = SettingsState(),
+    val userProfile: UserProfile = UserProfile(),
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val securityErrorMessageRes: Int? = null,
 )
