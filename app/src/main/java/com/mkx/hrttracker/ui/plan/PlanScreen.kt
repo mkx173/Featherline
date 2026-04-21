@@ -27,12 +27,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -177,26 +176,6 @@ private fun PlanScreenContent(
                             contentDescription = stringResource(R.string.plan_open_history)
                         )
                     }
-                    IconButton(onClick = {}) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.plan_more_options)
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddGroupClick,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null
-                    )
-                },
-                text = {
-                    Text(text = stringResource(R.string.fab_add_medication_group))
                 }
             )
         }
@@ -212,103 +191,124 @@ private fun PlanScreenContent(
             }
             return@Scaffold
         }
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(
+                start = dimensionResource(R.dimen.padding_small),
+                top = dimensionResource(R.dimen.padding_small),
+                end = dimensionResource(R.dimen.padding_small),
+                bottom = 32.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
         ) {
-            PlanWeekHeader(
-                weekStartDate = visibleWeekStartDate,
-                today = uiState.today,
-                firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                monthFormatter = monthFormatter,
-                canNavigateBackward = state.canScrollBackward,
-                canNavigateForward = state.canScrollForward,
-                onPreviousClick = {
-                    if (state.canScrollBackward) {
-                        scope.launch {
-                            state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
-                        }
-                    }
-                },
-                onNextClick = {
-                    if (state.canScrollForward) {
-                        scope.launch {
-                            state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
-                        }
-                    }
-                }
-            )
-            WeekCalendar(
-                modifier = Modifier.fillMaxWidth(),
-                state = state,
-                dayContent = { day ->
-                    Day(
-                        date = day.date,
-                        today = uiState.today,
-                        dayStatus = if (day.date.month == uiState.today.month) {
-                            uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE
-                        } else {
-                            PlanCalendarDayStatus.NONE
-                        },
-                        isSelected = selection == day.date
-                    ) { clicked ->
-                        onDateSelected(clicked)
-                    }
-                },
-            )
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium)),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = dimensionResource(R.dimen.padding_small),
-                    top = dimensionResource(R.dimen.padding_small),
-                    end = dimensionResource(R.dimen.padding_small),
-                    bottom = 96.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
-            ) {
-                item(key = "selected-day") {
-                    SelectedDaySection(
-                        date = selection,
-                        today = uiState.today,
-                        overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
-                        daySchedule = daySchedule,
-                        appLocale = appLocale,
-                        headerFormatter = selectedDayHeaderFormatter,
-                        timeFormatter = timeFormatter,
-                        onScheduledClick = { scheduled ->
-                            val fulfillingEntryUuid = scheduled.fulfillingEntryUuids.firstOrNull()
-                            if (fulfillingEntryUuid != null) {
-                                onEntryClick(fulfillingEntryUuid)
-                            } else {
-                                onQuickLogClick(
-                                    scheduled.groupUuid,
-                                    LocalDateTime.of(daySchedule.date, scheduled.scheduledTime)
-                                )
+            item(key = "week-header") {
+                PlanWeekHeader(
+                    weekStartDate = visibleWeekStartDate,
+                    today = uiState.today,
+                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                    monthFormatter = monthFormatter,
+                    canNavigateBackward = state.canScrollBackward,
+                    canNavigateForward = state.canScrollForward,
+                    onPreviousClick = {
+                        if (state.canScrollBackward) {
+                            scope.launch {
+                                state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
                             }
-                        },
-                        onUnplannedClick = { entry ->
-                            onEntryClick(entry.uuid)
                         }
-                    )
-                }
+                    },
+                    onNextClick = {
+                        if (state.canScrollForward) {
+                            scope.launch {
+                                state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
+                            }
+                        }
+                    }
+                )
+            }
 
-                item(key = "regimen-section") {
-                    RegimenSection(
-                        groups = uiState.medicationGroups,
-                        remindersEnabled = uiState.remindersEnabled,
-                        appLocale = appLocale,
-                        dateFormatter = dateFormatter,
-                        timeFormatter = timeFormatter,
-                        nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
-                        today = uiState.today,
-                        onGroupClick = onGroupClick
+            item(key = "week-calendar") {
+                WeekCalendar(
+                    modifier = Modifier.fillMaxWidth(),
+                    state = state,
+                    dayContent = { day ->
+                        Day(
+                            date = day.date,
+                            today = uiState.today,
+                            dayStatus = if (day.date.month == uiState.today.month) {
+                                uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE
+                            } else {
+                                PlanCalendarDayStatus.NONE
+                            },
+                            isSelected = selection == day.date
+                        ) { clicked ->
+                            onDateSelected(clicked)
+                        }
+                    },
+                )
+            }
+
+            item(key = "calendar-divider") {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium)),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+            }
+
+            item(key = "selected-day") {
+                SelectedDaySection(
+                    date = selection,
+                    today = uiState.today,
+                    overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
+                    daySchedule = daySchedule,
+                    appLocale = appLocale,
+                    headerFormatter = selectedDayHeaderFormatter,
+                    timeFormatter = timeFormatter,
+                    onScheduledClick = { scheduled ->
+                        val fulfillingEntryUuid = scheduled.fulfillingEntryUuids.firstOrNull()
+                        if (fulfillingEntryUuid != null) {
+                            onEntryClick(fulfillingEntryUuid)
+                        } else {
+                            onQuickLogClick(
+                                scheduled.groupUuid,
+                                LocalDateTime.of(daySchedule.date, scheduled.scheduledTime)
+                            )
+                        }
+                    },
+                    onUnplannedClick = { entry ->
+                        onEntryClick(entry.uuid)
+                    }
+                )
+            }
+
+            item(key = "regimen-section") {
+                RegimenSection(
+                    groups = uiState.medicationGroups,
+                    remindersEnabled = uiState.remindersEnabled,
+                    appLocale = appLocale,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                    nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
+                    today = uiState.today,
+                    onGroupClick = onGroupClick
+                )
+            }
+
+            item(key = "add-group-button") {
+                Button(
+                    onClick = onAddGroupClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null
+                    )
+                    Text(
+                        text = stringResource(R.string.fab_add_medication_group),
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
             }
