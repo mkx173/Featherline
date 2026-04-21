@@ -44,6 +44,13 @@
     <string name="plan_group_upcoming_tomorrow">明天</string>
     <string name="plan_group_notifications_enabled">此分组当前已开启用药提醒</string>
     <string name="plan_group_notifications_disabled">此分组当前未开启用药提醒</string>
+    <string name="plan_open_history">打开历史</string>
+    <string name="plan_more_options">更多选项</string>
+    <string name="plan_previous_week">上一周</string>
+    <string name="plan_next_week">下一周</string>
+    <string name="plan_week_previous">上一周</string>
+    <string name="plan_week_current">本周</string>
+    <string name="plan_week_next">下一周</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_month_empty_state">这个月暂无 HRT 记录。</string>
     <string name="history_selected_day_records_title">%1$s 的记录</string>

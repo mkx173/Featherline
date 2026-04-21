@@ -8,35 +8,46 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,17 +73,22 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (UUID) -> Unit,
     onQuickLogClick: (UUID, LocalDateTime) -> Unit,
+    onAddGroupClick: () -> Unit,
+    onHistoryClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -85,6 +101,8 @@ fun PlanScreen(
         onGroupClick = onGroupClick,
         onEntryClick = onEntryClick,
         onQuickLogClick = onQuickLogClick,
+        onAddGroupClick = onAddGroupClick,
+        onHistoryClick = onHistoryClick,
         onDateSelected = viewModel::setSelectedDate,
         modifier = modifier
     )
@@ -97,6 +115,8 @@ private fun PlanScreenContent(
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (UUID) -> Unit,
     onQuickLogClick: (UUID, LocalDateTime) -> Unit,
+    onAddGroupClick: () -> Unit,
+    onHistoryClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -107,21 +127,66 @@ private fun PlanScreenContent(
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
+    val monthFormatter = remember(appLocale) {
+        DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
+    }
     val selection = uiState.selectedDate
     val daySchedule = uiState.daySchedule
+    val scope = rememberCoroutineScope()
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
         endDate = uiState.calendarEndDate,
-        firstVisibleWeekDate = selection,
+        firstVisibleWeekDate = uiState.today,
         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
     )
+    val visibleWeek by remember(state) {
+        derivedStateOf { state.firstVisibleWeek }
+    }
+    val visibleWeekStartDate = visibleWeek.days.first().date
+
+    LaunchedEffect(selection) {
+        if (visibleWeek.days.none { it.date == selection }) {
+            state.animateScrollToWeek(selection)
+        }
+    }
 
     Scaffold(
         modifier = modifier,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(R.string.tab_plan)) }
+            TopAppBar(
+                title = { Text(text = stringResource(R.string.tab_plan)) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                actions = {
+                    IconButton(onClick = onHistoryClick) {
+                        Icon(
+                            imageVector = Icons.Default.BarChart,
+                            contentDescription = stringResource(R.string.plan_open_history)
+                        )
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.plan_more_options)
+                        )
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onAddGroupClick,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null
+                    )
+                },
+                text = {
+                    Text(text = stringResource(R.string.fab_add_medication_group))
+                }
             )
         }
     ) { innerPadding ->
@@ -138,27 +203,63 @@ private fun PlanScreenContent(
         }
         Column(
             modifier = Modifier
-                .wrapContentHeight()
+                .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            PlanWeekHeader(
+                weekStartDate = visibleWeekStartDate,
+                today = uiState.today,
+                firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                monthFormatter = monthFormatter,
+                canNavigateBackward = state.canScrollBackward,
+                canNavigateForward = state.canScrollForward,
+                onPreviousClick = {
+                    if (state.canScrollBackward) {
+                        scope.launch {
+                            state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
+                        }
+                    }
+                },
+                onNextClick = {
+                    if (state.canScrollForward) {
+                        scope.launch {
+                            state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
+                        }
+                    }
+                }
+            )
             WeekCalendar(
+                modifier = Modifier.fillMaxWidth(),
                 state = state,
                 dayContent = { day ->
                     Day(
                         date = day.date,
                         today = uiState.today,
-                        dayStatus = uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE,
+                        dayStatus = if (day.date.month == uiState.today.month) {
+                            uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE
+                        } else {
+                            PlanCalendarDayStatus.NONE
+                        },
                         isSelected = selection == day.date
                     ) { clicked ->
                         onDateSelected(clicked)
                     }
                 },
             )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium)),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize(),
-                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_small)),
+                contentPadding = PaddingValues(
+                    start = dimensionResource(R.dimen.padding_small),
+                    top = dimensionResource(R.dimen.padding_small),
+                    end = dimensionResource(R.dimen.padding_small),
+                    bottom = 96.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
             ) {
                 item(key = "schedule-title") {
@@ -256,6 +357,102 @@ private fun PlanScreenContent(
                             onClick = { onGroupClick(group.uuid) }
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanWeekHeader(
+    weekStartDate: LocalDate,
+    today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
+    monthFormatter: DateTimeFormatter,
+    canNavigateBackward: Boolean,
+    canNavigateForward: Boolean,
+    onPreviousClick: () -> Unit,
+    onNextClick: () -> Unit
+) {
+    val pageIndex = currentWeekPageIndex(
+        weekStartDate = weekStartDate,
+        today = today,
+        firstDayOfWeek = firstDayOfWeek
+    )
+    val pageLabelRes = when (pageIndex) {
+        0 -> R.string.plan_week_previous
+        1 -> R.string.plan_week_current
+        else -> R.string.plan_week_next
+    }
+    val headerDate = weekStartDate.plusDays(3)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, start = 4.dp, end = 4.dp, bottom = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onPreviousClick,
+                enabled = canNavigateBackward
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChevronLeft,
+                    contentDescription = stringResource(R.string.plan_previous_week)
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = headerDate.format(monthFormatter),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(pageLabelRes),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(
+                onClick = onNextClick,
+                enabled = canNavigateForward
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = stringResource(R.string.plan_next_week)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(3) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(
+                                width = if (index == pageIndex) 18.dp else 6.dp,
+                                height = 6.dp
+                            )
+                            .background(
+                                color = if (index == pageIndex) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                                shape = RoundedCornerShape(percent = 50)
+                            )
+                    )
                 }
             }
         }
@@ -532,46 +729,71 @@ private fun Day(
     isSelected: Boolean,
     onClick: (LocalDate) -> Unit
 ) {
-    val dayLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val dayNumberColor = MaterialTheme.colorScheme.onSurface
+    val isToday = date == today
+    val alpha = if (date.month == today.month) 1f else 0.6f
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        Color.Transparent
+    }
+    val borderColor = if (isToday && !isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        Color.Transparent
+    }
+    val dayLabelColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+    }
+    val dayNumberColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else if (isToday) {
+        MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentHeight()
+            .padding(horizontal = 1.dp, vertical = 2.dp)
+            .border(
+                width = 1.5.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(20.dp)
+            )
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(20.dp)
+            )
             .clickable { onClick(date) },
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = date.dayOfWeek.displayText(),
-                fontSize = 12.sp,
+                text = date.dayOfWeek.displayText(uppercase = true, narrow = true),
+                fontSize = 11.sp,
                 color = dayLabelColor,
-                fontWeight = FontWeight.Light,
+                fontWeight = FontWeight.Medium,
             )
             Text(
                 text = dateFormatter.format(date),
-                fontSize = 14.sp,
+                fontSize = 18.sp,
                 color = dayNumberColor,
-                fontWeight = FontWeight.Bold,
+                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
             )
             DayStatusIndicator(
                 date = date,
                 today = today,
-                dayStatus = dayStatus
-            )
-        }
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .align(Alignment.BottomCenter),
+                dayStatus = dayStatus,
+                isSelected = isSelected
             )
         }
     }
@@ -581,16 +803,21 @@ private fun Day(
 private fun DayStatusIndicator(
     date: LocalDate,
     today: LocalDate,
-    dayStatus: PlanCalendarDayStatus
+    dayStatus: PlanCalendarDayStatus,
+    isSelected: Boolean
 ) {
-    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
+    val neutralIndicatorColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.outline
+    }
     val scheduledIndicatorColor = if (date.isBefore(today)) {
-        overdueScheduledIndicatorColor
+        if (isSelected) MaterialTheme.colorScheme.onPrimary else overdueScheduledIndicatorColor
     } else {
         neutralIndicatorColor
     }
     val partialIndicatorColor = if (date.isBefore(today)) {
-        overduePartialIndicatorColor
+        if (isSelected) MaterialTheme.colorScheme.onPrimary else overduePartialIndicatorColor
     } else {
         neutralIndicatorColor
     }
@@ -650,8 +877,8 @@ private fun DayStatusIndicator(
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = null,
-                tint = fulfilledIndicatorColor,
-                modifier = Modifier.size(12.dp)
+                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else fulfilledIndicatorColor,
+                modifier = Modifier.size(14.dp)
             )
         }
     }
@@ -662,4 +889,14 @@ fun DayOfWeek.displayText(uppercase: Boolean = false, narrow: Boolean = false): 
     return getDisplayName(style, Locale.ENGLISH).let { value ->
         if (uppercase) value.uppercase(Locale.ENGLISH) else value
     }
+}
+
+private fun currentWeekPageIndex(
+    weekStartDate: LocalDate,
+    today: LocalDate,
+    firstDayOfWeek: DayOfWeek
+): Int {
+    val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
+    val weeksFromCurrent = ChronoUnit.WEEKS.between(currentWeekStart, weekStartDate).toInt()
+    return (weeksFromCurrent + 1).coerceIn(0, 2)
 }

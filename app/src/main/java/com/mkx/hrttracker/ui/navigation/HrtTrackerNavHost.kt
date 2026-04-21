@@ -188,23 +188,6 @@ fun HrtTrackerNavHost(
                     }
                 }
 
-                Screen.Plan.route -> {
-                    FloatingActionButton(
-                        onClick = {
-                            navController.navigate(
-                                Screen.EditMedicationGroup.createRoute(
-                                    topLevelParentRoute = Screen.Plan.route
-                                )
-                            )
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.fab_add_medication_group)
-                        )
-                    }
-                }
-
                 else -> Unit
             }
         },
@@ -243,6 +226,22 @@ fun HrtTrackerNavHost(
                             groupId = groupId,
                             scheduledFor = scheduledAt
                         )
+                    },
+                    onAddGroupClick = {
+                        navController.navigate(
+                            Screen.EditMedicationGroup.createRoute(
+                                topLevelParentRoute = Screen.Plan.route
+                            )
+                        )
+                    },
+                    onHistoryClick = {
+                        navController.navigate(Screen.History.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 )
             }

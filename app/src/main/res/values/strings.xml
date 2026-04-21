@@ -44,6 +44,13 @@
     <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
     <string name="plan_group_notifications_enabled">Dose reminders are on for this group</string>
     <string name="plan_group_notifications_disabled">Dose reminders are currently off for this group</string>
+    <string name="plan_open_history">Open history</string>
+    <string name="plan_more_options">More options</string>
+    <string name="plan_previous_week">Previous week</string>
+    <string name="plan_next_week">Next week</string>
+    <string name="plan_week_previous">Last week</string>
+    <string name="plan_week_current">This week</string>
+    <string name="plan_week_next">Next week</string>
     <string name="history_empty_state">No HRT entries yet.</string>
     <string name="history_month_empty_state">No HRT entries for this month.</string>
     <string name="history_selected_day_records_title">Records on %1$s</string>
