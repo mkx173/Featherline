@@ -61,6 +61,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -69,6 +70,8 @@ import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
@@ -76,6 +79,7 @@ import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -88,6 +92,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @Composable
 fun PlanScreen(
@@ -1510,4 +1515,236 @@ private fun currentWeekPageIndex(
     val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
     val weeksFromCurrent = ChronoUnit.WEEKS.between(currentWeekStart, weekStartDate).toInt()
     return (weeksFromCurrent + 1).coerceIn(0, 2)
+}
+
+@Preview(
+    name = "Plan Screen",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 900
+)
+@Composable
+private fun PlanScreenPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        PlanScreenContent(
+            uiState = buildPlanPreviewUiState(),
+            onGroupClick = { },
+            onEntryClick = { },
+            onQuickLogClick = { _, _ -> },
+            onAddGroupClick = { },
+            onHistoryClick = { },
+            onDateSelected = { }
+        )
+    }
+}
+
+private fun buildPlanPreviewUiState(): PlanUiState {
+    val zoneId = ZoneId.systemDefault()
+    val today = LocalDate.now()
+    val now = LocalDateTime.of(today, LocalTime.of(19, 15))
+    val range = buildPlanCalendarRange(
+        today = today,
+        firstDayOfWeek = DayOfWeek.MONDAY
+    )
+
+    val morningGroupId = UUID.fromString("ef1b16ca-86d7-4872-9540-5b0d0e286e10")
+    val eveningGroupId = UUID.fromString("f1db9123-b83c-4230-a0a7-269843f38de0")
+    val blockerGroupId = UUID.fromString("7bba70a0-3b70-4d20-bc46-ed38d7f0b48d")
+    val weeklyGroupId = UUID.fromString("9e71c6e4-72b7-4a49-ba04-d9ec9c0f5b44")
+
+    val groups = listOf(
+        MedicationGroup(
+            uuid = morningGroupId,
+            name = "Morning estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today.minusMonths(2),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("072753ea-3f23-457e-b0f3-a102ff318f37"),
+                    routeOfAdministration = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosageMgAsMedicine = 2.0
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = previewInstant(today.minusMonths(2), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today.minusDays(1), LocalTime.NOON, zoneId)
+        ),
+        MedicationGroup(
+            uuid = eveningGroupId,
+            name = "Evening estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today.minusMonths(1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("4233f227-405b-45d4-8c89-e25b52dfb20c"),
+                    routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
+                    medicineName = "Estradiol",
+                    dosageMgAsMedicine = 1.0
+                )
+            ),
+            notificationsEnabled = false,
+            createdAt = previewInstant(today.minusMonths(1), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today, LocalTime.NOON, zoneId)
+        ),
+        MedicationGroup(
+            uuid = blockerGroupId,
+            name = "Spironolactone",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = today.minusWeeks(8),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(22, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("548f616c-f347-4aa1-a460-8dd8235e3bb7"),
+                    routeOfAdministration = RouteOfAdministration.ORAL,
+                    medicineName = "Spironolactone",
+                    dosageMgAsMedicine = 50.0
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = previewInstant(today.minusWeeks(8), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today.minusDays(2), LocalTime.NOON, zoneId)
+        ),
+        MedicationGroup(
+            uuid = weeklyGroupId,
+            name = "Weekly injection",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = today.minusWeeks(6).with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
+                weeklyDaysOfWeek = setOf(DayOfWeek.FRIDAY),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("190964f5-c5f3-4f14-a4b2-394cbd4222dc"),
+                    routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
+                    medicineName = "Estradiol valerate",
+                    dosageMgAsMedicine = 5.0
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = previewInstant(today.minusWeeks(6), LocalTime.NOON, zoneId),
+            updatedAt = previewInstant(today.minusDays(3), LocalTime.NOON, zoneId)
+        )
+    )
+
+    val entries = listOf(
+        MedicationLogEntry(
+            uuid = UUID.fromString("06aa8f47-e08b-489f-8700-13421995cae1"),
+            routeOfAdministration = RouteOfAdministration.ORAL,
+            medicineName = "Estradiol",
+            dosageMgAsMedicine = 2.0,
+            dosageMgAsEstradiol = 2.0,
+            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = morningGroupId,
+            appliedAt = previewInstant(today, LocalTime.of(8, 2), zoneId),
+            scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("5e8d60cc-4df3-4a88-a14e-3cb35c4f6fc6"),
+            routeOfAdministration = RouteOfAdministration.TOPICAL,
+            medicineName = "Estradiol gel",
+            dosageMgAsMedicine = 1.5,
+            dosageMgAsEstradiol = 1.5,
+            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.MANUAL,
+            sourceGroupUuid = null,
+            appliedAt = previewInstant(today, LocalTime.of(13, 30), zoneId)
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("ee7d7612-9281-4a26-a74b-6eb39532fd76"),
+            routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
+            medicineName = "Estradiol valerate",
+            dosageMgAsMedicine = 5.0,
+            dosageMgAsEstradiol = 3.82,
+            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = weeklyGroupId,
+            appliedAt = previewInstant(
+                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
+                LocalTime.of(9, 5),
+                zoneId
+            ),
+            scheduledFor = LocalDateTime.of(
+                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
+                LocalTime.of(9, 0)
+            )
+        )
+    )
+
+    val daySchedule = buildPlanDaySchedule(
+        date = today,
+        groups = groups,
+        entries = entries,
+        now = now,
+        zoneId = zoneId
+    )
+    val calendarDays = buildPlanCalendarDayUiState(
+        groups = groups,
+        entries = entries,
+        startDate = range.startDate,
+        endDate = range.endDate
+    )
+
+    return PlanUiState(
+        isLoading = false,
+        today = today,
+        calendarFirstDayOfWeek = DayOfWeek.MONDAY,
+        calendarStartDate = range.startDate,
+        calendarEndDate = range.endDate,
+        selectedDate = today,
+        entries = entries,
+        medicationGroups = groups,
+        remindersEnabled = true,
+        calendarDays = calendarDays,
+        daySchedule = daySchedule,
+        nextOccurrencesByGroup = mapOf(
+            morningGroupId to listOf(
+                LocalDateTime.of(today.plusDays(1), LocalTime.of(8, 0)),
+                LocalDateTime.of(today.plusDays(2), LocalTime.of(8, 0)),
+                LocalDateTime.of(today.plusDays(3), LocalTime.of(8, 0))
+            ),
+            eveningGroupId to listOf(
+                LocalDateTime.of(today, LocalTime.of(20, 0)),
+                LocalDateTime.of(today.plusDays(1), LocalTime.of(20, 0)),
+                LocalDateTime.of(today.plusDays(2), LocalTime.of(20, 0))
+            ),
+            blockerGroupId to listOf(
+                LocalDateTime.of(today, LocalTime.of(22, 0)),
+                LocalDateTime.of(today.plusDays(1), LocalTime.of(22, 0)),
+                LocalDateTime.of(today.plusDays(2), LocalTime.of(22, 0))
+            ),
+            weeklyGroupId to listOf(
+                LocalDateTime.of(
+                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY)),
+                    LocalTime.of(9, 0)
+                ),
+                LocalDateTime.of(
+                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY)).plusWeeks(1),
+                    LocalTime.of(9, 0)
+                )
+            )
+        )
+    )
+}
+
+private fun previewInstant(
+    date: LocalDate,
+    time: LocalTime,
+    zoneId: ZoneId
+): Instant {
+    return LocalDateTime.of(date, time).atZone(zoneId).toInstant()
 }

@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -93,6 +94,7 @@ import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.log.MedicationEditorSheet
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -100,6 +102,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
+import java.util.UUID
 
 @Composable
 fun MedicationGroupEditorScreen(
@@ -1150,4 +1153,161 @@ private fun routeBadgeColors(route: com.mkx.hrttracker.model.medication.RouteOfA
             MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         }
     }
+}
+
+@Preview(
+    name = "Group Editor Daily",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun MedicationGroupEditorDailyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicationGroupEditorScreenContent(
+            uiState = buildMedicationGroupEditorPreviewUiState(
+                scheduleType = MedicationGroupScheduleType.DAILY,
+                editingGroupId = null,
+                remindersEnabled = false,
+                notificationsEnabled = true
+            ),
+            onNavigateBack = { },
+            onGroupNameChange = { },
+            onScheduleTypeChange = { },
+            onSinceDateChange = { },
+            onNotificationsEnabledChange = { },
+            notificationsToggleEnabled = false,
+            showInexactReminderWarning = false,
+            onWeeklyIntervalChange = { },
+            onWeeklyDayChange = { },
+            onWeeklyTimeChange = { },
+            onDailyIntervalChange = { },
+            onAddDailyTime = { },
+            onDailyTimeChange = { _, _ -> },
+            onRemoveDailyTime = { },
+            onAddMedication = { },
+            onMedicationClick = { },
+            onRemoveMedication = { },
+            onDismissMedicationEditor = { },
+            onConsumeMedicationEditorSaved = { },
+            onMedicationRouteChange = { },
+            onMedicationNameChange = { },
+            onMedicationDosageChange = { },
+            onSaveMedicationClick = { },
+            onSaveClick = { },
+            onDeleteClick = { },
+            onDeleteDismiss = { },
+            onDeleteConfirm = { }
+        )
+    }
+}
+
+@Preview(
+    name = "Group Editor Weekly",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun MedicationGroupEditorWeeklyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicationGroupEditorScreenContent(
+            uiState = buildMedicationGroupEditorPreviewUiState(
+                scheduleType = MedicationGroupScheduleType.WEEKLY,
+                editingGroupId = "preview-weekly-group",
+                remindersEnabled = true,
+                notificationsEnabled = true
+            ),
+            onNavigateBack = { },
+            onGroupNameChange = { },
+            onScheduleTypeChange = { },
+            onSinceDateChange = { },
+            onNotificationsEnabledChange = { },
+            notificationsToggleEnabled = true,
+            showInexactReminderWarning = true,
+            onWeeklyIntervalChange = { },
+            onWeeklyDayChange = { },
+            onWeeklyTimeChange = { },
+            onDailyIntervalChange = { },
+            onAddDailyTime = { },
+            onDailyTimeChange = { _, _ -> },
+            onRemoveDailyTime = { },
+            onAddMedication = { },
+            onMedicationClick = { },
+            onRemoveMedication = { },
+            onDismissMedicationEditor = { },
+            onConsumeMedicationEditorSaved = { },
+            onMedicationRouteChange = { },
+            onMedicationNameChange = { },
+            onMedicationDosageChange = { },
+            onSaveMedicationClick = { },
+            onSaveClick = { },
+            onDeleteClick = { },
+            onDeleteDismiss = { },
+            onDeleteConfirm = { }
+        )
+    }
+}
+
+private fun buildMedicationGroupEditorPreviewUiState(
+    scheduleType: MedicationGroupScheduleType,
+    editingGroupId: String?,
+    remindersEnabled: Boolean,
+    notificationsEnabled: Boolean
+): MedicationGroupEditorUiState {
+    val today = LocalDate.now()
+    return MedicationGroupEditorUiState(
+        editingGroupId = editingGroupId,
+        groupName = if (scheduleType == MedicationGroupScheduleType.DAILY) {
+            "Daily estradiol"
+        } else {
+            "Injection cycle"
+        },
+        scheduleType = scheduleType,
+        sinceDate = today.minusWeeks(6),
+        weeklyIntervalWeeks = "1",
+        weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+        weeklyTime = LocalTime.of(9, 0),
+        dailyIntervalDays = "1",
+        dailyTimes = listOf(
+            MedicationGroupScheduleTimeUiState(
+                localId = "morning-dose",
+                time = LocalTime.of(8, 0)
+            ),
+            MedicationGroupScheduleTimeUiState(
+                localId = "evening-dose",
+                time = LocalTime.of(20, 0)
+            )
+        ),
+        remindersEnabled = remindersEnabled,
+        notificationsEnabled = notificationsEnabled,
+        medications = listOf(
+            MedicationGroupMedicationItemUiState(
+                localId = "med-1",
+                persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321").toString(),
+                routeOfAdministration = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                    com.mkx.hrttracker.model.medication.RouteOfAdministration.INTRAMUSCULAR
+                } else {
+                    com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL
+                },
+                medicineName = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                    "Estradiol valerate"
+                } else {
+                    "Estradiol"
+                },
+                dosageMg = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                    "5"
+                } else {
+                    "2"
+                }
+            ),
+            MedicationGroupMedicationItemUiState(
+                localId = "med-2",
+                persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56").toString(),
+                routeOfAdministration = com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL,
+                medicineName = "Spironolactone",
+                dosageMg = "50"
+            )
+        )
+    )
 }
