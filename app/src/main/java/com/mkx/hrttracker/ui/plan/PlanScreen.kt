@@ -47,10 +47,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -68,6 +69,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
+import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
+import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -91,6 +94,7 @@ import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
@@ -155,9 +159,7 @@ private fun PlanScreenContent(
         firstVisibleWeekDate = uiState.today,
         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
     )
-    val visibleWeek by remember(state) {
-        derivedStateOf { state.firstVisibleWeek }
-    }
+    val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
 
     LaunchedEffect(selection) {
@@ -1515,6 +1517,35 @@ private fun currentWeekPageIndex(
     val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
     val weeksFromCurrent = ChronoUnit.WEEKS.between(currentWeekStart, weekStartDate).toInt()
     return (weeksFromCurrent + 1).coerceIn(0, 2)
+}
+
+@Composable
+private fun rememberFirstMostVisibleWeek(
+    state: com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarState,
+    viewportPercent: Float = 50f,
+): Week {
+    val visibleWeek = remember(state) { mutableStateOf(state.firstVisibleWeek) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.firstMostVisibleWeek(viewportPercent) }
+            .filterNotNull()
+            .collect { week -> visibleWeek.value = week }
+    }
+    return visibleWeek.value
+}
+
+private fun WeekCalendarLayoutInfo.firstMostVisibleWeek(viewportPercent: Float = 50f): Week? {
+    return if (visibleWeeksInfo.isEmpty()) {
+        null
+    } else {
+        val viewportSize = (viewportEndOffset + viewportStartOffset) * viewportPercent / 100f
+        visibleWeeksInfo.firstOrNull { itemInfo ->
+            if (itemInfo.offset < 0) {
+                itemInfo.offset + itemInfo.size >= viewportSize
+            } else {
+                itemInfo.size - itemInfo.offset >= viewportSize
+            }
+        }?.week
+    }
 }
 
 @Preview(
