@@ -74,11 +74,14 @@ import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
@@ -1579,9 +1582,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("072753ea-3f23-457e-b0f3-a102ff318f37"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             notificationsEnabled = true,
@@ -1601,9 +1606,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("4233f227-405b-45d4-8c89-e25b52dfb20c"),
-                    routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 1.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.SUBLINGUAL,
+                        dose = MedicationDose.MgAsMedicine(1.0)
+                    )
                 )
             ),
             notificationsEnabled = false,
@@ -1623,9 +1630,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("548f616c-f347-4aa1-a460-8dd8235e3bb7"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Spironolactone",
-                    dosageMgAsMedicine = 50.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(50.0)
+                    )
                 )
             ),
             notificationsEnabled = true,
@@ -1645,9 +1654,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("190964f5-c5f3-4f14-a4b2-394cbd4222dc"),
-                    routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
-                    medicineName = "Estradiol valerate",
-                    dosageMgAsMedicine = 5.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL_VALERATE,
+                        applicationType = MedicationApplicationType.INJECTION,
+                        dose = MedicationDose.MgAsMedicine(5.0)
+                    )
                 )
             ),
             notificationsEnabled = true,
@@ -1659,9 +1670,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
     val entries = listOf(
         MedicationLogEntry(
             uuid = UUID.fromString("06aa8f47-e08b-489f-8700-13421995cae1"),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = morningGroupId,
@@ -1670,9 +1683,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("5e8d60cc-4df3-4a88-a14e-3cb35c4f6fc6"),
-            routeOfAdministration = RouteOfAdministration.TOPICAL,
-            medicineName = "Estradiol gel",
-            dosageMgAsMedicine = 1.5,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_GEL,
+                applicationType = MedicationApplicationType.GEL,
+                dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
+            ),
             dosageMgAsEstradiol = 1.5,
             sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
@@ -1680,9 +1695,11 @@ private fun buildPlanPreviewUiState(): PlanUiState {
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("ee7d7612-9281-4a26-a74b-6eb39532fd76"),
-            routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
-            medicineName = "Estradiol valerate",
-            dosageMgAsMedicine = 5.0,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_VALERATE,
+                applicationType = MedicationApplicationType.INJECTION,
+                dose = MedicationDose.MgAsMedicine(5.0)
+            ),
             dosageMgAsEstradiol = 3.82,
             sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = weeklyGroupId,
@@ -1751,6 +1768,19 @@ private fun buildPlanPreviewUiState(): PlanUiState {
                 )
             )
         )
+    )
+}
+
+private fun previewCatalogMedicationDetails(
+    key: MedicationKey,
+    applicationType: MedicationApplicationType,
+    dose: MedicationDose,
+): MedicationDetails {
+    return MedicationDetails(
+        category = key.category,
+        applicationType = applicationType,
+        selection = MedicationSelection.Catalog(key),
+        dose = dose
     )
 }
 

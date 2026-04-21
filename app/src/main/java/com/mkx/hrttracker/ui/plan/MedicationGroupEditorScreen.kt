@@ -88,7 +88,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
@@ -1298,28 +1304,34 @@ private fun buildMedicationGroupEditorPreviewUiState(
             MedicationGroupMedicationItemUiState(
                 localId = "med-1",
                 persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321").toString(),
-                routeOfAdministration = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                    com.mkx.hrttracker.model.medication.RouteOfAdministration.INTRAMUSCULAR
-                } else {
-                    com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL
-                },
-                medicineName = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                    "Estradiol valerate"
-                } else {
-                    "Estradiol"
-                },
-                dosageMg = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                    "5"
-                } else {
-                    "2"
-                }
+                details = MedicationDetails(
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                        MedicationApplicationType.INJECTION
+                    } else {
+                        MedicationApplicationType.ORAL
+                    },
+                    selection = MedicationSelection.Catalog(
+                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
+                            MedicationKey.ESTRADIOL_VALERATE
+                        } else {
+                            MedicationKey.ESTRADIOL
+                        }
+                    ),
+                    dose = MedicationDose.MgAsMedicine(
+                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) 5.0 else 2.0
+                    )
+                )
             ),
             MedicationGroupMedicationItemUiState(
                 localId = "med-2",
                 persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56").toString(),
-                routeOfAdministration = com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL,
-                medicineName = "Spironolactone",
-                dosageMg = "50"
+                details = MedicationDetails(
+                    category = MedicationCategory.ANTIANDROGEN,
+                    applicationType = MedicationApplicationType.ORAL,
+                    selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
+                    dose = MedicationDose.MgAsMedicine(50.0)
+                )
             )
         )
     )

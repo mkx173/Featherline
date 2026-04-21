@@ -12,7 +12,9 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -37,15 +39,14 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("04c5a0af-3961-41d3-b1b2-b03517958167"),
-                    route = RouteOfAdministration.ORAL,
-                    name = "Estradiol",
-                    dosage = 2.0
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
                 ),
                 medication(
                     uuid = UUID.fromString("9dd76ef6-3b5d-4f44-9ec8-351599bdc604"),
-                    route = RouteOfAdministration.TOPICAL,
-                    name = "Progesterone",
-                    dosage = 100.0
+                    details = progesteroneDetails(100.0)
                 )
             )
         )
@@ -61,9 +62,11 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("cc516764-c2f6-478a-8faa-c23f7de339b1"),
-                    route = RouteOfAdministration.INTRAMUSCULAR,
-                    name = "Estradiol valerate",
-                    dosage = 5.0
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.INJECTION,
+                        dose = 5.0,
+                        key = MedicationKey.ESTRADIOL_VALERATE
+                    )
                 )
             )
         )
@@ -72,56 +75,54 @@ class PlanCalendarDayUiStateTest {
             groups = listOf(dailyGroup, weeklyGroup),
             entries = listOf(
                 manualEntry(
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.TOPICAL,
-                    medicineName = "Progesterone",
-                    dosage = 100.0,
+                    details = progesteroneDetails(100.0),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 21, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.TOPICAL,
-                    medicineName = "Progesterone",
-                    dosage = 100.0,
+                    details = progesteroneDetails(100.0),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 21, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 21, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = dailyGroup.uuid,
-                    route = RouteOfAdministration.TOPICAL,
-                    medicineName = "Progesterone",
-                    dosage = 100.0,
+                    details = progesteroneDetails(100.0),
                     appliedAt = LocalDateTime.of(2026, 4, 18, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
                 )
@@ -151,9 +152,10 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("1ec9afde-6af0-4c77-ae15-f629e8e43e86"),
-                    route = RouteOfAdministration.ORAL,
-                    name = "Estradiol",
-                    dosage = 2.0
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
                 )
             )
         )
@@ -163,17 +165,19 @@ class PlanCalendarDayUiStateTest {
             entries = listOf(
                 groupEntry(
                     groupUuid = group.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 groupEntry(
                     groupUuid = group.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0),
                     scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
                 )
@@ -199,15 +203,14 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("65c31b89-bf9a-4c2e-975a-2e63a87472c8"),
-                    route = RouteOfAdministration.ORAL,
-                    name = "Estradiol",
-                    dosage = 2.0
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
                 ),
                 medication(
                     uuid = UUID.fromString("d560da79-a743-4ba0-a992-8fc10bd58b13"),
-                    route = RouteOfAdministration.TOPICAL,
-                    name = "Progesterone",
-                    dosage = 100.0
+                    details = progesteroneDetails(100.0)
                 )
             )
         )
@@ -216,15 +219,14 @@ class PlanCalendarDayUiStateTest {
             groups = listOf(group),
             entries = listOf(
                 manualEntry(
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
                 ),
                 manualEntry(
-                    route = RouteOfAdministration.TOPICAL,
-                    medicineName = "Progesterone",
-                    dosage = 100.0,
+                    details = progesteroneDetails(100.0),
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
                 )
             ),
@@ -249,9 +251,10 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 medication(
                     uuid = UUID.fromString("2ef68ea5-c921-416f-96e7-dc1a3c75eb7a"),
-                    route = RouteOfAdministration.ORAL,
-                    name = "Estradiol",
-                    dosage = 2.0
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
                 )
             )
         )
@@ -261,9 +264,10 @@ class PlanCalendarDayUiStateTest {
             entries = listOf(
                 groupEntry(
                     groupUuid = group.uuid,
-                    route = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosage = 2.0,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
                     appliedAt = LocalDateTime.of(2026, 4, 17, 9, 0),
                     scheduledFor = null
                 )
@@ -343,54 +347,83 @@ class PlanCalendarDayUiStateTest {
 
     private fun groupEntry(
         groupUuid: UUID,
-        route: RouteOfAdministration,
-        medicineName: String,
-        dosage: Double,
+        details: MedicationDetails,
         appliedAt: LocalDateTime,
         scheduledFor: LocalDateTime? = null
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            routeOfAdministration = route,
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosage,
-            dosageMgAsEstradiol = dosage,
+            details = details,
+            dosageMgAsEstradiol = estradiolEquivalent(details),
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
-            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant(),
+            appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
         )
     }
 
     private fun manualEntry(
-        route: RouteOfAdministration,
-        medicineName: String,
-        dosage: Double,
+        details: MedicationDetails,
         appliedAt: LocalDateTime
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
-            routeOfAdministration = route,
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosage,
-            dosageMgAsEstradiol = dosage,
+            details = details,
+            dosageMgAsEstradiol = estradiolEquivalent(details),
             sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
-            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant()
+            appliedAt = testInstant(appliedAt)
         )
     }
 
     private fun medication(
         uuid: UUID,
-        route: RouteOfAdministration,
-        name: String,
-        dosage: Double
+        details: MedicationDetails
     ): MedicationGroupMedication {
         return MedicationGroupMedication(
             uuid = uuid,
-            routeOfAdministration = route,
-            medicineName = name,
-            dosageMgAsMedicine = dosage
+            details = details
         )
+    }
+
+    private fun estradiolDetails(
+        applicationType: MedicationApplicationType,
+        dose: Double,
+        key: MedicationKey = MedicationKey.ESTRADIOL,
+    ): MedicationDetails {
+        return testCatalogMedicationDetails(
+            key = key,
+            applicationType = applicationType,
+            dose = MedicationDose.MgAsMedicine(dose)
+        )
+    }
+
+    private fun progesteroneDetails(dose: Double): MedicationDetails {
+        return testCustomMedicationDetails(
+            medicationName = "Progesterone",
+            dose = MedicationDose.MgAsMedicine(dose)
+        )
+    }
+
+    private fun estradiolEquivalent(details: MedicationDetails): Double? {
+        return when (details.selection) {
+            is MedicationSelection.Catalog -> when ((details.selection as MedicationSelection.Catalog).medicationKey) {
+                MedicationKey.ESTRADIOL,
+                MedicationKey.ESTRADIOL_GEL -> when (val dose = details.dose) {
+                    is MedicationDose.MgAsMedicine -> dose.valueMg
+                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+                    else -> null
+                }
+
+                MedicationKey.ESTRADIOL_VALERATE -> when (val dose = details.dose) {
+                    is MedicationDose.MgAsMedicine -> dose.valueMg
+                    else -> null
+                }
+
+                else -> null
+            }
+
+            is MedicationSelection.Custom -> null
+        }
     }
 }

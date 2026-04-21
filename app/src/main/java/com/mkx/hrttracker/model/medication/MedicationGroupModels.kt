@@ -20,20 +20,6 @@ data class MedicationGroupMedication(
     val uuid: UUID,
     val details: MedicationDetails,
 ) {
-    constructor(
-        uuid: UUID,
-        routeOfAdministration: RouteOfAdministration,
-        medicineName: String,
-        dosageMgAsMedicine: Double,
-    ) : this(
-        uuid = uuid,
-        details = legacyMedicationDetails(
-            routeOfAdministration = routeOfAdministration,
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosageMgAsMedicine
-        ),
-    )
-
     val category: MedicationCategory
         get() = details.category
 
@@ -45,15 +31,6 @@ data class MedicationGroupMedication(
 
     val dose: MedicationDose
         get() = details.dose
-
-    val routeOfAdministration: RouteOfAdministration
-        get() = details.legacyRouteOfAdministration()
-
-    val medicineName: String
-        get() = details.displayName()
-
-    val dosageMgAsMedicine: Double
-        get() = details.legacyDoseValueMg()
 }
 
 enum class MedicationGroupScheduleType {

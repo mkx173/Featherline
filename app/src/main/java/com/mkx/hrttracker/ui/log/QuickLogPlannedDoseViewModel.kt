@@ -7,10 +7,6 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
-import com.mkx.hrttracker.model.medication.displayName
-import com.mkx.hrttracker.model.medication.legacyDoseValueMg
-import com.mkx.hrttracker.model.medication.legacyRouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -138,13 +134,4 @@ data class QuickLogPlannedDoseItemUiState(
     val details: MedicationDetails,
     val appliedDate: LocalDate,
     val appliedTime: LocalTime,
-) {
-    val routeOfAdministration: RouteOfAdministration
-        get() = details.legacyRouteOfAdministration()
-
-    val medicineName: String
-        get() = details.displayName()
-
-    val dosageMgAsMedicine: Double
-        get() = details.legacyDoseValueMg()
-}
+)

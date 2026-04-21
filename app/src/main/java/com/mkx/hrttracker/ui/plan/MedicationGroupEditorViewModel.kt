@@ -10,10 +10,6 @@ import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
-import com.mkx.hrttracker.model.medication.displayName
-import com.mkx.hrttracker.model.medication.legacyDoseValueMg
-import com.mkx.hrttracker.model.medication.legacyRouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
@@ -502,38 +498,6 @@ data class MedicationGroupMedicationItemUiState(
     val persistedMedicationId: String? = null,
     val details: MedicationDetails = defaultMedicationDraft().toMedicationDetails(),
 ) {
-    constructor(
-        localId: String = UUID.randomUUID().toString(),
-        persistedMedicationId: String? = null,
-        routeOfAdministration: RouteOfAdministration,
-        medicineName: String,
-        dosageMg: String,
-    ) : this(
-        localId = localId,
-        persistedMedicationId = persistedMedicationId,
-        details = com.mkx.hrttracker.model.medication.legacyMedicationDetails(
-            routeOfAdministration = routeOfAdministration,
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosageMg.toDoubleOrNull() ?: 0.0
-        )
-    )
-
-    val routeOfAdministration: RouteOfAdministration
-        get() = details.legacyRouteOfAdministration()
-
-    val medicineName: String
-        get() = details.displayName()
-
-    val dosageMg: String
-        get() {
-            val dose = details.legacyDoseValueMg()
-            return if (dose % 1.0 == 0.0) {
-                String.format(Locale.US, "%.0f", dose)
-            } else {
-                String.format(Locale.US, "%.2f", dose)
-            }
-        }
-
     fun toEditorUiState(): MedicationGroupMedicationEditorUiState {
         return MedicationGroupMedicationEditorUiState(
             localId = localId,

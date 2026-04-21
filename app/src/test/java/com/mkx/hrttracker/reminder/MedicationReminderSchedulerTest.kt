@@ -7,10 +7,13 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -135,11 +138,13 @@ class MedicationReminderSchedulerTest {
                 times = listOf(LocalTime.of(9, 0))
             ),
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("aa111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             notificationsEnabled = notificationsEnabled,

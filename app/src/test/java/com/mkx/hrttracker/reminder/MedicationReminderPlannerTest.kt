@@ -1,12 +1,17 @@
 package com.mkx.hrttracker.reminder
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -128,11 +133,13 @@ class MedicationReminderPlannerTest {
                 times = listOf(LocalTime.of(9, 0))
             ),
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("56f1a6b4-dcdb-448b-8f08-9cb5746206d5"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             notificationsEnabled = true,
@@ -169,11 +176,13 @@ class MedicationReminderPlannerTest {
                 times = listOf(time)
             ),
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("56f1a6b4-dcdb-448b-8f08-9cb5746206d5"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             notificationsEnabled = notificationsEnabled,
@@ -187,15 +196,17 @@ class MedicationReminderPlannerTest {
         appliedAt: LocalDateTime,
         scheduledFor: LocalDateTime
     ): MedicationLogEntry {
-        return MedicationLogEntry(
+        return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
-            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant(),
+            appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
         )
     }

@@ -1,10 +1,13 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,11 +47,13 @@ class PlanDayOccurrenceTest {
             name = "Test group",
             schedule = schedule,
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

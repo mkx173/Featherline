@@ -1,8 +1,13 @@
 package com.mkx.hrttracker.ui.history
 
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import org.junit.Assert.assertEquals
@@ -70,15 +75,17 @@ class HistoryUiModelsTest {
     }
 
     private fun entryAt(dateTime: LocalDateTime): MedicationLogEntry {
-        return MedicationLogEntry(
+        return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
-            appliedAt = dateTime.atZone(ZoneId.systemDefault()).toInstant()
+            appliedAt = testInstant(dateTime)
         )
     }
 }

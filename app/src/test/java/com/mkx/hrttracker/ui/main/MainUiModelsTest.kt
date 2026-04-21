@@ -1,12 +1,17 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -172,11 +177,13 @@ class MainUiModelsTest {
             name = name,
             schedule = schedule,
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.randomUUID(),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -189,15 +196,17 @@ class MainUiModelsTest {
         appliedAt: LocalDateTime,
         scheduledFor: LocalDateTime
     ): MedicationLogEntry {
-        return MedicationLogEntry(
+        return testMedicationLogEntry(
             uuid = UUID.randomUUID(),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
-            appliedAt = appliedAt.atZone(ZoneId.systemDefault()).toInstant(),
+            appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
         )
     }

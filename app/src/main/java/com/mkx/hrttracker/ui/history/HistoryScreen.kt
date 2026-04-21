@@ -79,12 +79,15 @@ import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
@@ -1332,9 +1335,11 @@ private fun buildHistoryPreviewUiState(
     val entries = listOf(
         MedicationLogEntry(
             uuid = UUID.fromString("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
-            routeOfAdministration = RouteOfAdministration.INTRAMUSCULAR,
-            medicineName = "Estradiol valerate",
-            dosageMgAsMedicine = 5.0,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_VALERATE,
+                applicationType = MedicationApplicationType.INJECTION,
+                dose = MedicationDose.MgAsMedicine(5.0)
+            ),
             dosageMgAsEstradiol = 3.82,
             sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
@@ -1342,9 +1347,11 @@ private fun buildHistoryPreviewUiState(
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("9b9a1efe-6df3-43da-871d-9584370fbca8"),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = oralGroupId,
@@ -1352,9 +1359,11 @@ private fun buildHistoryPreviewUiState(
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"),
-            routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 1.0,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                dose = MedicationDose.MgAsMedicine(1.0)
+            ),
             dosageMgAsEstradiol = 1.0,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = nightlyGroupId,
@@ -1363,9 +1372,11 @@ private fun buildHistoryPreviewUiState(
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("0db2cb5b-bf7b-45aa-9f42-d1bddcb00c88"),
-            routeOfAdministration = RouteOfAdministration.TOPICAL,
-            medicineName = "Estradiol gel",
-            dosageMgAsMedicine = 1.5,
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_GEL,
+                applicationType = MedicationApplicationType.GEL,
+                dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
+            ),
             dosageMgAsEstradiol = 1.5,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = oralGroupId,
@@ -1388,9 +1399,11 @@ private fun buildHistoryPreviewUiState(
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("c6ebfec7-5412-49a6-9040-a845cd5dd9f3"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             notificationsEnabled = true,
@@ -1410,9 +1423,11 @@ private fun buildHistoryPreviewUiState(
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("b08dbe5d-f225-491f-b2b0-07beb7fe47f3"),
-                    routeOfAdministration = RouteOfAdministration.SUBLINGUAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 1.0
+                    details = previewCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.SUBLINGUAL,
+                        dose = MedicationDose.MgAsMedicine(1.0)
+                    )
                 )
             ),
             notificationsEnabled = false,
@@ -1430,6 +1445,19 @@ private fun buildHistoryPreviewUiState(
         displayedMonth = month,
         selectedDate = selectedDate,
         selectedEntryIds = selectedEntryIds
+    )
+}
+
+private fun previewCatalogMedicationDetails(
+    key: MedicationKey,
+    applicationType: MedicationApplicationType,
+    dose: MedicationDose,
+): MedicationDetails {
+    return MedicationDetails(
+        category = key.category,
+        applicationType = applicationType,
+        selection = MedicationSelection.Catalog(key),
+        dose = dose
     )
 }
 

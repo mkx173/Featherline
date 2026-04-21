@@ -1,12 +1,17 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -86,11 +91,13 @@ class PlanUpcomingOccurrencesTest {
             name = "Test group",
             schedule = schedule,
             medications = listOf(
-                MedicationGroupMedication(
+                testMedicationGroupMedication(
                     uuid = UUID.fromString("7c5db940-377c-485e-b43a-e2ab09be3e7a"),
-                    routeOfAdministration = RouteOfAdministration.ORAL,
-                    medicineName = "Estradiol",
-                    dosageMgAsMedicine = 2.0
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -102,15 +109,17 @@ class PlanUpcomingOccurrencesTest {
         groupUuid: UUID,
         scheduledFor: LocalDateTime
     ): MedicationLogEntry {
-        return MedicationLogEntry(
+        return testMedicationLogEntry(
             uuid = UUID.fromString("24a11fa0-01eb-4990-8c5d-832e5f8ecb50"),
-            routeOfAdministration = RouteOfAdministration.ORAL,
-            medicineName = "Estradiol",
-            dosageMgAsMedicine = 2.0,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
             dosageMgAsEstradiol = 2.0,
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
-            appliedAt = scheduledFor.atZone(ZoneId.systemDefault()).toInstant(),
+            appliedAt = testInstant(scheduledFor),
             scheduledFor = scheduledFor
         )
     }

@@ -13,8 +13,6 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
-import com.mkx.hrttracker.model.medication.legacyMedicationDetails
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -129,30 +127,6 @@ class MedicationLogRepository @Inject constructor(
                 appliedAtEpochMillis = appliedAt.toEpochMilli(),
                 scheduledForIso = scheduledFor?.toString()
             )
-        )
-    }
-
-    suspend fun saveEntry(
-        uuid: UUID?,
-        routeOfAdministration: RouteOfAdministration,
-        medicineName: String,
-        dosageMgAsMedicine: Double,
-        sourceType: MedicationLogEntrySourceType,
-        sourceGroupUuid: UUID?,
-        appliedAt: Instant,
-        scheduledFor: LocalDateTime? = null
-    ) {
-        saveEntry(
-            uuid = uuid,
-            medication = legacyMedicationDetails(
-                routeOfAdministration = routeOfAdministration,
-                medicineName = medicineName,
-                dosageMgAsMedicine = dosageMgAsMedicine
-            ),
-            sourceType = sourceType,
-            sourceGroupUuid = sourceGroupUuid,
-            appliedAt = appliedAt,
-            scheduledFor = scheduledFor
         )
     }
 

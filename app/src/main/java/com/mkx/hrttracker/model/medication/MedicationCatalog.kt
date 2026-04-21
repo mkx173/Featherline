@@ -2,7 +2,6 @@ package com.mkx.hrttracker.model.medication
 
 import androidx.annotation.StringRes
 import com.mkx.hrttracker.R
-import java.util.Locale
 
 enum class MedicationCategory(@get:StringRes val labelRes: Int) {
     ESTRADIOL(R.string.medication_category_estradiol),
@@ -413,28 +412,6 @@ fun MedicationDetails.displayName(): String {
     }
 }
 
-fun MedicationDetails.legacyDoseValueMg(): Double {
-    return when (val dose = dose) {
-        is MedicationDose.MgAsMedicine -> dose.valueMg
-        is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-        is MedicationDose.GelPercentAndWeight -> dose.percent * dose.weightGrams * 10.0
-        is MedicationDose.PatchTotalMg -> dose.valueMg
-        is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay / 1000.0
-        MedicationDose.None -> 0.0
-    }
-}
-
-fun MedicationDetails.legacyRouteOfAdministration(): RouteOfAdministration {
-    return when (applicationType) {
-        MedicationApplicationType.ORAL -> RouteOfAdministration.ORAL
-        MedicationApplicationType.SUBLINGUAL -> RouteOfAdministration.SUBLINGUAL
-        MedicationApplicationType.INJECTION -> RouteOfAdministration.INTRAMUSCULAR
-        MedicationApplicationType.GEL -> RouteOfAdministration.TOPICAL
-        MedicationApplicationType.PATCH_ON,
-        MedicationApplicationType.PATCH_OFF -> RouteOfAdministration.TRANSDERMAL
-    }
-}
-
 fun MedicationKey.canonicalName(): String {
     return when (this) {
         MedicationKey.SPIRONOLACTONE -> "Spironolactone"
@@ -447,86 +424,4 @@ fun MedicationKey.canonicalName(): String {
         MedicationKey.ESTRADIOL_GEL -> "Estradiol gel"
         MedicationKey.ESTRADIOL_PATCH -> "Estradiol patch"
     }
-}
-
-fun legacyMedicationDetails(
-    routeOfAdministration: RouteOfAdministration,
-    medicineName: String,
-    dosageMgAsMedicine: Double,
-): MedicationDetails {
-    val normalizedName = medicineName.lowercase(Locale.US)
-        .replace(Regex("[^a-z0-9]"), "")
-    val knownMedicationKey = when (normalizedName) {
-        "spironolactone" -> MedicationKey.SPIRONOLACTONE
-        "cyproteroneacetate",
-        "cpa" -> MedicationKey.CYPROTERONE_ACETATE
-
-        "estradiol",
-        "17betaestradiol",
-        "betaestradiol",
-        "estradiolbase" -> MedicationKey.ESTRADIOL
-
-        "estradiolvalerate",
-        "ev",
-        "e2v" -> MedicationKey.ESTRADIOL_VALERATE
-
-        "estradiolbenzoate",
-        "eb",
-        "e2b" -> MedicationKey.ESTRADIOL_BENZOATE
-
-        "estradiolcypionate",
-        "ec",
-        "e2c" -> MedicationKey.ESTRADIOL_CYPIONATE
-
-        "estradiolenanthate",
-        "ee",
-        "e2e" -> MedicationKey.ESTRADIOL_ENANTHATE
-
-        "estradiolgel" -> MedicationKey.ESTRADIOL_GEL
-        "estradiolpatch" -> MedicationKey.ESTRADIOL_PATCH
-        else -> null
-    }
-
-    val category = when {
-        knownMedicationKey != null -> knownMedicationKey.category
-        normalizedName in setOf(
-            "bicalutamide",
-            "finasteride",
-            "dutasteride"
-        ) -> MedicationCategory.ANTIANDROGEN
-
-        normalizedName.contains("testosterone") -> MedicationCategory.TESTOSTERONE
-        else -> MedicationCategory.CUSTOM
-    }
-
-    val applicationType = when (routeOfAdministration) {
-        RouteOfAdministration.ORAL -> MedicationApplicationType.ORAL
-        RouteOfAdministration.SUBLINGUAL -> MedicationApplicationType.SUBLINGUAL
-        RouteOfAdministration.INTRAMUSCULAR,
-        RouteOfAdministration.SUBCUTANEOUS -> MedicationApplicationType.INJECTION
-
-        RouteOfAdministration.TRANSDERMAL -> MedicationApplicationType.PATCH_ON
-        RouteOfAdministration.TOPICAL -> MedicationApplicationType.GEL
-        RouteOfAdministration.OTHER -> MedicationApplicationType.ORAL
-    }
-
-    val selection = knownMedicationKey?.let(MedicationSelection::Catalog)
-        ?: MedicationSelection.Custom(medicineName)
-
-    val dose = when (applicationType) {
-        MedicationApplicationType.ORAL,
-        MedicationApplicationType.SUBLINGUAL,
-        MedicationApplicationType.INJECTION -> MedicationDose.MgAsMedicine(dosageMgAsMedicine)
-
-        MedicationApplicationType.GEL -> MedicationDose.GelEquivalentEstradiolMg(dosageMgAsMedicine)
-        MedicationApplicationType.PATCH_ON -> MedicationDose.PatchTotalMg(dosageMgAsMedicine)
-        MedicationApplicationType.PATCH_OFF -> MedicationDose.None
-    }
-
-    return MedicationDetails(
-        category = category,
-        applicationType = applicationType,
-        selection = selection,
-        dose = dose
-    )
 }

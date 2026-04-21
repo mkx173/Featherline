@@ -20,8 +20,6 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
-import com.mkx.hrttracker.model.medication.legacyMedicationDetails
 import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -245,21 +243,7 @@ class MedicationGroupRepository @Inject constructor(
 data class MedicationGroupMedicationInput(
     val uuid: UUID? = null,
     val details: MedicationDetails,
-) {
-    constructor(
-        uuid: UUID? = null,
-        routeOfAdministration: RouteOfAdministration,
-        medicineName: String,
-        dosageMgAsMedicine: Double,
-    ) : this(
-        uuid = uuid,
-        details = legacyMedicationDetails(
-            routeOfAdministration = routeOfAdministration,
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosageMgAsMedicine
-        )
-    )
-}
+)
 
 data class MedicationGroupScheduleInput(
     val type: MedicationGroupScheduleType,
