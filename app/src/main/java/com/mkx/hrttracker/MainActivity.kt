@@ -21,6 +21,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.history.HistoryViewModel
 import com.mkx.hrttracker.ui.main.MainViewModel
+import com.mkx.hrttracker.ui.onboarding.OnboardingDialogs
 import com.mkx.hrttracker.ui.plan.PlanViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
@@ -100,7 +101,10 @@ class MainActivity : AppCompatActivity() {
                             onUnlockClick = appLockViewModel::requestUnlock
                         )
                     }
-                    else -> HrtTrackerApp(navController = navController)
+                    else -> {
+                        HrtTrackerApp(navController = navController)
+                        OnboardingDialogs()
+                    }
                 }
             }
         }

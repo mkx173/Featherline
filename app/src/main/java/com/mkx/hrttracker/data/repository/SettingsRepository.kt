@@ -17,10 +17,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -40,7 +42,12 @@ class SettingsRepository @Inject constructor(
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
+    private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
+
+    val onboardingCompleted: Flow<Boolean> = context.dataStore.data
+        .map { it[onboardingCompletedKey] ?: false }
+        .distinctUntilChanged()
 
     val settingsState: StateFlow<SettingsState> = combine(
         context.dataStore.data.map(::preferencesToStoredSettingsState),
@@ -92,6 +99,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setHideScreenContentEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[hideScreenContentKey] = enabled
+        }
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[onboardingCompletedKey] = completed
         }
     }
 

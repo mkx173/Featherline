@@ -281,6 +281,13 @@
     <string name="screen_lock_auth_unavailable_generic">Secure authentication is not available on this device.</string>
     <string name="screen_lock_auth_locked_out">Too many failed attempts. Try again later.</string>
     <string name="screen_lock_auth_failed">Authentication failed.</string>
+    <string name="onboarding_privacy_title">Your data stays private</string>
+    <string name="onboarding_privacy_message">HRT Tracker keeps all your medication and health data on this device. The database is encrypted on disk, and nothing is sent to any server or third party.</string>
+    <string name="onboarding_privacy_acknowledge">Got it</string>
+    <string name="onboarding_reminders_title">Enable dose reminders?</string>
+    <string name="onboarding_reminders_message">Get notified when a scheduled dose is due. You can change this anytime in Settings.</string>
+    <string name="onboarding_reminders_enable">Enable</string>
+    <string name="onboarding_reminders_decline">Not now</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="one">%1$d medication</item>

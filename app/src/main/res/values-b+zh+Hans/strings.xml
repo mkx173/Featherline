@@ -281,6 +281,13 @@
     <string name="screen_lock_auth_unavailable_generic">此设备无法使用安全认证。</string>
     <string name="screen_lock_auth_locked_out">失败次数过多，请稍后再试。</string>
     <string name="screen_lock_auth_failed">认证失败。</string>
+    <string name="onboarding_privacy_title">您的数据仅保存在本机</string>
+    <string name="onboarding_privacy_message">HRT 记录 将所有用药和健康数据仅保存在此设备上。数据库在本地加密存储，不会上传到任何服务器或第三方。</string>
+    <string name="onboarding_privacy_acknowledge">我知道了</string>
+    <string name="onboarding_reminders_title">开启用药提醒？</string>
+    <string name="onboarding_reminders_message">到了计划用药时间时提醒您。您可以随时在「设置」中更改。</string>
+    <string name="onboarding_reminders_enable">开启</string>
+    <string name="onboarding_reminders_decline">暂不</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
