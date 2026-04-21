@@ -131,6 +131,7 @@
     <string name="quick_add_group_planned_slot_tomorrow">明天</string>
     <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">取消</string>
+    <string name="save">保存</string>
     <string name="validation_name_required">请输入药物名称。</string>
     <string name="validation_dose_required">请输入有效的 mg 剂量。</string>
     <string name="validation_group_name_required">请输入分组名称。</string>
@@ -158,6 +159,9 @@
     <string name="dark_mode_always_on">始终开启</string>
     <string name="settings_security">安全</string>
     <string name="settings_notifications">通知</string>
+    <string name="group_medications_title">药物</string>
+    <string name="group_medications_empty">这个分组里还没有药物。</string>
+    <string name="group_danger_zone_title">危险操作</string>
     <string name="settings_reminders">用药提醒</string>
     <string name="settings_reminders_summary">提醒总开关。关闭后会停用所有提醒，但不会修改各分组的提醒设置。</string>
     <string name="settings_reminders_permission_off_summary">应用通知权限当前已关闭。请先启用通知，再重新开启提醒。</string>

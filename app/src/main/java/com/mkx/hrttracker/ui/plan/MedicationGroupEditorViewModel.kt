@@ -464,7 +464,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
-    val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.WEEKLY,
+    val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
     val weeklyDayOfWeek: DayOfWeek = LocalDate.now().dayOfWeek,

@@ -131,6 +131,7 @@
     <string name="quick_add_group_planned_slot_tomorrow">Tomorrow</string>
     <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
     <string name="validation_name_required">Enter a medication name.</string>
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>
     <string name="validation_group_name_required">Enter a group name.</string>
@@ -158,6 +159,9 @@
     <string name="dark_mode_always_on">Always on</string>
     <string name="settings_security">Security</string>
     <string name="settings_notifications">Notifications</string>
+    <string name="group_medications_title">Medications</string>
+    <string name="group_medications_empty">No medications in this group yet.</string>
+    <string name="group_danger_zone_title">Danger zone</string>
     <string name="settings_reminders">Dose reminders</string>
     <string name="settings_reminders_summary">Master switch for reminders. Turning this off disables all reminders without changing group-level settings.</string>
     <string name="settings_reminders_permission_off_summary">App notification access is off. Enable notifications to turn reminders back on.</string>
