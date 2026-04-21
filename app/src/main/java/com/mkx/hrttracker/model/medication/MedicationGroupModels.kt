@@ -9,6 +9,7 @@ import java.util.UUID
 data class MedicationGroup(
     val uuid: UUID,
     val name: String,
+    val colorKey: MedicationGroupColorKey = MedicationGroupColorKey.ROSE,
     val schedule: MedicationGroupSchedule,
     val medications: List<MedicationGroupMedication>,
     val notificationsEnabled: Boolean = false,

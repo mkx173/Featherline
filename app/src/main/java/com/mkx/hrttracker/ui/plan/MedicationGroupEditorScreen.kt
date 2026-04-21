@@ -92,6 +92,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationSelection
@@ -110,6 +111,7 @@ import com.mkx.hrttracker.ui.medication.changeSelectionKind
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -620,6 +622,7 @@ private fun MedicationGroupEditorScreenContent(
             ) { medication ->
                 MedicationGroupMedicationCard(
                     medication = medication,
+                    groupColorKey = uiState.groupColorKey,
                     appLocale = appLocale,
                     onClick = { onMedicationClick(medication.localId) },
                     onRemoveClick = { onRemoveMedication(medication.localId) }
@@ -900,11 +903,12 @@ private fun maybeRequestExactAlarmAccess(
 @Composable
 private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
+    groupColorKey: MedicationGroupColorKey,
     appLocale: java.util.Locale,
     onClick: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
-    val badgeColors = applicationTypeBadgeColors(medication.details.applicationType)
+    val groupPalette = medicationGroupPaletteColors(groupColorKey)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -922,8 +926,8 @@ private fun MedicationGroupMedicationCard(
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = badgeColors.first,
-                contentColor = badgeColors.second
+                color = groupPalette.container,
+                contentColor = groupPalette.onContainer
             ) {
                 Text(
                     text = applicationTypeBadgeLabel(medication.details.applicationType),
@@ -1160,24 +1164,6 @@ private fun EditorSupportMessage(text: String) {
     }
 }
 
-@Composable
-private fun applicationTypeBadgeColors(
-    applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType
-): Pair<Color, Color> {
-    return when (applicationType) {
-        com.mkx.hrttracker.model.medication.MedicationApplicationType.INJECTION -> {
-            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        }
-        com.mkx.hrttracker.model.medication.MedicationApplicationType.ORAL,
-        com.mkx.hrttracker.model.medication.MedicationApplicationType.SUBLINGUAL -> {
-            MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        }
-        else -> {
-            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        }
-    }
-}
-
 @Preview(
     name = "Group Editor Daily",
     showBackground = true,
@@ -1281,6 +1267,11 @@ private fun buildMedicationGroupEditorPreviewUiState(
             "Daily estradiol"
         } else {
             "Injection cycle"
+        },
+        groupColorKey = if (scheduleType == MedicationGroupScheduleType.DAILY) {
+            MedicationGroupColorKey.TEAL
+        } else {
+            MedicationGroupColorKey.INDIGO
         },
         scheduleType = scheduleType,
         sinceDate = today.minusWeeks(6),

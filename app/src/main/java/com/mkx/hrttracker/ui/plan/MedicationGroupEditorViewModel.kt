@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -418,6 +419,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 },
                 remindersEnabled = remindersEnabled,
                 notificationsEnabled = group.notificationsEnabled,
+                groupColorKey = group.colorKey,
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -467,6 +469,7 @@ internal fun toggleWeeklyDaySelection(
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
+    val groupColorKey: MedicationGroupColorKey = MedicationGroupColorKey.ROSE,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",

@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isScheduledOn
@@ -13,6 +14,7 @@ import java.util.UUID
 data class PlanDayScheduleEntry(
     val groupUuid: UUID,
     val groupName: String,
+    val groupColorKey: MedicationGroupColorKey,
     val scheduledTime: LocalTime,
     val medications: List<MedicationGroupMedication>,
     val fulfillingEntryUuids: List<UUID>,
@@ -45,6 +47,7 @@ fun buildPlanDaySchedule(
                 PlanDayScheduleEntry(
                     groupUuid = group.uuid,
                     groupName = group.name,
+                    groupColorKey = group.colorKey,
                     scheduledTime = time,
                     medications = group.medications,
                     fulfillingEntryUuids = fulfillingEntries.map { it.uuid },

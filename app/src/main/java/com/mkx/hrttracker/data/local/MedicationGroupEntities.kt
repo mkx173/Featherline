@@ -11,6 +11,7 @@ import androidx.room.Relation
 data class MedicationGroupEntity(
     @PrimaryKey val uuid: String,
     val name: String,
+    val colorKey: String,
     val notificationsEnabled: Boolean = false,
     val scheduleType: String,
     val scheduleInterval: Int,

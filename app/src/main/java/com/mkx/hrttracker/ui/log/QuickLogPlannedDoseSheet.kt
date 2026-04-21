@@ -4,13 +4,16 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
@@ -29,12 +32,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -112,6 +117,7 @@ private fun QuickLogPlannedDoseSheetContent(
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
     val today = remember { LocalDate.now() }
+    val groupPalette = medicationGroupPaletteColors(uiState.group?.colorKey)
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -137,10 +143,23 @@ private fun QuickLogPlannedDoseSheetContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
                 ) {
-                    Text(
-                        text = uiState.group?.name.orEmpty(),
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall)),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(
+                                    color = groupPalette.accent,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Text(
+                            text = uiState.group?.name.orEmpty(),
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                     uiState.scheduledFor?.let { scheduled ->
                         val dayLabel = when (scheduled.toLocalDate()) {
                             today -> stringResource(R.string.quick_add_group_planned_slot_today)

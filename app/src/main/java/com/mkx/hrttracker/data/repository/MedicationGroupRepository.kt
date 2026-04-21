@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
@@ -20,6 +21,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -98,11 +100,25 @@ class MedicationGroupRepository @Inject constructor(
         val groupUuid = uuid ?: UUID.randomUUID()
         val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
         val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
+        val resolvedColorKey = existingGroup?.group?.colorKey?.let(MedicationGroupColorKey::fromStorageValue)
+            ?: run {
+                val usedColors = dao.getGroups()
+                    .asSequence()
+                    .map(MedicationGroupWithItemsEntity::group)
+                    .filterNot { it.uuid == groupUuid.toString() }
+                    .map { group -> MedicationGroupColorKey.fromStorageValue(group.colorKey) }
+                    .toSet()
+                nextAvailableMedicationGroupColor(
+                    usedColors = usedColors,
+                    seed = groupUuid.hashCode()
+                )
+            }
 
         dao.upsertGroupWithItems(
             group = MedicationGroupEntity(
                 uuid = groupUuid.toString(),
                 name = name,
+                colorKey = resolvedColorKey.name,
                 notificationsEnabled = notificationsEnabled,
                 scheduleType = schedule.type.name,
                 scheduleInterval = schedule.interval,
@@ -172,6 +188,7 @@ class MedicationGroupRepository @Inject constructor(
         return MedicationGroup(
             uuid = UUID.fromString(group.uuid),
             name = group.name,
+            colorKey = MedicationGroupColorKey.fromStorageValue(group.colorKey),
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
                 interval = group.scheduleInterval,

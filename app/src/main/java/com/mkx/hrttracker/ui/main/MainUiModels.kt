@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
@@ -21,6 +22,7 @@ data class MainTodaySectionUiState(
 data class MainTodayDoseRowUiState(
     val groupUuid: UUID,
     val groupName: String,
+    val groupColorKey: MedicationGroupColorKey,
     val scheduledAt: LocalDateTime,
     val medications: List<MedicationGroupMedication>,
     val status: MainTodayDoseStatus,
@@ -49,6 +51,7 @@ enum class MainUpcomingSectionTitle {
 data class MainUpcomingDoseRowUiState(
     val groupUuid: UUID,
     val groupName: String,
+    val groupColorKey: MedicationGroupColorKey,
     val scheduledAt: LocalDateTime,
     val medications: List<MedicationGroupMedication>,
 )
@@ -79,6 +82,7 @@ internal fun buildMainTodaySection(
         MainTodayDoseRowUiState(
             groupUuid = scheduledEntry.groupUuid,
             groupName = scheduledEntry.groupName,
+            groupColorKey = scheduledEntry.groupColorKey,
             scheduledAt = scheduledAt,
             medications = scheduledEntry.medications,
             status = when {
@@ -146,6 +150,7 @@ internal fun buildMainUpcomingSection(
                     MainUpcomingDoseRowUiState(
                         groupUuid = group.uuid,
                         groupName = group.name,
+                        groupColorKey = group.colorKey,
                         scheduledAt = occurrence,
                         medications = group.medications
                     )
@@ -179,6 +184,7 @@ internal fun buildMainPreviewRowsForDate(
             MainUpcomingDoseRowUiState(
                 groupUuid = scheduledEntry.groupUuid,
                 groupName = scheduledEntry.groupName,
+                groupColorKey = scheduledEntry.groupColorKey,
                 scheduledAt = LocalDateTime.of(date, scheduledEntry.scheduledTime),
                 medications = scheduledEntry.medications
             )

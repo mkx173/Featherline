@@ -4,10 +4,12 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -39,12 +41,14 @@ class PlanDayOccurrenceTest {
 
         assertFalse(schedule.scheduledEntries[0].isDueSoon)
         assertTrue(schedule.scheduledEntries[1].isDueSoon)
+        assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
     }
 
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
             name = "Test group",
+            colorKey = MedicationGroupColorKey.TEAL,
             schedule = schedule,
             medications = listOf(
                 testMedicationGroupMedication(

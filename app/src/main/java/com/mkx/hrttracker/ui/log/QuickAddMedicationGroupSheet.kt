@@ -4,10 +4,13 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -38,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -46,6 +50,7 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalTime
@@ -233,6 +238,7 @@ private fun QuickAddMedicationGroupSheetHeader(
     onCloseClick: () -> Unit,
     onChangeGroupClick: () -> Unit
 ) {
+    val groupPalette = medicationGroupPaletteColors(selectedGroup?.colorKey)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
@@ -250,6 +256,14 @@ private fun QuickAddMedicationGroupSheetHeader(
                         contentDescription = stringResource(R.string.quick_add_group_change_group)
                     )
                 }
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(
+                            color = groupPalette.accent,
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        )
+                )
                 Text(
                     text = selectedGroup.name,
                     style = MaterialTheme.typography.titleLarge
@@ -269,10 +283,21 @@ private fun MedicationGroupSelectionRow(
     appLocale: Locale,
     onClick: () -> Unit
 ) {
+    val groupPalette = medicationGroupPaletteColors(group.colorKey)
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(width = 8.dp, height = 36.dp)
+                    .background(
+                        color = groupPalette.accent,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                    )
+            )
+        },
         overlineContent = {
             Text(
                 text = pluralStringResource(

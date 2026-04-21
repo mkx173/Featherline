@@ -81,6 +81,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
@@ -93,6 +94,7 @@ import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
@@ -214,6 +216,9 @@ private fun HistoryScreenContent(
     }
     val groupNamesById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.name }
+    }
+    val groupColorsById = remember(uiState.medicationGroups) {
+        uiState.medicationGroups.associate { group -> group.uuid to group.colorKey }
     }
     val entryListTitle = if (uiState.selectedDate != null) {
         stringResource(
@@ -362,6 +367,7 @@ private fun HistoryScreenContent(
                             appLocale = appLocale,
                             timeFormatter = timeFormatter,
                             groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
+                            groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                             isSelected = entry.uuid in uiState.selectedEntryIds,
                             onClick = { onEntryClick(entry.uuid) },
                             onLongClick = { onEntryLongClick(entry.uuid) }
@@ -1046,6 +1052,7 @@ private fun HistoryEntryCard(
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
     groupName: String?,
+    groupColorKey: MedicationGroupColorKey?,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -1053,7 +1060,7 @@ private fun HistoryEntryCard(
     val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
         historySourceVisual(entry.sourceType, entry.scheduledFor != null)
     }
-    val routeChipColors = historyRouteChipColors(entry.details.applicationType)
+    val groupPalette = medicationGroupPaletteColors(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
         entry = entry,
         groupName = groupName
@@ -1117,14 +1124,14 @@ private fun HistoryEntryCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = routeChipColors.containerColor
+                        color = groupPalette.container
                     ) {
                         Text(
                             text = stringResource(entry.details.applicationType.labelRes),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = routeChipColors.contentColor,
+                            color = groupPalette.onContainer,
                             maxLines = 1
                         )
                     }
@@ -1184,32 +1191,6 @@ private fun HistoryEmptyStateCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-private data class HistoryRouteChipColors(
-    val containerColor: Color,
-    val contentColor: Color
-)
-
-@Composable
-private fun historyRouteChipColors(
-    applicationType: MedicationApplicationType
-): HistoryRouteChipColors {
-    return when (applicationType) {
-        MedicationApplicationType.INJECTION -> HistoryRouteChipColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-        MedicationApplicationType.ORAL,
-        MedicationApplicationType.SUBLINGUAL -> HistoryRouteChipColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-        )
-        else -> HistoryRouteChipColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        )
     }
 }
 

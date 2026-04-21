@@ -44,6 +44,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.theme.MedicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -203,7 +205,7 @@ private fun MainTodayDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.primaryMedicationDetails()
-    val accentColors = accentColors(mainMedicationAccent(details))
+    val groupPalette = medicationGroupPaletteColors(row.groupColorKey)
     val rowColors = todayRowColors(mainTodayRowTone(row.status))
     val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
     val supportingText = supportingText(
@@ -246,7 +248,7 @@ private fun MainTodayDoseRow(
                     .fillMaxHeight()
                     .width(4.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(accentColors.barColor)
+                    .background(groupPalette.accent)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -262,7 +264,7 @@ private fun MainTodayDoseRow(
                     details?.let {
                         MainApplicationBadge(
                             label = applicationTypeBadgeLabel(it.applicationType),
-                            colors = accentColors
+                            palette = groupPalette
                         )
                     }
 
@@ -329,7 +331,7 @@ private fun MainUpcomingDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.primaryMedicationDetails()
-    val accentColors = accentColors(mainMedicationAccent(details))
+    val groupPalette = medicationGroupPaletteColors(row.groupColorKey)
     val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
     val supportingText = supportingText(
         details = details,
@@ -362,7 +364,7 @@ private fun MainUpcomingDoseRow(
                 details?.let {
                     MainApplicationBadge(
                         label = applicationTypeBadgeLabel(it.applicationType),
-                        colors = accentColors
+                        palette = groupPalette
                     )
                 }
 
@@ -392,20 +394,20 @@ private fun MainUpcomingDoseRow(
 @Composable
 private fun MainApplicationBadge(
     label: String,
-    colors: MainAccentColors,
+    palette: MedicationGroupPaletteColors,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier.wrapContentWidth(),
         shape = MaterialTheme.shapes.extraSmall,
-        color = colors.badgeContainerColor
+        color = palette.container
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = colors.badgeContentColor,
+            color = palette.onContainer,
             letterSpacing = 0.6.sp,
             maxLines = 1
         )
@@ -544,36 +546,6 @@ private fun MainUpcomingDoseRowUiState.primaryMedicationDetails(): MedicationDet
 }
 
 @Composable
-private fun accentColors(accent: MainMedicationAccent): MainAccentColors {
-    val colorScheme = MaterialTheme.colorScheme
-    return when (accent) {
-        MainMedicationAccent.PRIMARY -> MainAccentColors(
-            badgeContainerColor = colorScheme.primaryContainer,
-            badgeContentColor = colorScheme.onPrimaryContainer,
-            barColor = colorScheme.primary
-        )
-
-        MainMedicationAccent.SECONDARY -> MainAccentColors(
-            badgeContainerColor = colorScheme.secondaryContainer,
-            badgeContentColor = colorScheme.onSecondaryContainer,
-            barColor = colorScheme.secondary
-        )
-
-        MainMedicationAccent.TERTIARY -> MainAccentColors(
-            badgeContainerColor = colorScheme.tertiaryContainer,
-            badgeContentColor = colorScheme.onTertiaryContainer,
-            barColor = colorScheme.tertiary
-        )
-
-        MainMedicationAccent.NEUTRAL -> MainAccentColors(
-            badgeContainerColor = colorScheme.surfaceContainerHighest,
-            badgeContentColor = colorScheme.onSurfaceVariant,
-            barColor = colorScheme.outline
-        )
-    }
-}
-
-@Composable
 private fun todayRowColors(tone: MainTodayRowTone): MainTodayRowColors {
     val colorScheme = MaterialTheme.colorScheme
     return when (tone) {
@@ -606,12 +578,6 @@ private fun todayRowColors(tone: MainTodayRowTone): MainTodayRowColors {
         )
     }
 }
-
-private data class MainAccentColors(
-    val badgeContainerColor: Color,
-    val badgeContentColor: Color,
-    val barColor: Color,
-)
 
 private data class MainTodayRowColors(
     val containerColor: Color,

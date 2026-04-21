@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -65,6 +66,15 @@ class MainUiModelsTest {
             ),
             todaySection.rows.map { it.status }
         )
+        assertEquals(
+            listOf(
+                MedicationGroupColorKey.ORCHID,
+                MedicationGroupColorKey.ORCHID,
+                MedicationGroupColorKey.ORCHID,
+                MedicationGroupColorKey.ORCHID,
+            ),
+            todaySection.rows.map { it.groupColorKey }
+        )
         assertNotNull(todaySection.rows.first().loggedAt)
     }
 
@@ -96,6 +106,10 @@ class MainUiModelsTest {
                 LocalDateTime.of(2026, 4, 19, 20, 0)
             ),
             upcomingSection.rows.map { it.scheduledAt }
+        )
+        assertEquals(
+            listOf(MedicationGroupColorKey.ORCHID, MedicationGroupColorKey.ORCHID),
+            upcomingSection.rows.map { it.groupColorKey }
         )
     }
 
@@ -175,6 +189,7 @@ class MainUiModelsTest {
         return MedicationGroup(
             uuid = uuid,
             name = name,
+            colorKey = MedicationGroupColorKey.ORCHID,
             schedule = schedule,
             medications = listOf(
                 testMedicationGroupMedication(

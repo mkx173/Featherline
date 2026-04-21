@@ -88,6 +88,7 @@ import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
+import com.mkx.hrttracker.ui.theme.MedicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
@@ -104,6 +105,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @Composable
@@ -583,6 +585,7 @@ private fun ScheduledDayRow(
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
+    val groupPalette = medicationGroupPaletteColors(entry.groupColorKey)
     val rowState = when {
         entry.isFulfilled -> ScheduledDayRowState.LOGGED
         entry.isDueSoon -> ScheduledDayRowState.DUE
@@ -618,6 +621,14 @@ private fun ScheduledDayRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         ScheduledDayRowLeading(state = rowState)
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 40.dp)
+                .background(
+                    color = groupPalette.accent,
+                    shape = RoundedCornerShape(3.dp)
+                )
+        )
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp)
@@ -1024,7 +1035,7 @@ private fun RegimenGroupCard(
     today: LocalDate,
     onClick: () -> Unit
 ) {
-    val accent = regimenAccent(group)
+    val groupPalette = medicationGroupPaletteColors(group.colorKey)
 
     Surface(
         modifier = Modifier
@@ -1053,7 +1064,7 @@ private fun RegimenGroupCard(
                     modifier = Modifier
                         .size(width = 6.dp, height = 40.dp)
                         .background(
-                            color = accent.accentColor,
+                            color = groupPalette.accent,
                             shape = RoundedCornerShape(3.dp)
                         )
                 )
@@ -1135,7 +1146,7 @@ private fun RegimenGroupCard(
             ) {
                 group.medications.forEach { medication ->
                     RegimenMedicationChip(
-                        accent = accent,
+                        palette = groupPalette,
                         medicationName = medicationDisplayName(medication.details),
                         doseLabel = medicationDoseText(medication.details),
                         applicationType = medication.details.applicationType
@@ -1175,15 +1186,15 @@ private fun RegimenGroupCard(
 
 @Composable
 private fun RegimenMedicationChip(
-    accent: RegimenAccent,
+    palette: MedicationGroupPaletteColors,
     medicationName: String,
     doseLabel: String?,
     applicationType: MedicationApplicationType
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = accent.containerColor,
-        contentColor = accent.contentColor
+        color = palette.container,
+        contentColor = palette.onContainer
     ) {
         Row(
             modifier = Modifier.padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
@@ -1201,7 +1212,7 @@ private fun RegimenMedicationChip(
                 Text(
                     text = applicationTypeBadgeLabel(applicationType),
                     style = MaterialTheme.typography.labelSmall,
-                    color = accent.contentColor
+                    color = palette.onContainer
                 )
             }
             Text(
@@ -1212,7 +1223,7 @@ private fun RegimenMedicationChip(
                 Text(
                     text = "· $doseLabel",
                     style = MaterialTheme.typography.labelMedium,
-                    color = accent.contentColor.copy(alpha = 0.75f)
+                    color = palette.onContainer.copy(alpha = 0.75f)
                 )
             }
         }
@@ -1288,35 +1299,6 @@ private enum class ScheduledDayRowState {
     DUE,
     MISSED,
     PLANNED,
-}
-
-private data class RegimenAccent(
-    val accentColor: Color,
-    val containerColor: Color,
-    val contentColor: Color,
-)
-
-@Composable
-private fun regimenAccent(group: MedicationGroup): RegimenAccent {
-    val applicationType = group.medications.firstOrNull()?.details?.applicationType
-    return when (applicationType) {
-        MedicationApplicationType.INJECTION -> RegimenAccent(
-            accentColor = MaterialTheme.colorScheme.primary,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-        MedicationApplicationType.ORAL,
-        MedicationApplicationType.SUBLINGUAL -> RegimenAccent(
-            accentColor = MaterialTheme.colorScheme.tertiary,
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-        else -> RegimenAccent(
-            accentColor = MaterialTheme.colorScheme.secondary,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
 }
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
