@@ -7,6 +7,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
@@ -24,6 +25,176 @@ import java.time.ZoneId
 import java.util.UUID
 
 class MainUiModelsTest {
+    private val testZoneId: ZoneId = ZoneId.systemDefault()
+
+    @Test
+    fun buildMainE2Hero_keeps_mock_value_and_uses_latest_actual_estradiol_dose() {
+        val latestEstradiolDoseTime = LocalDateTime.of(2026, 4, 18, 20, 5)
+        val latestEstradiolDoseDetails = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            applicationType = MedicationApplicationType.INJECTION,
+            dose = MedicationDose.MgAsMedicine(5.0)
+        )
+
+        val hero = buildMainE2Hero(
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    ),
+                    dosageMgAsEstradiol = null,
+                    sourceType = MedicationLogEntrySourceType.MANUAL,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 18, 8, 0))
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    details = latestEstradiolDoseDetails,
+                    dosageMgAsEstradiol = 3.82,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = UUID.randomUUID(),
+                    appliedAt = testInstant(latestEstradiolDoseTime)
+                )
+            ),
+            zoneId = testZoneId
+        )
+
+        assertEquals(100, hero.currentValue)
+        assertEquals(0, hero.changeSinceYesterday)
+        assertEquals(latestEstradiolDoseTime, hero.lastDoseAt)
+        assertEquals(latestEstradiolDoseDetails, hero.lastDoseDetails)
+    }
+
+    @Test
+    fun buildMainE2Chart_returns_placeholder_curve_that_ends_at_mock_value() {
+        val chart = buildMainE2Chart()
+
+        assertEquals(7, chart.points.size)
+        assertEquals(100f, chart.points.last())
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_returns_one_card_per_antiandrogen_with_real_last_and_next_values() {
+        val antiandrogenGroup = MedicationGroup(
+            uuid = UUID.fromString("efea64bc-0f6d-4813-a39d-428bdce6fd6a"),
+            name = "Daily antiandrogen",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("96f31e44-2059-4f89-a3f4-5477cbbce4b3"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("e1a7c6d6-6ef2-4c8b-9a56-3a4f4f1298ce"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val now = LocalDateTime.of(2026, 4, 18, 11, 0)
+        val spiroLastDoseTime = LocalDateTime.of(2026, 4, 18, 8, 4)
+        val cyproLastDoseTime = LocalDateTime.of(2026, 4, 17, 20, 2)
+        val spiroActualDose = testCatalogMedicationDetails(
+            key = MedicationKey.SPIRONOLACTONE,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(50.0)
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    details = spiroActualDose,
+                    dosageMgAsEstradiol = null,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = antiandrogenGroup.uuid,
+                    appliedAt = testInstant(spiroLastDoseTime),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0)
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.randomUUID(),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    ),
+                    dosageMgAsEstradiol = null,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = antiandrogenGroup.uuid,
+                    appliedAt = testInstant(cyproLastDoseTime),
+                    scheduledFor = LocalDateTime.of(2026, 4, 17, 20, 0)
+                )
+            ),
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, cards.size)
+        assertEquals(
+            listOf(MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE), MedicationSelection.Catalog(MedicationKey.CYPROTERONE_ACETATE)),
+            cards.map { it.medication.selection }
+        )
+        assertEquals(listOf(spiroLastDoseTime, cyproLastDoseTime), cards.map { it.lastDoseAt })
+        assertEquals(
+            listOf(
+                MedicationDose.MgAsMedicine(50.0),
+                MedicationDose.MgAsMedicine(12.5)
+            ),
+            cards.map { it.lastDoseDetails?.dose }
+        )
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 18, 20, 0),
+                LocalDateTime.of(2026, 4, 18, 20, 0)
+            ),
+            cards.map { it.nextDoseAt }
+        )
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_ignores_non_antiandrogen_groups() {
+        val estradiolGroup = medicationGroup(
+            uuid = UUID.fromString("b0fd2bf8-91f8-4cf8-a1ec-5d9f666c25db"),
+            name = "Daily estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            )
+        )
+
+        assertEquals(
+            emptyList<MainAntiandrogenCardUiState>(),
+            buildMainAntiandrogenCards(
+                groups = listOf(estradiolGroup),
+                entries = emptyList(),
+                now = LocalDateTime.of(2026, 4, 18, 11, 0)
+            )
+        )
+    }
+
     @Test
     fun buildMainTodaySection_marks_done_overdue_dueSoon_and_upcoming_rows() {
         val group = medicationGroup(
@@ -184,23 +355,24 @@ class MainUiModelsTest {
     private fun medicationGroup(
         uuid: UUID,
         name: String,
-        schedule: MedicationGroupSchedule
+        schedule: MedicationGroupSchedule,
+        medications: List<com.mkx.hrttracker.model.medication.MedicationGroupMedication> = listOf(
+            testMedicationGroupMedication(
+                uuid = UUID.randomUUID(),
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0)
+                )
+            )
+        )
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
             name = name,
             colorKey = MedicationGroupColorKey.ORCHID,
             schedule = schedule,
-            medications = listOf(
-                testMedicationGroupMedication(
-                    uuid = UUID.randomUUID(),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
-                )
-            ),
+            medications = medications,
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
             updatedAt = Instant.parse("2026-04-01T00:00:00Z")
         )

@@ -38,6 +38,15 @@ class MainViewModel @Inject constructor(
         MainUiState(
             isLoading = isLoading,
             now = now,
+            e2Hero = buildMainE2Hero(
+                entries = entries
+            ),
+            e2Chart = buildMainE2Chart(),
+            antiandrogenCards = buildMainAntiandrogenCards(
+                groups = groups,
+                entries = entries,
+                now = now
+            ),
             todaySection = buildMainTodaySection(
                 groups = groups,
                 entries = entries,
@@ -63,6 +72,9 @@ class MainViewModel @Inject constructor(
 data class MainUiState(
     val isLoading: Boolean = true,
     val now: LocalDateTime = LocalDateTime.now(),
+    val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
+    val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
+    val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),
     val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
         date = now.toLocalDate()
     ),

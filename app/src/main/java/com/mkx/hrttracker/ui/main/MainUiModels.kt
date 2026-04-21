@@ -1,10 +1,13 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDate
@@ -17,6 +20,31 @@ data class MainTodaySectionUiState(
     val doneCount: Int = 0,
     val totalCount: Int = 0,
     val rows: List<MainTodayDoseRowUiState> = emptyList(),
+)
+
+data class MainE2HeroUiState(
+    val currentValue: Int = MOCK_E2_CURRENT_VALUE,
+    val changeSinceYesterday: Int = MOCK_E2_CHANGE_SINCE_YESTERDAY,
+    val targetMin: Int = MOCK_E2_TARGET_MIN,
+    val targetMax: Int = MOCK_E2_TARGET_MAX,
+    val unit: String = E2_UNIT_PG_ML,
+    val lastDoseDetails: MedicationDetails? = null,
+    val lastDoseAt: LocalDateTime? = null,
+)
+
+data class MainE2ChartUiState(
+    val points: List<Float> = MOCK_E2_CHART_POINTS,
+)
+
+data class MainAntiandrogenCardUiState(
+    val id: String,
+    val groupUuid: UUID,
+    val groupName: String,
+    val groupColorKey: MedicationGroupColorKey,
+    val medication: MedicationGroupMedication,
+    val lastDoseDetails: MedicationDetails? = null,
+    val lastDoseAt: LocalDateTime? = null,
+    val nextDoseAt: LocalDateTime? = null,
 )
 
 data class MainTodayDoseRowUiState(
@@ -55,6 +83,69 @@ data class MainUpcomingDoseRowUiState(
     val scheduledAt: LocalDateTime,
     val medications: List<MedicationGroupMedication>,
 )
+
+internal fun buildMainE2Hero(
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): MainE2HeroUiState {
+    val lastEstradiolEntry = entries
+        .asSequence()
+        .filter { entry -> entry.category == MedicationCategory.ESTRADIOL }
+        .maxByOrNull { entry -> entry.appliedAt }
+
+    return MainE2HeroUiState(
+        lastDoseDetails = lastEstradiolEntry?.details,
+        lastDoseAt = lastEstradiolEntry
+            ?.appliedAt
+            ?.atZone(zoneId)
+            ?.toLocalDateTime()
+    )
+}
+
+internal fun buildMainE2Chart(): MainE2ChartUiState {
+    return MainE2ChartUiState()
+}
+
+internal fun buildMainAntiandrogenCards(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): List<MainAntiandrogenCardUiState> {
+    return groups.flatMap { group ->
+        val nextDoseAt = group.schedule.nextOccurrencesFrom(
+            start = now,
+            limit = 1
+        ).firstOrNull()
+
+        group.medications
+            .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
+            .map { medication ->
+                val lastMatchingEntry = entries
+                    .asSequence()
+                    .filter { entry ->
+                        entry.category == MedicationCategory.ANTIANDROGEN &&
+                            (entry.sourceGroupUuid == null || entry.sourceGroupUuid == group.uuid) &&
+                            entry.details.isSameMedicationTrackingIdentity(medication.details)
+                    }
+                    .maxByOrNull { entry -> entry.appliedAt }
+
+                MainAntiandrogenCardUiState(
+                    id = "${group.uuid}:${medication.uuid}",
+                    groupUuid = group.uuid,
+                    groupName = group.name,
+                    groupColorKey = group.colorKey,
+                    medication = medication,
+                    lastDoseDetails = lastMatchingEntry?.details,
+                    lastDoseAt = lastMatchingEntry
+                        ?.appliedAt
+                        ?.atZone(zoneId)
+                        ?.toLocalDateTime(),
+                    nextDoseAt = nextDoseAt
+                )
+            }
+    }
+}
 
 internal fun buildMainTodaySection(
     groups: List<MedicationGroup>,
@@ -192,3 +283,16 @@ internal fun buildMainPreviewRowsForDate(
         .sortedBy { it.scheduledAt }
         .toList()
 }
+
+private fun MedicationDetails.isSameMedicationTrackingIdentity(other: MedicationDetails): Boolean {
+    return category == other.category &&
+        applicationType == other.applicationType &&
+        selection == other.selection
+}
+
+private const val MOCK_E2_CURRENT_VALUE = 100
+private const val MOCK_E2_CHANGE_SINCE_YESTERDAY = 0
+private const val MOCK_E2_TARGET_MIN = 100
+private const val MOCK_E2_TARGET_MAX = 200
+private const val E2_UNIT_PG_ML = "pg/mL"
+private val MOCK_E2_CHART_POINTS = listOf(142f, 158f, 149f, 167f, 138f, 120f, 100f)

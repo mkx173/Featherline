@@ -20,25 +20,44 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -47,9 +66,12 @@ import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.UUID
 
 private val FulfilledStatusColor = Color(0xFF2E7D32)
@@ -88,6 +110,33 @@ fun MainContent(
         ),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_large))
     ) {
+        item(key = "e2-hero") {
+            MainE2HeroCard(
+                section = uiState.e2Hero,
+                now = uiState.now
+            )
+        }
+
+        item(key = "e2-chart") {
+            MainE2ChartCard(
+                section = uiState.e2Chart,
+                now = uiState.now,
+                appLocale = appLocale
+            )
+        }
+
+        uiState.antiandrogenCards.forEach { card ->
+            item(key = "antiandrogen-${card.id}") {
+                MainAntiandrogenCard(
+                    card = card,
+                    now = uiState.now,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter,
+                    appLocale = appLocale
+                )
+            }
+        }
+
         item(key = "today") {
             MainTodaySection(
                 section = uiState.todaySection,
@@ -103,6 +152,388 @@ fun MainContent(
                 dateFormatter = dateFormatter,
                 timeFormatter = timeFormatter
             )
+        }
+    }
+}
+
+@Composable
+private fun MainE2HeroCard(
+    section: MainE2HeroUiState,
+    now: LocalDateTime,
+    modifier: Modifier = Modifier
+) {
+    val inRange = section.currentValue in section.targetMin..section.targetMax
+    val trendDeltaLabel = mainTrendDeltaLabel(section.changeSinceYesterday)
+    val trendIcon = when {
+        section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Filled.TrendingUp
+        section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Filled.TrendingDown
+        else -> Icons.AutoMirrored.Filled.TrendingFlat
+    }
+    val lastDoseSummary = mainE2LastDoseSummary(
+        section = section,
+        now = now
+    )
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            Text(
+                text = "E2",
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .alpha(0.1f),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Black
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.main_e2_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = if (inRange) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(
+                                        if (inRange) FulfilledStatusColor else MaterialTheme.colorScheme.error
+                                    )
+                            )
+                            Text(
+                                text = stringResource(
+                                    if (inRange) {
+                                        R.string.main_e2_status_in_range
+                                    } else {
+                                        R.string.main_e2_status_below_range
+                                    }
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (inRange) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = section.currentValue.toString(),
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = section.unit,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = trendIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.main_e2_change_since_yesterday,
+                                    trendDeltaLabel
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                        )
+                        Text(
+                            text = lastDoseSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainE2ChartCard(
+    section: MainE2ChartUiState,
+    now: LocalDateTime,
+    appLocale: Locale,
+    modifier: Modifier = Modifier
+) {
+    val modelProducer = remember { CartesianChartModelProducer() }
+    val xLabels = remember(section.points, now, appLocale) {
+        section.points.indices.map { index ->
+            now.toLocalDate()
+                .minusDays((section.points.lastIndex - index).toLong())
+                .dayOfWeek
+                .getDisplayName(TextStyle.NARROW, appLocale)
+        }
+    }
+
+    LaunchedEffect(section.points) {
+        modelProducer.runTransaction {
+            lineSeries {
+                series(
+                    x = section.points.indices.toList(),
+                    y = section.points
+                )
+            }
+        }
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = stringResource(R.string.main_e2_chart_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Surface(
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = stringResource(R.string.main_e2_chart_target, 100, 200),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+
+            CartesianChartHost(
+                chart = rememberCartesianChart(
+                    rememberLineCartesianLayer(),
+                    startAxis = VerticalAxis.rememberStart(
+                        valueFormatter = CartesianValueFormatter { _, value, _ ->
+                            value.toInt().toString()
+                        }
+                    ),
+                    bottomAxis = HorizontalAxis.rememberBottom(
+                        valueFormatter = CartesianValueFormatter { _, value, _ ->
+                            xLabels.getOrElse(value.toInt()) { "" }
+                        }
+                    )
+                ),
+                modelProducer = modelProducer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(184.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MainAntiandrogenCard(
+    card: MainAntiandrogenCardUiState,
+    now: LocalDateTime,
+    dateFormatter: DateTimeFormatter,
+    timeFormatter: DateTimeFormatter,
+    appLocale: Locale,
+    modifier: Modifier = Modifier
+) {
+    val displayedDetails = card.lastDoseDetails ?: card.medication.details
+    val groupColorScheme = rememberMedicationGroupColorScheme(card.groupColorKey)
+    val doseText = medicationDoseText(displayedDetails)
+    val lastDoseText = card.lastDoseAt?.let { doseAt ->
+        stringResource(
+            R.string.main_antiandrogen_last_dose_elapsed,
+            mainElapsedDurationLabel(from = doseAt, to = now)
+        )
+    } ?: stringResource(R.string.main_antiandrogen_no_last_dose)
+    val nextDoseText = card.nextDoseAt?.let { nextDoseAt ->
+        stringResource(
+            R.string.main_antiandrogen_next_dose,
+            mainRelativeDateTimeLabel(
+                target = nextDoseAt,
+                now = now,
+                dateFormatter = dateFormatter,
+                timeFormatter = timeFormatter,
+                appLocale = appLocale
+            )
+        )
+    } ?: stringResource(R.string.main_antiandrogen_no_next_dose)
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = groupColorScheme.secondaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Medication,
+                        contentDescription = null,
+                        tint = groupColorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.main_antiandrogen_title),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 0.8.sp
+                )
+                Text(
+                    text = listOfNotNull(
+                        medicationDisplayName(displayedDetails),
+                        doseText
+                    ).joinToString(separator = " · "),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = FulfilledStatusColor
+                        )
+                        Text(
+                            text = lastDoseText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = "·",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = nextDoseText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -535,6 +966,91 @@ private fun supportingText(
         }
     }
     return parts.joinToString(separator = " · ")
+}
+
+@Composable
+private fun mainE2LastDoseSummary(
+    section: MainE2HeroUiState,
+    now: LocalDateTime
+): String {
+    val lastDoseAt = section.lastDoseAt ?: return stringResource(R.string.main_e2_no_last_dose)
+    val elapsedLabel = mainElapsedDurationLabel(
+        from = lastDoseAt,
+        to = now
+    )
+    val doseText = section.lastDoseDetails?.let { details -> medicationDoseText(details) }
+    return if (doseText != null) {
+        stringResource(
+            R.string.main_e2_last_dose_with_amount_and_time,
+            doseText,
+            elapsedLabel
+        )
+    } else {
+        stringResource(
+            R.string.main_e2_last_dose_with_time,
+            elapsedLabel
+        )
+    }
+}
+
+@Composable
+private fun mainElapsedDurationLabel(
+    from: LocalDateTime,
+    to: LocalDateTime
+): String {
+    val duration = Duration.between(from, to)
+    val clampedSeconds = duration.seconds.coerceAtLeast(0)
+    val totalMinutes = clampedSeconds / 60
+    val days = totalMinutes / (24 * 60)
+    val hours = (totalMinutes % (24 * 60)) / 60
+    val minutes = totalMinutes % 60
+
+    return when {
+        days > 0 -> stringResource(
+            R.string.main_duration_days_hours,
+            days,
+            hours
+        )
+
+        hours > 0 -> stringResource(
+            R.string.main_duration_hours_minutes,
+            hours,
+            minutes
+        )
+
+        else -> stringResource(
+            R.string.main_duration_minutes,
+            minutes.coerceAtLeast(1)
+        )
+    }
+}
+
+@Composable
+private fun mainRelativeDateTimeLabel(
+    target: LocalDateTime,
+    now: LocalDateTime,
+    dateFormatter: DateTimeFormatter,
+    timeFormatter: DateTimeFormatter,
+    appLocale: Locale
+): String {
+    val timeText = target.toLocalTime().format(timeFormatter)
+    return when (target.toLocalDate()) {
+        now.toLocalDate() -> stringResource(R.string.main_relative_today_time, timeText)
+        now.toLocalDate().plusDays(1) -> stringResource(R.string.main_relative_tomorrow_time, timeText)
+        else -> stringResource(
+            R.string.main_relative_date_time,
+            target.toLocalDate().format(dateFormatter.withLocale(appLocale)),
+            timeText
+        )
+    }
+}
+
+private fun mainTrendDeltaLabel(changeSinceYesterday: Int): String {
+    return when {
+        changeSinceYesterday > 0 -> "+$changeSinceYesterday"
+        changeSinceYesterday < 0 -> changeSinceYesterday.toString()
+        else -> "0"
+    }
 }
 
 private fun MainTodayDoseRowUiState.primaryMedicationDetails(): MedicationDetails? {
