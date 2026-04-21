@@ -337,27 +337,6 @@ object MedicationCatalog {
         return catalogFor(category, applicationType).entries.first()
     }
 
-    fun isAllowed(
-        category: MedicationCategory,
-        applicationType: MedicationApplicationType,
-        selection: MedicationSelection,
-        doseKind: MedicationDoseKind,
-    ): Boolean {
-        val catalog = catalogFor(category, applicationType)
-        return when (selection) {
-            is MedicationSelection.Catalog -> {
-                catalog.entries.any { entry ->
-                    entry.medicationKey == selection.medicationKey && doseKind in entry.doseKinds
-                }
-            }
-
-            is MedicationSelection.Custom -> {
-                catalog.allowCustomMedicationName &&
-                    catalog.entries.any { entry -> doseKind in entry.doseKinds }
-            }
-        }
-    }
-
     private fun defaultEntriesFor(
         applicationType: MedicationApplicationType,
     ): List<MedicationCatalogEntry> {
@@ -402,26 +381,5 @@ object MedicationCatalog {
                 ),
             )
         }
-    }
-}
-
-fun MedicationDetails.displayName(): String {
-    return when (val selection = selection) {
-        is MedicationSelection.Catalog -> selection.medicationKey.canonicalName()
-        is MedicationSelection.Custom -> selection.medicationName
-    }
-}
-
-fun MedicationKey.canonicalName(): String {
-    return when (this) {
-        MedicationKey.SPIRONOLACTONE -> "Spironolactone"
-        MedicationKey.CYPROTERONE_ACETATE -> "Cyproterone acetate"
-        MedicationKey.ESTRADIOL -> "Estradiol"
-        MedicationKey.ESTRADIOL_VALERATE -> "Estradiol valerate"
-        MedicationKey.ESTRADIOL_BENZOATE -> "Estradiol benzoate"
-        MedicationKey.ESTRADIOL_CYPIONATE -> "Estradiol cypionate"
-        MedicationKey.ESTRADIOL_ENANTHATE -> "Estradiol enanthate"
-        MedicationKey.ESTRADIOL_GEL -> "Estradiol gel"
-        MedicationKey.ESTRADIOL_PATCH -> "Estradiol patch"
     }
 }

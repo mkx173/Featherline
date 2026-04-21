@@ -101,7 +101,6 @@
     <string name="delete_entries_title">Delete entries</string>
     <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
     <string name="delete_entries_confirm">Delete</string>
-    <string name="field_route">Route of administration</string>
     <string name="field_medication_category">Category</string>
     <string name="field_medication_application">Application</string>
     <string name="field_medication">Medication</string>
@@ -198,13 +197,6 @@
     <string name="entry_uuid">UUID: %1$s</string>
     <string name="plan_group_medication_summary">%1$s, %2$s mg, %3$s</string>
     <string name="plan_group_more_medications">%1$d more</string>
-    <string name="route_oral">Oral</string>
-    <string name="route_sublingual">Sublingual</string>
-    <string name="route_transdermal">Transdermal</string>
-    <string name="route_intramuscular">Intramuscular</string>
-    <string name="route_subcutaneous">Subcutaneous</string>
-    <string name="route_topical">Topical</string>
-    <string name="route_other">Other</string>
     <string name="dark_mode_follow_system">Follow system</string>
     <string name="dark_mode_always_off">Always off</string>
     <string name="dark_mode_always_on">Always on</string>

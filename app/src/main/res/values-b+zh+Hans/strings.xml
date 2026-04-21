@@ -101,7 +101,6 @@
     <string name="delete_entries_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
     <string name="delete_entries_confirm">删除</string>
-    <string name="field_route">给药途径</string>
     <string name="field_medication_category">类别</string>
     <string name="field_medication_application">应用类型</string>
     <string name="field_medication">药物</string>
@@ -198,13 +197,6 @@
     <string name="entry_uuid">UUID：%1$s</string>
     <string name="plan_group_medication_summary">%1$s，%3$s，%2$s mg</string>
     <string name="plan_group_more_medications">另 %1$d 项</string>
-    <string name="route_oral">口服</string>
-    <string name="route_sublingual">舌下</string>
-    <string name="route_transdermal">透皮</string>
-    <string name="route_intramuscular">肌内注射</string>
-    <string name="route_subcutaneous">皮下注射</string>
-    <string name="route_topical">局部用药</string>
-    <string name="route_other">其他</string>
     <string name="dark_mode_follow_system">跟随系统</string>
     <string name="dark_mode_always_off">始终关闭</string>
     <string name="dark_mode_always_on">始终开启</string>

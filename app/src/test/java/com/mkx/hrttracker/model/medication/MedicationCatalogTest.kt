@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.model.medication
 
+import com.mkx.hrttracker.model.medication.MedicationCatalog.catalogFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -51,33 +52,5 @@ class MedicationCatalogTest {
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )
         assertFalse(catalog.allowCustomMedicationName)
-    }
-
-    @Test
-    fun estradiol_oral_rejects_custom_name() {
-        assertFalse(
-            MedicationCatalog.isAllowed(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                selection = MedicationSelection.Custom("Custom estradiol"),
-                doseKind = MedicationDoseKind.MG_AS_MEDICINE,
-            ),
-        )
-    }
-
-    @Test
-    fun custom_only_exposes_oral_route_and_allows_custom_name() {
-        assertEquals(
-            listOf(MedicationApplicationType.ORAL),
-            MedicationCatalog.applicationTypesFor(MedicationCategory.CUSTOM),
-        )
-        assertTrue(
-            MedicationCatalog.isAllowed(
-                category = MedicationCategory.CUSTOM,
-                applicationType = MedicationApplicationType.ORAL,
-                selection = MedicationSelection.Custom("Custom medication"),
-                doseKind = MedicationDoseKind.MG_AS_MEDICINE,
-            ),
-        )
     }
 }

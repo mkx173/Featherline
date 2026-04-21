@@ -26,7 +26,6 @@ import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
@@ -439,14 +438,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 editingMedication = currentState.editingMedication?.let(transform),
                 medicationEditorErrorMessageRes = null
             )
-        }
-    }
-
-    private fun Double.toInputString(): String {
-        return if (this % 1.0 == 0.0) {
-            String.format(Locale.US, "%.0f", this)
-        } else {
-            String.format(Locale.US, "%.2f", this)
         }
     }
 
