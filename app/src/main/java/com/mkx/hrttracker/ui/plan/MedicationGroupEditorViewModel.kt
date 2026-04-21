@@ -8,9 +8,18 @@ import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.displayName
+import com.mkx.hrttracker.model.medication.legacyDoseValueMg
+import com.mkx.hrttracker.model.medication.legacyRouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.toMedicationDetails
+import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -159,7 +168,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun showAddMedicationEditor() {
         _uiState.update {
             it.copy(
-                editingMedication = MedicationGroupMedicationItemUiState(),
+                editingMedication = MedicationGroupMedicationEditorUiState(),
                 isMedicationEditorSaved = false,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
@@ -179,7 +188,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun showMedicationEditor(localId: String) {
         _uiState.update { currentState ->
             currentState.copy(
-                editingMedication = currentState.medications.firstOrNull { it.localId == localId },
+                editingMedication = currentState.medications
+                    .firstOrNull { it.localId == localId }
+                    ?.toEditorUiState(),
                 isMedicationEditorSaved = false,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
@@ -205,44 +216,28 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun updateEditingMedicationRoute(routeOfAdministration: RouteOfAdministration) {
+    fun updateEditingMedicationDraft(
+        transform: (MedicationDraftUiState) -> MedicationDraftUiState
+    ) {
         updateEditingMedication { medication ->
-            medication.copy(routeOfAdministration = routeOfAdministration)
-        }
-    }
-
-    fun updateEditingMedicationName(medicineName: String) {
-        updateEditingMedication { medication ->
-            medication.copy(medicineName = medicineName)
-        }
-    }
-
-    fun updateEditingMedicationDosage(dosageMg: String) {
-        updateEditingMedication { medication ->
-            medication.copy(dosageMg = dosageMg)
+            medication.copy(draft = transform(medication.draft))
         }
     }
 
     fun saveEditingMedication() {
         val currentState = _uiState.value
         val editingMedication = currentState.editingMedication ?: return
-        val trimmedName = editingMedication.medicineName.trim()
-        val parsedDose = editingMedication.dosageMg.toDoubleOrNull()
-
-        val errorRes = when {
-            trimmedName.isEmpty() -> R.string.validation_group_medication_name_required
-            parsedDose == null || parsedDose <= 0.0 -> R.string.validation_group_medication_dose_required
-            else -> null
-        }
+        val errorRes = editingMedication.draft.validationErrorRes()
 
         if (errorRes != null) {
             _uiState.update { it.copy(medicationEditorErrorMessageRes = errorRes) }
             return
         }
 
-        val savedMedication = editingMedication.copy(
-            medicineName = trimmedName,
-            dosageMg = parsedDose!!.toInputString()
+        val savedMedication = MedicationGroupMedicationItemUiState(
+            localId = editingMedication.localId,
+            persistedMedicationId = editingMedication.persistedMedicationId,
+            details = editingMedication.draft.toMedicationDetails()
         )
 
         _uiState.update {
@@ -259,7 +254,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
             it.copy(
                 medications = updatedMedications,
-                editingMedication = savedMedication,
+                editingMedication = savedMedication.toEditorUiState(),
                 isMedicationEditorSaved = true,
                 medicationEditorErrorMessageRes = null,
                 errorMessageRes = null
@@ -323,9 +318,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medications = currentState.medications.map { medication ->
                     MedicationGroupMedicationInput(
                         uuid = medication.persistedMedicationId?.let(UUID::fromString),
-                        routeOfAdministration = medication.routeOfAdministration,
-                        medicineName = medication.medicineName.trim(),
-                        dosageMgAsMedicine = medication.dosageMg.toDouble()
+                        details = medication.details
                     )
                 },
                 notificationsEnabled = currentState.notificationsEnabled
@@ -433,9 +426,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
                         persistedMedicationId = medication.uuid.toString(),
-                        routeOfAdministration = medication.routeOfAdministration,
-                        medicineName = medication.medicineName,
-                        dosageMg = medication.dosageMgAsMedicine.toInputString()
+                        details = medication.details
                     )
                 }
             )
@@ -443,7 +434,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     private fun updateEditingMedication(
-        transform: (MedicationGroupMedicationItemUiState) -> MedicationGroupMedicationItemUiState
+        transform: (MedicationGroupMedicationEditorUiState) -> MedicationGroupMedicationEditorUiState
     ) {
         _uiState.update { currentState ->
             currentState.copy(
@@ -492,7 +483,7 @@ data class MedicationGroupEditorUiState(
     val remindersEnabled: Boolean = true,
     val notificationsEnabled: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
-    val editingMedication: MedicationGroupMedicationItemUiState? = null,
+    val editingMedication: MedicationGroupMedicationEditorUiState? = null,
     val isMedicationEditorSaved: Boolean = false,
     val medicationEditorErrorMessageRes: Int? = null,
     val isSaving: Boolean = false,
@@ -509,9 +500,53 @@ data class MedicationGroupEditorUiState(
 data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
-    val routeOfAdministration: RouteOfAdministration = RouteOfAdministration.OTHER,
-    val medicineName: String = "",
-    val dosageMg: String = "",
+    val details: MedicationDetails = defaultMedicationDraft().toMedicationDetails(),
+) {
+    constructor(
+        localId: String = UUID.randomUUID().toString(),
+        persistedMedicationId: String? = null,
+        routeOfAdministration: RouteOfAdministration,
+        medicineName: String,
+        dosageMg: String,
+    ) : this(
+        localId = localId,
+        persistedMedicationId = persistedMedicationId,
+        details = com.mkx.hrttracker.model.medication.legacyMedicationDetails(
+            routeOfAdministration = routeOfAdministration,
+            medicineName = medicineName,
+            dosageMgAsMedicine = dosageMg.toDoubleOrNull() ?: 0.0
+        )
+    )
+
+    val routeOfAdministration: RouteOfAdministration
+        get() = details.legacyRouteOfAdministration()
+
+    val medicineName: String
+        get() = details.displayName()
+
+    val dosageMg: String
+        get() {
+            val dose = details.legacyDoseValueMg()
+            return if (dose % 1.0 == 0.0) {
+                String.format(Locale.US, "%.0f", dose)
+            } else {
+                String.format(Locale.US, "%.2f", dose)
+            }
+        }
+
+    fun toEditorUiState(): MedicationGroupMedicationEditorUiState {
+        return MedicationGroupMedicationEditorUiState(
+            localId = localId,
+            persistedMedicationId = persistedMedicationId,
+            draft = medicationDraftFromDetails(details)
+        )
+    }
+}
+
+data class MedicationGroupMedicationEditorUiState(
+    val localId: String = UUID.randomUUID().toString(),
+    val persistedMedicationId: String? = null,
+    val draft: MedicationDraftUiState = defaultMedicationDraft(),
 )
 
 data class MedicationGroupScheduleTimeUiState(

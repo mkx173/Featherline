@@ -73,6 +73,7 @@ import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
 import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -80,6 +81,10 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
+import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.medicationSummary
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
@@ -595,12 +600,7 @@ private fun ScheduledDayRow(
     }
     val primaryMedication = entry.medications.firstOrNull()
     val supportingText = if (primaryMedication != null) {
-        stringResource(
-            R.string.plan_group_medication_summary,
-            primaryMedication.medicineName,
-            primaryMedication.dosageMgAsMedicine.formatDose(appLocale),
-            stringResource(primaryMedication.routeOfAdministration.labelRes)
-        )
+        medicationSummary(primaryMedication.details)
     } else {
         entry.groupName
     }
@@ -735,6 +735,8 @@ private fun UnplannedDayRow(
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
+    val applicationLabel = stringResource(entry.details.applicationType.labelRes)
+    val doseLabel = medicationDoseText(entry.details)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -764,17 +766,16 @@ private fun UnplannedDayRow(
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Text(
-                text = entry.medicineName,
+                text = medicationDisplayName(entry.details),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = stringResource(
-                    R.string.plan_group_medication_summary,
-                    entry.medicineName,
-                    entry.dosageMgAsMedicine.formatDose(appLocale),
-                    stringResource(entry.routeOfAdministration.labelRes)
-                ),
+                text = if (doseLabel != null) {
+                    "$doseLabel · $applicationLabel"
+                } else {
+                    applicationLabel
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -817,26 +818,24 @@ private fun SelectedDayEntryCard(
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
+    val doseLabel = medicationDoseText(entry.details)
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         overlineContent = {
-            Text(text = stringResource(entry.routeOfAdministration.labelRes))
+            Text(text = stringResource(entry.details.applicationType.labelRes))
         },
         headlineContent = {
-            Text(text = entry.medicineName)
+            Text(text = medicationDisplayName(entry.details))
         },
         supportingContent = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                Text(
-                    text = stringResource(
-                        R.string.entry_medicine_dose,
-                        entry.dosageMgAsMedicine.formatDose(appLocale)
-                    )
-                )
+                if (doseLabel != null) {
+                    Text(text = doseLabel)
+                }
                 Text(
                     text = stringResource(R.string.plan_entry_label_manual),
                     style = MaterialTheme.typography.labelSmall,
@@ -912,12 +911,7 @@ private fun PlanScheduleEntryCard(
             ) {
                 entry.medications.take(3).forEach { medication ->
                     Text(
-                        text = stringResource(
-                            R.string.plan_group_medication_summary,
-                            medication.medicineName,
-                            medication.dosageMgAsMedicine.formatDose(appLocale),
-                            stringResource(medication.routeOfAdministration.labelRes)
-                        ),
+                        text = medicationSummary(medication.details),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -1139,9 +1133,9 @@ private fun RegimenGroupCard(
                 group.medications.forEach { medication ->
                     RegimenMedicationChip(
                         accent = accent,
-                        medicationName = medication.medicineName,
-                        doseLabel = "${medication.dosageMgAsMedicine.formatDose(appLocale)} mg",
-                        route = medication.routeOfAdministration
+                        medicationName = medicationDisplayName(medication.details),
+                        doseLabel = medicationDoseText(medication.details),
+                        applicationType = medication.details.applicationType
                     )
                 }
             }
@@ -1180,8 +1174,8 @@ private fun RegimenGroupCard(
 private fun RegimenMedicationChip(
     accent: RegimenAccent,
     medicationName: String,
-    doseLabel: String,
-    route: RouteOfAdministration
+    doseLabel: String?,
+    applicationType: MedicationApplicationType
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
@@ -1202,7 +1196,7 @@ private fun RegimenMedicationChip(
                     .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
                 Text(
-                    text = routeChipLabel(route),
+                    text = applicationTypeBadgeLabel(applicationType),
                     style = MaterialTheme.typography.labelSmall,
                     color = accent.contentColor
                 )
@@ -1211,11 +1205,13 @@ private fun RegimenMedicationChip(
                 text = medicationName,
                 style = MaterialTheme.typography.labelMedium
             )
-            Text(
-                text = "· $doseLabel",
-                style = MaterialTheme.typography.labelMedium,
-                color = accent.contentColor.copy(alpha = 0.75f)
-            )
+            if (doseLabel != null) {
+                Text(
+                    text = "· $doseLabel",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = accent.contentColor.copy(alpha = 0.75f)
+                )
+            }
         }
     }
 }
@@ -1299,16 +1295,15 @@ private data class RegimenAccent(
 
 @Composable
 private fun regimenAccent(group: MedicationGroup): RegimenAccent {
-    val route = group.medications.firstOrNull()?.routeOfAdministration
-    return when (route) {
-        RouteOfAdministration.INTRAMUSCULAR,
-        RouteOfAdministration.SUBCUTANEOUS -> RegimenAccent(
+    val applicationType = group.medications.firstOrNull()?.details?.applicationType
+    return when (applicationType) {
+        MedicationApplicationType.INJECTION -> RegimenAccent(
             accentColor = MaterialTheme.colorScheme.primary,
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         )
-        RouteOfAdministration.ORAL,
-        RouteOfAdministration.SUBLINGUAL -> RegimenAccent(
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL -> RegimenAccent(
             accentColor = MaterialTheme.colorScheme.tertiary,
             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -1318,19 +1313,6 @@ private fun regimenAccent(group: MedicationGroup): RegimenAccent {
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         )
-    }
-}
-
-@Composable
-private fun routeChipLabel(route: RouteOfAdministration): String {
-    return when (route) {
-        RouteOfAdministration.INTRAMUSCULAR -> "IM"
-        RouteOfAdministration.SUBCUTANEOUS -> "SC"
-        RouteOfAdministration.SUBLINGUAL -> "SL"
-        RouteOfAdministration.TRANSDERMAL -> "TD"
-        RouteOfAdministration.ORAL -> stringResource(R.string.route_oral)
-        RouteOfAdministration.TOPICAL -> stringResource(R.string.route_topical)
-        RouteOfAdministration.OTHER -> stringResource(R.string.route_other)
     }
 }
 

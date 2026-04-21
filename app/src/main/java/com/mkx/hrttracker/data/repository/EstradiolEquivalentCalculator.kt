@@ -1,32 +1,50 @@
 package com.mkx.hrttracker.data.repository
 
-import java.util.Locale
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
 
 object EstradiolEquivalentCalculator {
     private const val ESTRADIOL_MOLECULAR_WEIGHT = 272.4
     private const val ESTRADIOL_VALERATE_MOLECULAR_WEIGHT = 356.5
     private const val ESTRADIOL_CYPIONATE_MOLECULAR_WEIGHT = 396.6
-    private const val ESTRADIOL_ACETATE_MOLECULAR_WEIGHT = 314.4
+    private const val ESTRADIOL_BENZOATE_MOLECULAR_WEIGHT = 376.4
+    private const val ESTRADIOL_ENANTHATE_MOLECULAR_WEIGHT = 384.5
 
     private val equivalenceRatios = mapOf(
-        "estradiol" to 1.0,
-        "17betaestradiol" to 1.0,
-        "betaestradiol" to 1.0,
-        "estradiolbase" to 1.0,
-        "estradiolvalerate" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_VALERATE_MOLECULAR_WEIGHT,
-        "ev" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_VALERATE_MOLECULAR_WEIGHT,
-        "e2v" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_VALERATE_MOLECULAR_WEIGHT,
-        "estradiolcypionate" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_CYPIONATE_MOLECULAR_WEIGHT,
-        "ec" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_CYPIONATE_MOLECULAR_WEIGHT,
-        "e2c" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_CYPIONATE_MOLECULAR_WEIGHT,
-        "estradiolacetate" to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_ACETATE_MOLECULAR_WEIGHT,
+        MedicationKey.ESTRADIOL to 1.0,
+        MedicationKey.ESTRADIOL_VALERATE to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_VALERATE_MOLECULAR_WEIGHT,
+        MedicationKey.ESTRADIOL_BENZOATE to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_BENZOATE_MOLECULAR_WEIGHT,
+        MedicationKey.ESTRADIOL_CYPIONATE to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_CYPIONATE_MOLECULAR_WEIGHT,
+        MedicationKey.ESTRADIOL_ENANTHATE to ESTRADIOL_MOLECULAR_WEIGHT / ESTRADIOL_ENANTHATE_MOLECULAR_WEIGHT,
+        MedicationKey.ESTRADIOL_GEL to 1.0,
+        MedicationKey.ESTRADIOL_PATCH to null,
     )
 
-    fun calculate(medicineName: String, dosageMgAsMedicine: Double): Double? {
-        val normalizedName = medicineName.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9]"), "")
+    fun calculate(medication: MedicationDetails): Double? {
+        if (medication.category != MedicationCategory.ESTRADIOL) {
+            return null
+        }
 
-        val ratio = equivalenceRatios[normalizedName] ?: return null
-        return dosageMgAsMedicine * ratio
+        return when (val dose = medication.dose) {
+            is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+            is MedicationDose.GelPercentAndWeight -> dose.percent * dose.weightGrams * 10.0
+            is MedicationDose.PatchReleaseRateMcgPerDay -> null
+            is MedicationDose.None -> null
+            is MedicationDose.MgAsMedicine,
+            is MedicationDose.PatchTotalMg -> {
+                val medicationKey = (medication.selection as? MedicationSelection.Catalog)?.medicationKey
+                    ?: return null
+                val ratio = equivalenceRatios[medicationKey] ?: return null
+                val valueMg = when (dose) {
+                    is MedicationDose.MgAsMedicine -> dose.valueMg
+                    is MedicationDose.PatchTotalMg -> dose.valueMg
+                    else -> error("Unsupported dose type")
+                }
+                valueMg * ratio
+            }
+        }
     }
 }

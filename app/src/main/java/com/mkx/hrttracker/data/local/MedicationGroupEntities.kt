@@ -35,9 +35,16 @@ data class MedicationGroupItemEntity(
     @PrimaryKey val uuid: String,
     val groupUuid: String,
     val sortOrder: Int,
-    val routeOfAdministration: String,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
+    val category: String,
+    val applicationType: String,
+    val selectionKind: String,
+    val medicationKey: String?,
+    val customMedicationName: String?,
+    val doseKind: String,
+    val doseValueMg: Double?,
+    val doseValuePercent: Double?,
+    val doseWeightGrams: Double?,
+    val doseReleaseRateMcgPerDay: Double?,
 )
 
 @Entity(

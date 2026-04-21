@@ -78,13 +78,15 @@ import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
-import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -1048,14 +1050,11 @@ private fun HistoryEntryCard(
     val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
         historySourceVisual(entry.sourceType, entry.scheduledFor != null)
     }
-    val routeChipColors = historyRouteChipColors(entry.routeOfAdministration)
-    val supportingText = remember(entry, groupName, appLocale) {
-        buildHistoryEntrySupportingText(
-            entry = entry,
-            groupName = groupName,
-            appLocale = appLocale
-        )
-    }
+    val routeChipColors = historyRouteChipColors(entry.details.applicationType)
+    val supportingText = buildHistoryEntrySupportingText(
+        entry = entry,
+        groupName = groupName
+    )
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1118,7 +1117,7 @@ private fun HistoryEntryCard(
                         color = routeChipColors.containerColor
                     ) {
                         Text(
-                            text = stringResource(entry.routeOfAdministration.labelRes),
+                            text = stringResource(entry.details.applicationType.labelRes),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
@@ -1127,7 +1126,7 @@ private fun HistoryEntryCard(
                         )
                     }
                     Text(
-                        text = entry.medicineName,
+                        text = medicationDisplayName(entry.details),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -1191,14 +1190,16 @@ private data class HistoryRouteChipColors(
 )
 
 @Composable
-private fun historyRouteChipColors(routeOfAdministration: RouteOfAdministration): HistoryRouteChipColors {
-    return when (routeOfAdministration) {
-        RouteOfAdministration.INTRAMUSCULAR,
-        RouteOfAdministration.SUBCUTANEOUS -> HistoryRouteChipColors(
+private fun historyRouteChipColors(
+    applicationType: MedicationApplicationType
+): HistoryRouteChipColors {
+    return when (applicationType) {
+        MedicationApplicationType.INJECTION -> HistoryRouteChipColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
-        RouteOfAdministration.SUBLINGUAL -> HistoryRouteChipColors(
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL -> HistoryRouteChipColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
             contentColor = MaterialTheme.colorScheme.onTertiaryContainer
         )
@@ -1209,17 +1210,24 @@ private fun historyRouteChipColors(routeOfAdministration: RouteOfAdministration)
     }
 }
 
+@Composable
 private fun buildHistoryEntrySupportingText(
     entry: MedicationLogEntry,
-    groupName: String?,
-    appLocale: Locale
+    groupName: String?
 ): String {
-    val doseText = "${entry.dosageMgAsMedicine.formatDose(appLocale)} mg"
-    return if (groupName.isNullOrBlank()) {
-        doseText
-    } else {
-        "$doseText \u00B7 $groupName"
+    val doseText = medicationDoseText(entry.details)
+    val fallbackText = stringResource(entry.details.applicationType.labelRes)
+    val parts = buildList {
+        if (!doseText.isNullOrBlank()) {
+            add(doseText)
+        } else {
+            add(fallbackText)
+        }
+        if (!groupName.isNullOrBlank()) {
+            add(groupName)
+        }
     }
+    return parts.joinToString(" \u00B7 ")
 }
 
 @Preview(

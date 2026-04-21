@@ -6,13 +6,22 @@ import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.legacyMedicationDetails
 import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,9 +117,36 @@ class MedicationGroupRepository @Inject constructor(
                     uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
                     groupUuid = groupUuid.toString(),
                     sortOrder = index,
-                    routeOfAdministration = medication.routeOfAdministration.name,
-                    medicineName = medication.medicineName,
-                    dosageMgAsMedicine = medication.dosageMgAsMedicine,
+                    category = medication.details.category.name,
+                    applicationType = medication.details.applicationType.name,
+                    selectionKind = medication.details.selection.kind.name,
+                    medicationKey = when (val selection = medication.details.selection) {
+                        is MedicationSelection.Catalog -> selection.medicationKey.name
+                        is MedicationSelection.Custom -> null
+                    },
+                    customMedicationName = when (val selection = medication.details.selection) {
+                        is MedicationSelection.Catalog -> null
+                        is MedicationSelection.Custom -> selection.medicationName
+                    },
+                    doseKind = medication.details.dose.kind.name,
+                    doseValueMg = when (val dose = medication.details.dose) {
+                        is MedicationDose.MgAsMedicine -> dose.valueMg
+                        is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+                        is MedicationDose.PatchTotalMg -> dose.valueMg
+                        else -> null
+                    },
+                    doseValuePercent = when (val dose = medication.details.dose) {
+                        is MedicationDose.GelPercentAndWeight -> dose.percent
+                        else -> null
+                    },
+                    doseWeightGrams = when (val dose = medication.details.dose) {
+                        is MedicationDose.GelPercentAndWeight -> dose.weightGrams
+                        else -> null
+                    },
+                    doseReleaseRateMcgPerDay = when (val dose = medication.details.dose) {
+                        is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
+                        else -> null
+                    },
                 )
             },
             scheduleTimes = schedule.times.mapIndexed { index, time ->
@@ -152,9 +188,7 @@ class MedicationGroupRepository @Inject constructor(
             medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
                 MedicationGroupMedication(
                     uuid = UUID.fromString(item.uuid),
-                    routeOfAdministration = RouteOfAdministration.fromStorageValue(item.routeOfAdministration),
-                    medicineName = item.medicineName,
-                    dosageMgAsMedicine = item.dosageMgAsMedicine,
+                    details = item.toMedicationDetails(),
                 )
             },
             notificationsEnabled = group.notificationsEnabled,
@@ -162,14 +196,70 @@ class MedicationGroupRepository @Inject constructor(
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis)
         )
     }
+
+    private fun MedicationGroupItemEntity.toMedicationDetails(): MedicationDetails {
+        val selection = when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
+            MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
+                medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
+            )
+
+            MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
+                medicationName = customMedicationName.orEmpty()
+            )
+        }
+
+        val dose = when (MedicationDoseKind.fromStorageValue(doseKind)) {
+            MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
+                percent = checkNotNull(doseValuePercent),
+                weightGrams = checkNotNull(doseWeightGrams)
+            )
+
+            MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
+                valueMcgPerDay = checkNotNull(doseReleaseRateMcgPerDay)
+            )
+
+            MedicationDoseKind.NONE -> MedicationDose.None
+        }
+
+        return MedicationDetails(
+            category = MedicationCategory.fromStorageValue(category),
+            applicationType = MedicationApplicationType.fromStorageValue(applicationType),
+            selection = selection,
+            dose = dose
+        )
+    }
 }
 
 data class MedicationGroupMedicationInput(
     val uuid: UUID? = null,
-    val routeOfAdministration: RouteOfAdministration,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
-)
+    val details: MedicationDetails,
+) {
+    constructor(
+        uuid: UUID? = null,
+        routeOfAdministration: RouteOfAdministration,
+        medicineName: String,
+        dosageMgAsMedicine: Double,
+    ) : this(
+        uuid = uuid,
+        details = legacyMedicationDetails(
+            routeOfAdministration = routeOfAdministration,
+            medicineName = medicineName,
+            dosageMgAsMedicine = dosageMgAsMedicine
+        )
+    )
+}
 
 data class MedicationGroupScheduleInput(
     val type: MedicationGroupScheduleType,

@@ -42,8 +42,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.medicationSummary
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalTime
@@ -286,12 +288,7 @@ private fun MedicationGroupSelectionRow(
         supportingContent = {
             group.medications.firstOrNull()?.let { medication ->
                 Text(
-                    text = stringResource(
-                        R.string.plan_group_medication_summary,
-                        medication.medicineName,
-                        medication.dosageMgAsMedicine.formatDose(appLocale),
-                        stringResource(medication.routeOfAdministration.labelRes)
-                    )
+                    text = medicationSummary(medication.details)
                 )
             }
         }
@@ -363,18 +360,15 @@ private fun QuickAddMedicationGroupEntryRow(
     ListItem(
         modifier = Modifier.fillMaxWidth(),
         overlineContent = {
-            Text(text = stringResource(entry.routeOfAdministration.labelRes))
+            Text(text = stringResource(entry.details.applicationType.labelRes))
         },
         headlineContent = {
-            Text(text = entry.medicineName)
+            Text(text = medicationDisplayName(entry.details))
         },
         supportingContent = {
-            Text(
-                text = stringResource(
-                    R.string.entry_medicine_dose,
-                    entry.dosageMgAsMedicine.formatDose(appLocale)
-                )
-            )
+            medicationDoseText(entry.details)?.let { doseText ->
+                Text(text = doseText)
+            }
         },
         trailingContent = {
             Column(

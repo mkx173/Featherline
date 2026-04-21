@@ -1,0 +1,532 @@
+package com.mkx.hrttracker.model.medication
+
+import androidx.annotation.StringRes
+import com.mkx.hrttracker.R
+import java.util.Locale
+
+enum class MedicationCategory(@get:StringRes val labelRes: Int) {
+    ESTRADIOL(R.string.medication_category_estradiol),
+    TESTOSTERONE(R.string.medication_category_testosterone),
+    ANTIANDROGEN(R.string.medication_category_antiandrogen),
+    CUSTOM(R.string.medication_category_custom);
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationCategory {
+            return entries.firstOrNull { it.name == value } ?: CUSTOM
+        }
+    }
+}
+
+enum class MedicationApplicationType(@get:StringRes val labelRes: Int) {
+    ORAL(R.string.medication_application_oral),
+    SUBLINGUAL(R.string.medication_application_sublingual),
+    INJECTION(R.string.medication_application_injection),
+    GEL(R.string.medication_application_gel),
+    PATCH_ON(R.string.medication_application_patch_on),
+    PATCH_OFF(R.string.medication_application_patch_off);
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationApplicationType {
+            return entries.firstOrNull { it.name == value } ?: ORAL
+        }
+    }
+}
+
+enum class MedicationSelectionKind {
+    CATALOG,
+    CUSTOM;
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationSelectionKind {
+            return entries.firstOrNull { it.name == value } ?: CUSTOM
+        }
+    }
+}
+
+enum class MedicationDoseKind {
+    MG_AS_MEDICINE,
+    GEL_EQUIVALENT_ESTRADIOL_MG,
+    GEL_PERCENT_AND_WEIGHT,
+    PATCH_TOTAL_MG,
+    PATCH_RELEASE_RATE_MCG_DAY,
+    NONE;
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationDoseKind {
+            return entries.firstOrNull { it.name == value } ?: NONE
+        }
+    }
+}
+
+enum class MedicationKey(
+    val category: MedicationCategory,
+    @get:StringRes val labelRes: Int,
+) {
+    SPIRONOLACTONE(
+        category = MedicationCategory.ANTIANDROGEN,
+        labelRes = R.string.medication_name_spironolactone,
+    ),
+    CYPROTERONE_ACETATE(
+        category = MedicationCategory.ANTIANDROGEN,
+        labelRes = R.string.medication_name_cyproterone_acetate,
+    ),
+    ESTRADIOL(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol,
+    ),
+    ESTRADIOL_VALERATE(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_valerate,
+    ),
+    ESTRADIOL_BENZOATE(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_benzoate,
+    ),
+    ESTRADIOL_CYPIONATE(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_cypionate,
+    ),
+    ESTRADIOL_ENANTHATE(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_enanthate,
+    ),
+    ESTRADIOL_GEL(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_gel,
+    ),
+    ESTRADIOL_PATCH(
+        category = MedicationCategory.ESTRADIOL,
+        labelRes = R.string.medication_name_estradiol_patch,
+    );
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationKey? {
+            return entries.firstOrNull { it.name == value }
+        }
+    }
+}
+
+sealed interface MedicationSelection {
+    val kind: MedicationSelectionKind
+
+    data class Catalog(val medicationKey: MedicationKey) : MedicationSelection {
+        override val kind: MedicationSelectionKind = MedicationSelectionKind.CATALOG
+    }
+
+    data class Custom(val medicationName: String) : MedicationSelection {
+        override val kind: MedicationSelectionKind = MedicationSelectionKind.CUSTOM
+    }
+}
+
+sealed interface MedicationDose {
+    val kind: MedicationDoseKind
+
+    data class MgAsMedicine(val valueMg: Double) : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.MG_AS_MEDICINE
+    }
+
+    data class GelEquivalentEstradiolMg(val valueMg: Double) : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG
+    }
+
+    data class GelPercentAndWeight(
+        val percent: Double,
+        val weightGrams: Double,
+    ) : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+    }
+
+    data class PatchTotalMg(val valueMg: Double) : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.PATCH_TOTAL_MG
+    }
+
+    data class PatchReleaseRateMcgPerDay(val valueMcgPerDay: Double) : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY
+    }
+
+    data object None : MedicationDose {
+        override val kind: MedicationDoseKind = MedicationDoseKind.NONE
+    }
+}
+
+data class MedicationDetails(
+    val category: MedicationCategory,
+    val applicationType: MedicationApplicationType,
+    val selection: MedicationSelection,
+    val dose: MedicationDose,
+)
+
+data class MedicationCatalogEntry(
+    val medicationKey: MedicationKey?,
+    val doseKinds: Set<MedicationDoseKind>,
+    val defaultDoseKind: MedicationDoseKind,
+)
+
+data class MedicationApplicationCatalog(
+    val category: MedicationCategory,
+    val applicationType: MedicationApplicationType,
+    val entries: List<MedicationCatalogEntry>,
+    val allowCustomMedicationName: Boolean,
+)
+
+object MedicationCatalog {
+    private val estradiolCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.INJECTION,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_GEL,
+                    doseKinds = setOf(
+                        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+                        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
+                    ),
+                    defaultDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_PATCH,
+                    doseKinds = setOf(
+                        MedicationDoseKind.PATCH_TOTAL_MG,
+                        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+                    ),
+                    defaultDoseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_PATCH,
+                    doseKinds = setOf(MedicationDoseKind.NONE),
+                    defaultDoseKind = MedicationDoseKind.NONE,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
+    private val antiandrogenCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+            entries = listOf(
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.SPIRONOLACTONE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.CYPROTERONE_ACETATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+            ),
+            allowCustomMedicationName = false,
+        ),
+    )
+
+    private val testosteroneCatalog = MedicationApplicationType.entries.map { applicationType ->
+        MedicationApplicationCatalog(
+            category = MedicationCategory.TESTOSTERONE,
+            applicationType = applicationType,
+            entries = defaultEntriesFor(applicationType),
+            allowCustomMedicationName = true,
+        )
+    }
+
+    private val customCatalog = listOf(
+        MedicationApplicationCatalog(
+            category = MedicationCategory.CUSTOM,
+            applicationType = MedicationApplicationType.ORAL,
+            entries = defaultEntriesFor(MedicationApplicationType.ORAL),
+            allowCustomMedicationName = true,
+        ),
+    )
+
+    private val catalogs = estradiolCatalog + antiandrogenCatalog + testosteroneCatalog + customCatalog
+
+    fun applicationTypesFor(category: MedicationCategory): List<MedicationApplicationType> {
+        return catalogs
+            .filter { it.category == category }
+            .map(MedicationApplicationCatalog::applicationType)
+    }
+
+    fun catalogFor(
+        category: MedicationCategory,
+        applicationType: MedicationApplicationType,
+    ): MedicationApplicationCatalog {
+        return catalogs.first { catalog ->
+            catalog.category == category && catalog.applicationType == applicationType
+        }
+    }
+
+    fun defaultEntryFor(
+        category: MedicationCategory,
+        applicationType: MedicationApplicationType,
+    ): MedicationCatalogEntry {
+        return catalogFor(category, applicationType).entries.first()
+    }
+
+    fun isAllowed(
+        category: MedicationCategory,
+        applicationType: MedicationApplicationType,
+        selection: MedicationSelection,
+        doseKind: MedicationDoseKind,
+    ): Boolean {
+        val catalog = catalogFor(category, applicationType)
+        return when (selection) {
+            is MedicationSelection.Catalog -> {
+                catalog.entries.any { entry ->
+                    entry.medicationKey == selection.medicationKey && doseKind in entry.doseKinds
+                }
+            }
+
+            is MedicationSelection.Custom -> {
+                catalog.allowCustomMedicationName &&
+                    catalog.entries.any { entry -> doseKind in entry.doseKinds }
+            }
+        }
+    }
+
+    private fun defaultEntriesFor(
+        applicationType: MedicationApplicationType,
+    ): List<MedicationCatalogEntry> {
+        return when (applicationType) {
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL,
+            MedicationApplicationType.INJECTION -> listOf(
+                MedicationCatalogEntry(
+                    medicationKey = null,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                ),
+            )
+
+            MedicationApplicationType.GEL -> listOf(
+                MedicationCatalogEntry(
+                    medicationKey = null,
+                    doseKinds = setOf(
+                        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+                        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
+                    ),
+                    defaultDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+                ),
+            )
+
+            MedicationApplicationType.PATCH_ON -> listOf(
+                MedicationCatalogEntry(
+                    medicationKey = null,
+                    doseKinds = setOf(
+                        MedicationDoseKind.PATCH_TOTAL_MG,
+                        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+                    ),
+                    defaultDoseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+                ),
+            )
+
+            MedicationApplicationType.PATCH_OFF -> listOf(
+                MedicationCatalogEntry(
+                    medicationKey = null,
+                    doseKinds = setOf(MedicationDoseKind.NONE),
+                    defaultDoseKind = MedicationDoseKind.NONE,
+                ),
+            )
+        }
+    }
+}
+
+fun MedicationDetails.displayName(): String {
+    return when (val selection = selection) {
+        is MedicationSelection.Catalog -> selection.medicationKey.canonicalName()
+        is MedicationSelection.Custom -> selection.medicationName
+    }
+}
+
+fun MedicationDetails.legacyDoseValueMg(): Double {
+    return when (val dose = dose) {
+        is MedicationDose.MgAsMedicine -> dose.valueMg
+        is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+        is MedicationDose.GelPercentAndWeight -> dose.percent * dose.weightGrams * 10.0
+        is MedicationDose.PatchTotalMg -> dose.valueMg
+        is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay / 1000.0
+        MedicationDose.None -> 0.0
+    }
+}
+
+fun MedicationDetails.legacyRouteOfAdministration(): RouteOfAdministration {
+    return when (applicationType) {
+        MedicationApplicationType.ORAL -> RouteOfAdministration.ORAL
+        MedicationApplicationType.SUBLINGUAL -> RouteOfAdministration.SUBLINGUAL
+        MedicationApplicationType.INJECTION -> RouteOfAdministration.INTRAMUSCULAR
+        MedicationApplicationType.GEL -> RouteOfAdministration.TOPICAL
+        MedicationApplicationType.PATCH_ON,
+        MedicationApplicationType.PATCH_OFF -> RouteOfAdministration.TRANSDERMAL
+    }
+}
+
+fun MedicationKey.canonicalName(): String {
+    return when (this) {
+        MedicationKey.SPIRONOLACTONE -> "Spironolactone"
+        MedicationKey.CYPROTERONE_ACETATE -> "Cyproterone acetate"
+        MedicationKey.ESTRADIOL -> "Estradiol"
+        MedicationKey.ESTRADIOL_VALERATE -> "Estradiol valerate"
+        MedicationKey.ESTRADIOL_BENZOATE -> "Estradiol benzoate"
+        MedicationKey.ESTRADIOL_CYPIONATE -> "Estradiol cypionate"
+        MedicationKey.ESTRADIOL_ENANTHATE -> "Estradiol enanthate"
+        MedicationKey.ESTRADIOL_GEL -> "Estradiol gel"
+        MedicationKey.ESTRADIOL_PATCH -> "Estradiol patch"
+    }
+}
+
+fun legacyMedicationDetails(
+    routeOfAdministration: RouteOfAdministration,
+    medicineName: String,
+    dosageMgAsMedicine: Double,
+): MedicationDetails {
+    val normalizedName = medicineName.lowercase(Locale.US)
+        .replace(Regex("[^a-z0-9]"), "")
+    val knownMedicationKey = when (normalizedName) {
+        "spironolactone" -> MedicationKey.SPIRONOLACTONE
+        "cyproteroneacetate",
+        "cpa" -> MedicationKey.CYPROTERONE_ACETATE
+
+        "estradiol",
+        "17betaestradiol",
+        "betaestradiol",
+        "estradiolbase" -> MedicationKey.ESTRADIOL
+
+        "estradiolvalerate",
+        "ev",
+        "e2v" -> MedicationKey.ESTRADIOL_VALERATE
+
+        "estradiolbenzoate",
+        "eb",
+        "e2b" -> MedicationKey.ESTRADIOL_BENZOATE
+
+        "estradiolcypionate",
+        "ec",
+        "e2c" -> MedicationKey.ESTRADIOL_CYPIONATE
+
+        "estradiolenanthate",
+        "ee",
+        "e2e" -> MedicationKey.ESTRADIOL_ENANTHATE
+
+        "estradiolgel" -> MedicationKey.ESTRADIOL_GEL
+        "estradiolpatch" -> MedicationKey.ESTRADIOL_PATCH
+        else -> null
+    }
+
+    val category = when {
+        knownMedicationKey != null -> knownMedicationKey.category
+        normalizedName in setOf(
+            "bicalutamide",
+            "finasteride",
+            "dutasteride"
+        ) -> MedicationCategory.ANTIANDROGEN
+
+        normalizedName.contains("testosterone") -> MedicationCategory.TESTOSTERONE
+        else -> MedicationCategory.CUSTOM
+    }
+
+    val applicationType = when (routeOfAdministration) {
+        RouteOfAdministration.ORAL -> MedicationApplicationType.ORAL
+        RouteOfAdministration.SUBLINGUAL -> MedicationApplicationType.SUBLINGUAL
+        RouteOfAdministration.INTRAMUSCULAR,
+        RouteOfAdministration.SUBCUTANEOUS -> MedicationApplicationType.INJECTION
+
+        RouteOfAdministration.TRANSDERMAL -> MedicationApplicationType.PATCH_ON
+        RouteOfAdministration.TOPICAL -> MedicationApplicationType.GEL
+        RouteOfAdministration.OTHER -> MedicationApplicationType.ORAL
+    }
+
+    val selection = knownMedicationKey?.let(MedicationSelection::Catalog)
+        ?: MedicationSelection.Custom(medicineName)
+
+    val dose = when (applicationType) {
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL,
+        MedicationApplicationType.INJECTION -> MedicationDose.MgAsMedicine(dosageMgAsMedicine)
+
+        MedicationApplicationType.GEL -> MedicationDose.GelEquivalentEstradiolMg(dosageMgAsMedicine)
+        MedicationApplicationType.PATCH_ON -> MedicationDose.PatchTotalMg(dosageMgAsMedicine)
+        MedicationApplicationType.PATCH_OFF -> MedicationDose.None
+    }
+
+    return MedicationDetails(
+        category = category,
+        applicationType = applicationType,
+        selection = selection,
+        dose = dose
+    )
+}

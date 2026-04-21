@@ -24,7 +24,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
-import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.ui.medication.medicationSummary
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -275,12 +275,7 @@ private fun MainMedicationsText(
     ) {
         medications.take(3).forEach { medication ->
             Text(
-                text = stringResource(
-                    R.string.plan_group_medication_summary,
-                    medication.medicineName,
-                    medication.dosageMgAsMedicine.formatDose(appLocale),
-                    stringResource(medication.routeOfAdministration.labelRes)
-                ),
+                text = medicationSummary(medication.details),
                 style = MaterialTheme.typography.bodySmall
             )
         }

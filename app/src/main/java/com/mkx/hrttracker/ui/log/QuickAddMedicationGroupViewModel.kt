@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.displayName
+import com.mkx.hrttracker.model.medication.legacyDoseValueMg
+import com.mkx.hrttracker.model.medication.legacyRouteOfAdministration
 import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -92,9 +96,7 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
         draftEntries.value = group.medications.map { medication ->
             QuickAddMedicationGroupItemUiState(
                 groupMedicationId = medication.uuid,
-                routeOfAdministration = medication.routeOfAdministration,
-                medicineName = medication.medicineName,
-                dosageMgAsMedicine = medication.dosageMgAsMedicine,
+                details = medication.details,
                 appliedDate = defaultDate,
                 appliedTime = defaultTime
             )
@@ -170,9 +172,7 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
 
                 medicationLogRepository.saveEntry(
                     uuid = null,
-                    routeOfAdministration = entry.routeOfAdministration,
-                    medicineName = entry.medicineName,
-                    dosageMgAsMedicine = entry.dosageMgAsMedicine,
+                    medication = entry.details,
                     sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = currentGroupId,
                     appliedAt = appliedAt,
@@ -238,12 +238,19 @@ data class QuickAddMedicationGroupUiState(
 data class QuickAddMedicationGroupItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val groupMedicationId: UUID,
-    val routeOfAdministration: RouteOfAdministration,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
+    val details: MedicationDetails,
     val appliedDate: LocalDate,
     val appliedTime: LocalTime,
-)
+) {
+    val routeOfAdministration: RouteOfAdministration
+        get() = details.legacyRouteOfAdministration()
+
+    val medicineName: String
+        get() = details.displayName()
+
+    val dosageMgAsMedicine: Double
+        get() = details.legacyDoseValueMg()
+}
 
 data class QuickAddScheduleSlotUiOption(
     val slotId: String,

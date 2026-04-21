@@ -18,10 +18,43 @@ data class MedicationGroup(
 
 data class MedicationGroupMedication(
     val uuid: UUID,
-    val routeOfAdministration: RouteOfAdministration,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
-)
+    val details: MedicationDetails,
+) {
+    constructor(
+        uuid: UUID,
+        routeOfAdministration: RouteOfAdministration,
+        medicineName: String,
+        dosageMgAsMedicine: Double,
+    ) : this(
+        uuid = uuid,
+        details = legacyMedicationDetails(
+            routeOfAdministration = routeOfAdministration,
+            medicineName = medicineName,
+            dosageMgAsMedicine = dosageMgAsMedicine
+        ),
+    )
+
+    val category: MedicationCategory
+        get() = details.category
+
+    val applicationType: MedicationApplicationType
+        get() = details.applicationType
+
+    val selection: MedicationSelection
+        get() = details.selection
+
+    val dose: MedicationDose
+        get() = details.dose
+
+    val routeOfAdministration: RouteOfAdministration
+        get() = details.legacyRouteOfAdministration()
+
+    val medicineName: String
+        get() = details.displayName()
+
+    val dosageMgAsMedicine: Double
+        get() = details.legacyDoseValueMg()
+}
 
 enum class MedicationGroupScheduleType {
     WEEKLY,

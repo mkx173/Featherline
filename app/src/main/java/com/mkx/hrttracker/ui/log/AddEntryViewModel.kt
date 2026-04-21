@@ -2,11 +2,14 @@ package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.toMedicationDetails
+import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +21,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
@@ -40,28 +42,12 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    fun updateRoute(routeOfAdministration: RouteOfAdministration) {
+    fun updateMedicationDraft(
+        transform: (MedicationDraftUiState) -> MedicationDraftUiState
+    ) {
         _uiState.update {
             it.copy(
-                routeOfAdministration = routeOfAdministration,
-                errorMessageRes = null
-            )
-        }
-    }
-
-    fun updateMedicineName(medicineName: String) {
-        _uiState.update {
-            it.copy(
-                medicineName = medicineName,
-                errorMessageRes = null
-            )
-        }
-    }
-
-    fun updateDosageMg(dosageMg: String) {
-        _uiState.update {
-            it.copy(
-                dosageMg = dosageMg,
+                medicationDraft = transform(it.medicationDraft),
                 errorMessageRes = null
             )
         }
@@ -87,18 +73,11 @@ class AddEntryViewModel @Inject constructor(
 
     fun saveEntry() {
         val currentState = _uiState.value
-        val trimmedName = currentState.medicineName.trim()
-        val parsedDose = currentState.dosageMg.toDoubleOrNull()
         val appliedAt = LocalDateTime.of(
             currentState.appliedDate,
             currentState.appliedTime
         ).atZone(ZoneId.systemDefault()).toInstant()
-
-        val errorRes = when {
-            trimmedName.isEmpty() -> R.string.validation_name_required
-            parsedDose == null || parsedDose <= 0.0 -> R.string.validation_dose_required
-            else -> null
-        }
+        val errorRes = currentState.medicationDraft.validationErrorRes()
 
         if (errorRes != null) {
             _uiState.update {
@@ -112,9 +91,7 @@ class AddEntryViewModel @Inject constructor(
 
             medicationLogRepository.saveEntry(
                 uuid = currentState.editingEntryId?.let(UUID::fromString),
-                routeOfAdministration = currentState.routeOfAdministration,
-                medicineName = trimmedName,
-                dosageMgAsMedicine = parsedDose!!,
+                medication = currentState.medicationDraft.toMedicationDetails(),
                 sourceType = currentState.sourceType,
                 sourceGroupUuid = currentState.sourceGroupUuid,
                 appliedAt = appliedAt
@@ -123,7 +100,6 @@ class AddEntryViewModel @Inject constructor(
 
             _uiState.update {
                 it.copy(
-                    medicineName = trimmedName,
                     isSaving = false,
                     isSaved = true,
                     errorMessageRes = null
@@ -145,9 +121,7 @@ class AddEntryViewModel @Inject constructor(
 
             _uiState.value = AddEntryUiState(
                 editingEntryId = entry.uuid.toString(),
-                routeOfAdministration = entry.routeOfAdministration,
-                medicineName = entry.medicineName,
-                dosageMg = entry.dosageMgAsMedicine.toInputString(),
+                medicationDraft = medicationDraftFromDetails(entry.details),
                 sourceType = entry.sourceType,
                 sourceGroupUuid = entry.sourceGroupUuid,
                 appliedDate = appliedAt.toLocalDate(),
@@ -156,20 +130,11 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    private fun Double.toInputString(): String {
-        return if (this % 1.0 == 0.0) {
-            String.format(Locale.US, "%.0f", this)
-        } else {
-            String.format(Locale.US, "%.2f", this)
-        }
-    }
 }
 
 data class AddEntryUiState(
     val editingEntryId: String? = null,
-    val routeOfAdministration: RouteOfAdministration = RouteOfAdministration.OTHER,
-    val medicineName: String = "",
-    val dosageMg: String = "",
+    val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
     val sourceType: MedicationLogEntrySourceType = MedicationLogEntrySourceType.MANUAL,
     val sourceGroupUuid: UUID? = null,
     val appliedDate: LocalDate = LocalDate.now(),

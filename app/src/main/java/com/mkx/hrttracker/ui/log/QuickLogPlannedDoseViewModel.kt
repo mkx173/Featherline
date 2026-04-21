@@ -4,9 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.displayName
+import com.mkx.hrttracker.model.medication.legacyDoseValueMg
+import com.mkx.hrttracker.model.medication.legacyRouteOfAdministration
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,9 +57,7 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
                 scheduledFor = scheduledFor,
                 draftEntries = group.medications.map { medication ->
                     QuickLogPlannedDoseItemUiState(
-                        routeOfAdministration = medication.routeOfAdministration,
-                        medicineName = medication.medicineName,
-                        dosageMgAsMedicine = medication.dosageMgAsMedicine,
+                        details = medication.details,
                         appliedDate = today,
                         appliedTime = now
                     )
@@ -103,9 +105,7 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
                     .toInstant()
                 medicationLogRepository.saveEntry(
                     uuid = null,
-                    routeOfAdministration = entry.routeOfAdministration,
-                    medicineName = entry.medicineName,
-                    dosageMgAsMedicine = entry.dosageMgAsMedicine,
+                    medication = entry.details,
                     sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = group.uuid,
                     appliedAt = appliedAt,
@@ -135,9 +135,16 @@ data class QuickLogPlannedDoseUiState(
 
 data class QuickLogPlannedDoseItemUiState(
     val localId: String = UUID.randomUUID().toString(),
-    val routeOfAdministration: RouteOfAdministration,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
+    val details: MedicationDetails,
     val appliedDate: LocalDate,
     val appliedTime: LocalTime,
-)
+) {
+    val routeOfAdministration: RouteOfAdministration
+        get() = details.legacyRouteOfAdministration()
+
+    val medicineName: String
+        get() = details.displayName()
+
+    val dosageMgAsMedicine: Double
+        get() = details.legacyDoseValueMg()
+}

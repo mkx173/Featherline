@@ -35,12 +35,55 @@ enum class MedicationLogEntrySourceType {
 
 data class MedicationLogEntry(
     val uuid: UUID,
-    val routeOfAdministration: RouteOfAdministration,
-    val medicineName: String,
-    val dosageMgAsMedicine: Double,
+    val details: MedicationDetails,
     val dosageMgAsEstradiol: Double?,
     val sourceType: MedicationLogEntrySourceType,
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
     val scheduledFor: LocalDateTime? = null,
-)
+) {
+    constructor(
+        uuid: UUID,
+        routeOfAdministration: RouteOfAdministration,
+        medicineName: String,
+        dosageMgAsMedicine: Double,
+        dosageMgAsEstradiol: Double?,
+        sourceType: MedicationLogEntrySourceType,
+        sourceGroupUuid: UUID?,
+        appliedAt: Instant,
+        scheduledFor: LocalDateTime? = null,
+    ) : this(
+        uuid = uuid,
+        details = legacyMedicationDetails(
+            routeOfAdministration = routeOfAdministration,
+            medicineName = medicineName,
+            dosageMgAsMedicine = dosageMgAsMedicine
+        ),
+        dosageMgAsEstradiol = dosageMgAsEstradiol,
+        sourceType = sourceType,
+        sourceGroupUuid = sourceGroupUuid,
+        appliedAt = appliedAt,
+        scheduledFor = scheduledFor,
+    )
+
+    val category: MedicationCategory
+        get() = details.category
+
+    val applicationType: MedicationApplicationType
+        get() = details.applicationType
+
+    val selection: MedicationSelection
+        get() = details.selection
+
+    val dose: MedicationDose
+        get() = details.dose
+
+    val routeOfAdministration: RouteOfAdministration
+        get() = details.legacyRouteOfAdministration()
+
+    val medicineName: String
+        get() = details.displayName()
+
+    val dosageMgAsMedicine: Double
+        get() = details.legacyDoseValueMg()
+}

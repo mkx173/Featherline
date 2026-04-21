@@ -1,0 +1,76 @@
+package com.mkx.hrttracker.ui.medication
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.util.rememberAppLocale
+
+@Composable
+fun medicationDisplayName(details: MedicationDetails): String {
+    return when (val selection = details.selection) {
+        is MedicationSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
+        is MedicationSelection.Custom -> selection.medicationName
+    }
+}
+
+@Composable
+fun medicationDoseText(details: MedicationDetails): String? {
+    val appLocale = rememberAppLocale()
+    return when (val dose = details.dose) {
+        is MedicationDose.MgAsMedicine -> stringResource(
+            R.string.medication_dose_mg,
+            dose.valueMg.formatDose(appLocale)
+        )
+
+        is MedicationDose.GelEquivalentEstradiolMg -> stringResource(
+            R.string.medication_dose_mg_e2,
+            dose.valueMg.formatDose(appLocale)
+        )
+
+        is MedicationDose.GelPercentAndWeight -> stringResource(
+            R.string.medication_dose_percent_and_weight,
+            dose.percent.formatDose(appLocale),
+            dose.weightGrams.formatDose(appLocale)
+        )
+
+        is MedicationDose.PatchTotalMg -> stringResource(
+            R.string.medication_dose_mg,
+            dose.valueMg.formatDose(appLocale)
+        )
+
+        is MedicationDose.PatchReleaseRateMcgPerDay -> stringResource(
+            R.string.medication_dose_release_rate_mcg_day,
+            dose.valueMcgPerDay.formatDose(appLocale)
+        )
+
+        MedicationDose.None -> null
+    }
+}
+
+@Composable
+fun medicationSummary(details: MedicationDetails): String {
+    val displayName = medicationDisplayName(details)
+    val applicationLabel = stringResource(details.applicationType.labelRes)
+    val doseText = medicationDoseText(details)
+    return if (doseText == null) {
+        stringResource(R.string.medication_summary_without_dose, displayName, applicationLabel)
+    } else {
+        stringResource(R.string.medication_summary_with_dose, displayName, doseText, applicationLabel)
+    }
+}
+
+fun applicationTypeBadgeLabel(applicationType: MedicationApplicationType): String {
+    return when (applicationType) {
+        MedicationApplicationType.ORAL -> "PO"
+        MedicationApplicationType.SUBLINGUAL -> "SL"
+        MedicationApplicationType.INJECTION -> "INJ"
+        MedicationApplicationType.GEL -> "GEL"
+        MedicationApplicationType.PATCH_ON -> "P+"
+        MedicationApplicationType.PATCH_OFF -> "P-"
+    }
+}

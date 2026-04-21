@@ -3,9 +3,18 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
+import com.mkx.hrttracker.model.medication.legacyMedicationDetails
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -73,9 +82,7 @@ class MedicationLogRepository @Inject constructor(
 
     suspend fun saveEntry(
         uuid: UUID?,
-        routeOfAdministration: RouteOfAdministration,
-        medicineName: String,
-        dosageMgAsMedicine: Double,
+        medication: MedicationDetails,
         sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
@@ -84,12 +91,38 @@ class MedicationLogRepository @Inject constructor(
         databaseHolder.get().medicationLogDao().insertEntry(
             MedicationLogEntryEntity(
                 uuid = (uuid ?: UUID.randomUUID()).toString(),
-                routeOfAdministration = routeOfAdministration.name,
-                medicineName = medicineName,
-                dosageMgAsMedicine = dosageMgAsMedicine,
+                category = medication.category.name,
+                applicationType = medication.applicationType.name,
+                selectionKind = medication.selection.kind.name,
+                medicationKey = when (val selection = medication.selection) {
+                    is MedicationSelection.Catalog -> selection.medicationKey.name
+                    is MedicationSelection.Custom -> null
+                },
+                customMedicationName = when (val selection = medication.selection) {
+                    is MedicationSelection.Catalog -> null
+                    is MedicationSelection.Custom -> selection.medicationName
+                },
+                doseKind = medication.dose.kind.name,
+                doseValueMg = when (val dose = medication.dose) {
+                    is MedicationDose.MgAsMedicine -> dose.valueMg
+                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+                    is MedicationDose.PatchTotalMg -> dose.valueMg
+                    else -> null
+                },
+                doseValuePercent = when (val dose = medication.dose) {
+                    is MedicationDose.GelPercentAndWeight -> dose.percent
+                    else -> null
+                },
+                doseWeightGrams = when (val dose = medication.dose) {
+                    is MedicationDose.GelPercentAndWeight -> dose.weightGrams
+                    else -> null
+                },
+                doseReleaseRateMcgPerDay = when (val dose = medication.dose) {
+                    is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
+                    else -> null
+                },
                 dosageMgAsEstradiol = EstradiolEquivalentCalculator.calculate(
-                    medicineName = medicineName,
-                    dosageMgAsMedicine = dosageMgAsMedicine
+                    medication = medication
                 ),
                 sourceType = sourceType.name,
                 sourceGroupUuid = sourceGroupUuid?.toString(),
@@ -99,17 +132,83 @@ class MedicationLogRepository @Inject constructor(
         )
     }
 
+    suspend fun saveEntry(
+        uuid: UUID?,
+        routeOfAdministration: RouteOfAdministration,
+        medicineName: String,
+        dosageMgAsMedicine: Double,
+        sourceType: MedicationLogEntrySourceType,
+        sourceGroupUuid: UUID?,
+        appliedAt: Instant,
+        scheduledFor: LocalDateTime? = null
+    ) {
+        saveEntry(
+            uuid = uuid,
+            medication = legacyMedicationDetails(
+                routeOfAdministration = routeOfAdministration,
+                medicineName = medicineName,
+                dosageMgAsMedicine = dosageMgAsMedicine
+            ),
+            sourceType = sourceType,
+            sourceGroupUuid = sourceGroupUuid,
+            appliedAt = appliedAt,
+            scheduledFor = scheduledFor
+        )
+    }
+
     private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.fromString(uuid),
-            routeOfAdministration = RouteOfAdministration.fromStorageValue(routeOfAdministration),
-            medicineName = medicineName,
-            dosageMgAsMedicine = dosageMgAsMedicine,
+            details = toMedicationDetails(),
             dosageMgAsEstradiol = dosageMgAsEstradiol,
             sourceType = MedicationLogEntrySourceType.fromStorageValue(sourceType),
             sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
             appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
             scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
+        )
+    }
+
+    private fun MedicationLogEntryEntity.toMedicationDetails(): MedicationDetails {
+        val selection = when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
+            MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
+                medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
+            )
+
+            MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
+                medicationName = customMedicationName.orEmpty()
+            )
+        }
+
+        val dose = when (MedicationDoseKind.fromStorageValue(doseKind)) {
+            MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
+                percent = checkNotNull(doseValuePercent),
+                weightGrams = checkNotNull(doseWeightGrams)
+            )
+
+            MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(
+                valueMg = checkNotNull(doseValueMg)
+            )
+
+            MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
+                valueMcgPerDay = checkNotNull(doseReleaseRateMcgPerDay)
+            )
+
+            MedicationDoseKind.NONE -> MedicationDose.None
+        }
+
+        return MedicationDetails(
+            category = MedicationCategory.fromStorageValue(category),
+            applicationType = MedicationApplicationType.fromStorageValue(applicationType),
+            selection = selection,
+            dose = dose
         )
     }
 }

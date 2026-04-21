@@ -1,11 +1,17 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -267,6 +273,57 @@ class PlanCalendarDayUiStateTest {
         )
 
         assertEquals(PlanCalendarDayStatus.UNPLANNED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+    }
+
+    @Test
+    fun buildPlanCalendarDayUiState_does_not_match_patch_on_group_with_patch_off_log() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("83e7f55f-9b9e-4bd2-b83d-87602cfd434e"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("3de7dca1-d35f-48e9-a6d0-f1ba2e7fe41a"),
+                    details = MedicationDetails(
+                        category = MedicationCategory.ESTRADIOL,
+                        applicationType = MedicationApplicationType.PATCH_ON,
+                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+                        dose = MedicationDose.PatchReleaseRateMcgPerDay(100.0)
+                    )
+                )
+            )
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                MedicationLogEntry(
+                    uuid = UUID.fromString("711ef972-70f4-4fd6-b186-391e1ffb3c29"),
+                    details = MedicationDetails(
+                        category = MedicationCategory.ESTRADIOL,
+                        applicationType = MedicationApplicationType.PATCH_OFF,
+                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+                        dose = MedicationDose.None
+                    ),
+                    dosageMgAsEstradiol = null,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
+                        .atZone(ZoneId.systemDefault())
+                        .toInstant(),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 16)
+        )
+
+        assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
     }
 
     private fun medicationGroup(

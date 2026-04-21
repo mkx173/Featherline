@@ -93,7 +93,16 @@ import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.log.MedicationEditorSheet
+import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
+import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
+import com.mkx.hrttracker.ui.medication.changeApplicationType
+import com.mkx.hrttracker.ui.medication.changeCategory
+import com.mkx.hrttracker.ui.medication.changeDoseKind
+import com.mkx.hrttracker.ui.medication.changeMedicationKey
+import com.mkx.hrttracker.ui.medication.changeSelectionKind
+import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
@@ -261,9 +270,7 @@ fun MedicationGroupEditorScreen(
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
-        onMedicationRouteChange = viewModel::updateEditingMedicationRoute,
-        onMedicationNameChange = viewModel::updateEditingMedicationName,
-        onMedicationDosageChange = viewModel::updateEditingMedicationDosage,
+        onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
         onSaveMedicationClick = viewModel::saveEditingMedication,
         onSaveClick = viewModel::saveGroup,
         onDeleteClick = viewModel::showDeleteConfirmation,
@@ -296,9 +303,7 @@ private fun MedicationGroupEditorScreenContent(
     onRemoveMedication: (String) -> Unit,
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
-    onMedicationRouteChange: (com.mkx.hrttracker.model.medication.RouteOfAdministration) -> Unit,
-    onMedicationNameChange: (String) -> Unit,
-    onMedicationDosageChange: (String) -> Unit,
+    onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
     onSaveMedicationClick: () -> Unit,
     onSaveClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -680,7 +685,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     uiState.editingMedication?.let { medication ->
-        MedicationEditorSheet(
+        StructuredMedicationEditorSheet(
             title = stringResource(
                 if (uiState.medications.any { it.localId == medication.localId }) {
                     R.string.edit_medication
@@ -694,12 +699,39 @@ private fun MedicationGroupEditorScreenContent(
             onCloseClick = {
                 hideBottomSheet(scope, sheetState, onDismissMedicationEditor)
             },
-            routeOfAdministration = medication.routeOfAdministration,
-            medicineName = medication.medicineName,
-            dosageMg = medication.dosageMg,
-            onRouteSelected = onMedicationRouteChange,
-            onMedicineNameChange = onMedicationNameChange,
-            onDosageChange = onMedicationDosageChange,
+            draft = medication.draft,
+            onCategoryChange = { category ->
+                onMedicationDraftChange { draft -> draft.changeCategory(category) }
+            },
+            onApplicationTypeChange = { applicationType ->
+                onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
+            },
+            onSelectionKindChange = { selectionKind ->
+                onMedicationDraftChange { draft -> draft.changeSelectionKind(selectionKind) }
+            },
+            onMedicationKeyChange = { medicationKey ->
+                onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }
+            },
+            onCustomMedicationNameChange = { medicationName ->
+                onMedicationDraftChange { draft -> draft.copy(customMedicationName = medicationName) }
+            },
+            onDoseKindChange = { doseKind ->
+                onMedicationDraftChange { draft -> draft.changeDoseKind(doseKind) }
+            },
+            onDoseMgChange = { doseMg ->
+                onMedicationDraftChange { draft -> draft.copy(doseMg = doseMg) }
+            },
+            onGelPercentChange = { gelPercent ->
+                onMedicationDraftChange { draft -> draft.copy(gelPercent = gelPercent) }
+            },
+            onGelWeightChange = { gelWeight ->
+                onMedicationDraftChange { draft -> draft.copy(gelWeightGrams = gelWeight) }
+            },
+            onPatchReleaseRateChange = { releaseRate ->
+                onMedicationDraftChange { draft ->
+                    draft.copy(patchReleaseRateMcgPerDay = releaseRate)
+                }
+            },
             errorMessageRes = uiState.medicationEditorErrorMessageRes,
             onConfirm = onSaveMedicationClick
         )
@@ -866,7 +898,7 @@ private fun MedicationGroupMedicationCard(
     onClick: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
-    val routeColors = routeBadgeColors(medication.routeOfAdministration)
+    val badgeColors = applicationTypeBadgeColors(medication.details.applicationType)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -884,11 +916,11 @@ private fun MedicationGroupMedicationCard(
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = routeColors.first,
-                contentColor = routeColors.second
+                color = badgeColors.first,
+                contentColor = badgeColors.second
             ) {
                 Text(
-                    text = routeBadgeLabel(medication.routeOfAdministration),
+                    text = applicationTypeBadgeLabel(medication.details.applicationType),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
@@ -896,16 +928,12 @@ private fun MedicationGroupMedicationCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = medication.medicineName,
+                    text = medicationDisplayName(medication.details),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = stringResource(
-                        R.string.plan_group_medication_summary,
-                        medication.medicineName,
-                        medication.dosageMg.toDoubleOrNull()?.formatDose(appLocale) ?: medication.dosageMg,
-                        stringResource(medication.routeOfAdministration.labelRes)
-                    ),
+                    text = medicationDoseText(medication.details)
+                        ?: stringResource(medication.details.applicationType.labelRes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1126,27 +1154,16 @@ private fun EditorSupportMessage(text: String) {
     }
 }
 
-private fun routeBadgeLabel(route: com.mkx.hrttracker.model.medication.RouteOfAdministration): String {
-    return when (route) {
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.INTRAMUSCULAR -> "IM"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.SUBCUTANEOUS -> "SC"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.SUBLINGUAL -> "SL"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.TRANSDERMAL -> "TD"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL -> "PO"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.TOPICAL -> "TOP"
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.OTHER -> "OTR"
-    }
-}
-
 @Composable
-private fun routeBadgeColors(route: com.mkx.hrttracker.model.medication.RouteOfAdministration): Pair<Color, Color> {
-    return when (route) {
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.INTRAMUSCULAR,
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.SUBCUTANEOUS -> {
+private fun applicationTypeBadgeColors(
+    applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType
+): Pair<Color, Color> {
+    return when (applicationType) {
+        com.mkx.hrttracker.model.medication.MedicationApplicationType.INJECTION -> {
             MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
         }
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.ORAL,
-        com.mkx.hrttracker.model.medication.RouteOfAdministration.SUBLINGUAL -> {
+        com.mkx.hrttracker.model.medication.MedicationApplicationType.ORAL,
+        com.mkx.hrttracker.model.medication.MedicationApplicationType.SUBLINGUAL -> {
             MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
         }
         else -> {
@@ -1190,9 +1207,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
-            onMedicationRouteChange = { },
-            onMedicationNameChange = { },
-            onMedicationDosageChange = { },
+            onMedicationDraftChange = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
             onDeleteClick = { },
@@ -1237,9 +1252,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
-            onMedicationRouteChange = { },
-            onMedicationNameChange = { },
-            onMedicationDosageChange = { },
+            onMedicationDraftChange = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
             onDeleteClick = { },

@@ -2,8 +2,9 @@ package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.model.medication.isScheduledOn
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -100,24 +101,63 @@ internal fun isSlotFulfilled(
 }
 
 internal data class MedicationSignature(
-    val routeOfAdministration: RouteOfAdministration,
-    val normalizedMedicineName: String,
-    val dosageMgAsMedicine: Double,
+    val category: String,
+    val applicationType: String,
+    val selectionKind: String,
+    val medicationKey: String?,
+    val normalizedCustomMedicationName: String?,
+    val doseKind: String,
+    val doseValueMg: Double?,
+    val doseValuePercent: Double?,
+    val doseWeightGrams: Double?,
+    val doseReleaseRateMcgPerDay: Double?,
 ) {
     companion object {
         fun fromGroupMedication(medication: MedicationGroupMedication): MedicationSignature {
-            return MedicationSignature(
-                routeOfAdministration = medication.routeOfAdministration,
-                normalizedMedicineName = medication.medicineName.trim().lowercase(),
-                dosageMgAsMedicine = medication.dosageMgAsMedicine
-            )
+            return fromMedicationDetails(medication.details)
         }
 
         fun fromLogEntry(entry: MedicationLogEntry): MedicationSignature {
+            return fromMedicationDetails(entry.details)
+        }
+
+        private fun fromMedicationDetails(details: MedicationDetails): MedicationSignature {
+            val selection = details.selection
+            val dose = details.dose
             return MedicationSignature(
-                routeOfAdministration = entry.routeOfAdministration,
-                normalizedMedicineName = entry.medicineName.trim().lowercase(),
-                dosageMgAsMedicine = entry.dosageMgAsMedicine
+                category = details.category.name,
+                applicationType = details.applicationType.name,
+                selectionKind = selection.kind.name,
+                medicationKey = when (selection) {
+                    is com.mkx.hrttracker.model.medication.MedicationSelection.Catalog ->
+                        selection.medicationKey.name
+
+                    is com.mkx.hrttracker.model.medication.MedicationSelection.Custom -> null
+                },
+                normalizedCustomMedicationName = when (selection) {
+                    is com.mkx.hrttracker.model.medication.MedicationSelection.Catalog -> null
+                    is com.mkx.hrttracker.model.medication.MedicationSelection.Custom ->
+                        selection.medicationName.trim().lowercase()
+                },
+                doseKind = dose.kind.name,
+                doseValueMg = when (dose) {
+                    is MedicationDose.MgAsMedicine -> dose.valueMg
+                    is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+                    is MedicationDose.PatchTotalMg -> dose.valueMg
+                    else -> null
+                },
+                doseValuePercent = when (dose) {
+                    is MedicationDose.GelPercentAndWeight -> dose.percent
+                    else -> null
+                },
+                doseWeightGrams = when (dose) {
+                    is MedicationDose.GelPercentAndWeight -> dose.weightGrams
+                    else -> null
+                },
+                doseReleaseRateMcgPerDay = when (dose) {
+                    is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
+                    else -> null
+                }
             )
         }
     }
