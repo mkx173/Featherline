@@ -76,10 +76,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun updateWeeklyDayOfWeek(dayOfWeek: DayOfWeek) {
+    fun toggleWeeklyDayOfWeek(dayOfWeek: DayOfWeek) {
         _uiState.update {
             it.copy(
-                weeklyDayOfWeek = dayOfWeek,
+                weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek),
                 errorMessageRes = null
             )
         }
@@ -278,6 +278,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
                 (parsedWeeklyInterval == null || parsedWeeklyInterval <= 0) ->
                 R.string.validation_group_weekly_interval_required
+            currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
+                currentState.weeklyDaysOfWeek.isEmpty() ->
+                R.string.validation_group_weekly_days_required
             currentState.scheduleType == MedicationGroupScheduleType.DAILY &&
                 (parsedDailyInterval == null || parsedDailyInterval <= 0) ->
                 R.string.validation_group_daily_interval_required
@@ -304,7 +307,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         type = MedicationGroupScheduleType.WEEKLY,
                         interval = parsedWeeklyInterval!!,
                         since = currentState.sinceDate,
-                        weeklyDayOfWeek = currentState.weeklyDayOfWeek,
+                        weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
                         times = listOf(currentState.weeklyTime)
                     )
                     MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
@@ -408,7 +411,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 } else {
                     "1"
                 },
-                weeklyDayOfWeek = group.schedule.weeklyDayOfWeek ?: DayOfWeek.MONDAY,
+                weeklyDaysOfWeek = group.schedule.weeklyDaysOfWeek.ifEmpty {
+                    setOf(DayOfWeek.MONDAY)
+                },
                 weeklyTime = group.schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
                 dailyIntervalDays = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
                     group.schedule.interval.toString()
@@ -461,13 +466,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 }
 
+internal fun toggleWeeklyDaySelection(
+    selectedDays: Set<DayOfWeek>,
+    dayOfWeek: DayOfWeek
+): Set<DayOfWeek> {
+    return if (dayOfWeek in selectedDays) {
+        selectedDays - dayOfWeek
+    } else {
+        selectedDays + dayOfWeek
+    }
+}
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
-    val weeklyDayOfWeek: DayOfWeek = LocalDate.now().dayOfWeek,
+    val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
     val weeklyTime: LocalTime = LocalTime.of(9, 0),
     val dailyIntervalDays: String = "1",
     val dailyTimes: List<MedicationGroupScheduleTimeUiState> = listOf(

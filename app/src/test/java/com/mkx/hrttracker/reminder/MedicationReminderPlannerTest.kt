@@ -115,6 +115,43 @@ class MedicationReminderPlannerTest {
         assertEquals(emptyList<MedicationReminderPlan>(), plans)
     }
 
+    @Test
+    fun buildNextMedicationReminderPlans_uses_next_selected_weekday_for_weekly_multi_day_group() {
+        val group = MedicationGroup(
+            uuid = UUID.fromString("548ee741-c2db-4126-a79d-a761131f8be9"),
+            name = "Twice weekly estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 14),
+                weeklyDaysOfWeek = setOf(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.THURSDAY),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("56f1a6b4-dcdb-448b-8f08-9cb5746206d5"),
+                    routeOfAdministration = RouteOfAdministration.ORAL,
+                    medicineName = "Estradiol",
+                    dosageMgAsMedicine = 2.0
+                )
+            ),
+            notificationsEnabled = true,
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 21, 8, 0)
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 23, 9, 0)),
+            plans.map { it.scheduledAt }
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         name: String,

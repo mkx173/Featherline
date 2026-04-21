@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
+import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -120,7 +121,15 @@ class MedicationGroupRepository @Inject constructor(
                     hourOfDay = time.hour,
                     minuteOfHour = time.minute
                 )
-            }
+            },
+            weeklyDays = schedule.weeklyDaysOfWeek
+                .sortedBy { it.value }
+                .map { dayOfWeek ->
+                    MedicationGroupWeeklyDayEntity(
+                        groupUuid = groupUuid.toString(),
+                        dayOfWeek = dayOfWeek.value
+                    )
+                }
         )
 
         return groupUuid
@@ -134,7 +143,12 @@ class MedicationGroupRepository @Inject constructor(
                 type = MedicationGroupScheduleType.fromStorageValue(group.scheduleType),
                 interval = group.scheduleInterval,
                 since = LocalDate.ofEpochDay(group.scheduleSinceEpochDay),
-                weeklyDayOfWeek = group.weeklyDayOfWeek?.let(DayOfWeek::of),
+                weeklyDaysOfWeek = weeklyDays
+                    .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
+                    .toSet()
+                    .ifEmpty {
+                        group.weeklyDayOfWeek?.let(DayOfWeek::of)?.let(::setOf).orEmpty()
+                    },
                 times = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder).map { time ->
                     LocalTime.of(time.hourOfDay, time.minuteOfHour)
                 }
@@ -165,6 +179,23 @@ data class MedicationGroupScheduleInput(
     val type: MedicationGroupScheduleType,
     val interval: Int,
     val since: LocalDate,
-    val weeklyDayOfWeek: DayOfWeek?,
+    val weeklyDaysOfWeek: Set<DayOfWeek>,
     val times: List<LocalTime>,
-)
+) {
+    constructor(
+        type: MedicationGroupScheduleType,
+        interval: Int,
+        since: LocalDate,
+        weeklyDayOfWeek: DayOfWeek?,
+        times: List<LocalTime>,
+    ) : this(
+        type = type,
+        interval = interval,
+        since = since,
+        weeklyDaysOfWeek = weeklyDayOfWeek?.let(::setOf).orEmpty(),
+        times = times,
+    )
+
+    val weeklyDayOfWeek: DayOfWeek?
+        get() = weeklyDaysOfWeek.sortedBy { it.value }.firstOrNull()
+}

@@ -16,7 +16,11 @@ fun MedicationGroupSchedule.formatSummary(
 
     return when (type) {
         MedicationGroupScheduleType.WEEKLY -> {
-            val dayLabel = weeklyDayOfWeek?.getDisplayName(TextStyle.FULL, locale).orEmpty()
+            val dayLabel = weeklyDaysOfWeek
+                .sortedBy { it.value }
+                .joinToString(separator = ", ") { dayOfWeek ->
+                    dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
+                }
             "$weeklyLabel $interval • $dayLabel • $formattedTimes"
         }
         MedicationGroupScheduleType.DAILY -> {

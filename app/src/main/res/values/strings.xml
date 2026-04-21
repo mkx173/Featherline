@@ -99,6 +99,7 @@
     <string name="group_schedule_every_days">Every x days</string>
     <string name="group_schedule_since">Since</string>
     <string name="group_schedule_day_of_week">Day of week</string>
+    <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>
     <string name="group_schedule_time_item">At %1$s</string>
@@ -136,6 +137,7 @@
     <string name="validation_dose_required">Enter a valid dosage in mg.</string>
     <string name="validation_group_name_required">Enter a group name.</string>
     <string name="validation_group_weekly_interval_required">Enter a valid weekly interval.</string>
+    <string name="validation_group_weekly_days_required">Select at least one day of week.</string>
     <string name="validation_group_daily_interval_required">Enter a valid daily interval.</string>
     <string name="validation_group_daily_times_required">Add at least one daily time.</string>
     <string name="validation_group_medications_required">Add at least one medication.</string>

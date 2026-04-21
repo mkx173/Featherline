@@ -99,6 +99,7 @@
     <string name="group_schedule_every_days">每 x 天一次</string>
     <string name="group_schedule_since">开始于</string>
     <string name="group_schedule_day_of_week">星期</string>
+    <string name="group_schedule_days_of_week">星期选择</string>
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>
     <string name="group_schedule_time_item">%1$s</string>
@@ -136,6 +137,7 @@
     <string name="validation_dose_required">请输入有效的 mg 剂量。</string>
     <string name="validation_group_name_required">请输入分组名称。</string>
     <string name="validation_group_weekly_interval_required">请输入有效的每周间隔。</string>
+    <string name="validation_group_weekly_days_required">请至少选择一天。</string>
     <string name="validation_group_daily_interval_required">请输入有效的每日间隔。</string>
     <string name="validation_group_daily_times_required">请至少添加一个每日时间。</string>
     <string name="validation_group_medications_required">请至少添加一种药物。</string>

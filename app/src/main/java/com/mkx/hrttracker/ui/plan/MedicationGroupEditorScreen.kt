@@ -247,7 +247,7 @@ fun MedicationGroupEditorScreen(
         notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
-        onWeeklyDayChange = viewModel::updateWeeklyDayOfWeek,
+        onWeeklyDayChange = viewModel::toggleWeeklyDayOfWeek,
         onWeeklyTimeChange = viewModel::updateWeeklyTime,
         onDailyIntervalChange = viewModel::updateDailyIntervalDays,
         onAddDailyTime = viewModel::addDailyTime,
@@ -456,7 +456,7 @@ private fun MedicationGroupEditorScreenContent(
                         WeeklyScheduleEditor(
                             sinceDate = uiState.sinceDate,
                             intervalWeeks = uiState.weeklyIntervalWeeks,
-                            dayOfWeek = uiState.weeklyDayOfWeek,
+                            selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
                             time = uiState.weeklyTime,
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
@@ -708,7 +708,7 @@ private fun MedicationGroupEditorScreenContent(
 private fun WeeklyScheduleEditor(
     sinceDate: LocalDate,
     intervalWeeks: String,
-    dayOfWeek: DayOfWeek,
+    selectedDaysOfWeek: Set<DayOfWeek>,
     time: LocalTime,
     appLocale: java.util.Locale,
     dateFormatter: DateTimeFormatter,
@@ -741,7 +741,7 @@ private fun WeeklyScheduleEditor(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = stringResource(R.string.group_schedule_day_of_week),
+                text = stringResource(R.string.group_schedule_days_of_week),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -752,7 +752,7 @@ private fun WeeklyScheduleEditor(
                 DayOfWeek.entries.forEach { weekday ->
                     WeeklyDayChip(
                         label = weekday.getDisplayName(TextStyle.NARROW, appLocale),
-                        selected = weekday == dayOfWeek,
+                        selected = weekday in selectedDaysOfWeek,
                         onClick = { onDayChange(weekday) }
                     )
                 }

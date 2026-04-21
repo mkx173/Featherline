@@ -55,7 +55,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
-            .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .build()
     }
 
@@ -84,6 +84,35 @@ class DatabaseHolder @Inject constructor(
                         weightOriginalUnit TEXT,
                         updatedAtEpochMillis INTEGER NOT NULL
                     )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS medication_group_weekly_days (
+                        groupUuid TEXT NOT NULL,
+                        dayOfWeek INTEGER NOT NULL,
+                        PRIMARY KEY(groupUuid, dayOfWeek),
+                        FOREIGN KEY(groupUuid) REFERENCES medication_groups(uuid) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS index_medication_group_weekly_days_groupUuid
+                    ON medication_group_weekly_days(groupUuid)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO medication_group_weekly_days(groupUuid, dayOfWeek)
+                    SELECT uuid, weeklyDayOfWeek
+                    FROM medication_groups
+                    WHERE weeklyDayOfWeek IS NOT NULL
                     """.trimIndent()
                 )
             }

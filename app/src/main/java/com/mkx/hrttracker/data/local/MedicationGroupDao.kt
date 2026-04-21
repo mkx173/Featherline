@@ -56,11 +56,22 @@ interface MedicationGroupDao {
     )
     suspend fun deleteScheduleTimesForGroup(groupUuid: String)
 
+    @Query(
+        """
+        DELETE FROM medication_group_weekly_days
+        WHERE groupUuid = :groupUuid
+        """
+    )
+    suspend fun deleteWeeklyDaysForGroup(groupUuid: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItems(items: List<MedicationGroupItemEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertScheduleTimes(scheduleTimes: List<MedicationGroupScheduleTimeEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWeeklyDays(weeklyDays: List<MedicationGroupWeeklyDayEntity>)
 
     @Query(
         """
@@ -74,16 +85,21 @@ interface MedicationGroupDao {
     suspend fun upsertGroupWithItems(
         group: MedicationGroupEntity,
         items: List<MedicationGroupItemEntity>,
-        scheduleTimes: List<MedicationGroupScheduleTimeEntity>
+        scheduleTimes: List<MedicationGroupScheduleTimeEntity>,
+        weeklyDays: List<MedicationGroupWeeklyDayEntity>
     ) {
         insertGroup(group)
         deleteItemsForGroup(group.uuid)
         deleteScheduleTimesForGroup(group.uuid)
+        deleteWeeklyDaysForGroup(group.uuid)
         if (items.isNotEmpty()) {
             insertItems(items)
         }
         if (scheduleTimes.isNotEmpty()) {
             insertScheduleTimes(scheduleTimes)
+        }
+        if (weeklyDays.isNotEmpty()) {
+            insertWeeklyDays(weeklyDays)
         }
     }
 }

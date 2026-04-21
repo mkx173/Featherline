@@ -61,6 +61,24 @@ data class MedicationGroupScheduleTimeEntity(
     val minuteOfHour: Int,
 )
 
+@Entity(
+    tableName = "medication_group_weekly_days",
+    primaryKeys = ["groupUuid", "dayOfWeek"],
+    foreignKeys = [
+        ForeignKey(
+            entity = MedicationGroupEntity::class,
+            parentColumns = ["uuid"],
+            childColumns = ["groupUuid"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("groupUuid")]
+)
+data class MedicationGroupWeeklyDayEntity(
+    val groupUuid: String,
+    val dayOfWeek: Int,
+)
+
 data class MedicationGroupWithItemsEntity(
     @Embedded val group: MedicationGroupEntity,
     @Relation(
@@ -73,4 +91,9 @@ data class MedicationGroupWithItemsEntity(
         entityColumn = "groupUuid"
     )
     val scheduleTimes: List<MedicationGroupScheduleTimeEntity>,
+    @Relation(
+        parentColumn = "uuid",
+        entityColumn = "groupUuid"
+    )
+    val weeklyDays: List<MedicationGroupWeeklyDayEntity>,
 )

@@ -14,11 +14,13 @@ fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
                 ChronoUnit.DAYS.between(since, date) % normalizedInterval.toLong() == 0L
         }
         MedicationGroupScheduleType.WEEKLY -> {
-            val scheduledDayOfWeek = weeklyDayOfWeek ?: return false
-            val firstScheduledDate = since.with(TemporalAdjusters.nextOrSame(scheduledDayOfWeek))
+            val scheduledDaysOfWeek = weeklyDaysOfWeek
+            if (scheduledDaysOfWeek.isEmpty() || date.dayOfWeek !in scheduledDaysOfWeek) {
+                return false
+            }
+            val firstScheduledDate = since.with(TemporalAdjusters.nextOrSame(date.dayOfWeek))
 
             !date.isBefore(firstScheduledDate) &&
-                date.dayOfWeek == scheduledDayOfWeek &&
                 ChronoUnit.WEEKS.between(firstScheduledDate, date) % normalizedInterval.toLong() == 0L
         }
     }
