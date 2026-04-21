@@ -74,6 +74,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.kizitonwose.calendar)
+    implementation(libs.ehsannarmani.compose.charts)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

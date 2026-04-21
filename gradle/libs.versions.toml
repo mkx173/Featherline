@@ -22,6 +22,7 @@ sqlcipherAndroid = "4.14.1"
 kizitonwose-calendar = "2.10.1"
 mockk = "1.14.6"
 coroutinesTest = "1.10.2"
+ehsannarmani-compose-charts = "0.2.5"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -55,6 +56,7 @@ hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt"
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipherAndroid" }
 kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
+ehsannarmani-compose-charts = { module = "io.github.ehsannarmani:compose-charts", version.ref = "ehsannarmani-compose-charts"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
