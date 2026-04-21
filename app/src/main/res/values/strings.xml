@@ -202,6 +202,12 @@
     <string name="medication_application_gel">Gel</string>
     <string name="medication_application_patch_on">Patch on</string>
     <string name="medication_application_patch_off">Patch off</string>
+    <string name="medication_application_badge_oral">PO</string>
+    <string name="medication_application_badge_sublingual">SL</string>
+    <string name="medication_application_badge_injection">INJ</string>
+    <string name="medication_application_badge_gel">GEL</string>
+    <string name="medication_application_badge_patch_on">P+</string>
+    <string name="medication_application_badge_patch_off">P-</string>
     <string name="medication_name_estradiol">Estradiol</string>
     <string name="medication_name_estradiol_valerate">Estradiol valerate</string>
     <string name="medication_name_estradiol_benzoate">Estradiol benzoate</string>

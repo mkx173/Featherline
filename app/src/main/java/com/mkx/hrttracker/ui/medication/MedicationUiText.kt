@@ -64,13 +64,18 @@ fun medicationSummary(details: MedicationDetails): String {
     }
 }
 
-fun applicationTypeBadgeLabel(applicationType: MedicationApplicationType): String {
+fun applicationTypeBadgeLabelRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
-        MedicationApplicationType.ORAL -> "PO"
-        MedicationApplicationType.SUBLINGUAL -> "SL"
-        MedicationApplicationType.INJECTION -> "INJ"
-        MedicationApplicationType.GEL -> "GEL"
-        MedicationApplicationType.PATCH_ON -> "P+"
-        MedicationApplicationType.PATCH_OFF -> "P-"
+        MedicationApplicationType.ORAL -> R.string.medication_application_badge_oral
+        MedicationApplicationType.SUBLINGUAL -> R.string.medication_application_badge_sublingual
+        MedicationApplicationType.INJECTION -> R.string.medication_application_badge_injection
+        MedicationApplicationType.GEL -> R.string.medication_application_badge_gel
+        MedicationApplicationType.PATCH_ON -> R.string.medication_application_badge_patch_on
+        MedicationApplicationType.PATCH_OFF -> R.string.medication_application_badge_patch_off
     }
+}
+
+@Composable
+fun applicationTypeBadgeLabel(applicationType: MedicationApplicationType): String {
+    return stringResource(applicationTypeBadgeLabelRes(applicationType))
 }

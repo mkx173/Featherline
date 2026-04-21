@@ -202,6 +202,12 @@
     <string name="medication_application_gel">凝胶</string>
     <string name="medication_application_patch_on">贴片贴上</string>
     <string name="medication_application_patch_off">贴片取下</string>
+    <string name="medication_application_badge_oral">口服</string>
+    <string name="medication_application_badge_sublingual">舌下</string>
+    <string name="medication_application_badge_injection">注射</string>
+    <string name="medication_application_badge_gel">凝胶</string>
+    <string name="medication_application_badge_patch_on">贴上</string>
+    <string name="medication_application_badge_patch_off">取下</string>
     <string name="medication_name_estradiol">雌二醇</string>
     <string name="medication_name_estradiol_valerate">戊酸雌二醇</string>
     <string name="medication_name_estradiol_benzoate">苯甲酸雌二醇</string>
