@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -52,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.dimensionResource
@@ -67,6 +71,8 @@ import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.RouteOfAdministration
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -293,40 +299,17 @@ private fun PlanScreenContent(
                     )
                 }
 
-                item(key = "groups-title") {
-                    Text(
-                        text = stringResource(R.string.tab_plan),
-                        style = MaterialTheme.typography.titleMedium
+                item(key = "regimen-section") {
+                    RegimenSection(
+                        groups = uiState.medicationGroups,
+                        remindersEnabled = uiState.remindersEnabled,
+                        appLocale = appLocale,
+                        dateFormatter = dateFormatter,
+                        timeFormatter = timeFormatter,
+                        nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
+                        today = uiState.today,
+                        onGroupClick = onGroupClick
                     )
-                }
-
-                if (uiState.medicationGroups.isEmpty()) {
-                    item(key = "groups-empty") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = dimensionResource(R.dimen.padding_large)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = stringResource(R.string.plan_empty_state))
-                        }
-                    }
-                } else {
-                    items(
-                        items = uiState.medicationGroups,
-                        key = { it.uuid }
-                    ) { group ->
-                        MedicationGroupCard(
-                            group = group,
-                            remindersEnabled = uiState.remindersEnabled,
-                            appLocale = appLocale,
-                            dateFormatter = dateFormatter,
-                            timeFormatter = timeFormatter,
-                            upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
-                            today = uiState.today,
-                            onClick = { onGroupClick(group.uuid) }
-                        )
-                    }
                 }
             }
         }
@@ -949,7 +932,85 @@ private fun PlanScheduleEntryCard(
 }
 
 @Composable
-private fun MedicationGroupCard(
+@OptIn(ExperimentalLayoutApi::class)
+private fun RegimenSection(
+    groups: List<MedicationGroup>,
+    remindersEnabled: Boolean,
+    appLocale: Locale,
+    dateFormatter: DateTimeFormatter,
+    timeFormatter: DateTimeFormatter,
+    nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>>,
+    today: LocalDate,
+    onGroupClick: (UUID) -> Unit
+) {
+    val dailyCount = remember(groups) {
+        groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
+    }
+    val weeklyCount = groups.size - dailyCount
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.plan_regimen_title),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(
+                    R.string.plan_regimen_summary,
+                    groups.size,
+                    dailyCount,
+                    weeklyCount
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (groups.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = dimensionResource(R.dimen.padding_large)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.plan_empty_state),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                groups.forEach { group ->
+                    RegimenGroupCard(
+                        group = group,
+                        remindersEnabled = remindersEnabled,
+                        appLocale = appLocale,
+                        dateFormatter = dateFormatter,
+                        timeFormatter = timeFormatter,
+                        upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
+                        today = today,
+                        onClick = { onGroupClick(group.uuid) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun RegimenGroupCard(
     group: MedicationGroup,
     remindersEnabled: Boolean,
     appLocale: Locale,
@@ -959,122 +1020,246 @@ private fun MedicationGroupCard(
     today: LocalDate,
     onClick: () -> Unit
 ) {
-    ListItem(
+    val accent = regimenAccent(group)
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        overlineContent = {
-            Text(
-                text = pluralStringResource(
-                    R.plurals.plan_group_medication_count,
-                    group.medications.size,
-                    group.medications.size
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(24.dp)
                 )
-            )
-        },
-        headlineContent = {
-            Text(text = group.name)
-        },
-        trailingContent = {
-            if (remindersEnabled) {
-                val notificationsEnabled = group.notificationsEnabled
-                Icon(
-                    imageVector = if (notificationsEnabled) {
-                        Icons.Default.Notifications
-                    } else {
-                        Icons.Default.NotificationsOff
-                    },
-                    contentDescription = stringResource(
-                        if (notificationsEnabled) {
-                            R.string.plan_group_notifications_enabled
-                        } else {
-                            R.string.plan_group_notifications_disabled
-                        }
-                    ),
-                    tint = if (notificationsEnabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-        },
-        supportingContent = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = group.schedule.formatSummary(
-                        locale = appLocale,
-                        timeFormatter = timeFormatter,
-                        dailyLabel = stringResource(
-                            R.string.group_schedule_daily_summary,
-                            group.schedule.interval
-                        ),
-                        weeklyLabel = stringResource(
-                            R.string.group_schedule_weekly_summary,
-                            group.schedule.interval
+                Box(
+                    modifier = Modifier
+                        .size(width = 6.dp, height = 40.dp)
+                        .background(
+                            color = accent.accentColor,
+                            shape = RoundedCornerShape(3.dp)
                         )
-                    ),
-                    style = MaterialTheme.typography.bodySmall
                 )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = group.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = group.schedule.formatSummary(
+                                locale = appLocale,
+                                timeFormatter = timeFormatter,
+                                dailyLabel = stringResource(
+                                    R.string.group_schedule_daily_summary,
+                                    group.schedule.interval
+                                ),
+                                weeklyLabel = stringResource(
+                                    R.string.group_schedule_weekly_summary,
+                                    group.schedule.interval
+                                )
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (remindersEnabled) {
+                        val notificationsEnabled = group.notificationsEnabled
+                        Icon(
+                            imageVector = if (notificationsEnabled) {
+                                Icons.Default.Notifications
+                            } else {
+                                Icons.Default.NotificationsOff
+                            },
+                            contentDescription = stringResource(
+                                if (notificationsEnabled) {
+                                    R.string.plan_group_notifications_enabled
+                                } else {
+                                    R.string.plan_group_notifications_disabled
+                                }
+                            ),
+                            tint = if (notificationsEnabled) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                group.medications.forEach { medication ->
+                    RegimenMedicationChip(
+                        accent = accent,
+                        medicationName = medication.medicineName,
+                        doseLabel = "${medication.dosageMgAsMedicine.formatDose(appLocale)} mg",
+                        route = medication.routeOfAdministration
+                    )
+                }
+            }
+
+            DashedDivider()
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = stringResource(
-                        R.string.group_schedule_since_summary,
-                        group.schedule.since.format(dateFormatter)
-                    ),
-                    style = MaterialTheme.typography.bodySmall
+                    text = stringResource(R.string.plan_group_upcoming_title),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                group.medications.take(3).forEach { medication ->
-                    Text(
-                        text = stringResource(
-                            R.string.plan_group_medication_summary,
-                            medication.medicineName,
-                            medication.dosageMgAsMedicine.formatDose(appLocale),
-                            stringResource(medication.routeOfAdministration.labelRes)
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                val hiddenMedicationCount = group.medications.size - 3
-                if (hiddenMedicationCount > 0) {
-                    Text(
-                        text = stringResource(
-                            R.string.plan_group_more_medications,
-                            hiddenMedicationCount
-                        ),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                if (upcomingOccurrences.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.plan_group_upcoming_title),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    upcomingOccurrences.forEach { occurrence ->
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    upcomingOccurrences.forEachIndexed { index, occurrence ->
                         val dayLabel = when (occurrence.toLocalDate()) {
                             today -> stringResource(R.string.plan_group_upcoming_today)
                             today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
                             else -> occurrence.toLocalDate().format(dateFormatter)
                         }
-                        Text(
-                            text = stringResource(
-                                R.string.plan_group_upcoming_format,
-                                dayLabel,
-                                occurrence.toLocalTime().format(timeFormatter)
-                            ),
-                            style = MaterialTheme.typography.bodySmall
+                        UpcomingOccurrenceChip(
+                            label = dayLabel,
+                            time = occurrence.toLocalTime().format(timeFormatter),
+                            emphasized = index == 0
                         )
                     }
                 }
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun RegimenMedicationChip(
+    accent: RegimenAccent,
+    medicationName: String,
+    doseLabel: String,
+    route: RouteOfAdministration
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = accent.containerColor,
+        contentColor = accent.contentColor
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = Color.White.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(6.dp)
+                    )
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    text = routeChipLabel(route),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent.contentColor
+                )
+            }
+            Text(
+                text = medicationName,
+                style = MaterialTheme.typography.labelMedium
+            )
+            Text(
+                text = "· $doseLabel",
+                style = MaterialTheme.typography.labelMedium,
+                color = accent.contentColor.copy(alpha = 0.75f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpcomingOccurrenceChip(
+    label: String,
+    time: String,
+    emphasized: Boolean
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (emphasized) {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        }
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashedDivider() {
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+    ) {
+        drawLine(
+            color = dividerColor,
+            start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
+            end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+        )
+    }
 }
 
 private sealed interface SelectedDayRowModel {
@@ -1097,6 +1282,49 @@ private enum class ScheduledDayRowState {
     DUE,
     MISSED,
     PLANNED,
+}
+
+private data class RegimenAccent(
+    val accentColor: Color,
+    val containerColor: Color,
+    val contentColor: Color,
+)
+
+@Composable
+private fun regimenAccent(group: MedicationGroup): RegimenAccent {
+    val route = group.medications.firstOrNull()?.routeOfAdministration
+    return when (route) {
+        RouteOfAdministration.INTRAMUSCULAR,
+        RouteOfAdministration.SUBCUTANEOUS -> RegimenAccent(
+            accentColor = MaterialTheme.colorScheme.primary,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        RouteOfAdministration.ORAL,
+        RouteOfAdministration.SUBLINGUAL -> RegimenAccent(
+            accentColor = MaterialTheme.colorScheme.tertiary,
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        )
+        else -> RegimenAccent(
+            accentColor = MaterialTheme.colorScheme.secondary,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun routeChipLabel(route: RouteOfAdministration): String {
+    return when (route) {
+        RouteOfAdministration.INTRAMUSCULAR -> "IM"
+        RouteOfAdministration.SUBCUTANEOUS -> "SC"
+        RouteOfAdministration.SUBLINGUAL -> "SL"
+        RouteOfAdministration.TRANSDERMAL -> "TD"
+        RouteOfAdministration.ORAL -> stringResource(R.string.route_oral)
+        RouteOfAdministration.TOPICAL -> stringResource(R.string.route_topical)
+        RouteOfAdministration.OTHER -> stringResource(R.string.route_other)
+    }
 }
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")

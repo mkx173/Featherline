@@ -52,6 +52,8 @@
     <string name="plan_group_upcoming_tomorrow">Tomorrow</string>
     <string name="plan_group_notifications_enabled">Dose reminders are on for this group</string>
     <string name="plan_group_notifications_disabled">Dose reminders are currently off for this group</string>
+    <string name="plan_regimen_title">Regimen</string>
+    <string name="plan_regimen_summary">%1$d groups · %2$d daily · %3$d weekly</string>
     <string name="plan_open_history">Open history</string>
     <string name="plan_more_options">More options</string>
     <string name="plan_previous_week">Previous week</string>
