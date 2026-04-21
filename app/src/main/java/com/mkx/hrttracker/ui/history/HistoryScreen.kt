@@ -94,7 +94,7 @@ import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
@@ -1060,7 +1060,7 @@ private fun HistoryEntryCard(
     val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
         historySourceVisual(entry.sourceType, entry.scheduledFor != null)
     }
-    val groupPalette = medicationGroupPaletteColors(groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
         entry = entry,
         groupName = groupName
@@ -1124,14 +1124,14 @@ private fun HistoryEntryCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = groupPalette.container
+                        color = groupColorScheme.primaryContainer
                     ) {
                         Text(
                             text = stringResource(entry.details.applicationType.labelRes),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = groupPalette.onContainer,
+                            color = groupColorScheme.onPrimaryContainer,
                             maxLines = 1
                         )
                     }

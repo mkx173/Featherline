@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -88,7 +89,6 @@ import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
-import com.mkx.hrttracker.ui.theme.MedicationGroupPaletteColors
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.Instant
@@ -105,8 +105,8 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 @Composable
 fun PlanScreen(
@@ -585,7 +585,7 @@ private fun ScheduledDayRow(
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
-    val groupPalette = medicationGroupPaletteColors(entry.groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(entry.groupColorKey)
     val rowState = when {
         entry.isFulfilled -> ScheduledDayRowState.LOGGED
         entry.isDueSoon -> ScheduledDayRowState.DUE
@@ -625,7 +625,7 @@ private fun ScheduledDayRow(
             modifier = Modifier
                 .size(width = 4.dp, height = 40.dp)
                 .background(
-                    color = groupPalette.accent,
+                    color = groupColorScheme.primary,
                     shape = RoundedCornerShape(3.dp)
                 )
         )
@@ -1035,7 +1035,7 @@ private fun RegimenGroupCard(
     today: LocalDate,
     onClick: () -> Unit
 ) {
-    val groupPalette = medicationGroupPaletteColors(group.colorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
 
     Surface(
         modifier = Modifier
@@ -1064,7 +1064,7 @@ private fun RegimenGroupCard(
                     modifier = Modifier
                         .size(width = 6.dp, height = 40.dp)
                         .background(
-                            color = groupPalette.accent,
+                            color = groupColorScheme.primary,
                             shape = RoundedCornerShape(3.dp)
                         )
                 )
@@ -1146,7 +1146,7 @@ private fun RegimenGroupCard(
             ) {
                 group.medications.forEach { medication ->
                     RegimenMedicationChip(
-                        palette = groupPalette,
+                        groupColorScheme = groupColorScheme,
                         medicationName = medicationDisplayName(medication.details),
                         doseLabel = medicationDoseText(medication.details),
                         applicationType = medication.details.applicationType
@@ -1186,15 +1186,15 @@ private fun RegimenGroupCard(
 
 @Composable
 private fun RegimenMedicationChip(
-    palette: MedicationGroupPaletteColors,
+    groupColorScheme: ColorScheme,
     medicationName: String,
     doseLabel: String?,
     applicationType: MedicationApplicationType
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = palette.container,
-        contentColor = palette.onContainer
+        color = groupColorScheme.primaryContainer,
+        contentColor = groupColorScheme.onPrimaryContainer
     ) {
         Row(
             modifier = Modifier.padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
@@ -1204,7 +1204,7 @@ private fun RegimenMedicationChip(
             Box(
                 modifier = Modifier
                     .background(
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = groupColorScheme.surfaceContainerLow,
                         shape = RoundedCornerShape(6.dp)
                     )
                     .padding(horizontal = 5.dp, vertical = 1.dp)
@@ -1212,7 +1212,7 @@ private fun RegimenMedicationChip(
                 Text(
                     text = applicationTypeBadgeLabel(applicationType),
                     style = MaterialTheme.typography.labelSmall,
-                    color = palette.onContainer
+                    color = groupColorScheme.onPrimaryContainer
                 )
             }
             Text(
@@ -1223,7 +1223,7 @@ private fun RegimenMedicationChip(
                 Text(
                     text = "· $doseLabel",
                     style = MaterialTheme.typography.labelMedium,
-                    color = palette.onContainer.copy(alpha = 0.75f)
+                    color = groupColorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                 )
             }
         }

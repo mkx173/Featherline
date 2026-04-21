@@ -50,7 +50,7 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalTime
@@ -238,7 +238,7 @@ private fun QuickAddMedicationGroupSheetHeader(
     onCloseClick: () -> Unit,
     onChangeGroupClick: () -> Unit
 ) {
-    val groupPalette = medicationGroupPaletteColors(selectedGroup?.colorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(selectedGroup?.colorKey)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
@@ -260,7 +260,7 @@ private fun QuickAddMedicationGroupSheetHeader(
                     modifier = Modifier
                         .size(12.dp)
                         .background(
-                            color = groupPalette.accent,
+                            color = groupColorScheme.primary,
                             shape = androidx.compose.foundation.shape.CircleShape
                         )
                 )
@@ -283,7 +283,7 @@ private fun MedicationGroupSelectionRow(
     appLocale: Locale,
     onClick: () -> Unit
 ) {
-    val groupPalette = medicationGroupPaletteColors(group.colorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
@@ -293,7 +293,7 @@ private fun MedicationGroupSelectionRow(
                 modifier = Modifier
                     .size(width = 8.dp, height = 36.dp)
                     .background(
-                        color = groupPalette.accent,
+                        color = groupColorScheme.primary,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     )
             )

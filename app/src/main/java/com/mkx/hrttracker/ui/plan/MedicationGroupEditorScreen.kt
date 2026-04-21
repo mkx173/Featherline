@@ -111,7 +111,7 @@ import com.mkx.hrttracker.ui.medication.changeSelectionKind
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -908,7 +908,7 @@ private fun MedicationGroupMedicationCard(
     onClick: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
-    val groupPalette = medicationGroupPaletteColors(groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -926,8 +926,8 @@ private fun MedicationGroupMedicationCard(
         ) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = groupPalette.container,
-                contentColor = groupPalette.onContainer
+                color = groupColorScheme.primaryContainer,
+                contentColor = groupColorScheme.onPrimaryContainer
             ) {
                 Text(
                     text = applicationTypeBadgeLabel(medication.details.applicationType),

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,8 +45,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
-import com.mkx.hrttracker.ui.theme.MedicationGroupPaletteColors
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -205,7 +205,7 @@ private fun MainTodayDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.primaryMedicationDetails()
-    val groupPalette = medicationGroupPaletteColors(row.groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val rowColors = todayRowColors(mainTodayRowTone(row.status))
     val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
     val supportingText = supportingText(
@@ -248,7 +248,7 @@ private fun MainTodayDoseRow(
                     .fillMaxHeight()
                     .width(4.dp)
                     .clip(MaterialTheme.shapes.small)
-                    .background(groupPalette.accent)
+                    .background(groupColorScheme.primary)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -264,7 +264,7 @@ private fun MainTodayDoseRow(
                     details?.let {
                         MainApplicationBadge(
                             label = applicationTypeBadgeLabel(it.applicationType),
-                            palette = groupPalette
+                            groupColorScheme = groupColorScheme
                         )
                     }
 
@@ -331,7 +331,7 @@ private fun MainUpcomingDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.primaryMedicationDetails()
-    val groupPalette = medicationGroupPaletteColors(row.groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
     val supportingText = supportingText(
         details = details,
@@ -364,7 +364,7 @@ private fun MainUpcomingDoseRow(
                 details?.let {
                     MainApplicationBadge(
                         label = applicationTypeBadgeLabel(it.applicationType),
-                        palette = groupPalette
+                        groupColorScheme = groupColorScheme
                     )
                 }
 
@@ -394,20 +394,20 @@ private fun MainUpcomingDoseRow(
 @Composable
 private fun MainApplicationBadge(
     label: String,
-    palette: MedicationGroupPaletteColors,
+    groupColorScheme: ColorScheme,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier.wrapContentWidth(),
         shape = MaterialTheme.shapes.extraSmall,
-        color = palette.container
+        color = groupColorScheme.primaryContainer
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = palette.onContainer,
+            color = groupColorScheme.onPrimaryContainer,
             letterSpacing = 0.6.sp,
             maxLines = 1
         )

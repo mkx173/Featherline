@@ -39,7 +39,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
-import com.mkx.hrttracker.ui.theme.medicationGroupPaletteColors
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -117,7 +117,7 @@ private fun QuickLogPlannedDoseSheetContent(
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
     val today = remember { LocalDate.now() }
-    val groupPalette = medicationGroupPaletteColors(uiState.group?.colorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(uiState.group?.colorKey)
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -151,7 +151,7 @@ private fun QuickLogPlannedDoseSheetContent(
                             modifier = Modifier
                                 .size(12.dp)
                                 .background(
-                                    color = groupPalette.accent,
+                                    color = groupColorScheme.primary,
                                     shape = androidx.compose.foundation.shape.CircleShape
                                 )
                         )

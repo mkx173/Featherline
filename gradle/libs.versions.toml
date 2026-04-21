@@ -23,6 +23,7 @@ kizitonwose-calendar = "2.10.1"
 mockk = "1.14.6"
 coroutinesTest = "1.10.2"
 ehsannarmani-compose-charts = "0.2.5"
+material-kolor = "4.1.1"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -57,6 +58,7 @@ hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hil
 sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipherAndroid" }
 kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
 ehsannarmani-compose-charts = { module = "io.github.ehsannarmani:compose-charts", version.ref = "ehsannarmani-compose-charts"}
+material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "material-kolor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

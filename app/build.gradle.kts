@@ -75,6 +75,7 @@ dependencies {
 
     implementation(libs.kizitonwose.calendar)
     implementation(libs.ehsannarmani.compose.charts)
+    implementation(libs.material.kolor)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
