@@ -63,6 +63,7 @@
     <string name="plan_week_next">下一周</string>
     <string name="history_empty_state">暂无 HRT 记录。</string>
     <string name="history_month_empty_state">这个月暂无 HRT 记录。</string>
+    <string name="history_month_entries_title">%1$s 记录</string>
     <string name="history_selected_day_records_title">%1$s 的记录</string>
     <string name="history_selected_day_empty_state">这一天暂无 HRT 记录。</string>
     <string name="history_clear_selection">清除选择</string>
@@ -71,6 +72,7 @@
     <string name="history_summary_on_track">达标</string>
     <string name="history_summary_partial">部分完成</string>
     <string name="history_summary_missed">遗漏</string>
+    <string name="history_legend_unplanned">未计划</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
     <string name="history_entry_source_manual">手动记录</string>
     <string name="history_entry_source_group_manual">来自用药分组的记录</string>
