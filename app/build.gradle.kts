@@ -39,6 +39,9 @@ android {
     androidResources{
         generateLocaleConfig = true
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin {
@@ -73,6 +76,8 @@ dependencies {
     implementation(libs.kizitonwose.calendar)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

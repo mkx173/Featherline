@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
 import android.Manifest
-import android.app.AlarmManager
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
@@ -38,6 +37,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,12 +61,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.log.MedicationEditorSheet
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -85,11 +90,24 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val hasNotificationAccess = canPostNotifications(context)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     val notificationPermissionDeniedMessage =
         stringResource(R.string.group_notifications_permission_denied)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotificationAccess = canPostNotifications(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
@@ -101,6 +119,7 @@ fun MedicationGroupEditorScreen(
     ) { isGranted ->
         if (isGranted) {
             viewModel.updateNotificationsEnabled(true)
+            hasNotificationAccess = canPostNotifications(context)
             if (canScheduleExactAlarms(context)) {
                 showInexactReminderWarning = false
             } else {
@@ -108,6 +127,7 @@ fun MedicationGroupEditorScreen(
             }
         } else {
             viewModel.updateNotificationsEnabled(false)
+            hasNotificationAccess = false
             Toast.makeText(context, notificationPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
         }
     }
@@ -464,15 +484,15 @@ private fun MedicationGroupEditorScreenContent(
                             if (!uiState.remindersEnabled) {
                                 Text(
                                     text = stringResource(R.string.group_notifications_master_disabled),
-                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (showInexactReminderWarning) {
                                 Text(
                                     text = stringResource(R.string.group_notifications_inexact_warning),
-                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -538,8 +558,8 @@ private fun MedicationGroupEditorScreenContent(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !uiState.isSaving && !uiState.isDeleting,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.error,
-                            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onError
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
                         )
                     ) {
                         Icon(
@@ -747,25 +767,7 @@ private fun maybeRequestExactAlarmAccess(
         Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
         Uri.parse("package:${context.packageName}")
     )
-    launch(
-        intent
-    )
-}
-
-private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
-    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-}
-
-private fun canPostNotifications(context: android.content.Context): Boolean {
-    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-        return false
-    }
-
-    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
+    launch(intent)
 }
 
 @Composable

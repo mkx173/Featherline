@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
@@ -46,6 +45,8 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,30 +142,32 @@ fun SettingsScreen(
                 }
             )
 
+            val onRemindersEnabledChange = { enabled: Boolean ->
+                if (!enabled) {
+                    viewModel.setRemindersEnabled(false)
+                } else if (
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                    Toast.makeText(
+                        context,
+                        reminderNotificationsUnavailableMessage,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    viewModel.setRemindersEnabled(true)
+                }
+            }
+
             ListItem(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        if (settingsState.remindersEnabled) {
-                            viewModel.setRemindersEnabled(false)
-                        } else if (
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-                            Toast.makeText(
-                                context,
-                                reminderNotificationsUnavailableMessage,
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            viewModel.setRemindersEnabled(true)
-                        }
-                    },
+                    .clickable { onRemindersEnabledChange(!settingsState.remindersEnabled) },
                 headlineContent = {
                     Text(text = stringResource(R.string.settings_reminders))
                 },
@@ -191,27 +194,7 @@ fun SettingsScreen(
                 trailingContent = {
                     Switch(
                         checked = settingsState.remindersEnabled && hasNotificationAccess,
-                        onCheckedChange = { enabled ->
-                            if (!enabled) {
-                                viewModel.setRemindersEnabled(false)
-                            } else if (
-                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-                                Toast.makeText(
-                                    context,
-                                    reminderNotificationsUnavailableMessage,
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                viewModel.setRemindersEnabled(true)
-                            }
-                        }
+                        onCheckedChange = onRemindersEnabledChange
                     )
                 }
             )
@@ -399,18 +382,3 @@ fun SettingsScreen(
     }
 }
 
-private fun canPostNotifications(context: android.content.Context): Boolean {
-    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-        return false
-    }
-
-    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-}
-
-private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
-    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-}
