@@ -121,4 +121,33 @@ class MedicationEditorModelsTest {
         assertEquals(MedicationKey.ESTRADIOL, draft.medicationKey)
         assertEquals("2", draft.doseMg)
     }
+
+    @Test
+    fun from_details_trims_trailing_zero_for_single_decimal_input() {
+        val draft = medicationDraftFromDetails(
+            details = defaultMedicationDraft()
+                .copy(doseMg = "12.5")
+                .toMedicationDetails()
+        )
+
+        assertEquals("12.5", draft.doseMg)
+    }
+
+    @Test
+    fun from_details_preserves_meaningful_decimal_precision() {
+        val draft = medicationDraftFromDetails(
+            details = defaultMedicationDraft(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.GEL
+            ).changeDoseKind(
+                MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+            ).copy(
+                gelPercent = "0.06",
+                gelWeightGrams = "6.25"
+            ).toMedicationDetails()
+        )
+
+        assertEquals("0.06", draft.gelPercent)
+        assertEquals("6.25", draft.gelWeightGrams)
+    }
 }

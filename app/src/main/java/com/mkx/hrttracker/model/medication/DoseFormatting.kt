@@ -1,11 +1,17 @@
 package com.mkx.hrttracker.model.medication
 
+import java.math.BigDecimal
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 fun Double.formatDose(locale: Locale): String {
-    return if (this % 1.0 == 0.0) {
-        String.format(locale, "%.0f", this)
+    val normalized = BigDecimal.valueOf(this)
+        .stripTrailingZeros()
+        .toPlainString()
+    val decimalSeparator = DecimalFormatSymbols.getInstance(locale).decimalSeparator
+    return if (decimalSeparator == '.') {
+        normalized
     } else {
-        String.format(locale, "%.2f", this)
+        normalized.replace('.', decimalSeparator)
     }
 }

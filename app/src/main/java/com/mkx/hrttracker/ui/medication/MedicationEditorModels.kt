@@ -12,7 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import java.util.Locale
+import java.math.BigDecimal
 
 data class MedicationDraftUiState(
     val category: MedicationCategory = MedicationCategory.ESTRADIOL,
@@ -282,9 +282,7 @@ fun medicationDraftFromDetails(
 }
 
 private fun Double.toInputString(): String {
-    return if (this % 1.0 == 0.0) {
-        String.format(Locale.US, "%.0f", this)
-    } else {
-        String.format(Locale.US, "%.2f", this)
-    }
+    return BigDecimal.valueOf(this)
+        .stripTrailingZeros()
+        .toPlainString()
 }
