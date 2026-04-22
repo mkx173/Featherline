@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -188,6 +189,52 @@ internal fun decrementScheduleInterval(value: String): String {
     return maxOf(1, parseScheduleInterval(value) - 1).toString()
 }
 
+@Composable
+internal fun DeleteMedicationGroupCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.errorContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Delete,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(24.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.delete_medication_group).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    text = stringResource(R.string.delete_medication_group_confirmation),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun IntervalStepperCardPreview() {
@@ -199,6 +246,19 @@ private fun IntervalStepperCardPreview() {
                 unit = "days",
                 onDecreaseClick = {},
                 onIncreaseClick = {}
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun DeleteMedicationGroupCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            DeleteMedicationGroupCard(
+                enabled = true,
+                onClick = {}
             )
         }
     }
