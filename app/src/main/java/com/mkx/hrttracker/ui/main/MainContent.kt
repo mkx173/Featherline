@@ -61,6 +61,7 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -479,24 +480,39 @@ private fun MainAntiandrogenCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.main_antiandrogen_title),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 0.8.sp
-                )
-                Text(
-                    text = listOfNotNull(
-                        medicationDisplayName(displayedDetails),
-                        doseText
-                    ).joinToString(separator = " · "),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.main_antiandrogen_title),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 0.8.sp
+                    )
+                    MainMedicationCountBadge(
+                        count = card.medication.count,
+                        groupColorScheme = groupColorScheme
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = listOfNotNull(
+                            medicationDisplayName(displayedDetails),
+                            doseText
+                        ).joinToString(separator = " · "),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -695,6 +711,11 @@ private fun MainTodayDoseRow(
                         groupColorScheme = groupColorScheme
                     )
 
+                    MainMedicationCountBadge(
+                        count = row.medication.count,
+                        groupColorScheme = groupColorScheme
+                    )
+
                     Text(
                         text = headline,
                         style = MaterialTheme.typography.titleSmall,
@@ -792,6 +813,11 @@ private fun MainUpcomingDoseRow(
                     groupColorScheme = groupColorScheme
                 )
 
+                MainMedicationCountBadge(
+                    count = row.medication.count,
+                    groupColorScheme = groupColorScheme
+                )
+
                 Text(
                     text = headline,
                     style = MaterialTheme.typography.bodyMedium,
@@ -833,6 +859,28 @@ private fun MainApplicationBadge(
             fontWeight = FontWeight.Bold,
             color = groupColorScheme.onPrimaryContainer,
             letterSpacing = 0.6.sp,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun MainMedicationCountBadge(
+    count: Int,
+    groupColorScheme: ColorScheme,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.wrapContentWidth(),
+        shape = MaterialTheme.shapes.extraSmall,
+        color = groupColorScheme.secondaryContainer
+    ) {
+        Text(
+            text = medicationCountIndicatorText(count),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = groupColorScheme.onSecondaryContainer,
             maxLines = 1
         )
     }

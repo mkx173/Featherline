@@ -85,6 +85,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
@@ -1205,8 +1206,6 @@ private enum class ScheduledDayRowState {
     MISSED,
     PLANNED,
 }
-
-internal fun medicationCountIndicatorText(count: Int): String = "${count}×"
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
 private val fulfilledIndicatorColor = Color(0xFF2E7D32)

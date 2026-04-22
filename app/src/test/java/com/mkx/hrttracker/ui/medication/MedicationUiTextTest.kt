@@ -15,4 +15,10 @@ class MedicationUiTextTest {
         assertEquals(R.string.medication_application_badge_patch_on, applicationTypeBadgeLabelRes(MedicationApplicationType.PATCH_ON))
         assertEquals(R.string.medication_application_badge_patch_off, applicationTypeBadgeLabelRes(MedicationApplicationType.PATCH_OFF))
     }
+
+    @Test
+    fun medicationCountIndicatorText_formats_count_with_times_suffix() {
+        assertEquals("1×", medicationCountIndicatorText(1))
+        assertEquals("3×", medicationCountIndicatorText(3))
+    }
 }

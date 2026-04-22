@@ -79,3 +79,5 @@ fun applicationTypeBadgeLabelRes(applicationType: MedicationApplicationType): In
 fun applicationTypeBadgeLabel(applicationType: MedicationApplicationType): String {
     return stringResource(applicationTypeBadgeLabelRes(applicationType))
 }
+
+fun medicationCountIndicatorText(count: Int): String = "${count}×"
