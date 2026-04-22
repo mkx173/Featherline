@@ -8,23 +8,31 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -53,12 +61,12 @@ internal fun DailyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = sinceDate.format(dateFormatter),
-            icon = Icons.Default.Event,
+            icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) }
         )
 
         IntervalStepperCard(
-            label = stringResource(R.string.group_schedule_every_days),
+            label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalDays),
             unit = pluralStringResource(
                 R.plurals.group_schedule_days_unit,
@@ -90,8 +98,7 @@ private fun DailyTimesCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
@@ -100,6 +107,7 @@ private fun DailyTimesCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .wrapContentHeight()
                     .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -136,27 +144,31 @@ private fun DailyTimesCard(
 
 @Composable
 private fun AddTimeChip(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        Row(
-            modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = stringResource(R.string.add_time),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(R.string.add_time),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -182,7 +194,7 @@ private fun DailyTimeRow(
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Schedule,
+                imageVector = Icons.Rounded.Schedule,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
@@ -197,7 +209,7 @@ private fun DailyTimeRow(
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Icons.Rounded.Delete,
                     contentDescription = stringResource(R.string.remove_time),
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(20.dp)

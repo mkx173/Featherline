@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -54,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,6 +65,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +74,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -79,6 +84,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -483,25 +489,29 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_schedule_title))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    ConnectedButtonGroup(
-                        modifier = Modifier.fillMaxWidth(),
-                        options = scheduleOptions,
-                        selectedOption = uiState.scheduleType,
-                        optionLabel = { scheduleType ->
-                            stringResource(
-                                if (scheduleType == MedicationGroupScheduleType.DAILY) {
-                                    R.string.group_schedule_daily
-                                } else {
-                                    R.string.group_schedule_weekly
-                                }
-                            )
-                        },
-                        onOptionSelected = onScheduleTypeChange,
-                        layout = ConnectedButtonGroupLayout.ROW,
-                        expandOptions = true,
-                    )
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                    ) {
+                        ConnectedButtonGroup(
+                            modifier = Modifier.fillMaxWidth(),
+                            options = scheduleOptions,
+                            selectedOption = uiState.scheduleType,
+                            optionLabel = { scheduleType ->
+                                stringResource(
+                                    if (scheduleType == MedicationGroupScheduleType.DAILY) {
+                                        R.string.group_schedule_daily
+                                    } else {
+                                        R.string.group_schedule_weekly
+                                    }
+                                )
+                            },
+                            onOptionSelected = onScheduleTypeChange,
+                            layout = ConnectedButtonGroupLayout.ROW,
+                            expandOptions = true,
+                        )
+                    }
 
                     if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                         WeeklyScheduleEditor(
@@ -879,12 +889,13 @@ private fun EditorSectionHeader(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 6.dp),
         )
         trailing?.invoke()
     }
@@ -899,15 +910,14 @@ private fun NotificationsCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -920,13 +930,13 @@ private fun NotificationsCard(
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (enabled) {
-                            Icons.Default.Notifications
+                            Icons.Rounded.Notifications
                         } else {
-                            Icons.Default.NotificationsOff
+                            Icons.Rounded.NotificationsOff
                         },
                         contentDescription = null,
                         tint = if (enabled) {
@@ -939,7 +949,7 @@ private fun NotificationsCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.group_notifications_title),
+                    text = stringResource(R.string.group_notifications_reminder),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
@@ -961,7 +971,7 @@ private fun NotificationsCard(
 private fun EditorSupportMessage(text: String) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Text(
             text = text,

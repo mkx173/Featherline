@@ -58,7 +58,7 @@ internal fun WeeklyScheduleEditor(
         )
 
         IntervalStepperCard(
-            label = stringResource(R.string.group_schedule_every_weeks),
+            label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalWeeks),
             unit = pluralStringResource(
                 R.plurals.group_schedule_weeks_unit,

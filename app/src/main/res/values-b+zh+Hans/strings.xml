@@ -119,7 +119,8 @@
     <string name="unit_grams">g</string>
     <string name="unit_mcg_day">μg/天</string>
     <string name="field_medication_group_name">分组名称</string>
-    <string name="group_notifications_title">用药提醒</string>
+    <string name="group_notifications_title">通知</string>
+    <string name="group_notifications_reminder">用药提醒</string>
     <string name="group_notifications_summary">当这个分组到达计划时间时通知我。</string>
     <string name="group_notifications_master_disabled">设置中的提醒总开关当前已关闭，因此这个分组在重新开启总开关之前不会发送提醒。</string>
     <string name="group_notifications_inexact_warning">未启用精确闹钟权限，提醒可能会延迟。</string>
@@ -128,14 +129,13 @@
     <string name="group_notifications_exact_alarm_message">如果没有精确闹钟权限，Android 可能会延迟提醒。你可以继续，或打开设置允许精确闹钟。</string>
     <string name="group_notifications_exact_alarm_settings">打开设置</string>
     <string name="group_notifications_exact_alarm_skip">跳过</string>
-    <string name="group_schedule_title">间隔</string>
+    <string name="group_schedule_title">计划</string>
     <string name="group_schedule_weekly">每周</string>
     <string name="group_schedule_daily">每日</string>
-    <string name="group_schedule_every_weeks">每 x 周一次</string>
-    <string name="group_schedule_every_days">每 x 天一次</string>
+    <string name="group_schedule_repeat_every">重复间隔</string>
     <string name="decrease_schedule_interval">减少计划间隔</string>
     <string name="increase_schedule_interval">增加计划间隔</string>
-    <string name="group_schedule_since">开始于</string>
+    <string name="group_schedule_since">开始日期</string>
     <string name="group_schedule_days_of_week">星期选择</string>
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>

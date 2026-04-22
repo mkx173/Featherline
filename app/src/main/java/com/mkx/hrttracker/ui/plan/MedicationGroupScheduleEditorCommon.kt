@@ -13,9 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,8 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @Composable
 internal fun IntervalStepperCard(
@@ -39,8 +45,7 @@ internal fun IntervalStepperCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
@@ -74,13 +79,13 @@ internal fun IntervalStepperCard(
                 }
             }
             StepperCircleButton(
-                icon = Icons.Default.Remove,
+                icon = Icons.Rounded.Remove,
                 contentDescription = stringResource(R.string.decrease_schedule_interval),
                 enabled = value > 1,
                 onClick = onDecreaseClick
             )
             StepperCircleButton(
-                icon = Icons.Default.Add,
+                icon = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.increase_schedule_interval),
                 enabled = true,
                 onClick = onIncreaseClick
@@ -136,8 +141,7 @@ internal fun EditorFieldRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
@@ -150,7 +154,7 @@ internal fun EditorFieldRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(24.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -164,7 +168,7 @@ internal fun EditorFieldRow(
                 )
             }
             Icon(
-                imageVector = Icons.Default.ChevronRight,
+                imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -182,4 +186,35 @@ internal fun incrementScheduleInterval(value: String): String {
 
 internal fun decrementScheduleInterval(value: String): String {
     return maxOf(1, parseScheduleInterval(value) - 1).toString()
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun IntervalStepperCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            IntervalStepperCard(
+                label = "Repeat every",
+                value = 3,
+                unit = "days",
+                onDecreaseClick = {},
+                onIncreaseClick = {}
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EditorFieldRowPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            EditorFieldRow(
+                label = "Time",
+                value = "08:00",
+                icon = Icons.Default.AccessTime,
+                onClick = {}
+            )
+        }
+    }
 }
