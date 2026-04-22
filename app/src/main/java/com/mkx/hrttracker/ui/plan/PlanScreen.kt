@@ -624,18 +624,28 @@ private fun ScheduledDayRow(
         )
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = entry.groupName,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = supportingText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                MedicationCountBadge(
+                    count = entry.medication.count,
+                    containerColor = groupColorScheme.secondaryContainer,
+                    contentColor = groupColorScheme.onSecondaryContainer
+                )
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
@@ -1017,7 +1027,8 @@ private fun RegimenGroupCard(
                         groupColorScheme = groupColorScheme,
                         medicationName = medicationDisplayName(medication.details),
                         doseLabel = medicationDoseText(medication.details),
-                        applicationType = medication.details.applicationType
+                        applicationType = medication.details.applicationType,
+                        count = medication.count
                     )
                 }
             }
@@ -1057,7 +1068,8 @@ private fun RegimenMedicationChip(
     groupColorScheme: ColorScheme,
     medicationName: String,
     doseLabel: String?,
-    applicationType: MedicationApplicationType
+    applicationType: MedicationApplicationType,
+    count: Int
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
@@ -1087,6 +1099,11 @@ private fun RegimenMedicationChip(
                 text = medicationName,
                 style = MaterialTheme.typography.labelMedium
             )
+            MedicationCountBadge(
+                count = count,
+                containerColor = groupColorScheme.secondaryContainer,
+                contentColor = groupColorScheme.onSecondaryContainer
+            )
             if (doseLabel != null) {
                 Text(
                     text = "· $doseLabel",
@@ -1095,6 +1112,26 @@ private fun RegimenMedicationChip(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MedicationCountBadge(
+    count: Int,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Text(
+            text = medicationCountIndicatorText(count),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -1168,6 +1205,8 @@ private enum class ScheduledDayRowState {
     MISSED,
     PLANNED,
 }
+
+internal fun medicationCountIndicatorText(count: Int): String = "${count}×"
 
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
 private val fulfilledIndicatorColor = Color(0xFF2E7D32)
