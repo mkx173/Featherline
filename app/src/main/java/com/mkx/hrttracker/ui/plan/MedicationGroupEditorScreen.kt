@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -793,18 +792,17 @@ private fun WeeklyScheduleEditor(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(
+            ConnectedButtonGroup(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DayOfWeek.entries.forEach { weekday ->
-                    WeeklyDayChip(
-                        label = weekday.getDisplayName(TextStyle.NARROW, appLocale),
-                        selected = weekday in selectedDaysOfWeek,
-                        onClick = { onDayChange(weekday) }
-                    )
-                }
-            }
+                options = DayOfWeek.entries.toList(),
+                selectedOptions = selectedDaysOfWeek,
+                optionLabel = { weekday ->
+                    weekday.getDisplayName(TextStyle.NARROW, appLocale)
+                },
+                onOptionToggled = onDayChange,
+                layout = ConnectedButtonGroupLayout.ROW,
+                expandOptions = true,
+            )
         }
 
         EditorFieldRow(
@@ -1089,47 +1087,6 @@ private fun EditorFieldRow(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun RowScope.WeeklyDayChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .weight(1f)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            Color.Transparent
-        },
-        border = BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.align(androidx.compose.ui.Alignment.Center)
             )
         }
     }

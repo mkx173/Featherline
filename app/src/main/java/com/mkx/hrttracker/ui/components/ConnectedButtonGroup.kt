@@ -31,6 +31,58 @@ fun <T> ConnectedButtonGroup(
     expandOptions: Boolean = false,
 ) {
     val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
+    ConnectedButtonGroup(
+        modifier = modifier,
+        options = options,
+        isOptionSelected = { option -> option == resolvedSelectedOption },
+        optionLabel = optionLabel,
+        onOptionToggled = { option ->
+            if (option != resolvedSelectedOption) {
+                onOptionSelected(option)
+            }
+        },
+        enabled = enabled,
+        layout = layout,
+        expandOptions = expandOptions,
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun <T> ConnectedButtonGroup(
+    modifier: Modifier = Modifier,
+    options: List<T>,
+    selectedOptions: Set<T>,
+    optionLabel: @Composable (T) -> String,
+    onOptionToggled: (T) -> Unit,
+    enabled: Boolean = true,
+    layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
+    expandOptions: Boolean = false,
+) {
+    ConnectedButtonGroup(
+        modifier = modifier,
+        options = options,
+        isOptionSelected = { option -> option in selectedOptions },
+        optionLabel = optionLabel,
+        onOptionToggled = onOptionToggled,
+        enabled = enabled,
+        layout = layout,
+        expandOptions = expandOptions,
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun <T> ConnectedButtonGroup(
+    modifier: Modifier = Modifier,
+    options: List<T>,
+    isOptionSelected: (T) -> Boolean,
+    optionLabel: @Composable (T) -> String,
+    onOptionToggled: (T) -> Unit,
+    enabled: Boolean = true,
+    layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
+    expandOptions: Boolean = false,
+) {
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
 
@@ -46,9 +98,9 @@ fun <T> ConnectedButtonGroup(
                         option = option,
                         index = index,
                         optionCount = options.size,
-                        selectedOption = resolvedSelectedOption,
+                        selected = isOptionSelected(option),
                         optionLabel = optionLabel,
-                        onOptionSelected = onOptionSelected,
+                        onOptionToggled = onOptionToggled,
                         enabled = enabled,
                     )
                 }
@@ -56,8 +108,13 @@ fun <T> ConnectedButtonGroup(
         }
 
         ConnectedButtonGroupLayout.ROW -> {
+            val rowModifier = if (expandOptions) {
+                modifier
+            } else {
+                modifier.horizontalScroll(rememberScrollState())
+            }
             Row(
-                modifier = modifier.horizontalScroll(rememberScrollState()),
+                modifier = rowModifier,
                 horizontalArrangement = horizontalArrangement,
             ) {
                 options.forEachIndexed { index, option ->
@@ -71,9 +128,9 @@ fun <T> ConnectedButtonGroup(
                         option = option,
                         index = index,
                         optionCount = options.size,
-                        selectedOption = resolvedSelectedOption,
+                        selected = isOptionSelected(option),
                         optionLabel = optionLabel,
-                        onOptionSelected = onOptionSelected,
+                        onOptionToggled = onOptionToggled,
                         enabled = enabled,
                     )
                 }
@@ -89,20 +146,16 @@ private fun <T> ConnectedButtonGroupButton(
     option: T,
     index: Int,
     optionCount: Int,
-    selectedOption: T?,
+    selected: Boolean,
     optionLabel: @Composable (T) -> String,
-    onOptionSelected: (T) -> Unit,
+    onOptionToggled: (T) -> Unit,
     enabled: Boolean,
 ) {
     ToggleButton(
         modifier = modifier,
-        checked = option == selectedOption,
-        onCheckedChange = {
-            if (it) {
-                onOptionSelected(option)
-            }
-        },
-        enabled = enabled || option == selectedOption,
+        checked = selected,
+        onCheckedChange = { onOptionToggled(option) },
+        enabled = enabled,
         shapes =
             when (index) {
                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -121,9 +174,9 @@ private fun <T> ConnectedButtonGroupRowButton(
     option: T,
     index: Int,
     optionCount: Int,
-    selectedOption: T?,
+    selected: Boolean,
     optionLabel: @Composable (T) -> String,
-    onOptionSelected: (T) -> Unit,
+    onOptionToggled: (T) -> Unit,
     enabled: Boolean,
 ) {
     ConnectedButtonGroupButton(
@@ -131,9 +184,9 @@ private fun <T> ConnectedButtonGroupRowButton(
         option = option,
         index = index,
         optionCount = optionCount,
-        selectedOption = selectedOption,
+        selected = selected,
         optionLabel = optionLabel,
-        onOptionSelected = onOptionSelected,
+        onOptionToggled = onOptionToggled,
         enabled = enabled,
     )
 }
