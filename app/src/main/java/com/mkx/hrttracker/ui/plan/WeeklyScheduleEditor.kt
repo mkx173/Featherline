@@ -47,7 +47,6 @@ internal fun WeeklyScheduleEditor(
     onTimeChange: (LocalTime) -> Unit
 ) {
     Column(
-        modifier = Modifier.padding(top = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         EditorFieldRow(
@@ -72,8 +71,7 @@ internal fun WeeklyScheduleEditor(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

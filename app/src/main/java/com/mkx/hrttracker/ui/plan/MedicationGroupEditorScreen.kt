@@ -39,8 +39,11 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -104,6 +107,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
@@ -576,49 +580,27 @@ private fun MedicationGroupEditorScreenContent(
                 EditorSectionHeader(
                     title = stringResource(R.string.group_medications_title),
                     trailing = {
-                        TextButton(onClick = onAddMedication) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.add_medication_to_group),
-                                modifier = Modifier.padding(start = 4.dp)
+                        AddChip(onClick = onAddMedication)
+                    }
+                )
+                if (uiState.medications.isEmpty()) {
+                    EditorSupportMessage(stringResource(R.string.group_medications_empty))
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        uiState.medications.forEach { medication ->
+                            MedicationGroupMedicationCard(
+                                medication = medication,
+                                groupColorKey = uiState.groupColorKey,
+                                appLocale = appLocale,
+                                onClick = { onMedicationClick(medication.localId) },
+                                onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
+                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
                             )
                         }
                     }
-                )
-            }
-
-            if (uiState.medications.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.group_medications_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
-            }
-
-            items(
-                items = uiState.medications,
-                key = { it.localId }
-            ) { medication ->
-                MedicationGroupMedicationCard(
-                    medication = medication,
-                    groupColorKey = uiState.groupColorKey,
-                    appLocale = appLocale,
-                    onClick = { onMedicationClick(medication.localId) },
-                    onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
-                    onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
-                )
             }
 
             item {
@@ -775,15 +757,14 @@ private fun MedicationGroupMedicationCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 14.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(6.dp),
@@ -833,7 +814,7 @@ private fun MedicationCountEditor(
         Row(
             modifier = Modifier.padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onDecreaseClick,
@@ -849,9 +830,9 @@ private fun MedicationCountEditor(
             ) {
                 Icon(
                     imageVector = if (isRemoveStep) {
-                        Icons.Default.Delete
+                        Icons.Rounded.Delete
                     } else {
-                        Icons.Default.Remove
+                        Icons.Rounded.Remove
                     },
                     contentDescription = stringResource(
                         if (isRemoveStep) {
@@ -873,7 +854,7 @@ private fun MedicationCountEditor(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Rounded.Add,
                     contentDescription = stringResource(R.string.increase_medication_count)
                 )
             }
@@ -887,7 +868,7 @@ private fun EditorSectionHeader(
     trailing: @Composable (() -> Unit)? = null
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -895,7 +876,6 @@ private fun EditorSectionHeader(
             text = title.uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
         )
         trailing?.invoke()
     }
@@ -977,7 +957,7 @@ private fun EditorSupportMessage(text: String) {
             text = text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
         )
     }
 }
@@ -1057,7 +1037,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
                 scheduleType = MedicationGroupScheduleType.WEEKLY,
                 editingGroupId = "preview-weekly-group",
                 remindersEnabled = true,
-                notificationsEnabled = true
+                notificationsEnabled = true,
             ),
             onNavigateBack = { },
             onGroupNameChange = { },
