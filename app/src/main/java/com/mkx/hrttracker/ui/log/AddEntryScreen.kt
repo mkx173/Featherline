@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.log
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -83,7 +84,7 @@ private fun AddEntryScreenContent(
     modifier: Modifier = Modifier
 ) {
     StructuredMedicationEditorSheet(
-        modifier = modifier,
+        modifier = modifier.fillMaxSize(),
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
         confirmButtonText = stringResource(R.string.save_entry),

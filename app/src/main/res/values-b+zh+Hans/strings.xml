@@ -295,4 +295,5 @@
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
     </plurals>
+    <string name="confirm">确定</string>
 </resources>

@@ -296,4 +296,5 @@
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
     </plurals>
+    <string name="confirm">OK</string>
 </resources>
