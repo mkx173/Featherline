@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -621,7 +622,7 @@ private fun MedicationGroupEditorScreenContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Delete,
+                                imageVector = Icons.Rounded.Delete,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
@@ -638,7 +639,7 @@ private fun MedicationGroupEditorScreenContent(
                                 )
                             }
                             Icon(
-                                imageVector = Icons.Default.ChevronRight,
+                                imageVector = Icons.Rounded.ChevronRight,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
@@ -803,7 +804,6 @@ private fun MedicationCountEditor(
                 modifier = Modifier.size(32.dp),
                 colors = if (isRemoveStep) {
                     IconButtonDefaults.iconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 } else {
