@@ -35,6 +35,25 @@ fun defaultMedicationDraft(
     category: MedicationCategory = MedicationCategory.ESTRADIOL,
     applicationType: MedicationApplicationType = MedicationCatalog.applicationTypesFor(category).first(),
 ): MedicationDraftUiState {
+    return buildMedicationDraft(category, applicationType) { entry ->
+        entry.defaultDoseKind
+    }
+}
+
+private fun firstAvailableMedicationDraft(
+    category: MedicationCategory,
+    applicationType: MedicationApplicationType,
+): MedicationDraftUiState {
+    return buildMedicationDraft(category, applicationType) { entry ->
+        entry.doseKinds.first()
+    }
+}
+
+private fun buildMedicationDraft(
+    category: MedicationCategory,
+    applicationType: MedicationApplicationType,
+    doseKindResolver: (MedicationCatalogEntry) -> MedicationDoseKind,
+): MedicationDraftUiState {
     val resolvedApplicationType = MedicationCatalog.applicationTypesFor(category)
         .firstOrNull { it == applicationType }
         ?: MedicationCatalog.applicationTypesFor(category).first()
@@ -51,7 +70,7 @@ fun defaultMedicationDraft(
         applicationType = resolvedApplicationType,
         selectionKind = selectionKind,
         medicationKey = defaultEntry.medicationKey,
-        doseKind = defaultEntry.defaultDoseKind,
+        doseKind = doseKindResolver(defaultEntry),
     )
 }
 
@@ -85,7 +104,10 @@ fun MedicationDraftUiState.availableDoseKinds(): List<MedicationDoseKind> {
 }
 
 fun MedicationDraftUiState.changeCategory(category: MedicationCategory): MedicationDraftUiState {
-    return defaultMedicationDraft(category = category).copy(
+    return firstAvailableMedicationDraft(
+        category = category,
+        applicationType = MedicationCatalog.applicationTypesFor(category).first(),
+    ).copy(
         customMedicationName = customMedicationName
     )
 }
@@ -93,7 +115,7 @@ fun MedicationDraftUiState.changeCategory(category: MedicationCategory): Medicat
 fun MedicationDraftUiState.changeApplicationType(
     applicationType: MedicationApplicationType,
 ): MedicationDraftUiState {
-    return defaultMedicationDraft(
+    return firstAvailableMedicationDraft(
         category = category,
         applicationType = applicationType
     ).copy(

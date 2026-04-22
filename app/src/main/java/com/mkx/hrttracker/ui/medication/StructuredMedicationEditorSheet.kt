@@ -1,9 +1,10 @@
 package com.mkx.hrttracker.ui.medication
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DatePicker
@@ -36,17 +41,25 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDialog
+import androidx.compose.material3.TimePickerDialogDefaults
+import androidx.compose.material3.TimePickerDisplayMode
+import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
@@ -65,8 +78,10 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -147,6 +162,7 @@ fun StructuredMedicationEditorSheet(
             )
             ConnectedButtonGroup(
                 options = editorMedicationCategories(),
+                selectedOption = draft.category,
                 optionLabel = { category -> stringResource(category.labelRes) },
                 onOptionSelected = onCategoryChange,
                 enabled = isMedicationIdentityEditable
@@ -157,6 +173,7 @@ fun StructuredMedicationEditorSheet(
             )
             ConnectedButtonGroup(
                 options = MedicationCatalog.applicationTypesFor(draft.category),
+                selectedOption = draft.applicationType,
                 optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
                 onOptionSelected = onApplicationTypeChange,
                 enabled = isMedicationIdentityEditable
@@ -191,6 +208,7 @@ fun StructuredMedicationEditorSheet(
                 )
                 ConnectedButtonGroup(
                     options = catalog.entries.mapNotNull { it.medicationKey },
+                    selectedOption = draft.selectedCatalogEntry().medicationKey,
                     optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
                     onOptionSelected = onMedicationKeyChange
                 )
@@ -215,6 +233,7 @@ fun StructuredMedicationEditorSheet(
                 )
                 ConnectedButtonGroup(
                     options = draft.availableDoseKinds(),
+                    selectedOption = draft.doseKind,
                     optionLabel = { doseKind -> stringResource(doseKindLabelRes(doseKind)) },
                     onOptionSelected = onDoseKindChange
                 )
@@ -276,36 +295,83 @@ fun StructuredMedicationEditorSheet(
             }
 
             if (showAppliedAtFields && appliedDate != null && appliedTime != null) {
-                PickerField(
+                var selectedDate by remember { mutableStateOf(appliedDate) }
+                var showDatePickerModal by remember { mutableStateOf(false) }
+
+                if (showDatePickerModal) {
+                    DatePickerModal(
+                        onDateSelected = {
+                            selectedDate = Instant.ofEpochMilli(it).atZone(
+                                ZoneId.systemDefault()).toLocalDate()
+                            onAppliedDateChange?.invoke(selectedDate)
+                        },
+                        onDismiss = { showDatePickerModal = false },
+                        initialSelectedDate = selectedDate
+                    )
+                }
+
+                OutlinedTextField(
                     value = appliedDate.format(dateFormatter),
-                    label = stringResource(R.string.field_date_of_application),
-                    onClick = {
-                        DatePickerDialog(
-                            context,
-                            { _, year, month, dayOfMonth ->
-                                onAppliedDateChange?.invoke(LocalDate.of(year, month + 1, dayOfMonth))
-                            },
-                            appliedDate.year,
-                            appliedDate.monthValue - 1,
-                            appliedDate.dayOfMonth
-                        ).show()
-                    }
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.field_date_of_application)) },
+                    modifier = Modifier.fillMaxWidth()
+                        .pointerInput(selectedDate) {
+                        awaitEachGesture {
+                            // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
+                            // in the Initial pass to observe events before the text field consumes them
+                            // in the Main pass.
+                            awaitFirstDown(pass = PointerEventPass.Initial)
+                            val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                            if (upEvent != null) {
+                                showDatePickerModal = true
+                            }
+                        }
+                    },
+                    trailingIcon = {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.select_date))
+                    },
+                    singleLine = true,
                 )
 
-                PickerField(
+                var selectedTime: TimePickerState? by remember { mutableStateOf(null) }
+                var showTimePickerModal by remember { mutableStateOf(false) }
+
+                if (showTimePickerModal) {
+                    TimePickerModal(
+                        onConfirm = {
+                            selectedTime = it
+                            onAppliedTimeChange?.invoke(LocalTime.of(it.hour, it.minute))
+                        },
+                        onDismiss = { showTimePickerModal = false },
+                        initialHour = appliedTime.hour,
+                        initialMinute = appliedTime.minute,
+                        is24Hour = DateFormat.is24HourFormat(context)
+                    )
+                }
+
+                OutlinedTextField(
                     value = appliedTime.format(timeFormatter),
-                    label = stringResource(R.string.field_time_of_application),
-                    onClick = {
-                        TimePickerDialog(
-                            context,
-                            { _, hourOfDay, minute ->
-                                onAppliedTimeChange?.invoke(LocalTime.of(hourOfDay, minute))
-                            },
-                            appliedTime.hour,
-                            appliedTime.minute,
-                            DateFormat.is24HourFormat(context)
-                        ).show()
-                    }
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.field_time_of_application)) },
+                    modifier = Modifier.fillMaxWidth()
+                        .pointerInput(selectedTime) {
+                            awaitEachGesture {
+                                // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
+                                // in the Initial pass to observe events before the text field consumes them
+                                // in the Main pass.
+                                awaitFirstDown(pass = PointerEventPass.Initial)
+                                val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                                if (upEvent != null) {
+                                    showTimePickerModal = true
+                                }
+                            }
+                        },
+                    trailingIcon = {
+                        Icon(Icons.Default.AccessTime, contentDescription = stringResource(R.string.select_time))
+                    },
+                    singleLine = true,
                 )
             }
 
@@ -336,11 +402,12 @@ fun StructuredMedicationEditorSheet(
 private fun <T> ConnectedButtonGroup(
     modifier: Modifier = Modifier,
     options: List<T>,
+    selectedOption: T?,
     optionLabel: @Composable (T) -> String,
     onOptionSelected: (T) -> Unit,
     enabled: Boolean = true,
 ) {
-    var selectedIndex by remember { mutableIntStateOf(0) }
+    val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
     FlowRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
@@ -349,10 +416,11 @@ private fun <T> ConnectedButtonGroup(
 
         options.forEachIndexed { index, option ->
             ToggleButton(
-                checked = selectedIndex == index,
+                checked = option == resolvedSelectedOption,
                 onCheckedChange = {
-                    selectedIndex = index
-                    onOptionSelected(option)
+                    if (it) {
+                        onOptionSelected(option)
+                    }
                 },
                 enabled = enabled,
                 shapes =
@@ -366,6 +434,10 @@ private fun <T> ConnectedButtonGroup(
             }
         }
     }
+}
+
+internal fun <T> resolveConnectedButtonSelection(options: List<T>, selectedOption: T?): T? {
+    return options.firstOrNull { it == selectedOption } ?: options.firstOrNull()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -463,6 +535,79 @@ private fun PickerField(
             modifier = Modifier
                 .matchParentSize()
                 .clickable { onClick() }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePickerModal(
+    onDateSelected: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    initialSelectedDate: LocalDate
+) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDate = initialSelectedDate
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                datePickerState.selectedDateMillis?.let { onDateSelected(it) }
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerModal(
+    onConfirm: (TimePickerState) -> Unit,
+    onDismiss: () -> Unit,
+    initialHour: Int,
+    initialMinute: Int,
+    is24Hour: Boolean,
+) {
+    val timePickerState = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = is24Hour
+    )
+
+    TimePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(timePickerState)
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+        title = {
+            TimePickerDialogDefaults.Title(
+                displayMode = TimePickerDisplayMode.Picker
+            )
+        }
+    ) {
+        TimePicker(
+            state = timePickerState,
         )
     }
 }

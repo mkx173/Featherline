@@ -31,7 +31,23 @@ class MedicationEditorModelsTest {
 
         assertEquals(MedicationCategory.CUSTOM, draft.category)
         assertEquals(MedicationApplicationType.ORAL, draft.applicationType)
+        assertEquals(MedicationDoseKind.MG_AS_MEDICINE, draft.doseKind)
         assertEquals("", draft.customMedicationName)
+    }
+
+    @Test
+    fun changing_application_type_resets_to_first_available_dose_kind() {
+        val draft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).changeDoseKind(
+            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+        ).changeApplicationType(
+            MedicationApplicationType.PATCH_ON
+        )
+
+        assertEquals(MedicationApplicationType.PATCH_ON, draft.applicationType)
+        assertEquals(MedicationDoseKind.PATCH_TOTAL_MG, draft.doseKind)
     }
 
     @Test
