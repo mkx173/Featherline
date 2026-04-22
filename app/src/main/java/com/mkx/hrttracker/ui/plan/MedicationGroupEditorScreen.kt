@@ -15,7 +15,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -56,6 +55,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -437,15 +437,9 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 },
                 actions = {
-                    Button(
+                    FilledTonalButton(
                         onClick = onSaveClick,
                         enabled = canSave,
-                        shape = RoundedCornerShape(percent = 50),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            disabledContentColor = MaterialTheme.colorScheme.outline
-                        )
                     ) {
                         Text(text = stringResource(R.string.save))
                     }
@@ -461,7 +455,9 @@ private fun MedicationGroupEditorScreenContent(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                EditorSectionCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     OutlinedTextField(
                         value = uiState.groupName,
                         onValueChange = onGroupNameChange,
@@ -484,7 +480,9 @@ private fun MedicationGroupEditorScreenContent(
 
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_schedule_title))
-                EditorSectionCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -557,7 +555,9 @@ private fun MedicationGroupEditorScreenContent(
 
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
-                EditorSectionCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -616,18 +616,16 @@ private fun MedicationGroupEditorScreenContent(
 
             if (uiState.medications.isEmpty()) {
                 item {
-                    EditorSectionCard {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.group_medications_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.group_medications_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -1052,29 +1050,11 @@ private fun EditorSectionHeader(
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
     ) {
         Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = title.uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         trailing?.invoke()
-    }
-}
-
-@Composable
-private fun EditorSectionCard(
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content
-        )
     }
 }
 
