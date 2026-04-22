@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.plan
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,9 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
@@ -117,21 +113,14 @@ private fun DailyTimesCard(
                 )
                 AddChip(onClick = onAddTime)
             }
-            if (times.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.add),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            val removeEnabled = canRemoveDailyTime(times.size)
+            times.forEach { dailyTime ->
+                DailyTimeRow(
+                    formattedTime = dailyTime.time.format(timeFormatter),
+                    onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
+                    removeEnabled = removeEnabled,
+                    onRemoveClick = { onRemoveTime(dailyTime.localId) }
                 )
-            } else {
-                times.forEach { dailyTime ->
-                    DailyTimeRow(
-                        formattedTime = dailyTime.time.format(timeFormatter),
-                        onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
-                        onRemoveClick = { onRemoveTime(dailyTime.localId) }
-                    )
-                }
             }
         }
     }
@@ -141,6 +130,7 @@ private fun DailyTimesCard(
 private fun DailyTimeRow(
     formattedTime: String,
     onClick: () -> Unit,
+    removeEnabled: Boolean,
     onRemoveClick: () -> Unit
 ) {
     Surface(
@@ -170,18 +160,25 @@ private fun DailyTimeRow(
             )
             IconButton(
                 onClick = onRemoveClick,
+                enabled = removeEnabled,
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Delete,
                     contentDescription = stringResource(R.string.remove_time),
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = if (removeEnabled) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
                     modifier = Modifier.size(20.dp)
                 )
             }
         }
     }
 }
+
+internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount > 1
 
 @Preview(showBackground = true, widthDp = 420)
 @Composable
