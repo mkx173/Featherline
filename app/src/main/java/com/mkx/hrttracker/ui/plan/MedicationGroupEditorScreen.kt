@@ -484,9 +484,33 @@ private fun MedicationGroupEditorScreenContent(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    GroupColorPreviewStrip(
-                        color = groupColorScheme.primary
-                    )
+                }
+            }
+
+            item {
+                EditorSectionHeader(
+                    title = stringResource(R.string.group_medications_title),
+                    trailing = {
+                        AddChip(onClick = onAddMedication)
+                    }
+                )
+                if (uiState.medications.isEmpty()) {
+                    EditorSupportMessage(stringResource(R.string.group_medications_empty))
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        uiState.medications.forEach { medication ->
+                            MedicationGroupMedicationCard(
+                                medication = medication,
+                                groupColorKey = uiState.groupColorKey,
+                                appLocale = appLocale,
+                                onClick = { onMedicationClick(medication.localId) },
+                                onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
+                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -577,33 +601,6 @@ private fun MedicationGroupEditorScreenContent(
             }
 
             item {
-                EditorSectionHeader(
-                    title = stringResource(R.string.group_medications_title),
-                    trailing = {
-                        AddChip(onClick = onAddMedication)
-                    }
-                )
-                if (uiState.medications.isEmpty()) {
-                    EditorSupportMessage(stringResource(R.string.group_medications_empty))
-                } else {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        uiState.medications.forEach { medication ->
-                            MedicationGroupMedicationCard(
-                                medication = medication,
-                                groupColorKey = uiState.groupColorKey,
-                                appLocale = appLocale,
-                                onClick = { onMedicationClick(medication.localId) },
-                                onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
-                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
                 uiState.errorMessageRes?.let { errorMessageRes ->
                     Surface(
                         shape = RoundedCornerShape(20.dp),
@@ -629,14 +626,15 @@ private fun MedicationGroupEditorScreenContent(
                                 enabled = !uiState.isSaving && !uiState.isDeleting,
                                 onClick = onDeleteClick
                             ),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.errorContainer
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 18.dp, vertical = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -962,21 +960,6 @@ private fun EditorSupportMessage(text: String) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
         )
     }
-}
-
-@Composable
-private fun GroupColorPreviewStrip(
-    color: Color,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(3.dp)
-            .background(
-                color = color.copy(alpha = 0.32f),
-                shape = RoundedCornerShape(999.dp)
-            )
-    )
 }
 
 @Preview(
