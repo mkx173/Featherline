@@ -32,7 +32,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -52,8 +51,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Switch
@@ -99,6 +96,8 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -483,39 +482,23 @@ private fun MedicationGroupEditorScreenContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        scheduleOptions.forEachIndexed { index, scheduleType ->
-                            SegmentedButton(
-                                selected = uiState.scheduleType == scheduleType,
-                                onClick = { onScheduleTypeChange(scheduleType) },
-                                shape = androidx.compose.material3.SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = scheduleOptions.size
-                                )
-                            ) {
-                                val isSelected = uiState.scheduleType == scheduleType
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                    ConnectedButtonGroup(
+                        modifier = Modifier.fillMaxWidth(),
+                        options = scheduleOptions,
+                        selectedOption = uiState.scheduleType,
+                        optionLabel = { scheduleType ->
+                            stringResource(
+                                if (scheduleType == MedicationGroupScheduleType.DAILY) {
+                                    R.string.group_schedule_daily
+                                } else {
+                                    R.string.group_schedule_weekly
                                 }
-                                Text(
-                                    text = stringResource(
-                                        if (scheduleType == MedicationGroupScheduleType.DAILY) {
-                                            R.string.group_schedule_daily
-                                        } else {
-                                            R.string.group_schedule_weekly
-                                        }
-                                    ),
-                                    modifier = Modifier.padding(start = if (isSelected) 6.dp else 0.dp)
-                                )
-                            }
-                        }
-                    }
+                            )
+                        },
+                        onOptionSelected = onScheduleTypeChange,
+                        layout = ConnectedButtonGroupLayout.ROW,
+                        expandOptions = true,
+                    )
 
                     if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                         WeeklyScheduleEditor(
