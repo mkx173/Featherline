@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.medication
 
 import android.text.format.DateFormat
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -106,6 +107,9 @@ fun StructuredMedicationEditorSheet(
 ) {
     val context = LocalContext.current
     val appLocale = rememberAppLocale()
+    val fieldErrors = remember(draft, errorMessageRes) {
+        resolveMedicationEditorFieldErrors(draft, errorMessageRes)
+    }
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
@@ -208,8 +212,17 @@ fun StructuredMedicationEditorSheet(
                     value = draft.customMedicationName,
                     onValueChange = onCustomMedicationNameChange,
                     enabled = isMedicationIdentityEditable,
+                    isError = fieldErrors.customName != null,
                     label = {
                         Text(text = stringResource(R.string.field_medication_name))
+                    },
+                    supportingText = fieldErrors.customName?.let { errorMessageRes ->
+                        {
+                            Text(
+                                text = stringResource(errorMessageRes),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -233,7 +246,9 @@ fun StructuredMedicationEditorSheet(
                     DoseTextField(
                         value = draft.doseMg,
                         onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_dosage_mg)
+                        label = stringResource(R.string.field_dosage_mg),
+                        suffix = stringResource(R.string.unit_mg),
+                        errorMessageRes = fieldErrors.doseMg
                     )
                 }
 
@@ -241,7 +256,9 @@ fun StructuredMedicationEditorSheet(
                     DoseTextField(
                         value = draft.doseMg,
                         onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_equivalent_estradiol_mg)
+                        label = stringResource(R.string.field_equivalent_estradiol_mg),
+                        suffix = stringResource(R.string.unit_mg),
+                        errorMessageRes = fieldErrors.doseMg
                     )
                 }
 
@@ -249,12 +266,16 @@ fun StructuredMedicationEditorSheet(
                     DoseTextField(
                         value = draft.gelPercent,
                         onValueChange = onGelPercentChange,
-                        label = stringResource(R.string.field_gel_percent)
+                        label = stringResource(R.string.field_gel_percent),
+                        suffix = stringResource(R.string.unit_percent),
+                        errorMessageRes = fieldErrors.gelPercent
                     )
                     DoseTextField(
                         value = draft.gelWeightGrams,
                         onValueChange = onGelWeightChange,
-                        label = stringResource(R.string.field_gel_weight_grams)
+                        label = stringResource(R.string.field_gel_weight_grams),
+                        suffix = stringResource(R.string.unit_grams),
+                        errorMessageRes = fieldErrors.gelWeight
                     )
                 }
 
@@ -262,7 +283,9 @@ fun StructuredMedicationEditorSheet(
                     DoseTextField(
                         value = draft.doseMg,
                         onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_patch_total_mg)
+                        label = stringResource(R.string.field_patch_total_mg),
+                        suffix = stringResource(R.string.unit_mg),
+                        errorMessageRes = fieldErrors.doseMg
                     )
                 }
 
@@ -270,7 +293,9 @@ fun StructuredMedicationEditorSheet(
                     DoseTextField(
                         value = draft.patchReleaseRateMcgPerDay,
                         onValueChange = onPatchReleaseRateChange,
-                        label = stringResource(R.string.field_patch_release_rate_mcg_day)
+                        label = stringResource(R.string.field_patch_release_rate_mcg_day),
+                        suffix = stringResource(R.string.unit_mcg_day),
+                        errorMessageRes = fieldErrors.patchReleaseRate
                     )
                 }
 
@@ -360,20 +385,11 @@ fun StructuredMedicationEditorSheet(
                 )
             }
 
-            errorMessageRes?.let { messageRes ->
-                Text(
-                    text = stringResource(messageRes),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-
             Button(
                 onClick = onConfirm,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                        top = errorMessageRes?.let { 0.dp } ?: dimensionResource(R.dimen.padding_xsmall)
-                    ),
+                    .padding(top = dimensionResource(R.dimen.padding_xsmall)),
                 enabled = !isSaving
             ) {
                 Text(text = confirmButtonText)
@@ -487,11 +503,23 @@ private fun DoseTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    suffix: String? = null,
+    @StringRes errorMessageRes: Int? = null,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        isError = errorMessageRes != null,
         label = { Text(text = label) },
+        suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        supportingText = errorMessageRes?.let { messageRes ->
+            {
+                Text(
+                    text = stringResource(messageRes),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -533,6 +561,38 @@ private fun doseKindLabelRes(doseKind: MedicationDoseKind): Int {
         MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> R.string.dose_type_patch_release_rate_mcg_day
         MedicationDoseKind.NONE -> R.string.medication_application_patch_off
     }
+}
+
+internal data class MedicationEditorFieldErrors(
+    @param:StringRes val customName: Int? = null,
+    @param:StringRes val doseMg: Int? = null,
+    @param:StringRes val gelPercent: Int? = null,
+    @param:StringRes val gelWeight: Int? = null,
+    @param:StringRes val patchReleaseRate: Int? = null,
+)
+
+internal fun resolveMedicationEditorFieldErrors(
+    draft: MedicationDraftUiState,
+    @StringRes errorMessageRes: Int?,
+): MedicationEditorFieldErrors {
+    if (errorMessageRes == null) {
+        return MedicationEditorFieldErrors()
+    }
+
+    val validationErrors = draft.validationErrors().toSet()
+    return MedicationEditorFieldErrors(
+        customName = validationErrors.firstOrNull { it == R.string.validation_name_required },
+        doseMg = validationErrors.firstOrNull { it == R.string.validation_dose_required },
+        gelPercent = validationErrors.firstOrNull {
+            it == R.string.validation_gel_percent_required
+        },
+        gelWeight = validationErrors.firstOrNull {
+            it == R.string.validation_gel_weight_required
+        },
+        patchReleaseRate = validationErrors.firstOrNull {
+            it == R.string.validation_patch_release_rate_required
+        },
+    )
 }
 
 @Preview(

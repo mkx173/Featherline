@@ -163,42 +163,51 @@ fun MedicationDraftUiState.changeDoseKind(
 }
 
 fun MedicationDraftUiState.validationErrorRes(): Int? {
+    return validationErrors().firstOrNull()
+}
+
+internal fun MedicationDraftUiState.validationErrors(): List<Int> {
+    val errors = mutableListOf<Int>()
+
     if (requiresCustomName() && customMedicationName.trim().isEmpty()) {
-        return R.string.validation_name_required
+        errors += R.string.validation_name_required
     }
 
     if (selectionKind == MedicationSelectionKind.CATALOG &&
         supportsCatalogSelection() &&
         selectedCatalogEntry().medicationKey == null
     ) {
-        return R.string.validation_medication_selection_required
+        errors += R.string.validation_medication_selection_required
     }
 
-    return when (doseKind) {
+    when (doseKind) {
         MedicationDoseKind.MG_AS_MEDICINE,
         MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
         MedicationDoseKind.PATCH_TOTAL_MG -> {
-            if (doseMg.toDoubleOrNull()?.let { it > 0.0 } == true) null
-            else R.string.validation_dose_required
+            if (doseMg.toDoubleOrNull()?.let { it > 0.0 } != true) {
+                errors += R.string.validation_dose_required
+            }
         }
 
         MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
             if (gelPercent.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                R.string.validation_gel_percent_required
-            } else if (gelWeightGrams.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                R.string.validation_gel_weight_required
-            } else {
-                null
+                errors += R.string.validation_gel_percent_required
+            }
+            if (gelWeightGrams.toDoubleOrNull()?.let { it > 0.0 } != true) {
+                errors += R.string.validation_gel_weight_required
             }
         }
 
         MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
-            if (patchReleaseRateMcgPerDay.toDoubleOrNull()?.let { it > 0.0 } == true) null
-            else R.string.validation_patch_release_rate_required
+            if (patchReleaseRateMcgPerDay.toDoubleOrNull()?.let { it > 0.0 } != true) {
+                errors += R.string.validation_patch_release_rate_required
+            }
         }
 
-        MedicationDoseKind.NONE -> null
+        MedicationDoseKind.NONE -> Unit
     }
+
+    return errors
 }
 
 fun MedicationDraftUiState.toMedicationDetails(): MedicationDetails {
