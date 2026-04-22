@@ -9,6 +9,8 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonColors
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,7 @@ fun <T> ConnectedButtonGroup(
     optionLabel: @Composable (T) -> String,
     onOptionSelected: (T) -> Unit,
     enabled: Boolean = true,
+    colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
 ) {
@@ -42,6 +45,7 @@ fun <T> ConnectedButtonGroup(
             }
         },
         enabled = enabled,
+        colors = colors,
         layout = layout,
         expandOptions = expandOptions,
     )
@@ -56,6 +60,7 @@ fun <T> ConnectedButtonGroup(
     optionLabel: @Composable (T) -> String,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
+    colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
 ) {
@@ -66,6 +71,7 @@ fun <T> ConnectedButtonGroup(
         optionLabel = optionLabel,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
+        colors = colors,
         layout = layout,
         expandOptions = expandOptions,
     )
@@ -80,6 +86,7 @@ private fun <T> ConnectedButtonGroup(
     optionLabel: @Composable (T) -> String,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
+    colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
 ) {
@@ -102,6 +109,7 @@ private fun <T> ConnectedButtonGroup(
                         optionLabel = optionLabel,
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
+                        colors = colors,
                     )
                 }
             }
@@ -132,6 +140,7 @@ private fun <T> ConnectedButtonGroup(
                         optionLabel = optionLabel,
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
+                        colors = colors,
                     )
                 }
             }
@@ -150,12 +159,14 @@ private fun <T> ConnectedButtonGroupButton(
     optionLabel: @Composable (T) -> String,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
+    colors: ToggleButtonColors,
 ) {
     ToggleButton(
         modifier = modifier,
         checked = selected,
         onCheckedChange = { onOptionToggled(option) },
         enabled = enabled,
+        colors = colors,
         shapes =
             when (index) {
                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -178,6 +189,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionLabel: @Composable (T) -> String,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
+    colors: ToggleButtonColors,
 ) {
     ConnectedButtonGroupButton(
         modifier = modifier,
@@ -188,6 +200,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionLabel = optionLabel,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
+        colors = colors,
     )
 }
 
