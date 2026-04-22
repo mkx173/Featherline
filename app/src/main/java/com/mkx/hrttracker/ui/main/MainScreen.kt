@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -22,7 +23,7 @@ import java.util.UUID
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit = { _, _ -> },
+    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit = { _, _, _, _ -> },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )

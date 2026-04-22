@@ -112,7 +112,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (UUID) -> Unit,
-    onQuickLogClick: (UUID, LocalDateTime) -> Unit,
+    onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -140,7 +140,7 @@ private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (UUID) -> Unit,
-    onQuickLogClick: (UUID, LocalDateTime) -> Unit,
+    onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
@@ -284,12 +284,17 @@ private fun PlanScreenContent(
                     timeFormatter = timeFormatter,
                     onScheduledClick = { scheduled ->
                         val fulfillingEntryUuid = scheduled.fulfillingEntryUuids.firstOrNull()
-                        if (fulfillingEntryUuid != null) {
+                        if (scheduled.isFulfilled && fulfillingEntryUuid != null) {
                             onEntryClick(fulfillingEntryUuid)
                         } else {
                             onQuickLogClick(
                                 scheduled.groupUuid,
-                                LocalDateTime.of(daySchedule.date, scheduled.scheduledTime)
+                                LocalDateTime.of(daySchedule.date, scheduled.scheduledTime),
+                                scheduled.medication.details,
+                                remainingQuickLogCount(
+                                    totalCount = scheduled.medication.count,
+                                    fulfilledCount = scheduled.fulfillingEntryUuids.size
+                                )
                             )
                         }
                     },
@@ -1207,6 +1212,13 @@ private enum class ScheduledDayRowState {
     PLANNED,
 }
 
+private fun remainingQuickLogCount(
+    totalCount: Int,
+    fulfilledCount: Int
+): Int {
+    return (totalCount - fulfilledCount).coerceAtLeast(1)
+}
+
 private val dateFormatter = DateTimeFormatter.ofPattern("dd")
 private val fulfilledIndicatorColor = Color(0xFF2E7D32)
 private val overdueScheduledIndicatorColor = Color(0xFFC62828)
@@ -1434,7 +1446,7 @@ private fun PlanScreenPreview() {
             uiState = buildPlanPreviewUiState(),
             onGroupClick = { },
             onEntryClick = { },
-            onQuickLogClick = { _, _ -> },
+            onQuickLogClick = { _, _, _, _ -> },
             onAddGroupClick = { },
             onHistoryClick = { },
             onDateSelected = { }

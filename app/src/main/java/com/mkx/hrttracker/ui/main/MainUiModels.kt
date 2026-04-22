@@ -121,7 +121,11 @@ internal fun buildMainAntiandrogenCards(
 
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
-            .map { medication ->
+            .groupBy(MedicationSignature::fromGroupMedication)
+            .map { (_, medicationsForSignature) ->
+                val medication = medicationsForSignature.first().copy(
+                    count = medicationsForSignature.sumOf { it.count }
+                )
                 val lastMatchingEntry = entries
                     .asSequence()
                     .filter { entry ->
@@ -225,7 +229,9 @@ internal fun buildMainUpcomingSection(
         .flatMap { group ->
             val distinctMedications = group.medications
                 .groupBy(MedicationSignature::fromGroupMedication)
-                .map { (_, meds) -> meds.first() }
+                .map { (_, meds) ->
+                    meds.first().copy(count = meds.sumOf { medication -> medication.count })
+                }
             group.schedule
                 .occurrencesBetween(
                     startDate = futureStartDate,

@@ -7,7 +7,6 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.expandedInstances
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,10 +30,20 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(QuickLogPlannedDoseUiState())
     val uiState: StateFlow<QuickLogPlannedDoseUiState> = _uiState.asStateFlow()
 
-    private var loadedKey: Pair<UUID, LocalDateTime>? = null
+    private var loadedKey: QuickLogPlannedDoseLoadKey? = null
 
-    fun initialize(groupId: UUID, scheduledFor: LocalDateTime) {
-        val key = groupId to scheduledFor
+    fun initialize(
+        groupId: UUID,
+        scheduledFor: LocalDateTime,
+        medicationDetails: MedicationDetails,
+        medicationCount: Int,
+    ) {
+        val key = QuickLogPlannedDoseLoadKey(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicationDetails = medicationDetails,
+            medicationCount = medicationCount.coerceAtLeast(1)
+        )
         if (loadedKey == key) {
             return
         }
@@ -52,13 +61,12 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
             _uiState.value = QuickLogPlannedDoseUiState(
                 group = group,
                 scheduledFor = scheduledFor,
-                draftEntries = group.medications.expandedInstances().map { medication ->
-                    QuickLogPlannedDoseItemUiState(
-                        details = medication.details,
-                        appliedDate = today,
-                        appliedTime = now
-                    )
-                }
+                draftEntries = buildCollapsedQuickLogDraftEntries(
+                    details = medicationDetails,
+                    count = medicationCount,
+                    appliedDate = today,
+                    appliedTime = now
+                )
             )
         }
     }
@@ -100,14 +108,16 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
                 val appliedAt = LocalDateTime.of(entry.appliedDate, entry.appliedTime)
                     .atZone(ZoneId.systemDefault())
                     .toInstant()
-                medicationLogRepository.saveEntry(
-                    uuid = null,
-                    medication = entry.details,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                    sourceGroupUuid = group.uuid,
-                    appliedAt = appliedAt,
-                    scheduledFor = scheduledFor
-                )
+                repeat(entry.count) {
+                    medicationLogRepository.saveEntry(
+                        uuid = null,
+                        medication = entry.details,
+                        sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                        sourceGroupUuid = group.uuid,
+                        appliedAt = appliedAt,
+                        scheduledFor = scheduledFor
+                    )
+                }
             }
 
             medicationReminderScheduler.rescheduleAll()
@@ -135,4 +145,28 @@ data class QuickLogPlannedDoseItemUiState(
     val details: MedicationDetails,
     val appliedDate: LocalDate,
     val appliedTime: LocalTime,
+    val count: Int = 1,
+)
+
+internal fun buildCollapsedQuickLogDraftEntries(
+    details: MedicationDetails,
+    count: Int,
+    appliedDate: LocalDate,
+    appliedTime: LocalTime,
+): List<QuickLogPlannedDoseItemUiState> {
+    return listOf(
+        QuickLogPlannedDoseItemUiState(
+            details = details,
+            appliedDate = appliedDate,
+            appliedTime = appliedTime,
+            count = count.coerceAtLeast(1)
+        )
+    )
+}
+
+private data class QuickLogPlannedDoseLoadKey(
+    val groupId: UUID,
+    val scheduledFor: LocalDateTime,
+    val medicationDetails: MedicationDetails,
+    val medicationCount: Int,
 )

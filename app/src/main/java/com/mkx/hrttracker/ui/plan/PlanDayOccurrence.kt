@@ -60,7 +60,7 @@ fun buildPlanDaySchedule(
                         groupName = group.name,
                         groupColorKey = group.colorKey,
                         scheduledTime = time,
-                        medication = medicationsForSignature.first(),
+                        medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot

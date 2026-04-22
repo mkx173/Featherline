@@ -44,6 +44,7 @@ import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.log.QuickAddMedicationGroupSheet
 import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -200,10 +201,12 @@ fun HrtTrackerNavHost(
         ) {
             composable(Screen.Main.route) {
                 MainScreen(
-                    onQuickLogDoseClick = { groupId, scheduledAt ->
+                    onQuickLogDoseClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
                             groupId = groupId,
-                            scheduledFor = scheduledAt
+                            scheduledFor = scheduledAt,
+                            medicationDetails = medicationDetails,
+                            medicationCount = medicationCount
                         )
                     }
                 )
@@ -221,10 +224,12 @@ fun HrtTrackerNavHost(
                     onEntryClick = { entryId ->
                         addEntrySheetRequest = AddEntrySheetRequest(entryId = entryId.toString())
                     },
-                    onQuickLogClick = { groupId, scheduledAt ->
+                    onQuickLogClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
                             groupId = groupId,
-                            scheduledFor = scheduledAt
+                            scheduledFor = scheduledAt,
+                            medicationDetails = medicationDetails,
+                            medicationCount = medicationCount
                         )
                     },
                     onAddGroupClick = {
@@ -296,6 +301,8 @@ fun HrtTrackerNavHost(
         QuickLogPlannedDoseSheet(
             groupId = request.groupId,
             scheduledFor = request.scheduledFor,
+            medicationDetails = request.medicationDetails,
+            medicationCount = request.medicationCount,
             onDismissRequest = { quickLogPlannedDoseRequest = null },
             onEntriesSaved = { quickLogPlannedDoseRequest = null }
         )
@@ -311,4 +318,6 @@ private data class AddEntrySheetRequest(
 private data class QuickLogPlannedDoseRequest(
     val groupId: UUID,
     val scheduledFor: LocalDateTime,
+    val medicationDetails: MedicationDetails,
+    val medicationCount: Int,
 )

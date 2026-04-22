@@ -196,6 +196,49 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainAntiandrogenCards_collapses_duplicate_matching_rows_into_one_counted_card() {
+        val sharedDetails = testCatalogMedicationDetails(
+            key = MedicationKey.SPIRONOLACTONE,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(50.0)
+        )
+        val antiandrogenGroup = MedicationGroup(
+            uuid = UUID.fromString("0f32c3be-a63a-4a2f-aebd-f9c9bc2df942"),
+            name = "Night blocker",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(22, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("725d4c60-1684-4c8f-b786-4d7df50a6400"),
+                    details = sharedDetails
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("74c29e3e-724d-4f3c-996f-6f4195ae7904"),
+                    details = sharedDetails
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(1, cards.size)
+        assertEquals(2, cards.single().medication.count)
+    }
+
+    @Test
     fun buildMainTodaySection_marks_done_overdue_dueSoon_and_upcoming_rows() {
         val group = medicationGroup(
             uuid = UUID.fromString("7b53f876-8809-4f64-91b0-c6c6a59b87c0"),

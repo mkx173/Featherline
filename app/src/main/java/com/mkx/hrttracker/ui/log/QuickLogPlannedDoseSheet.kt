@@ -20,6 +20,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -36,9 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -54,6 +57,8 @@ import java.util.UUID
 fun QuickLogPlannedDoseSheet(
     groupId: UUID,
     scheduledFor: LocalDateTime,
+    medicationDetails: MedicationDetails,
+    medicationCount: Int,
     onDismissRequest: () -> Unit,
     onEntriesSaved: () -> Unit,
     modifier: Modifier = Modifier,
@@ -63,8 +68,8 @@ fun QuickLogPlannedDoseSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(groupId, scheduledFor) {
-        viewModel.initialize(groupId, scheduledFor)
+    LaunchedEffect(groupId, scheduledFor, medicationDetails, medicationCount) {
+        viewModel.initialize(groupId, scheduledFor, medicationDetails, medicationCount)
     }
 
     LaunchedEffect(uiState.isSaved) {
@@ -245,7 +250,23 @@ private fun QuickLogPlannedDoseEntryRow(
             Text(text = stringResource(entry.details.applicationType.labelRes))
         },
         headlineContent = {
-            Text(text = medicationDisplayName(entry.details))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(text = medicationDisplayName(entry.details))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = MaterialTheme.shapes.extraSmall
+                ) {
+                    Text(
+                        text = medicationCountIndicatorText(entry.count),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
         },
         supportingContent = {
             medicationDoseText(entry.details)?.let { doseText ->

@@ -79,7 +79,7 @@ private val FulfilledStatusColor = Color(0xFF2E7D32)
 @Composable
 fun MainContent(
     uiState: MainUiState,
-    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
+    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -558,7 +558,7 @@ private fun MainTodaySection(
     section: MainTodaySectionUiState,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
+    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -647,7 +647,7 @@ private fun MainUpcomingSection(
 private fun MainTodayDoseRow(
     row: MainTodayDoseRowUiState,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
+    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
@@ -762,7 +762,15 @@ private fun MainTodayDoseRow(
                 MainTodayActionButton(
                     status = row.status,
                     onClick = {
-                        onQuickLogDoseClick(row.groupUuid, row.scheduledAt)
+                        onQuickLogDoseClick(
+                            row.groupUuid,
+                            row.scheduledAt,
+                            row.medication.details,
+                            remainingQuickLogCount(
+                                totalCount = row.medication.count,
+                                fulfilledCount = row.fulfillingEntryUuids.size
+                            )
+                        )
                     }
                 )
             }
@@ -1087,6 +1095,13 @@ private fun mainTrendDeltaLabel(changeSinceYesterday: Int): String {
         changeSinceYesterday < 0 -> changeSinceYesterday.toString()
         else -> "0"
     }
+}
+
+private fun remainingQuickLogCount(
+    totalCount: Int,
+    fulfilledCount: Int
+): Int {
+    return (totalCount - fulfilledCount).coerceAtLeast(1)
 }
 
 @Composable

@@ -44,6 +44,49 @@ class PlanDayOccurrenceTest {
         assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
     }
 
+    @Test
+    fun buildPlanDaySchedule_collapses_duplicate_matching_medications_into_one_counted_entry() {
+        val sharedDetails = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        val group = MedicationGroup(
+            uuid = UUID.fromString("3ff64a14-e1fd-4900-b804-f298d9e5e504"),
+            name = "Test group",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("43f8f777-86eb-4193-94b8-cf5a3441bc3f"),
+                    details = sharedDetails
+                ),
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("37d67438-f3a9-42ba-a3b8-57a005063b0f"),
+                    details = sharedDetails
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 8, 0)
+        )
+
+        assertEquals(1, schedule.scheduledEntries.size)
+        assertEquals(2, schedule.scheduledEntries.single().medication.count)
+    }
+
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
