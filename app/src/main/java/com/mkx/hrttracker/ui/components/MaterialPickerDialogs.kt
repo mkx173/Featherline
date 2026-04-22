@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui
+package com.mkx.hrttracker.ui.components
 
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog

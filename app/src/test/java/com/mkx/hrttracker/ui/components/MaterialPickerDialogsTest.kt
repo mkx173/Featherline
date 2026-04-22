@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui
+package com.mkx.hrttracker.ui.components
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

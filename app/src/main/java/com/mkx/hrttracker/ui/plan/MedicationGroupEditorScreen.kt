@@ -99,8 +99,8 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
-import com.mkx.hrttracker.ui.DatePickerModal
-import com.mkx.hrttracker.ui.TimePickerModal
+import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet

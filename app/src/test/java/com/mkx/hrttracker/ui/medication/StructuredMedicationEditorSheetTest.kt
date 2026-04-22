@@ -9,16 +9,6 @@ import org.junit.Test
 
 class StructuredMedicationEditorSheetTest {
     @Test
-    fun resolve_connected_button_selection_falls_back_to_first_option() {
-        val resolved = resolveConnectedButtonSelection(
-            options = listOf(MedicationApplicationType.ORAL),
-            selectedOption = MedicationApplicationType.INJECTION,
-        )
-
-        assertEquals(MedicationApplicationType.ORAL, resolved)
-    }
-
-    @Test
     fun resolve_medication_editor_field_errors_marks_multiple_invalid_fields() {
         val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
         val fieldErrors = resolveMedicationEditorFieldErrors(

@@ -10,7 +10,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,10 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -38,8 +35,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -65,8 +60,9 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import com.mkx.hrttracker.ui.DatePickerModal
-import com.mkx.hrttracker.ui.TimePickerModal
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -396,49 +392,6 @@ fun StructuredMedicationEditorSheet(
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun <T> ConnectedButtonGroup(
-    modifier: Modifier = Modifier,
-    options: List<T>,
-    selectedOption: T?,
-    optionLabel: @Composable (T) -> String,
-    onOptionSelected: (T) -> Unit,
-    enabled: Boolean = true,
-) {
-    val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-
-        options.forEachIndexed { index, option ->
-            ToggleButton(
-                checked = option == resolvedSelectedOption,
-                onCheckedChange = {
-                    if (it) {
-                        onOptionSelected(option)
-                    }
-                },
-                enabled = enabled || option == resolvedSelectedOption,
-                shapes =
-                    when (index) {
-                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    },
-            ) {
-                Text(optionLabel(option))
-            }
-        }
-    }
-}
-
-internal fun <T> resolveConnectedButtonSelection(options: List<T>, selectedOption: T?): T? {
-    return options.firstOrNull { it == selectedOption } ?: options.firstOrNull()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

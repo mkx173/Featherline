@@ -47,8 +47,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.totalMedicationCount
-import com.mkx.hrttracker.ui.DatePickerModal
-import com.mkx.hrttracker.ui.TimePickerModal
+import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
