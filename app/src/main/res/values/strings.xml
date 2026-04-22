@@ -141,6 +141,7 @@
     <string name="group_schedule_times">Times</string>
     <string name="group_schedule_times_with_count">Times of day · %d</string>
     <string name="group_schedule_time_item">At %1$s</string>
+    <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
     <string name="group_schedule_weekly_summary">Every %1$s week(s)</string>
     <string name="group_schedule_daily_summary">Every %1$s day(s)</string>
     <string name="group_schedule_since_summary">Since %1$s</string>

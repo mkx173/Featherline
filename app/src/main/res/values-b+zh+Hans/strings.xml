@@ -141,6 +141,7 @@
     <string name="group_schedule_times">时间列表</string>
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
     <string name="group_schedule_time_item">%1$s</string>
+    <string name="group_schedule_duplicate_time">该时间已存在于计划中。</string>
     <string name="group_schedule_weekly_summary">每 %1$s 周</string>
     <string name="group_schedule_daily_summary">每 %1$s 天</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>

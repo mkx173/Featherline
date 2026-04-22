@@ -137,12 +137,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun addDailyTime() {
+    fun addDailyTime(time: LocalTime) {
         _uiState.update {
             it.copy(
-                dailyTimes = it.dailyTimes + MedicationGroupScheduleTimeUiState(
-                    time = LocalTime.now().withSecond(0).withNano(0)
-                )
+                dailyTimes = appendDailyTime(it.dailyTimes, time)
             )
         }
     }
@@ -504,6 +502,26 @@ internal fun decrementMedicationCountOrRemove(
         } else {
             listOf(medication.copy(count = medication.count - 1))
         }
+    }
+}
+
+internal fun appendDailyTime(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    time: LocalTime
+): List<MedicationGroupScheduleTimeUiState> {
+    return dailyTimes + MedicationGroupScheduleTimeUiState(
+        time = time.withSecond(0).withNano(0)
+    )
+}
+
+internal fun hasDuplicateDailyTime(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    time: LocalTime,
+    excludingLocalId: String? = null,
+): Boolean {
+    val normalizedTime = time.withSecond(0).withNano(0)
+    return dailyTimes.any { dailyTime ->
+        dailyTime.localId != excludingLocalId && dailyTime.time == normalizedTime
     }
 }
 

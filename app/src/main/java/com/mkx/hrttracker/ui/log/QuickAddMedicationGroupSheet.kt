@@ -153,6 +153,7 @@ private fun QuickAddMedicationGroupSheetContent(
         TimePickerModal(
             onTimeSelected = { selectedTime ->
                 onItemTimeChange(entry.localId, selectedTime)
+                true
             },
             onDismiss = { timePickerEntryId = null },
             initialTime = entry.appliedTime,

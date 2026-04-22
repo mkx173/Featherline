@@ -57,7 +57,7 @@ fun DatePickerModal(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerModal(
-    onTimeSelected: (LocalTime) -> Unit,
+    onTimeSelected: (LocalTime) -> Boolean,
     onDismiss: () -> Unit,
     initialTime: LocalTime,
     is24Hour: Boolean,
@@ -73,8 +73,12 @@ fun TimePickerModal(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onTimeSelected(LocalTime.of(timePickerState.hour, timePickerState.minute))
-                    onDismiss()
+                    val shouldDismiss = onTimeSelected(
+                        LocalTime.of(timePickerState.hour, timePickerState.minute)
+                    )
+                    if (shouldDismiss) {
+                        onDismiss()
+                    }
                 }
             ) {
                 Text(stringResource(R.string.confirm))

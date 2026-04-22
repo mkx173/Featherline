@@ -318,7 +318,7 @@ private fun MedicationGroupEditorScreenContent(
     onWeeklyDayChange: (DayOfWeek) -> Unit,
     onWeeklyTimeChange: (LocalTime) -> Unit,
     onDailyIntervalChange: (String) -> Unit,
-    onAddDailyTime: () -> Unit,
+    onAddDailyTime: (LocalTime) -> Unit,
     onDailyTimeChange: (String, LocalTime) -> Unit,
     onRemoveDailyTime: (String) -> Unit,
     onAddMedication: () -> Unit,
@@ -337,6 +337,8 @@ private fun MedicationGroupEditorScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
+    val duplicateDailyTimeMessage =
+        stringResource(R.string.group_schedule_duplicate_time)
     val groupColorScheme = rememberMedicationGroupColorScheme(uiState.groupColorKey)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
@@ -357,6 +359,7 @@ private fun MedicationGroupEditorScreenContent(
     }
     var pendingSinceDate by remember { mutableStateOf<LocalDate?>(null) }
     var pendingWeeklyTime by remember { mutableStateOf<LocalTime?>(null) }
+    var pendingNewDailyTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
     val canSave = resolveMedicationGroupName(
         groupName = uiState.groupName,
@@ -386,9 +389,29 @@ private fun MedicationGroupEditorScreenContent(
 
     pendingWeeklyTime?.let { initialWeeklyTime ->
         TimePickerModal(
-            onTimeSelected = onWeeklyTimeChange,
+            onTimeSelected = { selectedTime ->
+                onWeeklyTimeChange(selectedTime)
+                true
+            },
             onDismiss = { pendingWeeklyTime = null },
             initialTime = initialWeeklyTime,
+            is24Hour = is24Hour
+        )
+    }
+
+    pendingNewDailyTime?.let { initialDailyTime ->
+        TimePickerModal(
+            onTimeSelected = { selectedTime ->
+                if (hasDuplicateDailyTime(uiState.dailyTimes, selectedTime)) {
+                    Toast.makeText(context, duplicateDailyTimeMessage, Toast.LENGTH_SHORT).show()
+                    false
+                } else {
+                    onAddDailyTime(selectedTime)
+                    true
+                }
+            },
+            onDismiss = { pendingNewDailyTime = null },
+            initialTime = initialDailyTime,
             is24Hour = is24Hour
         )
     }
@@ -396,7 +419,18 @@ private fun MedicationGroupEditorScreenContent(
     pendingDailyTimeEdit?.let { dailyTimeEdit ->
         TimePickerModal(
             onTimeSelected = { selectedTime ->
-                onDailyTimeChange(dailyTimeEdit.localId, selectedTime)
+                if (hasDuplicateDailyTime(
+                        dailyTimes = uiState.dailyTimes,
+                        time = selectedTime,
+                        excludingLocalId = dailyTimeEdit.localId
+                    )
+                ) {
+                    Toast.makeText(context, duplicateDailyTimeMessage, Toast.LENGTH_SHORT).show()
+                    false
+                } else {
+                    onDailyTimeChange(dailyTimeEdit.localId, selectedTime)
+                    true
+                }
             },
             onDismiss = { pendingDailyTimeEdit = null },
             initialTime = dailyTimeEdit.initialTime,
@@ -565,7 +599,11 @@ private fun MedicationGroupEditorScreenContent(
                             timeFormatter = timeFormatter,
                             onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
                             onIntervalChange = onDailyIntervalChange,
-                            onAddTime = onAddDailyTime,
+                            onAddTime = {
+                                pendingNewDailyTime = LocalTime.now()
+                                    .withSecond(0)
+                                    .withNano(0)
+                            },
                             onTimeClick = { localId, currentTime ->
                                 pendingDailyTimeEdit = DailyTimeEditRequest(
                                     localId = localId,

@@ -348,6 +348,7 @@ fun StructuredMedicationEditorSheet(
                     TimePickerModal(
                         onTimeSelected = { selectedTime ->
                             onAppliedTimeChange?.invoke(selectedTime)
+                            true
                         },
                         onDismiss = { showTimePickerModal = false },
                         initialTime = appliedTime,
