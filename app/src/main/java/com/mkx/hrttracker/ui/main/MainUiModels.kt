@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
+import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDate
@@ -52,7 +53,7 @@ data class MainTodayDoseRowUiState(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val scheduledAt: LocalDateTime,
-    val medications: List<MedicationGroupMedication>,
+    val medication: MedicationGroupMedication,
     val status: MainTodayDoseStatus,
     val loggedAt: LocalDateTime? = null,
     val fulfillingEntryUuids: List<UUID> = emptyList(),
@@ -81,7 +82,7 @@ data class MainUpcomingDoseRowUiState(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val scheduledAt: LocalDateTime,
-    val medications: List<MedicationGroupMedication>,
+    val medication: MedicationGroupMedication,
 )
 
 internal fun buildMainE2Hero(
@@ -162,12 +163,11 @@ internal fun buildMainTodaySection(
         zoneId = zoneId
     )
 
+    val entriesByUuid = entries.associateBy { it.uuid }
     val rows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = LocalDateTime.of(today, scheduledEntry.scheduledTime)
-        val fulfillingEntries = entries
-            .filter { entry ->
-                entry.sourceGroupUuid == scheduledEntry.groupUuid && entry.scheduledFor == scheduledAt
-            }
+        val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
+            .mapNotNull { entriesByUuid[it] }
             .sortedBy { it.appliedAt }
 
         MainTodayDoseRowUiState(
@@ -175,7 +175,7 @@ internal fun buildMainTodaySection(
             groupName = scheduledEntry.groupName,
             groupColorKey = scheduledEntry.groupColorKey,
             scheduledAt = scheduledAt,
-            medications = scheduledEntry.medications,
+            medication = scheduledEntry.medication,
             status = when {
                 scheduledEntry.isFulfilled -> MainTodayDoseStatus.DONE
                 scheduledEntry.isDueSoon -> MainTodayDoseStatus.DUE_SOON
@@ -223,6 +223,9 @@ internal fun buildMainUpcomingSection(
     val futureStartDate = tomorrow.plusDays(1)
     val upcomingRows = groups
         .flatMap { group ->
+            val distinctMedications = group.medications
+                .groupBy(MedicationSignature::fromGroupMedication)
+                .map { (_, meds) -> meds.first() }
             group.schedule
                 .occurrencesBetween(
                     startDate = futureStartDate,
@@ -237,14 +240,16 @@ internal fun buildMainUpcomingSection(
                         entries = entries
                     )
                 }
-                .map { occurrence ->
-                    MainUpcomingDoseRowUiState(
-                        groupUuid = group.uuid,
-                        groupName = group.name,
-                        groupColorKey = group.colorKey,
-                        scheduledAt = occurrence,
-                        medications = group.medications
-                    )
+                .flatMap { occurrence ->
+                    distinctMedications.map { medication ->
+                        MainUpcomingDoseRowUiState(
+                            groupUuid = group.uuid,
+                            groupName = group.name,
+                            groupColorKey = group.colorKey,
+                            scheduledAt = occurrence,
+                            medication = medication
+                        )
+                    }
                 }
                 .toList()
         }
@@ -277,7 +282,7 @@ internal fun buildMainPreviewRowsForDate(
                 groupName = scheduledEntry.groupName,
                 groupColorKey = scheduledEntry.groupColorKey,
                 scheduledAt = LocalDateTime.of(date, scheduledEntry.scheduledTime),
-                medications = scheduledEntry.medications
+                medication = scheduledEntry.medication
             )
         }
         .sortedBy { it.scheduledAt }

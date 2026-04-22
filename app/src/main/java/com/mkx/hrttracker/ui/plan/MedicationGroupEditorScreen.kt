@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -275,7 +276,8 @@ fun MedicationGroupEditorScreen(
         onRemoveDailyTime = viewModel::removeDailyTime,
         onAddMedication = viewModel::showAddMedicationEditor,
         onMedicationClick = viewModel::showMedicationEditor,
-        onRemoveMedication = viewModel::removeMedication,
+        onDecreaseMedicationCount = viewModel::removeMedication,
+        onIncreaseMedicationCount = viewModel::increaseMedicationCount,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
         onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
@@ -308,7 +310,8 @@ private fun MedicationGroupEditorScreenContent(
     onRemoveDailyTime: (String) -> Unit,
     onAddMedication: () -> Unit,
     onMedicationClick: (String) -> Unit,
-    onRemoveMedication: (String) -> Unit,
+    onDecreaseMedicationCount: (String) -> Unit,
+    onIncreaseMedicationCount: (String) -> Unit,
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
     onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
@@ -625,7 +628,8 @@ private fun MedicationGroupEditorScreenContent(
                     groupColorKey = uiState.groupColorKey,
                     appLocale = appLocale,
                     onClick = { onMedicationClick(medication.localId) },
-                    onRemoveClick = { onRemoveMedication(medication.localId) }
+                    onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
+                    onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
                 )
             }
 
@@ -906,7 +910,8 @@ private fun MedicationGroupMedicationCard(
     groupColorKey: MedicationGroupColorKey,
     appLocale: java.util.Locale,
     onClick: () -> Unit,
-    onRemoveClick: () -> Unit
+    onDecreaseClick: () -> Unit,
+    onIncreaseClick: () -> Unit,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     Surface(
@@ -954,10 +959,63 @@ private fun MedicationGroupMedicationCard(
                     contentDescription = stringResource(R.string.edit_medication)
                 )
             }
-            IconButton(onClick = onRemoveClick) {
+            MedicationCountEditor(
+                count = medication.count,
+                onDecreaseClick = onDecreaseClick,
+                onIncreaseClick = onIncreaseClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun MedicationCountEditor(
+    count: Int,
+    onDecreaseClick: () -> Unit,
+    onIncreaseClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onDecreaseClick,
+                modifier = Modifier.size(32.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.remove_medication_from_group)
+                    imageVector = if (count == 1) {
+                        Icons.Default.Delete
+                    } else {
+                        Icons.Default.Remove
+                    },
+                    contentDescription = stringResource(
+                        if (count == 1) {
+                            R.string.remove_medication_from_group
+                        } else {
+                            R.string.decrease_medication_count
+                        }
+                    )
+                )
+            }
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            IconButton(
+                onClick = onIncreaseClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.increase_medication_count)
                 )
             }
         }
@@ -1196,7 +1254,8 @@ private fun MedicationGroupEditorDailyPreview() {
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
-            onRemoveMedication = { },
+            onDecreaseMedicationCount = { },
+            onIncreaseMedicationCount = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onMedicationDraftChange = { },
@@ -1241,7 +1300,8 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
-            onRemoveMedication = { },
+            onDecreaseMedicationCount = { },
+            onIncreaseMedicationCount = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onMedicationDraftChange = { },

@@ -37,7 +37,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -604,13 +603,7 @@ private fun ScheduledDayRow(
         ScheduledDayRowState.MISSED -> overdueScheduledIndicatorColor
         ScheduledDayRowState.PLANNED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val primaryMedication = entry.medications.firstOrNull()
-    val supportingText = if (primaryMedication != null) {
-        medicationSummary(primaryMedication.details)
-    } else {
-        entry.groupName
-    }
-    val hiddenMedicationCount = (entry.medications.size - 1).coerceAtLeast(0)
+    val supportingText = medicationSummary(entry.medication.details)
 
     Row(
         modifier = Modifier
@@ -639,11 +632,7 @@ private fun ScheduledDayRow(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = if (hiddenMedicationCount > 0) {
-                    "$supportingText · ${stringResource(R.string.plan_group_more_medications, hiddenMedicationCount)}"
-                } else {
-                    supportingText
-                },
+                text = supportingText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -823,127 +812,6 @@ private fun selectedDaySummaryColor(
         overallStatus == PlanCalendarDayStatus.SCHEDULED && date.isBefore(today) -> overdueScheduledIndicatorColor
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-}
-
-@Composable
-private fun SelectedDayEntryCard(
-    entry: MedicationLogEntry,
-    appLocale: Locale,
-    timeFormatter: DateTimeFormatter,
-    onClick: () -> Unit
-) {
-    val doseLabel = medicationDoseText(entry.details)
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        overlineContent = {
-            Text(text = stringResource(entry.details.applicationType.labelRes))
-        },
-        headlineContent = {
-            Text(text = medicationDisplayName(entry.details))
-        },
-        supportingContent = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-            ) {
-                if (doseLabel != null) {
-                    Text(text = doseLabel)
-                }
-                Text(
-                    text = stringResource(R.string.plan_entry_label_manual),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        trailingContent = {
-            Text(
-                text = entry.appliedAt
-                    .atZone(ZoneId.systemDefault())
-                    .format(timeFormatter)
-            )
-        }
-    )
-}
-
-@Composable
-private fun PlanScheduleEntryCard(
-    entry: PlanDayScheduleEntry,
-    appLocale: Locale,
-    timeFormatter: DateTimeFormatter,
-    onClick: () -> Unit
-) {
-    val statusLabel = when {
-        entry.isFulfilled -> stringResource(R.string.plan_schedule_entry_logged)
-        entry.isDueSoon -> stringResource(R.string.plan_schedule_entry_due_soon)
-        else -> stringResource(R.string.plan_schedule_entry_not_logged)
-    }
-    val statusColor = when {
-        entry.isFulfilled -> fulfilledIndicatorColor
-        entry.isDueSoon -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        leadingContent = {
-            if (entry.isFulfilled) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = fulfilledIndicatorColor
-                )
-            } else if (entry.isDueSoon) {
-                Icon(
-                    imageVector = Icons.Default.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .border(
-                            width = 1.5.dp,
-                            color = MaterialTheme.colorScheme.outline,
-                            shape = CircleShape
-                        )
-                )
-            }
-        },
-        overlineContent = {
-            Text(text = entry.scheduledTime.format(timeFormatter))
-        },
-        headlineContent = {
-            Text(text = entry.groupName)
-        },
-        supportingContent = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
-            ) {
-                entry.medications.take(3).forEach { medication ->
-                    Text(
-                        text = medicationSummary(medication.details),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                val hiddenCount = entry.medications.size - 3
-                if (hiddenCount > 0) {
-                    Text(
-                        text = stringResource(R.string.plan_group_more_medications, hiddenCount),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Text(
-                    text = statusLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor
-                )
-            }
-        }
-    )
 }
 
 @Composable

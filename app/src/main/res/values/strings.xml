@@ -148,6 +148,8 @@
     <string name="add_time">Add time</string>
     <string name="edit_time">Edit</string>
     <string name="edit_medication">Edit medication</string>
+    <string name="increase_medication_count">Increase medication count</string>
+    <string name="decrease_medication_count">Decrease medication count</string>
     <string name="remove_medication_from_group">Remove medication</string>
     <string name="remove_time">Remove time</string>
     <string name="quick_add_group_title">Quick add from group</string>
@@ -196,7 +198,6 @@
     <string name="entry_time_applied">Applied: %1$s</string>
     <string name="entry_uuid">UUID: %1$s</string>
     <string name="plan_group_medication_summary">%1$s, %2$s mg, %3$s</string>
-    <string name="plan_group_more_medications">%1$d more</string>
     <string name="dark_mode_follow_system">Follow system</string>
     <string name="dark_mode_always_off">Always off</string>
     <string name="dark_mode_always_on">Always on</string>

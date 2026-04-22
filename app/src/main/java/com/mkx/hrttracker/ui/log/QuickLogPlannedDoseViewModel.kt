@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.expandedInstances
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +52,7 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
             _uiState.value = QuickLogPlannedDoseUiState(
                 group = group,
                 scheduledFor = scheduledFor,
-                draftEntries = group.medications.map { medication ->
+                draftEntries = group.medications.expandedInstances().map { medication ->
                     QuickLogPlannedDoseItemUiState(
                         details = medication.details,
                         appliedDate = today,

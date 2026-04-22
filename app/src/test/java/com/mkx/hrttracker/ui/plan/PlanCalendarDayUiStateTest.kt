@@ -330,6 +330,68 @@ class PlanCalendarDayUiStateTest {
         assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
     }
 
+    @Test
+    fun isSlotFulfilled_requires_the_full_stored_count_for_matching_medications() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("6c7cf2ef-f59d-4ec6-bad9-fb0f80ec4ebb"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("e5f15765-159c-4c25-bffd-73a198a0f932"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
+                    count = 2
+                )
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+        val firstEntry = groupEntry(
+            groupUuid = group.uuid,
+            details = estradiolDetails(
+                applicationType = MedicationApplicationType.ORAL,
+                dose = 2.0
+            ),
+            appliedAt = scheduledFor.plusMinutes(2),
+            scheduledFor = scheduledFor
+        )
+        val secondEntry = groupEntry(
+            groupUuid = group.uuid,
+            details = estradiolDetails(
+                applicationType = MedicationApplicationType.ORAL,
+                dose = 2.0
+            ),
+            appliedAt = scheduledFor.plusMinutes(5),
+            scheduledFor = scheduledFor
+        )
+
+        assertEquals(
+            false,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(firstEntry)
+            )
+        )
+        assertEquals(
+            true,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(firstEntry, secondEntry)
+            )
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         schedule: MedicationGroupSchedule,
@@ -378,11 +440,13 @@ class PlanCalendarDayUiStateTest {
 
     private fun medication(
         uuid: UUID,
-        details: MedicationDetails
+        details: MedicationDetails,
+        count: Int = 1,
     ): MedicationGroupMedication {
         return MedicationGroupMedication(
             uuid = uuid,
-            details = details
+            details = details,
+            count = count
         )
     }
 

@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         MedicationGroupWeeklyDayEntity::class,
         UserProfileEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {

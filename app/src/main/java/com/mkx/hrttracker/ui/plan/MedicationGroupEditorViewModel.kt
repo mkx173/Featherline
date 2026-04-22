@@ -175,7 +175,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun removeMedication(localId: String) {
         _uiState.update {
             it.copy(
-                medications = it.medications.filterNot { medication -> medication.localId == localId },
+                medications = decrementMedicationCountOrRemove(
+                    medications = it.medications,
+                    localId = localId
+                ),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun increaseMedicationCount(localId: String) {
+        _uiState.update {
+            it.copy(
+                medications = incrementMedicationCount(
+                    medications = it.medications,
+                    localId = localId
+                ),
                 errorMessageRes = null
             )
         }
@@ -233,7 +248,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val savedMedication = MedicationGroupMedicationItemUiState(
             localId = editingMedication.localId,
             persistedMedicationId = editingMedication.persistedMedicationId,
-            details = editingMedication.draft.toMedicationDetails()
+            details = editingMedication.draft.toMedicationDetails(),
+            count = editingMedication.count
         )
 
         _uiState.update {
@@ -314,7 +330,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medications = currentState.medications.map { medication ->
                     MedicationGroupMedicationInput(
                         uuid = medication.persistedMedicationId?.let(UUID::fromString),
-                        details = medication.details
+                        details = medication.details,
+                        count = medication.count
                     )
                 },
                 notificationsEnabled = currentState.notificationsEnabled
@@ -423,7 +440,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
                         persistedMedicationId = medication.uuid.toString(),
-                        details = medication.details
+                        details = medication.details,
+                        count = medication.count
                     )
                 }
             )
@@ -454,6 +472,34 @@ internal fun toggleWeeklyDaySelection(
         selectedDays - dayOfWeek
     } else {
         selectedDays + dayOfWeek
+    }
+}
+
+internal fun incrementMedicationCount(
+    medications: List<MedicationGroupMedicationItemUiState>,
+    localId: String
+): List<MedicationGroupMedicationItemUiState> {
+    return medications.map { medication ->
+        if (medication.localId == localId) {
+            medication.copy(count = medication.count + 1)
+        } else {
+            medication
+        }
+    }
+}
+
+internal fun decrementMedicationCountOrRemove(
+    medications: List<MedicationGroupMedicationItemUiState>,
+    localId: String
+): List<MedicationGroupMedicationItemUiState> {
+    return medications.flatMap { medication ->
+        if (medication.localId != localId) {
+            listOf(medication)
+        } else if (medication.count <= 1) {
+            emptyList()
+        } else {
+            listOf(medication.copy(count = medication.count - 1))
+        }
     }
 }
 
@@ -491,12 +537,14 @@ data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
     val details: MedicationDetails = defaultMedicationDraft().toMedicationDetails(),
+    val count: Int = 1,
 ) {
     fun toEditorUiState(): MedicationGroupMedicationEditorUiState {
         return MedicationGroupMedicationEditorUiState(
             localId = localId,
             persistedMedicationId = persistedMedicationId,
-            draft = medicationDraftFromDetails(details)
+            draft = medicationDraftFromDetails(details),
+            count = count
         )
     }
 }
@@ -505,6 +553,7 @@ data class MedicationGroupMedicationEditorUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
     val draft: MedicationDraftUiState = defaultMedicationDraft(),
+    val count: Int = 1,
 )
 
 data class MedicationGroupScheduleTimeUiState(

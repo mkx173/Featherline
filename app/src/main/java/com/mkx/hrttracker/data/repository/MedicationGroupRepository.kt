@@ -131,6 +131,7 @@ class MedicationGroupRepository @Inject constructor(
                     uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
                     groupUuid = groupUuid.toString(),
                     sortOrder = index,
+                    count = medication.count,
                     category = medication.details.category.name,
                     applicationType = medication.details.applicationType.name,
                     selectionKind = medication.details.selection.kind.name,
@@ -204,6 +205,7 @@ class MedicationGroupRepository @Inject constructor(
                 MedicationGroupMedication(
                     uuid = UUID.fromString(item.uuid),
                     details = item.toMedicationDetails(),
+                    count = item.count.coerceAtLeast(1)
                 )
             },
             notificationsEnabled = group.notificationsEnabled,
@@ -260,7 +262,12 @@ class MedicationGroupRepository @Inject constructor(
 data class MedicationGroupMedicationInput(
     val uuid: UUID? = null,
     val details: MedicationDetails,
-)
+    val count: Int = 1,
+) {
+    init {
+        require(count > 0) { "Medication count must be at least 1." }
+    }
+}
 
 data class MedicationGroupScheduleInput(
     val type: MedicationGroupScheduleType,

@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.expandedInstances
 import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -89,9 +90,9 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
 
         selectedGroupId.value = groupId
         selectedSlotId.value = null
-        draftEntries.value = group.medications.map { medication ->
+        draftEntries.value = group.medications.expandedInstances().map { medication ->
             QuickAddMedicationGroupItemUiState(
-                groupMedicationId = medication.uuid,
+                groupMedicationId = medication.groupMedicationUuid,
                 details = medication.details,
                 appliedDate = defaultDate,
                 appliedTime = defaultTime

@@ -16,7 +16,7 @@ data class PlanDayScheduleEntry(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val scheduledTime: LocalTime,
-    val medications: List<MedicationGroupMedication>,
+    val medication: MedicationGroupMedication,
     val fulfillingEntryUuids: List<UUID>,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
@@ -38,22 +38,34 @@ fun buildPlanDaySchedule(
     val scheduledEntries = groups
         .filter { group -> group.schedule.isScheduledOn(date) }
         .flatMap { group ->
-            group.schedule.times.sorted().map { time ->
+            val medicationsBySignature = group.medications
+                .groupBy(MedicationSignature::fromGroupMedication)
+            group.schedule.times.sorted().flatMap { time ->
                 val slotDateTime = LocalDateTime.of(date, time)
-                val fulfillingEntries = entries.filter { entry ->
+                val slotLogs = entries.filter { entry ->
                     entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
                 }
-                val isFulfilled = isSlotFulfilled(group, date, time, entries)
-                PlanDayScheduleEntry(
-                    groupUuid = group.uuid,
-                    groupName = group.name,
-                    groupColorKey = group.colorKey,
-                    scheduledTime = time,
-                    medications = group.medications,
-                    fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
-                    isFulfilled = isFulfilled,
-                    isDueSoon = !isFulfilled && isDueSoon(slotDateTime, now)
-                )
+                val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
+                val isDueSoonSlot = isDueSoon(slotDateTime, now)
+
+                medicationsBySignature.map { (signature, medicationsForSignature) ->
+                    val requiredCount = medicationsForSignature.sumOf { medication -> medication.count }
+                    val matchingLogs = logsBySignature[signature].orEmpty()
+                    val fulfillingEntries = matchingLogs
+                        .sortedBy(MedicationLogEntry::appliedAt)
+                        .take(requiredCount)
+                    val isFulfilled = matchingLogs.size >= requiredCount
+                    PlanDayScheduleEntry(
+                        groupUuid = group.uuid,
+                        groupName = group.name,
+                        groupColorKey = group.colorKey,
+                        scheduledTime = time,
+                        medication = medicationsForSignature.first(),
+                        fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
+                        isFulfilled = isFulfilled,
+                        isDueSoon = !isFulfilled && isDueSoonSlot
+                    )
+                }
             }
         }
         .sortedBy { it.scheduledTime }

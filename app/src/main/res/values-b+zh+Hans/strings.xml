@@ -148,6 +148,8 @@
     <string name="add_time">添加时间</string>
     <string name="edit_time">编辑</string>
     <string name="edit_medication">编辑药物</string>
+    <string name="increase_medication_count">增加药物数量</string>
+    <string name="decrease_medication_count">减少药物数量</string>
     <string name="remove_medication_from_group">移除药物</string>
     <string name="remove_time">移除时间</string>
     <string name="quick_add_group_title">从分组快速添加</string>
@@ -196,7 +198,6 @@
     <string name="entry_time_applied">用药时间：%1$s</string>
     <string name="entry_uuid">UUID：%1$s</string>
     <string name="plan_group_medication_summary">%1$s，%3$s，%2$s mg</string>
-    <string name="plan_group_more_medications">另 %1$d 项</string>
     <string name="dark_mode_follow_system">跟随系统</string>
     <string name="dark_mode_always_off">始终关闭</string>
     <string name="dark_mode_always_on">始终开启</string>

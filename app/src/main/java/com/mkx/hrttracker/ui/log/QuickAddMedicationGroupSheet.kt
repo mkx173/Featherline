@@ -46,6 +46,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.totalMedicationCount
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
@@ -284,6 +285,7 @@ private fun MedicationGroupSelectionRow(
     onClick: () -> Unit
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
+    val totalMedicationCount = group.medications.totalMedicationCount()
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
@@ -302,8 +304,8 @@ private fun MedicationGroupSelectionRow(
             Text(
                 text = pluralStringResource(
                     R.plurals.plan_group_medication_count,
-                    group.medications.size,
-                    group.medications.size
+                    totalMedicationCount,
+                    totalMedicationCount
                 )
             )
         },

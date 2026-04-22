@@ -20,7 +20,12 @@ data class MedicationGroup(
 data class MedicationGroupMedication(
     val uuid: UUID,
     val details: MedicationDetails,
+    val count: Int = 1,
 ) {
+    init {
+        require(count > 0) { "Medication count must be at least 1." }
+    }
+
     val category: MedicationCategory
         get() = details.category
 
@@ -32,6 +37,28 @@ data class MedicationGroupMedication(
 
     val dose: MedicationDose
         get() = details.dose
+}
+
+data class MedicationGroupMedicationInstance(
+    val groupMedicationUuid: UUID,
+    val details: MedicationDetails,
+)
+
+fun MedicationGroupMedication.expandedInstances(): List<MedicationGroupMedicationInstance> {
+    return List(count) {
+        MedicationGroupMedicationInstance(
+            groupMedicationUuid = uuid,
+            details = details
+        )
+    }
+}
+
+fun Iterable<MedicationGroupMedication>.expandedInstances(): List<MedicationGroupMedicationInstance> {
+    return flatMap(MedicationGroupMedication::expandedInstances)
+}
+
+fun Iterable<MedicationGroupMedication>.totalMedicationCount(): Int {
+    return sumOf { medication -> medication.count }
 }
 
 enum class MedicationGroupScheduleType {

@@ -60,7 +60,6 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLa
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
@@ -635,13 +634,12 @@ private fun MainTodayDoseRow(
     onQuickLogDoseClick: (UUID, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val details = row.primaryMedicationDetails()
+    val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val rowColors = todayRowColors(mainTodayRowTone(row.status))
-    val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
+    val headline = medicationDisplayName(details)
     val supportingText = supportingText(
         details = details,
-        medications = row.medications,
         groupName = row.groupName,
         includeDate = null,
     )
@@ -692,12 +690,10 @@ private fun MainTodayDoseRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    details?.let {
-                        MainApplicationBadge(
-                            label = applicationTypeBadgeLabel(it.applicationType),
-                            groupColorScheme = groupColorScheme
-                        )
-                    }
+                    MainApplicationBadge(
+                        label = applicationTypeBadgeLabel(details.applicationType),
+                        groupColorScheme = groupColorScheme
+                    )
 
                     Text(
                         text = headline,
@@ -761,12 +757,11 @@ private fun MainUpcomingDoseRow(
     showDate: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val details = row.primaryMedicationDetails()
+    val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
-    val headline = details?.let { medicationDisplayName(it) } ?: row.groupName
+    val headline = medicationDisplayName(details)
     val supportingText = supportingText(
         details = details,
-        medications = row.medications,
         groupName = row.groupName,
         includeDate = if (showDate) row.scheduledAt.toLocalDate().format(dateFormatter) else null,
     )
@@ -792,12 +787,10 @@ private fun MainUpcomingDoseRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                details?.let {
-                    MainApplicationBadge(
-                        label = applicationTypeBadgeLabel(it.applicationType),
-                        groupColorScheme = groupColorScheme
-                    )
-                }
+                MainApplicationBadge(
+                    label = applicationTypeBadgeLabel(details.applicationType),
+                    groupColorScheme = groupColorScheme
+                )
 
                 Text(
                     text = headline,
@@ -948,19 +941,14 @@ private fun SectionHeader(
 
 @Composable
 private fun supportingText(
-    details: MedicationDetails?,
-    medications: List<MedicationGroupMedication>,
+    details: MedicationDetails,
     groupName: String,
     includeDate: String?,
 ): String {
     val parts = buildList {
         includeDate?.let(::add)
-        details?.let { medicationDoseText(it) }?.let(::add)
-        val hiddenCount = medications.size - 1
-        if (hiddenCount > 0) {
-            add(stringResource(R.string.plan_group_more_medications, hiddenCount))
-        }
-        val headline = details?.let { medicationDisplayName(it) }
+        medicationDoseText(details)?.let(::add)
+        val headline = medicationDisplayName(details)
         if (groupName != headline) {
             add(groupName)
         }
@@ -1051,14 +1039,6 @@ private fun mainTrendDeltaLabel(changeSinceYesterday: Int): String {
         changeSinceYesterday < 0 -> changeSinceYesterday.toString()
         else -> "0"
     }
-}
-
-private fun MainTodayDoseRowUiState.primaryMedicationDetails(): MedicationDetails? {
-    return medications.firstOrNull()?.details
-}
-
-private fun MainUpcomingDoseRowUiState.primaryMedicationDetails(): MedicationDetails? {
-    return medications.firstOrNull()?.details
 }
 
 @Composable

@@ -35,10 +35,12 @@ fun testCustomMedicationDetails(
 fun testMedicationGroupMedication(
     uuid: UUID = UUID.randomUUID(),
     details: MedicationDetails,
+    count: Int = 1,
 ): MedicationGroupMedication {
     return MedicationGroupMedication(
         uuid = uuid,
-        details = details
+        details = details,
+        count = count
     )
 }
 

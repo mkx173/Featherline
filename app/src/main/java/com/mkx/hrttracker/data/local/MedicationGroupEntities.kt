@@ -36,6 +36,7 @@ data class MedicationGroupItemEntity(
     @PrimaryKey val uuid: String,
     val groupUuid: String,
     val sortOrder: Int,
+    val count: Int,
     val category: String,
     val applicationType: String,
     val selectionKind: String,
