@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -197,10 +198,11 @@ fun HrtTrackerNavHost(
         NavHost(
             navController = navController,
             startDestination = Screen.Main.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.consumeWindowInsets(innerPadding)
         ) {
             composable(Screen.Main.route) {
                 MainScreen(
+                    modifier.padding(innerPadding),
                     onQuickLogDoseClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
                             groupId = groupId,
@@ -213,6 +215,7 @@ fun HrtTrackerNavHost(
             }
             composable(Screen.Plan.route) {
                 PlanScreen(
+                    modifier = modifier.padding(innerPadding),
                     onGroupClick = { groupId ->
                         navController.navigate(
                             Screen.EditMedicationGroup.createRoute(
@@ -254,6 +257,7 @@ fun HrtTrackerNavHost(
             }
             composable(Screen.History.route) {
                 HistoryScreen(
+                    modifier = modifier.padding(innerPadding),
                     onEntryClick = { entryIds ->
                         addEntrySheetRequest = AddEntrySheetRequest(
                             entryIds = entryIds.map(UUID::toString)
@@ -262,7 +266,9 @@ fun HrtTrackerNavHost(
                 )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    modifier = modifier.padding(innerPadding),
+                )
             }
             composable(
                 route = Screen.EditMedicationGroup.route,
@@ -279,6 +285,7 @@ fun HrtTrackerNavHost(
                 )
             ) {
                 MedicationGroupEditorScreen(
+                    modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
                     onGroupSaved = { navController.popBackStack() }
                 )
