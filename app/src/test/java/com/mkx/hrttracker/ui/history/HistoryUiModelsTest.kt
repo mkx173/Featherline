@@ -140,6 +140,22 @@ class HistoryUiModelsTest {
         assertEquals(emptySet<UUID>(), deselected)
     }
 
+    @Test
+    fun historyEntryTapAction_opens_editor_only_when_selection_mode_is_inactive() {
+        assertEquals(
+            HistoryEntryTapAction.OPEN_EDITOR,
+            historyEntryTapAction(selectedEntryIds = emptySet())
+        )
+        assertEquals(
+            HistoryEntryTapAction.TOGGLE_SELECTION,
+            historyEntryTapAction(
+                selectedEntryIds = setOf(
+                    UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24")
+                )
+            )
+        )
+    }
+
     private fun stateFor(status: PlanCalendarDayStatus): PlanCalendarDayUiState {
         return when (status) {
             PlanCalendarDayStatus.NONE -> PlanCalendarDayUiState()

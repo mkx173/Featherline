@@ -21,6 +21,11 @@ data class HistoryCollapsedEntry(
     val count: Int,
 )
 
+internal enum class HistoryEntryTapAction {
+    OPEN_EDITOR,
+    TOGGLE_SELECTION,
+}
+
 internal fun buildHistoryVisibleEntries(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,
@@ -123,6 +128,16 @@ internal fun toggleHistoryEntrySelection(
         currentSelection - entryIds
     } else {
         currentSelection + entryIds
+    }
+}
+
+internal fun historyEntryTapAction(
+    selectedEntryIds: Set<UUID>
+): HistoryEntryTapAction {
+    return if (selectedEntryIds.isEmpty()) {
+        HistoryEntryTapAction.OPEN_EDITOR
+    } else {
+        HistoryEntryTapAction.TOGGLE_SELECTION
     }
 }
 

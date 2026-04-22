@@ -125,7 +125,12 @@ fun HistoryScreen(
     HistoryScreenContent(
         uiState = uiState,
         onEntryClick = { collapsedEntry ->
-            onEntryClick(collapsedEntry.entryIds)
+            when (historyEntryTapAction(uiState.selectedEntryIds)) {
+                HistoryEntryTapAction.OPEN_EDITOR -> onEntryClick(collapsedEntry.entryIds)
+                HistoryEntryTapAction.TOGGLE_SELECTION -> {
+                    viewModel.toggleEntrySelection(collapsedEntry.entryIds)
+                }
+            }
         },
         onEntryLongClick = { collapsedEntry ->
             viewModel.toggleEntrySelection(collapsedEntry.entryIds)
