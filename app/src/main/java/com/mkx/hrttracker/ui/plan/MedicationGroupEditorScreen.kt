@@ -340,7 +340,11 @@ private fun MedicationGroupEditorScreenContent(
             MedicationGroupScheduleType.WEEKLY
         )
     }
-    val canSave = uiState.groupName.isNotBlank() &&
+    val canSave = resolveMedicationGroupName(
+        groupName = uiState.groupName,
+        defaultGroupName = uiState.defaultGroupName,
+        isEditing = uiState.isEditing
+    ).isNotBlank() &&
         uiState.medications.isNotEmpty() &&
         !uiState.isSaving &&
         !uiState.isDeleting
@@ -428,6 +432,13 @@ private fun MedicationGroupEditorScreenContent(
                         value = uiState.groupName,
                         onValueChange = onGroupNameChange,
                         label = { Text(text = stringResource(R.string.field_medication_group_name)) },
+                        placeholder = if (!uiState.isEditing && uiState.defaultGroupName.isNotBlank()) {
+                            {
+                                Text(text = uiState.defaultGroupName)
+                            }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )

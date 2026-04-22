@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +18,7 @@ import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +36,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MedicationGroupEditorUiState())
@@ -45,6 +48,26 @@ class MedicationGroupEditorViewModel @Inject constructor(
             settingsRepository.settingsState.collect { settingsState ->
                 _uiState.update { currentState ->
                     currentState.copy(remindersEnabled = settingsState.remindersEnabled)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            medicationGroupRepository.observeGroups().collect { groupsOrNull ->
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        defaultGroupName = defaultMedicationGroupName(
+                            existingGroupCount = groupsOrNull.orEmpty()
+                                .asSequence()
+                                .filterNot { group ->
+                                    group.uuid.toString() == currentState.editingGroupId
+                                }
+                                .count(),
+                            formatName = { index ->
+                                context.getString(R.string.default_group_name_format, index)
+                            }
+                        )
+                    )
                 }
             }
         }
@@ -276,12 +299,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveGroup() {
         val currentState = _uiState.value
-        val trimmedGroupName = currentState.groupName.trim()
+        val resolvedGroupName = resolveMedicationGroupName(
+            groupName = currentState.groupName,
+            defaultGroupName = currentState.defaultGroupName,
+            isEditing = currentState.isEditing
+        )
         val parsedWeeklyInterval = currentState.weeklyIntervalWeeks.toIntOrNull()
         val parsedDailyInterval = currentState.dailyIntervalDays.toIntOrNull()
 
         val errorRes = when {
-            trimmedGroupName.isEmpty() -> R.string.validation_group_name_required
+            resolvedGroupName.isEmpty() -> R.string.validation_group_name_required
             currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
                 (parsedWeeklyInterval == null || parsedWeeklyInterval <= 0) ->
                 R.string.validation_group_weekly_interval_required
@@ -308,7 +335,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
             val savedGroupUuid = medicationGroupRepository.saveGroup(
                 uuid = currentState.editingGroupId?.let(UUID::fromString),
-                name = trimmedGroupName,
+                name = resolvedGroupName,
                 schedule = when (currentState.scheduleType) {
                     MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.WEEKLY,
@@ -340,7 +367,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
             _uiState.update {
                 it.copy(
-                    groupName = trimmedGroupName,
+                    groupName = resolvedGroupName,
                     isSaving = false,
                     isSaved = true,
                     errorMessageRes = null
@@ -506,6 +533,7 @@ internal fun decrementMedicationCountOrRemove(
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
+    val defaultGroupName: String = "",
     val groupColorKey: MedicationGroupColorKey = MedicationGroupColorKey.ROSE,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
@@ -531,6 +559,28 @@ data class MedicationGroupEditorUiState(
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+}
+
+internal fun resolveMedicationGroupName(
+    groupName: String,
+    defaultGroupName: String,
+    isEditing: Boolean
+): String {
+    val trimmedGroupName = groupName.trim()
+    return if (trimmedGroupName.isNotEmpty()) {
+        trimmedGroupName
+    } else if (!isEditing) {
+        defaultGroupName.trim()
+    } else {
+        ""
+    }
+}
+
+internal fun defaultMedicationGroupName(
+    existingGroupCount: Int,
+    formatName: (Int) -> String
+): String {
+    return formatName(existingGroupCount + 1)
 }
 
 data class MedicationGroupMedicationItemUiState(
