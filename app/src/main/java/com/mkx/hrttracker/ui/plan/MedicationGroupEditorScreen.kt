@@ -1007,6 +1007,8 @@ private fun MedicationGroupEditorWeeklyPreview() {
                 editingGroupId = "preview-weekly-group",
                 remindersEnabled = true,
                 notificationsEnabled = true,
+            ).copy(
+                medications = emptyList()
             ),
             onNavigateBack = { },
             onGroupNameChange = { },

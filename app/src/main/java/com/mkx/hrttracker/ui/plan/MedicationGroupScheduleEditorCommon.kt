@@ -109,7 +109,7 @@ private fun StepperCircleButton(
         color = if (enabled) {
             MaterialTheme.colorScheme.secondaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+            MaterialTheme.colorScheme.surfaceVariant
         }
     ) {
         Box(
