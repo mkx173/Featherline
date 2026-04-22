@@ -139,6 +139,7 @@
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>
+    <string name="group_schedule_times_with_count">Times of day · %d</string>
     <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_weekly_summary">Every %1$s week(s)</string>
     <string name="group_schedule_daily_summary">Every %1$s day(s)</string>
@@ -302,6 +303,15 @@
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
     </plurals>
+    <plurals name="group_schedule_weeks_unit">
+        <item quantity="one">week</item>
+        <item quantity="other">weeks</item>
+    </plurals>
+    <plurals name="group_schedule_days_unit">
+        <item quantity="one">day</item>
+        <item quantity="other">days</item>
+    </plurals>
+    <string name="group_schedule_every_label">Repeat every</string>
     <string name="confirm">OK</string>
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>

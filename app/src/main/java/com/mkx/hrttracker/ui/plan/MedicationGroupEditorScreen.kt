@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
@@ -46,12 +48,12 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -73,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -435,9 +438,10 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 },
                 actions = {
-                    FilledTonalButton(
+                    Button(
                         onClick = onSaveClick,
                         enabled = canSave,
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(text = stringResource(R.string.save))
                     }
@@ -538,32 +542,13 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.group_notifications_title),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = stringResource(R.string.group_notifications_summary),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = uiState.notificationsEnabled,
-                            onCheckedChange = onNotificationsEnabledChange,
-                            enabled = notificationsToggleEnabled
-                        )
-                    }
+                    NotificationsCard(
+                        enabled = uiState.notificationsEnabled,
+                        toggleEnabled = notificationsToggleEnabled,
+                        onToggle = onNotificationsEnabledChange
+                    )
                     if (!uiState.remindersEnabled) {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled)
@@ -779,6 +764,11 @@ private fun WeeklyScheduleEditor(
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_every_weeks),
             value = parseScheduleInterval(intervalWeeks),
+            unit = pluralStringResource(
+                R.plurals.group_schedule_weeks_unit,
+                parseScheduleInterval(intervalWeeks),
+                parseScheduleInterval(intervalWeeks)
+            ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
         )
@@ -839,48 +829,22 @@ private fun DailyScheduleEditor(
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_every_days),
             value = parseScheduleInterval(intervalDays),
+            unit = pluralStringResource(
+                R.plurals.group_schedule_days_unit,
+                parseScheduleInterval(intervalDays),
+                parseScheduleInterval(intervalDays)
+            ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
         )
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.group_schedule_times),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(onClick = onAddTime) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.add_time),
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
-            }
-
-            dailyTimes.forEach { dailyTime ->
-                DailyTimeRow(
-                    label = stringResource(
-                        R.string.group_schedule_time_item,
-                        dailyTime.time.format(timeFormatter)
-                    ),
-                    formattedTime = dailyTime.time.format(timeFormatter),
-                    onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
-                    onRemoveClick = { onRemoveTime(dailyTime.localId) }
-                )
-            }
-        }
+        DailyTimesCard(
+            times = dailyTimes,
+            timeFormatter = timeFormatter,
+            onAddTime = onAddTime,
+            onTimeClick = onTimeClick,
+            onRemoveTime = onRemoveTime
+        )
     }
 }
 
@@ -888,62 +852,94 @@ private fun DailyScheduleEditor(
 private fun IntervalStepperCard(
     label: String,
     value: Int,
+    unit: String,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(start = 18.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(
-                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    verticalAlignment = androidx.compose.ui.Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 2.dp)
                 ) {
-                    IconButton(
-                        onClick = onDecreaseClick,
-                        enabled = value > 1,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Remove,
-                            contentDescription = stringResource(R.string.decrease_schedule_interval)
-                        )
-                    }
                     Text(
                         text = value.toString(),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    IconButton(
-                        onClick = onIncreaseClick,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(R.string.increase_schedule_interval)
-                        )
-                    }
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
             }
+            StepperCircleButton(
+                icon = Icons.Default.Remove,
+                contentDescription = stringResource(R.string.decrease_schedule_interval),
+                enabled = value > 1,
+                onClick = onDecreaseClick
+            )
+            StepperCircleButton(
+                icon = Icons.Default.Add,
+                contentDescription = stringResource(R.string.increase_schedule_interval),
+                enabled = true,
+                onClick = onIncreaseClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepperCircleButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(44.dp),
+        shape = CircleShape,
+        color = if (enabled) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.outline
+                }
+            )
         }
     }
 }
@@ -989,19 +985,19 @@ private fun MedicationGroupMedicationCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 14.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(6.dp),
                 color = groupColorScheme.primaryContainer,
                 contentColor = groupColorScheme.onPrimaryContainer
             ) {
@@ -1009,7 +1005,7 @@ private fun MedicationGroupMedicationCard(
                     text = applicationTypeBadgeLabel(medication.details.applicationType),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -1022,12 +1018,6 @@ private fun MedicationGroupMedicationCard(
                         ?: stringResource(medication.details.applicationType.labelRes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_medication)
                 )
             }
             MedicationCountEditor(
@@ -1045,28 +1035,37 @@ private fun MedicationCountEditor(
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit
 ) {
+    val isRemoveStep = count == 1
     Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+            modifier = Modifier.padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onDecreaseClick,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
+                colors = if (isRemoveStep) {
+                    IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                } else {
+                    IconButtonDefaults.iconButtonColors()
+                }
             ) {
                 Icon(
-                    imageVector = if (count == 1) {
+                    imageVector = if (isRemoveStep) {
                         Icons.Default.Delete
                     } else {
                         Icons.Default.Remove
                     },
                     contentDescription = stringResource(
-                        if (count == 1) {
+                        if (isRemoveStep) {
                             R.string.remove_medication_from_group
                         } else {
                             R.string.decrease_medication_count
@@ -1123,30 +1122,26 @@ private fun EditorFieldRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(8.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = label,
+                    text = label.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1165,8 +1160,89 @@ private fun EditorFieldRow(
 }
 
 @Composable
+private fun DailyTimesCard(
+    times: List<MedicationGroupScheduleTimeUiState>,
+    timeFormatter: DateTimeFormatter,
+    onAddTime: () -> Unit,
+    onTimeClick: (String, LocalTime) -> Unit,
+    onRemoveTime: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.group_schedule_times_with_count,
+                        times.size
+                    ).uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AddTimeChip(onClick = onAddTime)
+            }
+            if (times.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.add_time),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+            } else {
+                times.forEach { dailyTime ->
+                    DailyTimeRow(
+                        formattedTime = dailyTime.time.format(timeFormatter),
+                        onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
+                        onRemoveClick = { onRemoveTime(dailyTime.localId) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddTimeChip(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = stringResource(R.string.add_time),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
 private fun DailyTimeRow(
-    label: String,
     formattedTime: String,
     onClick: () -> Unit,
     onRemoveClick: () -> Unit
@@ -1175,45 +1251,105 @@ private fun DailyTimeRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, top = 10.dp, end = 6.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 10.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Schedule,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
             )
+            Text(
+                text = formattedTime,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = onRemoveClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.remove_time),
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationsCard(
+    enabled: Boolean,
+    toggleEnabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (enabled) {
+                            Icons.Default.Notifications
+                        } else {
+                            Icons.Default.NotificationsOff
+                        },
+                        contentDescription = null,
+                        tint = if (enabled) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = formattedTime,
+                    text = stringResource(R.string.group_notifications_title),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = label,
+                    text = stringResource(R.string.group_notifications_summary),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_time)
-                )
-            }
-            IconButton(onClick = onRemoveClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.remove_time)
-                )
-            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                enabled = toggleEnabled
+            )
         }
     }
 }
