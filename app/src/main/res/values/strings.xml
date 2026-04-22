@@ -187,13 +187,7 @@
     <string name="validation_gel_percent_required">Enter a valid gel percent.</string>
     <string name="validation_gel_weight_required">Enter a valid gel weight in grams.</string>
     <string name="validation_patch_release_rate_required">Enter a valid release rate in μg/day.</string>
-    <string name="validation_group_name_required">Enter a group name.</string>
     <string name="default_group_name_format">Group %1$d</string>
-    <string name="validation_group_weekly_interval_required">Enter a valid weekly interval.</string>
-    <string name="validation_group_weekly_days_required">Select at least one day of week.</string>
-    <string name="validation_group_daily_interval_required">Enter a valid daily interval.</string>
-    <string name="validation_group_daily_times_required">Add at least one daily time.</string>
-    <string name="validation_group_medications_required">Add at least one medication.</string>
     <string name="validation_group_medication_name_required">Each medication needs a name.</string>
     <string name="validation_group_medication_dose_required">Each medication needs a valid dosage in mg.</string>
     <string name="entry_medicine_dose">Medicine dose: %1$s mg</string>

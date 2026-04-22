@@ -187,13 +187,7 @@
     <string name="validation_gel_percent_required">请输入有效的凝胶浓度。</string>
     <string name="validation_gel_weight_required">请输入有效的凝胶重量。</string>
     <string name="validation_patch_release_rate_required">请输入有效的释放速率。</string>
-    <string name="validation_group_name_required">请输入分组名称。</string>
     <string name="default_group_name_format">分组 %1$d</string>
-    <string name="validation_group_weekly_interval_required">请输入有效的每周间隔。</string>
-    <string name="validation_group_weekly_days_required">请至少选择一天。</string>
-    <string name="validation_group_daily_interval_required">请输入有效的每日间隔。</string>
-    <string name="validation_group_daily_times_required">请至少添加一个每日时间。</string>
-    <string name="validation_group_medications_required">请至少添加一种药物。</string>
     <string name="validation_group_medication_name_required">每种药物都需要名称。</string>
     <string name="validation_group_medication_dose_required">每种药物都需要有效的 mg 剂量。</string>
     <string name="entry_medicine_dose">药物剂量：%1$s mg</string>

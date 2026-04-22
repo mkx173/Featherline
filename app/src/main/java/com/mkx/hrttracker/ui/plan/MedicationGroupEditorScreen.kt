@@ -600,22 +600,6 @@ private fun MedicationGroupEditorScreenContent(
                 }
             }
 
-            item {
-                uiState.errorMessageRes?.let { errorMessageRes ->
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.errorContainer
-                    ) {
-                        Text(
-                            text = stringResource(errorMessageRes),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                        )
-                    }
-                }
-            }
-
             if (uiState.isEditing) {
                 item {
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))

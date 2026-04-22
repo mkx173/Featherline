@@ -27,4 +27,14 @@ class MedicationGroupEditorWeeklySelectionTest {
 
         assertEquals(setOf(DayOfWeek.THURSDAY), updated)
     }
+
+    @Test
+    fun toggleWeeklyDaySelection_keeps_last_selected_day() {
+        val updated = toggleWeeklyDaySelection(
+            selectedDays = setOf(DayOfWeek.MONDAY),
+            dayOfWeek = DayOfWeek.MONDAY
+        )
+
+        assertEquals(setOf(DayOfWeek.MONDAY), updated)
+    }
 }

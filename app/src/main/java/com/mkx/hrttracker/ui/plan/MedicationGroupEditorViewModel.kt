@@ -91,73 +91,49 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateGroupName(name: String) {
         _uiState.update {
-            it.copy(
-                groupName = name,
-                errorMessageRes = null
-            )
+            it.copy(groupName = name)
         }
     }
 
     fun updateScheduleType(scheduleType: MedicationGroupScheduleType) {
         _uiState.update {
-            it.copy(
-                scheduleType = scheduleType,
-                errorMessageRes = null
-            )
+            it.copy(scheduleType = scheduleType)
         }
     }
 
     fun updateWeeklyIntervalWeeks(intervalWeeks: String) {
         _uiState.update {
-            it.copy(
-                weeklyIntervalWeeks = intervalWeeks,
-                errorMessageRes = null
-            )
+            it.copy(weeklyIntervalWeeks = parseScheduleInterval(intervalWeeks).toString())
         }
     }
 
     fun toggleWeeklyDayOfWeek(dayOfWeek: DayOfWeek) {
         _uiState.update {
-            it.copy(
-                weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek),
-                errorMessageRes = null
-            )
+            it.copy(weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek))
         }
     }
 
     fun updateWeeklyTime(time: LocalTime) {
         _uiState.update {
-            it.copy(
-                weeklyTime = time.withSecond(0).withNano(0),
-                errorMessageRes = null
-            )
+            it.copy(weeklyTime = time.withSecond(0).withNano(0))
         }
     }
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            it.copy(
-                sinceDate = date,
-                errorMessageRes = null
-            )
+            it.copy(sinceDate = date)
         }
     }
 
     fun updateDailyIntervalDays(intervalDays: String) {
         _uiState.update {
-            it.copy(
-                dailyIntervalDays = intervalDays,
-                errorMessageRes = null
-            )
+            it.copy(dailyIntervalDays = parseScheduleInterval(intervalDays).toString())
         }
     }
 
     fun updateNotificationsEnabled(enabled: Boolean) {
         _uiState.update {
-            it.copy(
-                notificationsEnabled = enabled,
-                errorMessageRes = null
-            )
+            it.copy(notificationsEnabled = enabled)
         }
     }
 
@@ -166,8 +142,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             it.copy(
                 dailyTimes = it.dailyTimes + MedicationGroupScheduleTimeUiState(
                     time = LocalTime.now().withSecond(0).withNano(0)
-                ),
-                errorMessageRes = null
+                )
             )
         }
     }
@@ -181,18 +156,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         dailyTime
                     }
-                },
-                errorMessageRes = null
+                }
             )
         }
     }
 
     fun removeDailyTime(localId: String) {
-        _uiState.update {
-            it.copy(
-                dailyTimes = it.dailyTimes.filterNot { dailyTime -> dailyTime.localId == localId },
-                errorMessageRes = null
-            )
+        _uiState.update { currentState ->
+            if (currentState.dailyTimes.size <= 1) {
+                currentState
+            } else {
+                currentState.copy(
+                    dailyTimes = currentState.dailyTimes.filterNot { dailyTime ->
+                        dailyTime.localId == localId
+                    }
+                )
+            }
         }
     }
 
@@ -201,8 +180,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             it.copy(
                 editingMedication = MedicationGroupMedicationEditorUiState(),
                 isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null,
-                errorMessageRes = null
+                medicationEditorErrorMessageRes = null
             )
         }
     }
@@ -213,8 +191,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medications = decrementMedicationCountOrRemove(
                     medications = it.medications,
                     localId = localId
-                ),
-                errorMessageRes = null
+                )
             )
         }
     }
@@ -225,8 +202,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medications = incrementMedicationCount(
                     medications = it.medications,
                     localId = localId
-                ),
-                errorMessageRes = null
+                )
             )
         }
     }
@@ -238,8 +214,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     .firstOrNull { it.localId == localId }
                     ?.toEditorUiState(),
                 isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null,
-                errorMessageRes = null
+                medicationEditorErrorMessageRes = null
             )
         }
     }
@@ -303,8 +278,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medications = updatedMedications,
                 editingMedication = savedMedication.toEditorUiState(),
                 isMedicationEditorSaved = true,
-                medicationEditorErrorMessageRes = null,
-                errorMessageRes = null
+                medicationEditorErrorMessageRes = null
             )
         }
     }
@@ -316,34 +290,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
             defaultGroupName = currentState.defaultGroupName,
             isEditing = currentState.isEditing
         )
-        val parsedWeeklyInterval = currentState.weeklyIntervalWeeks.toIntOrNull()
-        val parsedDailyInterval = currentState.dailyIntervalDays.toIntOrNull()
-
-        val errorRes = when {
-            resolvedGroupName.isEmpty() -> R.string.validation_group_name_required
-            currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
-                (parsedWeeklyInterval == null || parsedWeeklyInterval <= 0) ->
-                R.string.validation_group_weekly_interval_required
-            currentState.scheduleType == MedicationGroupScheduleType.WEEKLY &&
-                currentState.weeklyDaysOfWeek.isEmpty() ->
-                R.string.validation_group_weekly_days_required
-            currentState.scheduleType == MedicationGroupScheduleType.DAILY &&
-                (parsedDailyInterval == null || parsedDailyInterval <= 0) ->
-                R.string.validation_group_daily_interval_required
-            currentState.scheduleType == MedicationGroupScheduleType.DAILY &&
-                currentState.dailyTimes.isEmpty() ->
-                R.string.validation_group_daily_times_required
-            currentState.medications.isEmpty() -> R.string.validation_group_medications_required
-            else -> null
-        }
-
-        if (errorRes != null) {
-            _uiState.update { it.copy(errorMessageRes = errorRes) }
+        if (resolvedGroupName.isEmpty() || currentState.medications.isEmpty()) {
             return
         }
 
+        val parsedWeeklyInterval = parseScheduleInterval(currentState.weeklyIntervalWeeks)
+        val parsedDailyInterval = parseScheduleInterval(currentState.dailyIntervalDays)
+        val resolvedWeeklyDays = currentState.weeklyDaysOfWeek.ifEmpty {
+            setOf(LocalDate.now().dayOfWeek)
+        }
+        val resolvedDailyTimes = currentState.dailyTimes.ifEmpty {
+            listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+        }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
+            _uiState.update { it.copy(isSaving = true) }
 
             val savedGroupUuid = medicationGroupRepository.saveGroup(
                 uuid = currentState.editingGroupId?.let(UUID::fromString),
@@ -352,17 +313,17 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 schedule = when (currentState.scheduleType) {
                     MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.WEEKLY,
-                        interval = parsedWeeklyInterval!!,
+                        interval = parsedWeeklyInterval,
                         since = currentState.sinceDate,
-                        weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
+                        weeklyDaysOfWeek = resolvedWeeklyDays,
                         times = listOf(currentState.weeklyTime)
                     )
                     MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.DAILY,
-                        interval = parsedDailyInterval!!,
+                        interval = parsedDailyInterval,
                         since = currentState.sinceDate,
                         weeklyDaysOfWeek = emptySet(),
-                        times = currentState.dailyTimes
+                        times = resolvedDailyTimes
                             .map(MedicationGroupScheduleTimeUiState::time)
                             .sorted()
                     )
@@ -382,8 +343,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 it.copy(
                     groupName = resolvedGroupName,
                     isSaving = false,
-                    isSaved = true,
-                    errorMessageRes = null
+                    isSaved = true
                 )
             }
         }
@@ -392,10 +352,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun showDeleteConfirmation() {
         if (_uiState.value.isEditing) {
             _uiState.update {
-                it.copy(
-                    isDeleteConfirmationVisible = true,
-                    errorMessageRes = null
-                )
+                it.copy(isDeleteConfirmationVisible = true)
             }
         }
     }
@@ -414,8 +371,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isDeleting = true,
-                    isDeleteConfirmationVisible = false,
-                    errorMessageRes = null
+                    isDeleteConfirmationVisible = false
                 )
             }
 
@@ -425,8 +381,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isDeleting = false,
-                    isDeleted = true,
-                    errorMessageRes = null
+                    isDeleted = true
                 )
             }
         }
@@ -454,21 +409,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 scheduleType = group.schedule.type,
                 sinceDate = group.schedule.since,
                 weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
-                    group.schedule.interval.toString()
+                    parseScheduleInterval(group.schedule.interval.toString()).toString()
                 } else {
                     "1"
                 },
                 weeklyDaysOfWeek = group.schedule.weeklyDaysOfWeek.ifEmpty {
-                    setOf(DayOfWeek.MONDAY)
+                    setOf(LocalDate.now().dayOfWeek)
                 },
                 weeklyTime = group.schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
                 dailyIntervalDays = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
-                    group.schedule.interval.toString()
+                    parseScheduleInterval(group.schedule.interval.toString()).toString()
                 } else {
                     "1"
                 },
                 dailyTimes = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
-                    group.schedule.times.sorted().map { time ->
+                    group.schedule.times
+                        .ifEmpty { listOf(LocalTime.of(9, 0)) }
+                        .sorted()
+                        .map { time ->
                         MedicationGroupScheduleTimeUiState(time = time)
                     }
                 } else {
@@ -511,7 +469,11 @@ internal fun toggleWeeklyDaySelection(
     dayOfWeek: DayOfWeek
 ): Set<DayOfWeek> {
     return if (dayOfWeek in selectedDays) {
-        selectedDays - dayOfWeek
+        if (selectedDays.size == 1) {
+            selectedDays
+        } else {
+            selectedDays - dayOfWeek
+        }
     } else {
         selectedDays + dayOfWeek
     }
@@ -571,7 +533,6 @@ data class MedicationGroupEditorUiState(
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val isDeleteConfirmationVisible: Boolean = false,
-    val errorMessageRes: Int? = null,
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
