@@ -20,10 +20,13 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -190,6 +193,59 @@ internal fun decrementScheduleInterval(value: String): String {
 }
 
 @Composable
+internal fun NotificationsCard(
+    enabled: Boolean,
+    toggleEnabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Surface(
+        onClick = { onToggle(!enabled) },
+        enabled = toggleEnabled,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (enabled) {
+                    Icons.Rounded.Notifications
+                } else {
+                    Icons.Rounded.NotificationsOff
+                },
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.group_notifications_reminder),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = stringResource(R.string.group_notifications_summary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                enabled = toggleEnabled
+            )
+        }
+    }
+}
+
+@Composable
 internal fun DeleteMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
@@ -219,11 +275,6 @@ internal fun DeleteMedicationGroupCard(
                     text = stringResource(R.string.delete_medication_group).uppercase(),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Text(
-                    text = stringResource(R.string.delete_medication_group_confirmation),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                 )
             }
             Icon(
@@ -259,6 +310,20 @@ private fun DeleteMedicationGroupCardPreview() {
             DeleteMedicationGroupCard(
                 enabled = true,
                 onClick = {}
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun NotificationsCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            NotificationsCard(
+                enabled = true,
+                toggleEnabled = true,
+                onToggle = {}
             )
         }
     }
