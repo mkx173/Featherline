@@ -153,6 +153,9 @@ data class AddEntryUiState(
 
     val isBulkEditing: Boolean
         get() = editingEntryIds.size > 1
+
+    val canEditMedicationIdentity: Boolean
+        get() = sourceGroupUuid == null
 }
 
 internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {

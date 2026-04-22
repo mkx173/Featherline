@@ -90,6 +90,7 @@ private fun AddEntryScreenContent(
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         draft = uiState.medicationDraft,
+        isMedicationIdentityEditable = uiState.canEditMedicationIdentity,
         onCategoryChange = { category ->
             onMedicationDraftChange { draft -> draft.changeCategory(category) }
         },

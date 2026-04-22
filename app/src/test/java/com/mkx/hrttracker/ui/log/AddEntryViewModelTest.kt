@@ -82,6 +82,7 @@ class AddEntryViewModelTest {
         assertEquals(LocalDate.of(2026, 4, 22), uiState.appliedDate)
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
         assertTrue(uiState.isBulkEditing)
+        assertFalse(uiState.canEditMedicationIdentity)
     }
 
     @Test
@@ -122,5 +123,27 @@ class AddEntryViewModelTest {
         requireNotNull(uiState)
         assertEquals(listOf(firstId.toString()), uiState.editingEntryIds)
         assertFalse(uiState.isBulkEditing)
+        assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun buildEditingUiState_keeps_medication_identity_editable_for_manual_entries() {
+        val entry = testMedicationLogEntry(
+            uuid = UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceType = MedicationLogEntrySourceType.MANUAL,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        )
+
+        val uiState = buildEditingUiState(listOf(entry))
+
+        requireNotNull(uiState)
+        assertTrue(uiState.canEditMedicationIdentity)
     }
 }

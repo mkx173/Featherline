@@ -68,6 +68,7 @@ fun StructuredMedicationEditorSheet(
     onGelPercentChange: (String) -> Unit,
     onGelWeightChange: (String) -> Unit,
     onPatchReleaseRateChange: (String) -> Unit,
+    isMedicationIdentityEditable: Boolean = true,
     modifier: Modifier = Modifier,
     appliedDate: LocalDate? = null,
     appliedTime: LocalTime? = null,
@@ -125,7 +126,8 @@ fun StructuredMedicationEditorSheet(
                 value = stringResource(draft.category.labelRes),
                 options = editorMedicationCategories(),
                 optionLabel = { category -> stringResource(category.labelRes) },
-                onOptionSelected = onCategoryChange
+                onOptionSelected = onCategoryChange,
+                enabled = isMedicationIdentityEditable
             )
 
             DropdownField(
@@ -133,7 +135,8 @@ fun StructuredMedicationEditorSheet(
                 value = stringResource(draft.applicationType.labelRes),
                 options = MedicationCatalog.applicationTypesFor(draft.category),
                 optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-                onOptionSelected = onApplicationTypeChange
+                onOptionSelected = onApplicationTypeChange,
+                enabled = isMedicationIdentityEditable
             )
 
             if (draft.supportsCatalogSelection() && draft.supportsCustomName()) {
@@ -154,7 +157,8 @@ fun StructuredMedicationEditorSheet(
                             }
                         )
                     },
-                    onOptionSelected = onSelectionKindChange
+                    onOptionSelected = onSelectionKindChange,
+                    enabled = isMedicationIdentityEditable
                 )
             }
 
@@ -166,7 +170,8 @@ fun StructuredMedicationEditorSheet(
                     }.orEmpty(),
                     options = catalog.entries.mapNotNull { it.medicationKey },
                     optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
-                    onOptionSelected = onMedicationKeyChange
+                    onOptionSelected = onMedicationKeyChange,
+                    enabled = isMedicationIdentityEditable
                 )
             }
 
@@ -174,6 +179,7 @@ fun StructuredMedicationEditorSheet(
                 OutlinedTextField(
                     value = draft.customMedicationName,
                     onValueChange = onCustomMedicationNameChange,
+                    enabled = isMedicationIdentityEditable,
                     label = {
                         Text(text = stringResource(R.string.field_medication_name))
                     },
@@ -304,30 +310,40 @@ private fun <T> DropdownField(
     options: List<T>,
     optionLabel: @Composable (T) -> String,
     onOptionSelected: (T) -> Unit,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
+        onExpandedChange = {
+            if (enabled) {
+                expanded = !expanded
+            }
+        }
     ) {
         OutlinedTextField(
             value = value,
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             label = { Text(text = label) },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            trailingIcon = if (enabled) {
+                {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                }
+            } else {
+                null
             },
             modifier = Modifier
                 .menuAnchor(
                     type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                    enabled = true
+                    enabled = enabled
                 )
                 .fillMaxWidth()
         )
 
         ExposedDropdownMenu(
-            expanded = expanded,
+            expanded = enabled && expanded,
             onDismissRequest = { expanded = false }
         ) {
             options.forEach { option ->
