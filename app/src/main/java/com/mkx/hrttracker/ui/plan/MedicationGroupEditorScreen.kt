@@ -339,6 +339,9 @@ private fun MedicationGroupEditorScreenContent(
     val context = LocalContext.current
     val duplicateDailyTimeMessage =
         stringResource(R.string.group_schedule_duplicate_time)
+    val medicationEditorInfoMessage = uiState.medicationEditorInfoMessageRes?.let { messageRes ->
+        stringResource(messageRes)
+    }
     val groupColorScheme = rememberMedicationGroupColorScheme(uiState.groupColorKey)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
@@ -370,8 +373,11 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isSaving &&
         !uiState.isDeleting
 
-    LaunchedEffect(uiState.isMedicationEditorSaved) {
+    LaunchedEffect(uiState.isMedicationEditorSaved, medicationEditorInfoMessage) {
         if (uiState.isMedicationEditorSaved) {
+            medicationEditorInfoMessage?.let { message ->
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
             hideBottomSheet(scope, sheetState) {
                 onConsumeMedicationEditorSaved()
                 onDismissMedicationEditor()
@@ -805,7 +811,7 @@ private fun MedicationCountEditor(
                 modifier = Modifier.size(32.dp),
                 colors = if (isRemoveStep) {
                     IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        contentColor = MaterialTheme.colorScheme.error
                     )
                 } else {
                     IconButtonDefaults.iconButtonColors()

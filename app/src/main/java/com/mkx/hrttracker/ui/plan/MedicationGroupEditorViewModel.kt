@@ -178,7 +178,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             it.copy(
                 editingMedication = MedicationGroupMedicationEditorUiState(),
                 isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -212,7 +213,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     .firstOrNull { it.localId == localId }
                     ?.toEditorUiState(),
                 isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -222,7 +224,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             it.copy(
                 editingMedication = null,
                 isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -230,7 +233,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun consumeMedicationEditorSaved() {
         _uiState.update {
             it.copy(
-                isMedicationEditorSaved = false
+                isMedicationEditorSaved = false,
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -249,7 +253,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val errorRes = editingMedication.draft.validationErrorRes()
 
         if (errorRes != null) {
-            _uiState.update { it.copy(medicationEditorErrorMessageRes = errorRes) }
+            _uiState.update {
+                it.copy(
+                    medicationEditorErrorMessageRes = errorRes,
+                    medicationEditorInfoMessageRes = null,
+                )
+            }
             return
         }
 
@@ -261,22 +270,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
         )
 
         _uiState.update {
-            val existingIndex = it.medications.indexOfFirst { medication ->
-                medication.localId == savedMedication.localId
-            }
-            val updatedMedications = if (existingIndex >= 0) {
-                it.medications.toMutableList().apply {
-                    this[existingIndex] = savedMedication
-                }
-            } else {
-                it.medications + savedMedication
-            }
+            val saveResult = upsertMedication(
+                medications = it.medications,
+                savedMedication = savedMedication
+            )
 
             it.copy(
-                medications = updatedMedications,
-                editingMedication = savedMedication.toEditorUiState(),
+                medications = saveResult.medications,
+                editingMedication = saveResult.resolvedMedication.toEditorUiState(),
                 isMedicationEditorSaved = true,
-                medicationEditorErrorMessageRes = null
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = if (saveResult.mergedIntoExisting) {
+                    R.string.group_medication_duplicate_merged
+                } else {
+                    null
+                },
             )
         }
     }
@@ -452,7 +460,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 editingMedication = currentState.editingMedication?.let(transform),
-                medicationEditorErrorMessageRes = null
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -525,6 +534,58 @@ internal fun hasDuplicateDailyTime(
     }
 }
 
+internal data class MedicationGroupMedicationSaveResult(
+    val medications: List<MedicationGroupMedicationItemUiState>,
+    val resolvedMedication: MedicationGroupMedicationItemUiState,
+    val mergedIntoExisting: Boolean,
+)
+
+internal fun upsertMedication(
+    medications: List<MedicationGroupMedicationItemUiState>,
+    savedMedication: MedicationGroupMedicationItemUiState,
+): MedicationGroupMedicationSaveResult {
+    val duplicateMedication = medications.firstOrNull { medication ->
+        medication.localId != savedMedication.localId &&
+            medication.details == savedMedication.details
+    }
+
+    if (duplicateMedication != null) {
+        val mergedMedication = duplicateMedication.copy(
+            count = duplicateMedication.count + savedMedication.count
+        )
+        val updatedMedications = medications
+            .filterNot { medication -> medication.localId == savedMedication.localId }
+            .map { medication ->
+                if (medication.localId == duplicateMedication.localId) {
+                    mergedMedication
+                } else {
+                    medication
+                }
+            }
+        return MedicationGroupMedicationSaveResult(
+            medications = updatedMedications,
+            resolvedMedication = mergedMedication,
+            mergedIntoExisting = true
+        )
+    }
+
+    val existingIndex = medications.indexOfFirst { medication ->
+        medication.localId == savedMedication.localId
+    }
+    val updatedMedications = if (existingIndex >= 0) {
+        medications.toMutableList().apply {
+            this[existingIndex] = savedMedication
+        }
+    } else {
+        medications + savedMedication
+    }
+    return MedicationGroupMedicationSaveResult(
+        medications = updatedMedications,
+        resolvedMedication = savedMedication,
+        mergedIntoExisting = false
+    )
+}
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
@@ -546,6 +607,7 @@ data class MedicationGroupEditorUiState(
     val editingMedication: MedicationGroupMedicationEditorUiState? = null,
     val isMedicationEditorSaved: Boolean = false,
     val medicationEditorErrorMessageRes: Int? = null,
+    val medicationEditorInfoMessageRes: Int? = null,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
