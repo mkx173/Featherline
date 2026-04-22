@@ -888,6 +888,8 @@ private fun NotificationsCard(
     onToggle: (Boolean) -> Unit
 ) {
     Surface(
+        onClick = { onToggle(!enabled) },
+        enabled = toggleEnabled,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
