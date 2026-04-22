@@ -63,6 +63,7 @@
     <string name="plan_schedule_entry_not_logged">尚未记录</string>
     <string name="plan_schedule_entry_logged">已记录</string>
     <string name="plan_schedule_entry_due_soon">即将到点</string>
+    <string name="plan_schedule_entry_past_due">已逾期</string>
     <string name="plan_schedule_entry_missed">已错过</string>
     <string name="plan_schedule_entry_planned">已计划</string>
     <string name="plan_entry_label_manual">手动</string>

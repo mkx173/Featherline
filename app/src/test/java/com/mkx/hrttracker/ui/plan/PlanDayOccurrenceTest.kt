@@ -40,8 +40,45 @@ class PlanDayOccurrenceTest {
         )
 
         assertFalse(schedule.scheduledEntries[0].isDueSoon)
+        assertTrue(schedule.scheduledEntries[0].isPastDue)
         assertTrue(schedule.scheduledEntries[1].isDueSoon)
+        assertFalse(schedule.scheduledEntries[1].isPastDue)
         assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
+    }
+
+    @Test
+    fun buildPlanDaySchedule_does_not_mark_fulfilled_slot_as_past_due() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val fulfilledEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = group.uuid,
+            appliedAt = scheduledFor.plusMinutes(3).toLocalDate().atTime(9, 3)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = scheduledFor
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(fulfilledEntry),
+            now = LocalDateTime.of(2026, 4, 18, 10, 0)
+        )
+
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertFalse(schedule.scheduledEntries.single().isPastDue)
+        assertFalse(schedule.scheduledEntries.single().isDueSoon)
     }
 
     @Test

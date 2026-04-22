@@ -20,6 +20,7 @@ data class PlanDayScheduleEntry(
     val fulfillingEntryUuids: List<UUID>,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
+    val isPastDue: Boolean,
 )
 
 data class PlanDaySchedule(
@@ -63,7 +64,8 @@ fun buildPlanDaySchedule(
                         medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
                         isFulfilled = isFulfilled,
-                        isDueSoon = !isFulfilled && isDueSoonSlot
+                        isDueSoon = !isFulfilled && isDueSoonSlot,
+                        isPastDue = !isFulfilled && isPastDue(slotDateTime, now)
                     )
                 }
             }
@@ -89,4 +91,11 @@ internal fun isDueSoon(
     now: LocalDateTime
 ): Boolean {
     return !scheduledAt.isBefore(now) && !scheduledAt.isAfter(now.plusHours(1))
+}
+
+internal fun isPastDue(
+    scheduledAt: LocalDateTime,
+    now: LocalDateTime
+): Boolean {
+    return scheduledAt.isBefore(now)
 }

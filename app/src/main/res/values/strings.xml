@@ -63,6 +63,7 @@
     <string name="plan_schedule_entry_not_logged">Not logged yet</string>
     <string name="plan_schedule_entry_logged">Logged</string>
     <string name="plan_schedule_entry_due_soon">Due soon</string>
+    <string name="plan_schedule_entry_past_due">Past due</string>
     <string name="plan_schedule_entry_missed">Missed</string>
     <string name="plan_schedule_entry_planned">Planned</string>
     <string name="plan_entry_label_manual">Manual</string>

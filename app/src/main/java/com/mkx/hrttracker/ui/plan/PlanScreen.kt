@@ -594,18 +594,21 @@ private fun ScheduledDayRow(
     val rowState = when {
         entry.isFulfilled -> ScheduledDayRowState.LOGGED
         entry.isDueSoon -> ScheduledDayRowState.DUE
+        date == today && entry.isPastDue -> ScheduledDayRowState.PAST_DUE
         date.isBefore(today) -> ScheduledDayRowState.MISSED
         else -> ScheduledDayRowState.PLANNED
     }
     val labelText = when (rowState) {
         ScheduledDayRowState.LOGGED -> stringResource(R.string.plan_schedule_entry_logged)
         ScheduledDayRowState.DUE -> stringResource(R.string.plan_schedule_entry_due_soon)
+        ScheduledDayRowState.PAST_DUE -> stringResource(R.string.plan_schedule_entry_past_due)
         ScheduledDayRowState.MISSED -> stringResource(R.string.plan_schedule_entry_missed)
         ScheduledDayRowState.PLANNED -> stringResource(R.string.plan_schedule_entry_planned)
     }
     val labelColor = when (rowState) {
         ScheduledDayRowState.LOGGED -> fulfilledIndicatorColor
         ScheduledDayRowState.DUE -> MaterialTheme.colorScheme.primary
+        ScheduledDayRowState.PAST_DUE -> overdueScheduledIndicatorColor
         ScheduledDayRowState.MISSED -> overdueScheduledIndicatorColor
         ScheduledDayRowState.PLANNED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -688,6 +691,25 @@ private fun ScheduledDayRowLeading(
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        ScheduledDayRowState.PAST_DUE -> {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .border(
+                        width = 2.dp,
+                        color = overdueScheduledIndicatorColor,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = null,
+                    tint = overdueScheduledIndicatorColor,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -1208,6 +1230,7 @@ private sealed interface SelectedDayRowModel {
 private enum class ScheduledDayRowState {
     LOGGED,
     DUE,
+    PAST_DUE,
     MISSED,
     PLANNED,
 }
