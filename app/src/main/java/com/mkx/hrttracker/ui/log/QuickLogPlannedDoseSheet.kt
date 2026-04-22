@@ -1,7 +1,5 @@
 package com.mkx.hrttracker.ui.log
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,8 +25,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -38,6 +38,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.DatePickerModal
+import com.mkx.hrttracker.ui.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
@@ -123,6 +125,32 @@ private fun QuickLogPlannedDoseSheetContent(
     }
     val today = remember { LocalDate.now() }
     val groupColorScheme = rememberMedicationGroupColorScheme(uiState.group?.colorKey)
+    val is24Hour = DateFormat.is24HourFormat(context)
+    var datePickerEntryId by remember { mutableStateOf<String?>(null) }
+    var timePickerEntryId by remember { mutableStateOf<String?>(null) }
+    val datePickerEntry = uiState.draftEntries.firstOrNull { it.localId == datePickerEntryId }
+    val timePickerEntry = uiState.draftEntries.firstOrNull { it.localId == timePickerEntryId }
+
+    datePickerEntry?.let { entry ->
+        DatePickerModal(
+            onDateSelected = { selectedDate ->
+                onItemDateChange(entry.localId, selectedDate)
+            },
+            onDismiss = { datePickerEntryId = null },
+            initialSelectedDate = entry.appliedDate
+        )
+    }
+
+    timePickerEntry?.let { entry ->
+        TimePickerModal(
+            onTimeSelected = { selectedTime ->
+                onItemTimeChange(entry.localId, selectedTime)
+            },
+            onDismiss = { timePickerEntryId = null },
+            initialTime = entry.appliedTime,
+            is24Hour = is24Hour
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -193,34 +221,8 @@ private fun QuickLogPlannedDoseSheetContent(
                     appLocale = appLocale,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
-                    onDateClick = {
-                        DatePickerDialog(
-                            context,
-                            { _, year, month, dayOfMonth ->
-                                onItemDateChange(
-                                    entry.localId,
-                                    LocalDate.of(year, month + 1, dayOfMonth)
-                                )
-                            },
-                            entry.appliedDate.year,
-                            entry.appliedDate.monthValue - 1,
-                            entry.appliedDate.dayOfMonth
-                        ).show()
-                    },
-                    onTimeClick = {
-                        TimePickerDialog(
-                            context,
-                            { _, hourOfDay, minute ->
-                                onItemTimeChange(
-                                    entry.localId,
-                                    LocalTime.of(hourOfDay, minute)
-                                )
-                            },
-                            entry.appliedTime.hour,
-                            entry.appliedTime.minute,
-                            DateFormat.is24HourFormat(context)
-                        ).show()
-                    }
+                    onDateClick = { datePickerEntryId = entry.localId },
+                    onTimeClick = { timePickerEntryId = entry.localId }
                 )
             }
 

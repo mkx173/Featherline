@@ -22,11 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -40,20 +37,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDialog
-import androidx.compose.material3.TimePickerDialogDefaults
-import androidx.compose.material3.TimePickerDisplayMode
-import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,12 +64,12 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.ui.DatePickerModal
+import com.mkx.hrttracker.ui.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -210,7 +198,8 @@ fun StructuredMedicationEditorSheet(
                     options = catalog.entries.mapNotNull { it.medicationKey },
                     selectedOption = draft.selectedCatalogEntry().medicationKey,
                     optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
-                    onOptionSelected = onMedicationKeyChange
+                    onOptionSelected = onMedicationKeyChange,
+                    enabled = isMedicationIdentityEditable
                 )
             }
 
@@ -295,18 +284,15 @@ fun StructuredMedicationEditorSheet(
             }
 
             if (showAppliedAtFields && appliedDate != null && appliedTime != null) {
-                var selectedDate by remember { mutableStateOf(appliedDate) }
                 var showDatePickerModal by remember { mutableStateOf(false) }
 
                 if (showDatePickerModal) {
                     DatePickerModal(
-                        onDateSelected = {
-                            selectedDate = Instant.ofEpochMilli(it).atZone(
-                                ZoneId.systemDefault()).toLocalDate()
+                        onDateSelected = { selectedDate ->
                             onAppliedDateChange?.invoke(selectedDate)
                         },
                         onDismiss = { showDatePickerModal = false },
-                        initialSelectedDate = selectedDate
+                        initialSelectedDate = appliedDate
                     )
                 }
 
@@ -315,8 +301,9 @@ fun StructuredMedicationEditorSheet(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(stringResource(R.string.field_date_of_application)) },
-                    modifier = Modifier.fillMaxWidth()
-                        .pointerInput(selectedDate) {
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(appliedDate) {
                         awaitEachGesture {
                             // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
                             // in the Initial pass to observe events before the text field consumes them
@@ -334,18 +321,15 @@ fun StructuredMedicationEditorSheet(
                     singleLine = true,
                 )
 
-                var selectedTime: TimePickerState? by remember { mutableStateOf(null) }
                 var showTimePickerModal by remember { mutableStateOf(false) }
 
                 if (showTimePickerModal) {
                     TimePickerModal(
-                        onConfirm = {
-                            selectedTime = it
-                            onAppliedTimeChange?.invoke(LocalTime.of(it.hour, it.minute))
+                        onTimeSelected = { selectedTime ->
+                            onAppliedTimeChange?.invoke(selectedTime)
                         },
                         onDismiss = { showTimePickerModal = false },
-                        initialHour = appliedTime.hour,
-                        initialMinute = appliedTime.minute,
+                        initialTime = appliedTime,
                         is24Hour = DateFormat.is24HourFormat(context)
                     )
                 }
@@ -355,8 +339,9 @@ fun StructuredMedicationEditorSheet(
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(stringResource(R.string.field_time_of_application)) },
-                    modifier = Modifier.fillMaxWidth()
-                        .pointerInput(selectedTime) {
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(appliedTime) {
                             awaitEachGesture {
                                 // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
                                 // in the Initial pass to observe events before the text field consumes them
@@ -422,7 +407,7 @@ private fun <T> ConnectedButtonGroup(
                         onOptionSelected(option)
                     }
                 },
-                enabled = enabled,
+                enabled = enabled || option == resolvedSelectedOption,
                 shapes =
                     when (index) {
                         0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -535,79 +520,6 @@ private fun PickerField(
             modifier = Modifier
                 .matchParentSize()
                 .clickable { onClick() }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DatePickerModal(
-    onDateSelected: (Long) -> Unit,
-    onDismiss: () -> Unit,
-    initialSelectedDate: LocalDate
-) {
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDate = initialSelectedDate
-    )
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                datePickerState.selectedDateMillis?.let { onDateSelected(it) }
-                onDismiss()
-            }) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    ) {
-        DatePicker(state = datePickerState)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TimePickerModal(
-    onConfirm: (TimePickerState) -> Unit,
-    onDismiss: () -> Unit,
-    initialHour: Int,
-    initialMinute: Int,
-    is24Hour: Boolean,
-) {
-    val timePickerState = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = is24Hour
-    )
-
-    TimePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm(timePickerState)
-                onDismiss()
-            }) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
-        title = {
-            TimePickerDialogDefaults.Title(
-                displayMode = TimePickerDisplayMode.Picker
-            )
-        }
-    ) {
-        TimePicker(
-            state = timePickerState,
         )
     }
 }

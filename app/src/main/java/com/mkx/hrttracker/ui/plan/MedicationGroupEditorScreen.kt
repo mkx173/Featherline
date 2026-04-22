@@ -1,8 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
 import android.Manifest
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -101,6 +99,8 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.ui.DatePickerModal
+import com.mkx.hrttracker.ui.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
@@ -336,12 +336,16 @@ private fun MedicationGroupEditorScreenContent(
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
+    val is24Hour = DateFormat.is24HourFormat(context)
     val scheduleOptions = remember {
         listOf(
             MedicationGroupScheduleType.DAILY,
             MedicationGroupScheduleType.WEEKLY
         )
     }
+    var pendingSinceDate by remember { mutableStateOf<LocalDate?>(null) }
+    var pendingWeeklyTime by remember { mutableStateOf<LocalTime?>(null) }
+    var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
     val canSave = resolveMedicationGroupName(
         groupName = uiState.groupName,
         defaultGroupName = uiState.defaultGroupName,
@@ -358,6 +362,34 @@ private fun MedicationGroupEditorScreenContent(
                 onDismissMedicationEditor()
             }
         }
+    }
+
+    pendingSinceDate?.let { initialSinceDate ->
+        DatePickerModal(
+            onDateSelected = onSinceDateChange,
+            onDismiss = { pendingSinceDate = null },
+            initialSelectedDate = initialSinceDate
+        )
+    }
+
+    pendingWeeklyTime?.let { initialWeeklyTime ->
+        TimePickerModal(
+            onTimeSelected = onWeeklyTimeChange,
+            onDismiss = { pendingWeeklyTime = null },
+            initialTime = initialWeeklyTime,
+            is24Hour = is24Hour
+        )
+    }
+
+    pendingDailyTimeEdit?.let { dailyTimeEdit ->
+        TimePickerModal(
+            onTimeSelected = { selectedTime ->
+                onDailyTimeChange(dailyTimeEdit.localId, selectedTime)
+            },
+            onDismiss = { pendingDailyTimeEdit = null },
+            initialTime = dailyTimeEdit.initialTime,
+            is24Hour = is24Hour
+        )
     }
 
     if (uiState.isDeleteConfirmationVisible) {
@@ -496,30 +528,10 @@ private fun MedicationGroupEditorScreenContent(
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
-                            onSinceDateChange = { currentDate ->
-                                DatePickerDialog(
-                                    context,
-                                    { _, year, month, dayOfMonth ->
-                                        onSinceDateChange(LocalDate.of(year, month + 1, dayOfMonth))
-                                    },
-                                    currentDate.year,
-                                    currentDate.monthValue - 1,
-                                    currentDate.dayOfMonth
-                                ).show()
-                            },
+                            onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
                             onIntervalChange = onWeeklyIntervalChange,
                             onDayChange = onWeeklyDayChange,
-                            onTimeChange = { currentTime ->
-                                TimePickerDialog(
-                                    context,
-                                    { _, hourOfDay, minute ->
-                                        onWeeklyTimeChange(LocalTime.of(hourOfDay, minute))
-                                    },
-                                    currentTime.hour,
-                                    currentTime.minute,
-                                    DateFormat.is24HourFormat(context)
-                                ).show()
-                            }
+                            onTimeChange = { currentTime -> pendingWeeklyTime = currentTime }
                         )
                     } else {
                         DailyScheduleEditor(
@@ -528,29 +540,14 @@ private fun MedicationGroupEditorScreenContent(
                             dailyTimes = uiState.dailyTimes,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
-                            onSinceDateChange = { currentDate ->
-                                DatePickerDialog(
-                                    context,
-                                    { _, year, month, dayOfMonth ->
-                                        onSinceDateChange(LocalDate.of(year, month + 1, dayOfMonth))
-                                    },
-                                    currentDate.year,
-                                    currentDate.monthValue - 1,
-                                    currentDate.dayOfMonth
-                                ).show()
-                            },
+                            onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
                             onIntervalChange = onDailyIntervalChange,
                             onAddTime = onAddDailyTime,
                             onTimeClick = { localId, currentTime ->
-                                TimePickerDialog(
-                                    context,
-                                    { _, hourOfDay, minute ->
-                                        onDailyTimeChange(localId, LocalTime.of(hourOfDay, minute))
-                                    },
-                                    currentTime.hour,
-                                    currentTime.minute,
-                                    DateFormat.is24HourFormat(context)
-                                ).show()
+                                pendingDailyTimeEdit = DailyTimeEditRequest(
+                                    localId = localId,
+                                    initialTime = currentTime
+                                )
                             },
                             onRemoveTime = onRemoveDailyTime
                         )
@@ -767,6 +764,11 @@ private fun MedicationGroupEditorScreenContent(
         )
     }
 }
+
+private data class DailyTimeEditRequest(
+    val localId: String,
+    val initialTime: LocalTime,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
