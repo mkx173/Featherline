@@ -89,6 +89,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
@@ -123,14 +124,16 @@ fun HistoryScreen(
 
     HistoryScreenContent(
         uiState = uiState,
-        onEntryClick = { entryId ->
-            if (uiState.isSelectionMode) {
-                viewModel.toggleEntrySelection(entryId)
+        onEntryClick = { collapsedEntry ->
+            if (uiState.isSelectionMode || collapsedEntry.entryIds.size > 1) {
+                viewModel.toggleEntrySelection(collapsedEntry.entryIds)
             } else {
-                onEntryClick(entryId)
+                onEntryClick(collapsedEntry.representativeEntry.uuid)
             }
         },
-        onEntryLongClick = viewModel::toggleEntrySelection,
+        onEntryLongClick = { collapsedEntry ->
+            viewModel.toggleEntrySelection(collapsedEntry.entryIds)
+        },
         onDayClick = viewModel::toggleSelectedDate,
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
@@ -144,8 +147,8 @@ fun HistoryScreen(
 @Composable
 private fun HistoryScreenContent(
     uiState: HistoryUiState,
-    onEntryClick: (UUID) -> Unit,
-    onEntryLongClick: (UUID) -> Unit,
+    onEntryClick: (HistoryCollapsedEntry) -> Unit,
+    onEntryLongClick: (HistoryCollapsedEntry) -> Unit,
     onDayClick: (LocalDate) -> Unit,
     onDeleteSelectedClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
@@ -209,9 +212,12 @@ private fun HistoryScreenContent(
             selectedDate = uiState.selectedDate
         )
     }
-    val groupedEntries = remember(visibleEntries) {
-        visibleEntries.groupBy { entry ->
-            entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
+    val collapsedEntries = remember(visibleEntries) {
+        collapseHistoryEntries(visibleEntries)
+    }
+    val groupedEntries = remember(collapsedEntries) {
+        collapsedEntries.groupBy { collapsedEntry ->
+            collapsedEntry.representativeEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
         }
     }
     val groupNamesById = remember(uiState.medicationGroups) {
@@ -332,7 +338,7 @@ private fun HistoryScreenContent(
                 )
             }
 
-            if (visibleEntries.isEmpty()) {
+            if (collapsedEntries.isEmpty()) {
                 item(key = "empty-state") {
                     HistoryEmptyStateCard(
                         text = stringResource(
@@ -353,24 +359,27 @@ private fun HistoryScreenContent(
                             date = date,
                             today = today,
                             dayStatus = monthDayStates[date]?.status ?: PlanCalendarDayStatus.NONE,
-                            entryCount = dateEntries.size,
+                            entryCount = dateEntries.sumOf { collapsedEntry -> collapsedEntry.count },
                             appLocale = appLocale
                         )
                     }
 
                     items(
                         items = dateEntries,
-                        key = { it.uuid }
-                    ) { entry ->
+                        key = { it.representativeEntry.uuid }
+                    ) { collapsedEntry ->
                         HistoryEntryCard(
-                            entry = entry,
+                            collapsedEntry = collapsedEntry,
                             appLocale = appLocale,
                             timeFormatter = timeFormatter,
-                            groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
-                            groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
-                            isSelected = entry.uuid in uiState.selectedEntryIds,
-                            onClick = { onEntryClick(entry.uuid) },
-                            onLongClick = { onEntryLongClick(entry.uuid) }
+                            groupName = collapsedEntry.representativeEntry.sourceGroupUuid?.let(groupNamesById::get),
+                            groupColorKey = collapsedEntry.representativeEntry.sourceGroupUuid?.let(groupColorsById::get),
+                            isSelected = isHistoryCollapsedEntrySelected(
+                                selectedEntryIds = uiState.selectedEntryIds,
+                                entryIds = collapsedEntry.entryIds
+                            ),
+                            onClick = { onEntryClick(collapsedEntry) },
+                            onLongClick = { onEntryLongClick(collapsedEntry) }
                         )
                     }
                 }
@@ -1048,7 +1057,7 @@ private fun HistoryStatusDot(
 
 @Composable
 private fun HistoryEntryCard(
-    entry: MedicationLogEntry,
+    collapsedEntry: HistoryCollapsedEntry,
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
     groupName: String?,
@@ -1057,6 +1066,7 @@ private fun HistoryEntryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val entry = collapsedEntry.representativeEntry
     val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
         historySourceVisual(entry.sourceType, entry.scheduledFor != null)
     }
@@ -1143,6 +1153,21 @@ private fun HistoryEntryCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (collapsedEntry.count > 1) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = groupColorScheme.secondaryContainer
+                        ) {
+                            Text(
+                                text = medicationCountIndicatorText(collapsedEntry.count),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = groupColorScheme.onSecondaryContainer,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
                 Text(
                     text = supportingText,

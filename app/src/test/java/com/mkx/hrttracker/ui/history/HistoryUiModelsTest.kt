@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testInstant
@@ -62,6 +63,81 @@ class HistoryUiModelsTest {
         assertEquals(1, summary.onTrack)
         assertEquals(1, summary.partial)
         assertEquals(1, summary.missed)
+    }
+
+    @Test
+    fun collapseHistoryEntries_collapses_exact_duplicate_logs_into_one_counted_entry() {
+        val firstId = UUID.fromString("b33e87e1-7a60-461b-8fc3-0ba5afb0b147")
+        val secondId = UUID.fromString("640010dc-63e5-40f4-a836-36664d4d4a68")
+        val sharedAppliedAt = LocalDateTime.of(2026, 4, 10, 8, 0)
+        val collapsedEntries = collapseHistoryEntries(
+            listOf(
+                testMedicationLogEntry(
+                    uuid = firstId,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    dosageMgAsEstradiol = 2.0,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = UUID.fromString("d6378318-4ee8-46b3-8430-3131af61efdf"),
+                    appliedAt = testInstant(sharedAppliedAt),
+                    scheduledFor = sharedAppliedAt
+                ),
+                testMedicationLogEntry(
+                    uuid = secondId,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    dosageMgAsEstradiol = 2.0,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = UUID.fromString("d6378318-4ee8-46b3-8430-3131af61efdf"),
+                    appliedAt = testInstant(sharedAppliedAt),
+                    scheduledFor = sharedAppliedAt
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("cd74c798-022a-49e0-a8cd-67d9f92d2c59"),
+                    details = testCustomMedicationDetails(
+                        medicationName = "Progesterone",
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    ),
+                    dosageMgAsEstradiol = null,
+                    sourceType = MedicationLogEntrySourceType.MANUAL,
+                    sourceGroupUuid = null,
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 22, 0))
+                )
+            )
+        )
+
+        val duplicateEntry = collapsedEntries.first { entry -> entry.count == 2 }
+        val singleEntry = collapsedEntries.first { entry -> entry.count == 1 }
+
+        assertEquals(2, collapsedEntries.size)
+        assertEquals(setOf(firstId, secondId), duplicateEntry.entryIds)
+        assertEquals(1, singleEntry.count)
+    }
+
+    @Test
+    fun toggleHistoryEntrySelection_adds_or_removes_the_full_collapsed_entry_set() {
+        val entryIds = setOf(
+            UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
+            UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
+        )
+
+        val selected = toggleHistoryEntrySelection(
+            currentSelection = emptySet(),
+            entryIds = entryIds
+        )
+        val deselected = toggleHistoryEntrySelection(
+            currentSelection = selected,
+            entryIds = entryIds
+        )
+
+        assertEquals(entryIds, selected)
+        assertEquals(emptySet<UUID>(), deselected)
     }
 
     private fun stateFor(status: PlanCalendarDayStatus): PlanCalendarDayUiState {

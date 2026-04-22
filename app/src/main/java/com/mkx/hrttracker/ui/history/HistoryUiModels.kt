@@ -6,12 +6,19 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.util.UUID
 
 data class HistoryMonthSummary(
     val logged: Int = 0,
     val onTrack: Int = 0,
     val partial: Int = 0,
     val missed: Int = 0,
+)
+
+data class HistoryCollapsedEntry(
+    val representativeEntry: MedicationLogEntry,
+    val entryIds: Set<UUID>,
+    val count: Int,
 )
 
 internal fun buildHistoryVisibleEntries(
@@ -74,3 +81,55 @@ internal fun buildHistoryMonthSummary(
         missed = missed
     )
 }
+
+internal fun collapseHistoryEntries(
+    entries: List<MedicationLogEntry>
+): List<HistoryCollapsedEntry> {
+    return entries
+        .groupBy { entry ->
+            HistoryCollapseKey(
+                details = entry.details,
+                sourceType = entry.sourceType,
+                sourceGroupUuid = entry.sourceGroupUuid,
+                appliedAtEpochMillis = entry.appliedAt.toEpochMilli(),
+                scheduledFor = entry.scheduledFor
+            )
+        }
+        .values
+        .map { groupedEntries ->
+            val representativeEntry = groupedEntries.maxByOrNull(MedicationLogEntry::uuid)
+                ?: groupedEntries.first()
+            HistoryCollapsedEntry(
+                representativeEntry = representativeEntry,
+                entryIds = groupedEntries.mapTo(linkedSetOf(), MedicationLogEntry::uuid),
+                count = groupedEntries.size
+            )
+        }
+        .sortedByDescending { collapsedEntry -> collapsedEntry.representativeEntry.appliedAt }
+}
+
+internal fun isHistoryCollapsedEntrySelected(
+    selectedEntryIds: Set<UUID>,
+    entryIds: Set<UUID>
+): Boolean {
+    return entryIds.any { entryId -> entryId in selectedEntryIds }
+}
+
+internal fun toggleHistoryEntrySelection(
+    currentSelection: Set<UUID>,
+    entryIds: Set<UUID>
+): Set<UUID> {
+    return if (isHistoryCollapsedEntrySelected(currentSelection, entryIds)) {
+        currentSelection - entryIds
+    } else {
+        currentSelection + entryIds
+    }
+}
+
+private data class HistoryCollapseKey(
+    val details: com.mkx.hrttracker.model.medication.MedicationDetails,
+    val sourceType: com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType,
+    val sourceGroupUuid: UUID?,
+    val appliedAtEpochMillis: Long,
+    val scheduledFor: java.time.LocalDateTime?,
+)

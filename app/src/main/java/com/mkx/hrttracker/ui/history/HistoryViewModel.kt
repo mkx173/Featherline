@@ -100,13 +100,16 @@ class HistoryViewModel @Inject constructor(
         isDeleteConfirmationVisible.value = false
     }
 
-    fun toggleEntrySelection(entryId: UUID) {
+    fun toggleEntrySelection(entryIds: Set<UUID>) {
+        if (entryIds.isEmpty()) {
+            return
+        }
+
         selectedEntryIds.update { currentSelection ->
-            if (entryId in currentSelection) {
-                currentSelection - entryId
-            } else {
-                currentSelection + entryId
-            }
+            toggleHistoryEntrySelection(
+                currentSelection = currentSelection,
+                entryIds = entryIds
+            )
         }
 
         if (selectedEntryIds.value.isEmpty()) {
