@@ -178,7 +178,7 @@ fun HrtTrackerNavHost(
 
                         FloatingActionButton(
                             onClick = {
-                                addEntrySheetRequest = AddEntrySheetRequest(entryId = null)
+                                addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
                             }
                         ) {
                             Icon(
@@ -222,7 +222,9 @@ fun HrtTrackerNavHost(
                         )
                     },
                     onEntryClick = { entryId ->
-                        addEntrySheetRequest = AddEntrySheetRequest(entryId = entryId.toString())
+                        addEntrySheetRequest = AddEntrySheetRequest(
+                            entryIds = listOf(entryId.toString())
+                        )
                     },
                     onQuickLogClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
@@ -252,8 +254,10 @@ fun HrtTrackerNavHost(
             }
             composable(Screen.History.route) {
                 HistoryScreen(
-                    onEntryClick = { entryId ->
-                        addEntrySheetRequest = AddEntrySheetRequest(entryId = entryId.toString())
+                    onEntryClick = { entryIds ->
+                        addEntrySheetRequest = AddEntrySheetRequest(
+                            entryIds = entryIds.map(UUID::toString)
+                        )
                     }
                 )
             }
@@ -284,7 +288,7 @@ fun HrtTrackerNavHost(
 
     addEntrySheetRequest?.let { request ->
         AddEntryScreen(
-            entryId = request.entryId,
+            entryIds = request.entryIds,
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
         )
@@ -312,7 +316,7 @@ fun HrtTrackerNavHost(
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 
 private data class AddEntrySheetRequest(
-    val entryId: String?,
+    val entryIds: List<String>,
 )
 
 private data class QuickLogPlannedDoseRequest(

@@ -114,7 +114,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun HistoryScreen(
-    onEntryClick: (UUID) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -125,11 +125,7 @@ fun HistoryScreen(
     HistoryScreenContent(
         uiState = uiState,
         onEntryClick = { collapsedEntry ->
-            if (uiState.isSelectionMode || collapsedEntry.entryIds.size > 1) {
-                viewModel.toggleEntrySelection(collapsedEntry.entryIds)
-            } else {
-                onEntryClick(collapsedEntry.representativeEntry.uuid)
-            }
+            onEntryClick(collapsedEntry.entryIds)
         },
         onEntryLongClick = { collapsedEntry ->
             viewModel.toggleEntrySelection(collapsedEntry.entryIds)

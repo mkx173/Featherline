@@ -28,6 +28,14 @@ interface MedicationLogDao {
     @Query(
         """
         SELECT * FROM medication_log_entries
+        WHERE uuid IN (:uuids)
+        """
+    )
+    suspend fun getEntriesByIds(uuids: List<String>): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
         ORDER BY appliedAtEpochMillis DESC
         """
     )
@@ -68,4 +76,7 @@ interface MedicationLogDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEntries(entries: List<MedicationLogEntryEntity>)
 }

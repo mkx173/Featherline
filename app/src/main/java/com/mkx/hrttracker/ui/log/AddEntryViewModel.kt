@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -33,12 +34,13 @@ class AddEntryViewModel @Inject constructor(
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
 
-    fun initialize(entryId: String?) {
+    fun initialize(entryIds: List<String>) {
         loadEntryJob?.cancel()
-        _uiState.value = AddEntryUiState(editingEntryId = entryId)
+        val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
+        _uiState.value = AddEntryUiState(editingEntryIds = normalizedEntryIds)
 
-        if (entryId != null) {
-            loadEntryForEditing(entryId)
+        if (normalizedEntryIds.isNotEmpty()) {
+            loadEntriesForEditing(normalizedEntryIds)
         }
     }
 
@@ -89,13 +91,26 @@ class AddEntryViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
 
-            medicationLogRepository.saveEntry(
-                uuid = currentState.editingEntryId?.let(UUID::fromString),
-                medication = currentState.medicationDraft.toMedicationDetails(),
-                sourceType = currentState.sourceType,
-                sourceGroupUuid = currentState.sourceGroupUuid,
-                appliedAt = appliedAt
-            )
+            val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
+            if (editingEntryUuids.size > 1) {
+                medicationLogRepository.saveEntries(
+                    uuids = editingEntryUuids,
+                    medication = currentState.medicationDraft.toMedicationDetails(),
+                    sourceType = currentState.sourceType,
+                    sourceGroupUuid = currentState.sourceGroupUuid,
+                    appliedAt = appliedAt,
+                    scheduledFor = currentState.scheduledFor
+                )
+            } else {
+                medicationLogRepository.saveEntry(
+                    uuid = editingEntryUuids.firstOrNull(),
+                    medication = currentState.medicationDraft.toMedicationDetails(),
+                    sourceType = currentState.sourceType,
+                    sourceGroupUuid = currentState.sourceGroupUuid,
+                    appliedAt = appliedAt,
+                    scheduledFor = currentState.scheduledFor
+                )
+            }
             medicationReminderScheduler.rescheduleAll()
 
             _uiState.update {
@@ -112,31 +127,21 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(isSaved = false) }
     }
 
-    private fun loadEntryForEditing(entryId: String) {
-        val uuid = runCatching { UUID.fromString(entryId) }.getOrNull() ?: return
-
+    private fun loadEntriesForEditing(entryIds: List<String>) {
         loadEntryJob = viewModelScope.launch {
-            val entry = medicationLogRepository.getEntry(uuid) ?: return@launch
-            val appliedAt = entry.appliedAt.atZone(ZoneId.systemDefault())
-
-            _uiState.value = AddEntryUiState(
-                editingEntryId = entry.uuid.toString(),
-                medicationDraft = medicationDraftFromDetails(entry.details),
-                sourceType = entry.sourceType,
-                sourceGroupUuid = entry.sourceGroupUuid,
-                appliedDate = appliedAt.toLocalDate(),
-                appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
-            )
+            val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
+            _uiState.value = buildEditingUiState(entries) ?: AddEntryUiState()
         }
     }
 
 }
 
 data class AddEntryUiState(
-    val editingEntryId: String? = null,
+    val editingEntryIds: List<String> = emptyList(),
     val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
     val sourceType: MedicationLogEntrySourceType = MedicationLogEntrySourceType.MANUAL,
     val sourceGroupUuid: UUID? = null,
+    val scheduledFor: LocalDateTime? = null,
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,
@@ -144,5 +149,45 @@ data class AddEntryUiState(
     val errorMessageRes: Int? = null,
 ) {
     val isEditing: Boolean
-        get() = editingEntryId != null
+        get() = editingEntryIds.isNotEmpty()
+
+    val isBulkEditing: Boolean
+        get() = editingEntryIds.size > 1
+}
+
+internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {
+    return entryIds.mapNotNull { entryId ->
+        runCatching { UUID.fromString(entryId).toString() }.getOrNull()
+    }.distinct()
+}
+
+internal fun buildEditingUiState(entries: List<MedicationLogEntry>): AddEntryUiState? {
+    val representativeEntry = entries.firstOrNull() ?: return null
+    val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
+    val appliedAt = representativeEntry.appliedAt.atZone(ZoneId.systemDefault())
+
+    return AddEntryUiState(
+        editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
+        medicationDraft = medicationDraftFromDetails(representativeEntry.details),
+        sourceType = representativeEntry.sourceType,
+        sourceGroupUuid = representativeEntry.sourceGroupUuid,
+        scheduledFor = representativeEntry.scheduledFor,
+        appliedDate = appliedAt.toLocalDate(),
+        appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
+    )
+}
+
+internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
+    if (entries.size <= 1) {
+        return true
+    }
+
+    val firstEntry = entries.first()
+    return entries.all { entry ->
+        entry.details == firstEntry.details &&
+            entry.sourceType == firstEntry.sourceType &&
+            entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
+            entry.appliedAt == firstEntry.appliedAt &&
+            entry.scheduledFor == firstEntry.scheduledFor
+    }
 }

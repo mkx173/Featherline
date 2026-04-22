@@ -4,7 +4,6 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -368,20 +367,20 @@ private fun PickerField(
     modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+        modifier = modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text(text = label) },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { onClick() }
         )
     }
 }

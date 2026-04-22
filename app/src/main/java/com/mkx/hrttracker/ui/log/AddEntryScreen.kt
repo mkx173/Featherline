@@ -29,7 +29,7 @@ import java.time.LocalTime
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEntryScreen(
-    entryId: String?,
+    entryIds: List<String>,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     modifier: Modifier = Modifier,
@@ -41,8 +41,8 @@ fun AddEntryScreen(
     )
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(entryId) {
-        viewModel.initialize(entryId)
+    LaunchedEffect(entryIds) {
+        viewModel.initialize(entryIds)
     }
 
     LaunchedEffect(uiState.isSaved) {
@@ -140,7 +140,7 @@ private fun AddEntryScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         AddEntryScreenContent(
             uiState = AddEntryUiState(
-                editingEntryId = "f16ec8a7-5115-410a-b12d-f376fdb6f76b",
+                editingEntryIds = listOf("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
                 medicationDraft = defaultMedicationDraft().changeApplicationType(
                     com.mkx.hrttracker.model.medication.MedicationApplicationType.INJECTION
                 ).changeMedicationKey(
