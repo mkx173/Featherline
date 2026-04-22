@@ -133,6 +133,8 @@
     <string name="group_schedule_daily">Daily</string>
     <string name="group_schedule_every_weeks">Once per x weeks</string>
     <string name="group_schedule_every_days">Every x days</string>
+    <string name="decrease_schedule_interval">Decrease schedule interval</string>
+    <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Since</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>

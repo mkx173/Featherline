@@ -479,7 +479,7 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_schedule_title))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
                 ) {
                     ConnectedButtonGroup(
                         modifier = Modifier.fillMaxWidth(),
@@ -776,12 +776,11 @@ private fun WeeklyScheduleEditor(
             onClick = { onSinceDateChange(sinceDate) }
         )
 
-        OutlinedTextField(
-            value = intervalWeeks,
-            onValueChange = onIntervalChange,
-            label = { Text(text = stringResource(R.string.group_schedule_every_weeks)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+        IntervalStepperCard(
+            label = stringResource(R.string.group_schedule_every_weeks),
+            value = parseScheduleInterval(intervalWeeks),
+            onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
+            onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
         )
 
         Column(
@@ -828,7 +827,6 @@ private fun DailyScheduleEditor(
     onRemoveTime: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier.padding(top = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         EditorFieldRow(
@@ -838,12 +836,11 @@ private fun DailyScheduleEditor(
             onClick = { onSinceDateChange(sinceDate) }
         )
 
-        OutlinedTextField(
-            value = intervalDays,
-            onValueChange = onIntervalChange,
-            label = { Text(text = stringResource(R.string.group_schedule_every_days)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+        IntervalStepperCard(
+            label = stringResource(R.string.group_schedule_every_days),
+            value = parseScheduleInterval(intervalDays),
+            onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
+            onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
         )
 
         Column(
@@ -885,6 +882,82 @@ private fun DailyScheduleEditor(
             }
         }
     }
+}
+
+@Composable
+private fun IntervalStepperCard(
+    label: String,
+    value: Int,
+    onDecreaseClick: () -> Unit,
+    onIncreaseClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onDecreaseClick,
+                        enabled = value > 1,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = stringResource(R.string.decrease_schedule_interval)
+                        )
+                    }
+                    Text(
+                        text = value.toString(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    IconButton(
+                        onClick = onIncreaseClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.increase_schedule_interval)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun parseScheduleInterval(value: String): Int {
+    return value.toIntOrNull()?.takeIf { it > 0 } ?: 1
+}
+
+internal fun incrementScheduleInterval(value: String): String {
+    return (parseScheduleInterval(value) + 1).toString()
+}
+
+internal fun decrementScheduleInterval(value: String): String {
+    return maxOf(1, parseScheduleInterval(value) - 1).toString()
 }
 
 private fun maybeRequestExactAlarmAccess(
@@ -1051,8 +1124,7 @@ private fun EditorFieldRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
             modifier = Modifier
@@ -1063,7 +1135,7 @@ private fun EditorFieldRow(
         ) {
             Surface(
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
+                color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 Icon(
                     imageVector = icon,
