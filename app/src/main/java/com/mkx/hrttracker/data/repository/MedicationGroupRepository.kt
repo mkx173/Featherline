@@ -21,7 +21,6 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -91,6 +90,7 @@ class MedicationGroupRepository @Inject constructor(
     suspend fun saveGroup(
         uuid: UUID?,
         name: String,
+        colorKey: MedicationGroupColorKey,
         schedule: MedicationGroupScheduleInput,
         medications: List<MedicationGroupMedicationInput>,
         notificationsEnabled: Boolean = false
@@ -101,18 +101,7 @@ class MedicationGroupRepository @Inject constructor(
         val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
         val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
         val resolvedColorKey = existingGroup?.group?.colorKey?.let(MedicationGroupColorKey::fromStorageValue)
-            ?: run {
-                val usedColors = dao.getGroups()
-                    .asSequence()
-                    .map(MedicationGroupWithItemsEntity::group)
-                    .filterNot { it.uuid == groupUuid.toString() }
-                    .map { group -> MedicationGroupColorKey.fromStorageValue(group.colorKey) }
-                    .toSet()
-                nextAvailableMedicationGroupColor(
-                    usedColors = usedColors,
-                    seed = groupUuid.hashCode()
-                )
-            }
+            ?: colorKey
 
         dao.upsertGroupWithItems(
             group = MedicationGroupEntity(

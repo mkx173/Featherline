@@ -12,6 +12,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
@@ -42,6 +43,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MedicationGroupEditorUiState())
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
     private val editingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
+    private val pendingGroupUuid = editingGroupId?.let { groupId ->
+        runCatching { UUID.fromString(groupId) }.getOrNull()
+    } ?: UUID.randomUUID()
 
     init {
         viewModelScope.launch {
@@ -55,18 +59,26 @@ class MedicationGroupEditorViewModel @Inject constructor(
         viewModelScope.launch {
             medicationGroupRepository.observeGroups().collect { groupsOrNull ->
                 _uiState.update { currentState ->
+                    val visibleGroups = groupsOrNull.orEmpty()
+                        .filterNot { group ->
+                            group.uuid.toString() == currentState.editingGroupId
+                        }
+                    val resolvedGroupColorKey = resolveMedicationGroupColorKey(
+                        currentColorKey = currentState.groupColorKey,
+                        usedColors = visibleGroups.map { group -> group.colorKey },
+                        seed = pendingGroupUuid.hashCode(),
+                        isEditing = currentState.isEditing,
+                        hasAssignedColor = currentState.hasAssignedGroupColor
+                    )
                     currentState.copy(
                         defaultGroupName = defaultMedicationGroupName(
-                            existingGroupCount = groupsOrNull.orEmpty()
-                                .asSequence()
-                                .filterNot { group ->
-                                    group.uuid.toString() == currentState.editingGroupId
-                                }
-                                .count(),
+                            existingGroupCount = visibleGroups.size,
                             formatName = { index ->
                                 context.getString(R.string.default_group_name_format, index)
                             }
-                        )
+                        ),
+                        groupColorKey = resolvedGroupColorKey,
+                        hasAssignedGroupColor = true
                     )
                 }
             }
@@ -336,6 +348,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             val savedGroupUuid = medicationGroupRepository.saveGroup(
                 uuid = currentState.editingGroupId?.let(UUID::fromString),
                 name = resolvedGroupName,
+                colorKey = currentState.groupColorKey,
                 schedule = when (currentState.scheduleType) {
                     MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
                         type = MedicationGroupScheduleType.WEEKLY,
@@ -437,6 +450,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.value = MedicationGroupEditorUiState(
                 editingGroupId = group.uuid.toString(),
                 groupName = group.name,
+                defaultGroupName = group.name,
                 scheduleType = group.schedule.type,
                 sinceDate = group.schedule.since,
                 weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
@@ -463,6 +477,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 remindersEnabled = remindersEnabled,
                 notificationsEnabled = group.notificationsEnabled,
                 groupColorKey = group.colorKey,
+                hasAssignedGroupColor = true,
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -535,6 +550,7 @@ data class MedicationGroupEditorUiState(
     val groupName: String = "",
     val defaultGroupName: String = "",
     val groupColorKey: MedicationGroupColorKey = MedicationGroupColorKey.ROSE,
+    val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
@@ -581,6 +597,23 @@ internal fun defaultMedicationGroupName(
     formatName: (Int) -> String
 ): String {
     return formatName(existingGroupCount + 1)
+}
+
+internal fun resolveMedicationGroupColorKey(
+    currentColorKey: MedicationGroupColorKey,
+    usedColors: Collection<MedicationGroupColorKey>,
+    seed: Int,
+    isEditing: Boolean,
+    hasAssignedColor: Boolean
+): MedicationGroupColorKey {
+    return if (isEditing || hasAssignedColor) {
+        currentColorKey
+    } else {
+        nextAvailableMedicationGroupColor(
+            usedColors = usedColors,
+            seed = seed
+        )
+    }
 }
 
 data class MedicationGroupMedicationItemUiState(

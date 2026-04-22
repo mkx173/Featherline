@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
@@ -324,6 +325,7 @@ private fun MedicationGroupEditorScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
+    val groupColorScheme = rememberMedicationGroupColorScheme(uiState.groupColorKey)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
     )
@@ -441,6 +443,9 @@ private fun MedicationGroupEditorScreenContent(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
+                    )
+                    GroupColorPreviewStrip(
+                        color = groupColorScheme.primary
                     )
                 }
             }
@@ -1231,6 +1236,21 @@ private fun EditorSupportMessage(text: String) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
         )
     }
+}
+
+@Composable
+private fun GroupColorPreviewStrip(
+    color: Color,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(3.dp)
+            .background(
+                color = color.copy(alpha = 0.32f),
+                shape = RoundedCornerShape(999.dp)
+            )
+    )
 }
 
 @Preview(
