@@ -291,20 +291,17 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveGroup() {
         val currentState = _uiState.value
+        if (!hasSaveableMedicationGroupContent(currentState)) {
+            return
+        }
         val resolvedGroupName = resolveMedicationGroupName(
             groupName = currentState.groupName,
             defaultGroupName = currentState.defaultGroupName,
             isEditing = currentState.isEditing
         )
-        if (resolvedGroupName.isEmpty() || currentState.medications.isEmpty()) {
-            return
-        }
 
         val parsedWeeklyInterval = parseScheduleInterval(currentState.weeklyIntervalWeeks)
         val parsedDailyInterval = parseScheduleInterval(currentState.dailyIntervalDays)
-        val resolvedWeeklyDays = currentState.weeklyDaysOfWeek.ifEmpty {
-            setOf(LocalDate.now().dayOfWeek)
-        }
         val resolvedDailyTimes = currentState.dailyTimes.ifEmpty {
             listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
         }
@@ -321,7 +318,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         type = MedicationGroupScheduleType.WEEKLY,
                         interval = parsedWeeklyInterval,
                         since = currentState.sinceDate,
-                        weeklyDaysOfWeek = resolvedWeeklyDays,
+                        weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
                         times = listOf(currentState.weeklyTime)
                     )
                     MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
@@ -476,14 +473,25 @@ internal fun toggleWeeklyDaySelection(
     dayOfWeek: DayOfWeek
 ): Set<DayOfWeek> {
     return if (dayOfWeek in selectedDays) {
-        if (selectedDays.size == 1) {
-            selectedDays
-        } else {
-            selectedDays - dayOfWeek
-        }
+        selectedDays - dayOfWeek
     } else {
         selectedDays + dayOfWeek
     }
+}
+
+internal fun hasSaveableMedicationGroupContent(
+    uiState: MedicationGroupEditorUiState
+): Boolean {
+    val resolvedGroupName = resolveMedicationGroupName(
+        groupName = uiState.groupName,
+        defaultGroupName = uiState.defaultGroupName,
+        isEditing = uiState.isEditing
+    )
+    val hasWeeklyDays = uiState.scheduleType != MedicationGroupScheduleType.WEEKLY ||
+        uiState.weeklyDaysOfWeek.isNotEmpty()
+    return resolvedGroupName.isNotEmpty() &&
+        uiState.medications.isNotEmpty() &&
+        hasWeeklyDays
 }
 
 internal fun incrementMedicationCount(

@@ -370,12 +370,8 @@ private fun MedicationGroupEditorScreenContent(
     var pendingWeeklyTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingNewDailyTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
-    val canSave = resolveMedicationGroupName(
-        groupName = uiState.groupName,
-        defaultGroupName = uiState.defaultGroupName,
-        isEditing = uiState.isEditing
-    ).isNotBlank() &&
-        uiState.medications.isNotEmpty() &&
+    var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
+    val canSave = hasSaveableMedicationGroupContent(uiState) &&
         !uiState.isSaving &&
         !uiState.isDeleting
 
@@ -468,6 +464,38 @@ private fun MedicationGroupEditorScreenContent(
         )
     }
 
+    pendingMedicationRemoval?.let { removalRequest ->
+        AlertDialog(
+            onDismissRequest = { pendingMedicationRemoval = null },
+            title = {
+                Text(text = stringResource(R.string.delete_group_medication_title))
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.delete_group_medication_confirmation,
+                        removalRequest.medicationName
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDecreaseMedicationCount(removalRequest.localId)
+                        pendingMedicationRemoval = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMedicationRemoval = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -548,12 +576,22 @@ private fun MedicationGroupEditorScreenContent(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
                         uiState.medications.forEachIndexed { index, medication ->
+                            val medicationName = medicationDisplayName(medication.details)
                             MedicationGroupMedicationCard(
                                 medication = medication,
                                 groupColorKey = uiState.groupColorKey,
                                 appLocale = appLocale,
                                 onClick = { onMedicationClick(medication.localId) },
-                                onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
+                                onDecreaseClick = {
+                                    if (shouldConfirmMedicationRemoval(medication.count)) {
+                                        pendingMedicationRemoval = MedicationRemovalRequest(
+                                            localId = medication.localId,
+                                            medicationName = medicationName
+                                        )
+                                    } else {
+                                        onDecreaseMedicationCount(medication.localId)
+                                    }
+                                },
                                 onIncreaseClick = { onIncreaseMedicationCount(medication.localId) },
                                 index = index,
                                 count = uiState.medications.size
@@ -727,6 +765,13 @@ private data class DailyTimeEditRequest(
     val localId: String,
     val initialTime: LocalTime,
 )
+
+private data class MedicationRemovalRequest(
+    val localId: String,
+    val medicationName: String,
+)
+
+internal fun shouldConfirmMedicationRemoval(count: Int): Boolean = count <= 1
 
 private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,

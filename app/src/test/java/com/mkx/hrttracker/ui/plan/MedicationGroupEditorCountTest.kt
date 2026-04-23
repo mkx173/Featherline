@@ -44,6 +44,16 @@ class MedicationGroupEditorCountTest {
     }
 
     @Test
+    fun shouldConfirmMedicationRemoval_returns_true_for_last_item() {
+        assertTrue(shouldConfirmMedicationRemoval(1))
+    }
+
+    @Test
+    fun shouldConfirmMedicationRemoval_returns_false_when_count_above_one() {
+        assertFalse(shouldConfirmMedicationRemoval(2))
+    }
+
+    @Test
     fun upsertMedication_merges_duplicate_add_into_existing_count() {
         val existingMedication = medication(
             localId = "existing",
