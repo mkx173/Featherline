@@ -50,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -324,8 +326,9 @@ private fun HistoryScreenContent(
         )
     }
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
             if (uiState.isSelectionMode) {
                 FloatingActionButton(onClick = onDeleteSelectedClick) {
@@ -338,7 +341,8 @@ private fun HistoryScreenContent(
         },
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(R.string.tab_history)) }
+                title = { Text(text = stringResource(R.string.tab_history)) },
+                scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
