@@ -318,6 +318,43 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun groupHistoryEntriesByDate_keeps_days_in_existing_order_and_sorts_entries_within_day_ascending() {
+        val groupedEntries = groupHistoryEntriesByDate(
+            listOf(
+                HistoryCollapsedEntry(
+                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 22, 0)),
+                    entryIds = setOf(UUID.fromString("11111111-1111-1111-1111-111111111111")),
+                    count = 1
+                ),
+                HistoryCollapsedEntry(
+                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
+                    entryIds = setOf(UUID.fromString("22222222-2222-2222-2222-222222222222")),
+                    count = 1
+                ),
+                HistoryCollapsedEntry(
+                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 10, 20, 0)),
+                    entryIds = setOf(UUID.fromString("33333333-3333-3333-3333-333333333333")),
+                    count = 1
+                ),
+            )
+        )
+
+        assertEquals(
+            listOf(LocalDate.of(2026, 4, 11), LocalDate.of(2026, 4, 10)),
+            groupedEntries.keys.toList()
+        )
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 11, 8, 0),
+                LocalDateTime.of(2026, 4, 11, 22, 0)
+            ),
+            groupedEntries.getValue(LocalDate.of(2026, 4, 11)).map { collapsedEntry ->
+                collapsedEntry.representativeEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDateTime()
+            }
+        )
+    }
+
+    @Test
     fun toggleHistoryEntrySelection_adds_or_removes_the_full_collapsed_entry_set() {
         val entryIds = setOf(
             UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),

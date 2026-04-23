@@ -163,6 +163,19 @@ internal fun collapseHistoryEntries(
         .sortedByDescending { collapsedEntry -> collapsedEntry.representativeEntry.appliedAt }
 }
 
+internal fun groupHistoryEntriesByDate(
+    collapsedEntries: List<HistoryCollapsedEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): Map<LocalDate, List<HistoryCollapsedEntry>> {
+    return collapsedEntries
+        .groupBy { collapsedEntry ->
+            collapsedEntry.representativeEntry.appliedAt.atZone(zoneId).toLocalDate()
+        }
+        .mapValues { (_, dateEntries) ->
+            dateEntries.sortedBy { collapsedEntry -> collapsedEntry.representativeEntry.appliedAt }
+        }
+}
+
 internal fun isHistoryCollapsedEntrySelected(
     selectedEntryIds: Set<UUID>,
     entryIds: Set<UUID>

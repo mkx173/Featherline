@@ -273,9 +273,7 @@ private fun HistoryScreenContent(
         collapseHistoryEntries(visibleEntries)
     }
     val groupedEntries = remember(collapsedEntries) {
-        collapsedEntries.groupBy { collapsedEntry ->
-            collapsedEntry.representativeEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
-        }
+        groupHistoryEntriesByDate(collapsedEntries)
     }
     val selectedCollapsedEntryCount = remember(collapsedEntries, uiState.selectedEntryIds) {
         countSelectedCollapsedEntries(
