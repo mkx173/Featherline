@@ -27,14 +27,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.PieChartOutline
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,12 +73,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.CalendarLayoutInfo
@@ -301,15 +314,11 @@ private fun HistoryScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_small)),
+            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
         ) {
             item(key = "summary") {
-                HistoryMonthSummaryCard(
-                    displayedMonth = displayedMonth.yearMonth,
-                    summary = monthSummary,
-                    appLocale = appLocale
-                )
+                HistoryMonthSummaryStrip(summary = monthSummary)
             }
 
             item(key = "calendar") {
@@ -327,15 +336,15 @@ private fun HistoryScreenContent(
 
             item(key = "calendar-divider") {
                 HorizontalDivider(
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
             }
 
             item(key = "entries-title") {
                 Text(
-                    text = entryListTitle,
-                    style = MaterialTheme.typography.titleSmall,
+                    text = entryListTitle.uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 4.dp)
@@ -431,122 +440,117 @@ private fun HistoryScreenContent(
 }
 
 @Composable
-private fun HistoryMonthSummaryCard(
-    displayedMonth: YearMonth,
+private fun HistoryMonthSummaryStrip(
     summary: HistoryMonthSummary,
-    appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
-    val monthFormatter = remember(appLocale) {
-        DateTimeFormatter.ofPattern("LLLL").withLocale(appLocale)
-    }
-    val scrollState = rememberScrollState()
-    val monthLabel = remember(displayedMonth, monthFormatter) {
-        displayedMonth.atDay(1).format(monthFormatter)
-    }
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 0.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val countText = summary.logged.toString()
+            val labelText = pluralStringResource(
+                R.plurals.history_summary_logged_entries,
+                summary.logged
+            )
             Text(
-                text = stringResource(R.string.history_month_summary_title, monthLabel),
-                style = MaterialTheme.typography.labelMedium,
+                text = stringResource(
+                    R.string.history_summary_logged_strip,
+                    countText,
+                    labelText
+                ).uppercase(),
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(
-                modifier = Modifier.horizontalScroll(scrollState),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HistorySummaryChip(
-                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                    value = summary.logged,
-                    label = stringResource(R.string.history_summary_logged),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    accentColor = MaterialTheme.colorScheme.primary
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HistorySummaryInlineStat(
+                value = summary.onTrack,
+                color = HistoryFulfilledIndicatorColor,
+                kind = HistorySummaryInlineStatKind.CHECK
+            )
+            if (summary.partial > 0) {
+                HistorySummaryInlineStat(
+                    value = summary.partial,
+                    color = OverduePartialIndicatorColor,
+                    kind = HistorySummaryInlineStatKind.PARTIAL
                 )
-                HistorySummaryChip(
-                    icon = Icons.Default.Check,
-                    value = summary.onTrack,
-                    label = stringResource(R.string.history_summary_on_track),
-                    containerColor = Color(0xFFE5F0E5),
-                    contentColor = Color(0xFF1C4D20),
-                    accentColor = HistoryFulfilledIndicatorColor
+            }
+            if (summary.missed > 0) {
+                HistorySummaryInlineStat(
+                    value = summary.missed,
+                    color = OverdueScheduledIndicatorColor,
+                    kind = HistorySummaryInlineStatKind.RING
                 )
-                if (summary.partial > 0) {
-                    HistorySummaryChip(
-                        icon = Icons.Default.PieChart,
-                        value = summary.partial,
-                        label = stringResource(R.string.history_summary_partial),
-                        containerColor = Color(0xFFFCEEDA),
-                        contentColor = Color(0xFF7A4006),
-                        accentColor = OverduePartialIndicatorColor
-                    )
-                }
-                if (summary.missed > 0) {
-                    HistorySummaryChip(
-                        icon = Icons.AutoMirrored.Filled.ViewList,
-                        value = summary.missed,
-                        label = stringResource(R.string.history_summary_missed),
-                        containerColor = Color(0xFFFFD9D6),
-                        contentColor = Color(0xFF8C1C1C),
-                        accentColor = OverdueScheduledIndicatorColor
-                    )
-                }
             }
         }
     }
 }
 
 @Composable
-private fun HistorySummaryChip(
-    icon: ImageVector,
+private fun HistorySummaryInlineStat(
     value: Int,
-    label: String,
-    containerColor: Color,
-    contentColor: Color,
-    accentColor: Color,
+    color: Color,
+    kind: HistorySummaryInlineStatKind,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    Row(
         modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = containerColor,
-        contentColor = contentColor
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = value.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
+        HistorySummaryIndicatorGlyph(
+            kind = kind,
+            color = color,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
+}
+
+private enum class HistorySummaryInlineStatKind {
+    CHECK,
+    PARTIAL,
+    RING,
+    UNPLANNED,
+    NO_RECORD
+}
+
+@Composable
+private fun HistorySummaryIndicatorGlyph(
+    kind: HistorySummaryInlineStatKind,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val imageVector = when (kind) {
+        HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.Check
+        HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.PieChart
+        HistorySummaryInlineStatKind.RING -> Icons.Rounded.Error
+        HistorySummaryInlineStatKind.UNPLANNED -> Icons.Rounded.Edit
+        HistorySummaryInlineStatKind.NO_RECORD -> Icons.Rounded.Remove
+    }
+    Icon(
+        imageVector = imageVector,
+        contentDescription = null,
+        tint = color,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -565,71 +569,60 @@ private fun HistoryMonthCalendar(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-            )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                HistoryCalendarTitle(
-                    displayedMonth = displayedMonth,
-                    appLocale = appLocale,
-                    canGoToPrevious = displayedMonth > calendarState.startMonth,
-                    canGoToNext = displayedMonth < calendarState.endMonth,
-                    onGoToPrevious = {
-                        coroutineScope.launch {
-                            calendarState.animateScrollToMonth(displayedMonth.minusMonths(1))
-                        }
-                    },
-                    onGoToNext = {
-                        coroutineScope.launch {
-                            calendarState.animateScrollToMonth(displayedMonth.plusMonths(1))
-                        }
+            HistoryCalendarTitle(
+                displayedMonth = displayedMonth,
+                appLocale = appLocale,
+                canGoToPrevious = displayedMonth > calendarState.startMonth,
+                canGoToNext = displayedMonth < calendarState.endMonth,
+                onGoToPrevious = {
+                    coroutineScope.launch {
+                        calendarState.animateScrollToMonth(displayedMonth.minusMonths(1))
                     }
-                )
-                HistoryMonthHeader(
-                    firstDayOfWeek = firstDayOfWeek,
-                    appLocale = appLocale
-                )
-                HorizontalCalendar(
-                    modifier = Modifier.fillMaxWidth(),
-                    state = calendarState,
-                    monthHeader = { _ -> },
-                    dayContent = { day ->
-                        HistoryCalendarDay(
-                            day = day,
-                            today = today,
-                            dayStatus = dayStates[day.date]?.status,
-                            isSelected = day.date == selectedDate,
-                            onClick = onDayClick
-                        )
+                },
+                onGoToNext = {
+                    coroutineScope.launch {
+                        calendarState.animateScrollToMonth(displayedMonth.plusMonths(1))
                     }
-                )
-            }
+                }
+            )
+            HistoryMonthHeader(
+                firstDayOfWeek = firstDayOfWeek,
+                appLocale = appLocale
+            )
+            HorizontalCalendar(
+                modifier = Modifier.fillMaxWidth(),
+                state = calendarState,
+                monthHeader = { _ -> },
+                dayContent = { day ->
+                    HistoryCalendarDay(
+                        day = day,
+                        today = today,
+                        dayStatus = dayStates[day.date]?.status,
+                        isSelected = day.date == selectedDate,
+                        onClick = onDayClick
+                    )
+                }
+            )
         }
-
         HistoryCalendarLegend()
     }
 }
 
 @Composable
 private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
-    val scrollState = rememberScrollState()
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(
+            12.dp,
+            Alignment.CenterHorizontally
+        ),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.FULFILLED,
@@ -656,19 +649,23 @@ private fun HistoryCalendarLegendItem(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
     Row(
         modifier = modifier.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        HistoryStatusDot(
+        HistoryStatusIndicator(
             status = status,
-            isPastScheduled = status == PlanCalendarDayStatus.SCHEDULED
+            scheduledColor = OverdueScheduledIndicatorColor,
+            partialColor = OverduePartialIndicatorColor,
+            fulfilledColor = HistoryFulfilledIndicatorColor,
+            neutralColor = neutralIndicatorColor
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall))
         )
     }
 }
@@ -717,19 +714,21 @@ private fun HistoryCalendarTitle(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         HistoryCalendarNavigationButton(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
             enabled = canGoToPrevious,
             onClick = onGoToPrevious
         )
         Text(
             text = displayedMonth.atDay(1).format(monthFormatter),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 20.sp
+            ),
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f)
         )
         HistoryCalendarNavigationButton(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             enabled = canGoToNext,
             onClick = onGoToNext
         )
@@ -743,25 +742,15 @@ private fun HistoryCalendarNavigationButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-        )
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
     ) {
-        IconButton(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(
-                imageVector = imageVector,
-                contentDescription = null
-            )
-        }
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            modifier = Modifier.size(30.dp)
+        )
     }
 }
 
@@ -796,15 +785,6 @@ private fun HistoryCalendarDay(
         isToday -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
-    val borderModifier = if (isToday && !isSelected) {
-        Modifier.border(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-            shape = RoundedCornerShape(14.dp)
-        )
-    } else {
-        Modifier
-    }
 
     Box(
         modifier = modifier
@@ -816,7 +796,6 @@ private fun HistoryCalendarDay(
                 color = containerColor,
                 shape = RoundedCornerShape(14.dp)
             )
-            .then(borderModifier)
             .combinedClickable(
                 enabled = isSelectable,
                 onClick = { onClick(day.date) }
@@ -825,24 +804,24 @@ private fun HistoryCalendarDay(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = day.date.dayOfMonth.toString(),
                 color = textColor,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
 
-            if (isFuture) {
-                Box(modifier = Modifier.size(12.dp))
-            } else {
-                HistoryCalendarDayIndicator(
+            HistoryCalendarDayIndicator(
+                date = day.date,
+                today = today,
+                dayStatus = historyCalendarIndicatorStatus(
                     date = day.date,
                     today = today,
                     dayStatus = dayStatus ?: PlanCalendarDayStatus.NONE
                 )
-            }
+            )
         }
     }
 }
@@ -859,6 +838,18 @@ internal fun historyCalendarDayAlpha(
         0.56f
     } else {
         1f
+    }
+}
+
+internal fun historyCalendarIndicatorStatus(
+    date: LocalDate,
+    today: LocalDate,
+    dayStatus: PlanCalendarDayStatus
+): PlanCalendarDayStatus {
+    return if (date.isAfter(today)) {
+        PlanCalendarDayStatus.NONE
+    } else {
+        dayStatus
     }
 }
 
@@ -880,63 +871,58 @@ private fun HistoryCalendarDayIndicator(
         neutralIndicatorColor
     }
 
-    when (dayStatus) {
+    HistoryStatusIndicator(
+        status = dayStatus,
+        scheduledColor = scheduledIndicatorColor,
+        partialColor = partialIndicatorColor,
+        fulfilledColor = HistoryFulfilledIndicatorColor,
+        neutralColor = neutralIndicatorColor
+    )
+}
+
+@Composable
+private fun HistoryStatusIndicator(
+    status: PlanCalendarDayStatus,
+    scheduledColor: Color,
+    partialColor: Color,
+    fulfilledColor: Color,
+    neutralColor: Color,
+    modifier: Modifier = Modifier
+) {
+    when (status) {
         PlanCalendarDayStatus.NONE -> {
-            Box(
-                modifier = Modifier
-                    .size(width = 10.dp, height = 2.dp)
-                    .background(
-                        color = neutralIndicatorColor,
-                        shape = RoundedCornerShape(percent = 50)
-                    )
+            HistorySummaryIndicatorGlyph(
+                kind = HistorySummaryInlineStatKind.NO_RECORD,
+                color = neutralColor,
+                modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.UNPLANNED -> {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(
-                        color = neutralIndicatorColor,
-                        shape = CircleShape
-                    )
+            HistorySummaryIndicatorGlyph(
+                kind = HistorySummaryInlineStatKind.UNPLANNED,
+                color = neutralColor,
+                modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.SCHEDULED -> {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .border(
-                        width = 1.5.dp,
-                        color = scheduledIndicatorColor,
-                        shape = CircleShape
-                    )
+            HistorySummaryIndicatorGlyph(
+                kind = HistorySummaryInlineStatKind.RING,
+                color = scheduledColor,
+                modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.PARTIAL -> {
-            Canvas(modifier = Modifier.size(10.dp)) {
-                val strokeWidth = 1.5.dp.toPx()
-                drawCircle(
-                    color = partialIndicatorColor,
-                    style = Stroke(width = strokeWidth)
-                )
-                drawArc(
-                    color = partialIndicatorColor,
-                    startAngle = -90f,
-                    sweepAngle = 180f,
-                    useCenter = false,
-                    style = Stroke(
-                        width = strokeWidth,
-                        cap = StrokeCap.Round
-                    )
-                )
-            }
+            HistorySummaryIndicatorGlyph(
+                kind = HistorySummaryInlineStatKind.PARTIAL,
+                color = partialColor,
+                modifier = modifier.size(12.dp)
+            )
         }
         PlanCalendarDayStatus.FULFILLED -> {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = HistoryFulfilledIndicatorColor,
-                modifier = Modifier.size(12.dp)
+            HistorySummaryIndicatorGlyph(
+                kind = HistorySummaryInlineStatKind.CHECK,
+                color = fulfilledColor,
+                modifier = modifier.size(12.dp)
             )
         }
     }
@@ -986,7 +972,8 @@ private fun HistoryEntryGroupHeader(
             ) {
                 HistoryStatusDot(
                     status = dayStatus,
-                    isPastScheduled = dayStatus == PlanCalendarDayStatus.SCHEDULED && date.isBefore(today)
+                    isPastScheduled = dayStatus == PlanCalendarDayStatus.SCHEDULED && date.isBefore(today),
+                    isToday = isToday
                 )
                 Text(
                     text = label,
@@ -996,31 +983,28 @@ private fun HistoryEntryGroupHeader(
                         MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurface
-                    }
+                    },
+                    modifier = Modifier.alignByBaseline(),
                 )
                 Text(
-                    text = weekdayLabel,
-                    style = MaterialTheme.typography.labelSmall,
+                    text = weekdayLabel.uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    },
+                    modifier = Modifier.alignByBaseline(),
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(percent = 50)
-                )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         )
         Text(
             text = entryCount.toString(),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -1030,52 +1014,25 @@ private fun HistoryEntryGroupHeader(
 private fun HistoryStatusDot(
     status: PlanCalendarDayStatus,
     isPastScheduled: Boolean = false,
+    isToday: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    when (status) {
-        PlanCalendarDayStatus.FULFILLED -> Box(
-            modifier = modifier
-                .size(8.dp)
-                .background(HistoryFulfilledIndicatorColor, CircleShape)
-        )
-        PlanCalendarDayStatus.PARTIAL -> Box(
-            modifier = modifier
-                .size(8.dp)
-                .background(OverduePartialIndicatorColor, CircleShape)
-        )
-        PlanCalendarDayStatus.SCHEDULED -> {
-            if (isPastScheduled) {
-                Box(
-                    modifier = modifier
-                        .size(8.dp)
-                        .background(OverdueScheduledIndicatorColor, CircleShape)
-                )
-            } else {
-                Box(
-                    modifier = modifier
-                        .size(8.dp)
-                        .border(
-                            width = 1.5.dp,
-                            color = MaterialTheme.colorScheme.outline,
-                            shape = CircleShape
-                        )
-                )
-            }
-        }
-        PlanCalendarDayStatus.UNPLANNED -> Box(
-            modifier = modifier
-                .size(8.dp)
-                .background(MaterialTheme.colorScheme.outline, CircleShape)
-        )
-        PlanCalendarDayStatus.NONE -> Box(
-            modifier = modifier
-                .size(8.dp)
-                .background(
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    CircleShape
-                )
-        )
-    }
+    HistoryStatusIndicator(
+        status = status,
+        scheduledColor = if (isPastScheduled) {
+            OverdueScheduledIndicatorColor
+        } else {
+            MaterialTheme.colorScheme.outline
+        },
+        partialColor = if (isToday) {
+            MaterialTheme.colorScheme.outline
+        } else {
+            OverduePartialIndicatorColor
+        },
+        fulfilledColor = HistoryFulfilledIndicatorColor,
+        neutralColor = MaterialTheme.colorScheme.outline,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -1107,14 +1064,6 @@ private fun HistoryEntryCard(
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         },
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (isSelected) {
-                MaterialTheme.colorScheme.secondary
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            }
-        )
     ) {
         Row(
             modifier = Modifier

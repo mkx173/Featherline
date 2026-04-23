@@ -628,7 +628,7 @@ private fun MedicationGroupEditorScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {

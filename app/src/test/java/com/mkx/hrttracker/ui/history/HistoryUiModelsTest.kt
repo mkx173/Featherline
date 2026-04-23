@@ -272,6 +272,28 @@ class HistoryUiModelsTest {
         )
     }
 
+    @Test
+    fun historyCalendarIndicatorStatus_uses_none_for_future_dates() {
+        val today = LocalDate.of(2026, 4, 20)
+
+        assertEquals(
+            PlanCalendarDayStatus.NONE,
+            historyCalendarIndicatorStatus(
+                date = today.plusDays(1),
+                today = today,
+                dayStatus = PlanCalendarDayStatus.SCHEDULED
+            )
+        )
+        assertEquals(
+            PlanCalendarDayStatus.PARTIAL,
+            historyCalendarIndicatorStatus(
+                date = today.minusDays(1),
+                today = today,
+                dayStatus = PlanCalendarDayStatus.PARTIAL
+            )
+        )
+    }
+
     private fun stateFor(status: PlanCalendarDayStatus): PlanCalendarDayUiState {
         return when (status) {
             PlanCalendarDayStatus.NONE -> PlanCalendarDayUiState()
