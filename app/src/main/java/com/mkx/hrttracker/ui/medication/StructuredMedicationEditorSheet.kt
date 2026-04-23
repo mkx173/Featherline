@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -134,7 +135,8 @@ fun StructuredMedicationEditorSheet(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = title,
@@ -146,7 +148,8 @@ fun StructuredMedicationEditorSheet(
             }
 
             Text(
-                stringResource(R.string.field_medication_category)
+                text = stringResource(R.string.field_medication_category),
+                style = MaterialTheme.typography.titleMedium
             )
             ConnectedButtonGroup(
                 options = editorMedicationCategories(),
@@ -157,7 +160,8 @@ fun StructuredMedicationEditorSheet(
             )
 
             Text(
-                stringResource(R.string.field_medication_application)
+                text = stringResource(R.string.field_medication_application),
+                style = MaterialTheme.typography.titleMedium
             )
             ConnectedButtonGroup(
                 options = MedicationCatalog.applicationTypesFor(draft.category),
@@ -192,7 +196,8 @@ fun StructuredMedicationEditorSheet(
 
             if (draft.supportsCatalogSelection() && draft.selectionKind == MedicationSelectionKind.CATALOG) {
                 Text(
-                    stringResource(R.string.field_medication)
+                    text = stringResource(R.string.field_medication),
+                    style = MaterialTheme.typography.titleMedium
                 )
                 ConnectedButtonGroup(
                     options = catalog.entries.mapNotNull { it.medicationKey },
@@ -227,7 +232,8 @@ fun StructuredMedicationEditorSheet(
 
             if (draft.availableDoseKinds().size > 1) {
                 Text(
-                    stringResource(R.string.field_dose_type)
+                    text = stringResource(R.string.field_dose_type),
+                    style = MaterialTheme.typography.titleMedium
                 )
                 ConnectedButtonGroup(
                     options = draft.availableDoseKinds(),
