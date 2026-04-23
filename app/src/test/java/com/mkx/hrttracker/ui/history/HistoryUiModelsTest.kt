@@ -121,6 +121,79 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun resolveHistoryEffectiveSelectedDate_prefers_pending_date_only_when_month_matches() {
+        assertEquals(
+            LocalDate.of(2026, 4, 2),
+            resolveHistoryEffectiveSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 2),
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+        assertEquals(
+            LocalDate.of(2026, 3, 31),
+            resolveHistoryEffectiveSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 5, 1),
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+    }
+
+    @Test
+    fun resolveHistoryDisplayedSelectedDate_clears_old_highlight_during_cross_month_handoff() {
+        assertEquals(
+            null,
+            resolveHistoryDisplayedSelectedDate(
+                displayedMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = LocalDate.of(2026, 4, 2),
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+        assertEquals(
+            LocalDate.of(2026, 4, 2),
+            resolveHistoryDisplayedSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 2),
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+        assertEquals(
+            LocalDate.of(2026, 3, 31),
+            resolveHistoryDisplayedSelectedDate(
+                displayedMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+    }
+
+    @Test
+    fun shouldClearHistorySelectionOnMonthChange_preserves_selection_only_for_pending_date_in_target_month() {
+        assertEquals(
+            false,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 2)
+            )
+        )
+        assertEquals(
+            true,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 5, 1)
+            )
+        )
+        assertEquals(
+            true,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null
+            )
+        )
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_logged_on_track_partial_and_missed_days() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(
@@ -421,6 +494,35 @@ class HistoryUiModelsTest {
                 date = today.minusDays(1),
                 today = today,
                 dayStatus = PlanCalendarDayStatus.PARTIAL
+            )
+        )
+    }
+
+    @Test
+    fun historyCalendarDayClickTargetMonth_returns_null_for_current_month_days() {
+        assertEquals(
+            null,
+            historyCalendarDayClickTargetMonth(
+                position = DayPosition.MonthDate,
+                date = LocalDate.of(2026, 4, 18)
+            )
+        )
+    }
+
+    @Test
+    fun historyCalendarDayClickTargetMonth_returns_adjacent_month_for_in_and_out_dates() {
+        assertEquals(
+            YearMonth.of(2026, 3),
+            historyCalendarDayClickTargetMonth(
+                position = DayPosition.InDate,
+                date = LocalDate.of(2026, 3, 31)
+            )
+        )
+        assertEquals(
+            YearMonth.of(2026, 5),
+            historyCalendarDayClickTargetMonth(
+                position = DayPosition.OutDate,
+                date = LocalDate.of(2026, 5, 1)
             )
         )
     }

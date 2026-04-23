@@ -51,6 +51,44 @@ internal fun canSelectHistoryCalendarDate(
     return !date.isAfter(today)
 }
 
+internal fun resolveHistoryEffectiveSelectedDate(
+    displayedMonth: YearMonth,
+    pendingSelectedDate: LocalDate?,
+    selectedDate: LocalDate?
+): LocalDate? {
+    return if (
+        pendingSelectedDate != null &&
+        YearMonth.from(pendingSelectedDate) == displayedMonth
+    ) {
+        pendingSelectedDate
+    } else {
+        selectedDate
+    }
+}
+
+internal fun resolveHistoryDisplayedSelectedDate(
+    displayedMonth: YearMonth,
+    pendingSelectedDate: LocalDate?,
+    selectedDate: LocalDate?
+): LocalDate? {
+    return if (pendingSelectedDate != null) {
+        if (YearMonth.from(pendingSelectedDate) == displayedMonth) {
+            pendingSelectedDate
+        } else {
+            null
+        }
+    } else {
+        selectedDate
+    }
+}
+
+internal fun shouldClearHistorySelectionOnMonthChange(
+    displayedMonth: YearMonth,
+    pendingSelectedDate: LocalDate?
+): Boolean {
+    return pendingSelectedDate?.let { YearMonth.from(it) != displayedMonth } ?: true
+}
+
 internal fun buildHistoryMonthSummary(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,

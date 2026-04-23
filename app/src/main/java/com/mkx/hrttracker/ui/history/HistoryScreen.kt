@@ -160,7 +160,9 @@ fun HistoryScreen(
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteSelectedEntries,
-        onDisplayedMonthChange = viewModel::setDisplayedMonth,
+        onDisplayedMonthChange = { month, clearSelection ->
+            viewModel.setDisplayedMonth(month, clearSelection)
+        },
         modifier = modifier
     )
 }
@@ -175,7 +177,7 @@ private fun HistoryScreenContent(
     onDeleteSelectedClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
-    onDisplayedMonthChange: (YearMonth) -> Unit,
+    onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -197,9 +199,55 @@ private fun HistoryScreenContent(
         outDateStyle = OutDateStyle.EndOfGrid
     )
     val displayedMonth = rememberFirstCompletelyVisibleMonth(calendarState)
+    val pendingSelectedDate = remember { mutableStateOf<LocalDate?>(null) }
+    val effectiveSelectedDate = remember(
+        displayedMonth.yearMonth,
+        pendingSelectedDate.value,
+        uiState.selectedDate
+    ) {
+        resolveHistoryEffectiveSelectedDate(
+            displayedMonth = displayedMonth.yearMonth,
+            pendingSelectedDate = pendingSelectedDate.value,
+            selectedDate = uiState.selectedDate
+        )
+    }
+    val displayedSelectedDate = remember(
+        displayedMonth.yearMonth,
+        pendingSelectedDate.value,
+        uiState.selectedDate
+    ) {
+        resolveHistoryDisplayedSelectedDate(
+            displayedMonth = displayedMonth.yearMonth,
+            pendingSelectedDate = pendingSelectedDate.value,
+            selectedDate = uiState.selectedDate
+        )
+    }
 
     LaunchedEffect(displayedMonth.yearMonth) {
-        onDisplayedMonthChange(displayedMonth.yearMonth)
+        onDisplayedMonthChange(
+            displayedMonth.yearMonth,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = displayedMonth.yearMonth,
+                pendingSelectedDate = pendingSelectedDate.value
+            )
+        )
+    }
+
+    LaunchedEffect(displayedMonth.yearMonth, pendingSelectedDate.value, uiState.selectedDate) {
+        val pendingDate = pendingSelectedDate.value ?: return@LaunchedEffect
+        if (
+            YearMonth.from(pendingDate) == displayedMonth.yearMonth &&
+            uiState.selectedDate != pendingDate
+        ) {
+            onDayClick(pendingDate)
+        }
+    }
+
+    LaunchedEffect(uiState.selectedDate, pendingSelectedDate.value) {
+        val pendingDate = pendingSelectedDate.value ?: return@LaunchedEffect
+        if (uiState.selectedDate == pendingDate) {
+            pendingSelectedDate.value = null
+        }
     }
 
     val monthDayStates = remember(
@@ -228,11 +276,11 @@ private fun HistoryScreenContent(
             today = today
         )
     }
-    val visibleEntries = remember(uiState.entries, displayedMonth.yearMonth, uiState.selectedDate) {
+    val visibleEntries = remember(uiState.entries, displayedMonth.yearMonth, effectiveSelectedDate) {
         buildHistoryVisibleEntries(
             entries = uiState.entries,
             displayedMonth = displayedMonth.yearMonth,
-            selectedDate = uiState.selectedDate
+            selectedDate = effectiveSelectedDate
         )
     }
     val collapsedEntries = remember(visibleEntries) {
@@ -255,10 +303,10 @@ private fun HistoryScreenContent(
     val groupColorsById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.colorKey }
     }
-    val entryListTitle = if (uiState.selectedDate != null) {
+    val entryListTitle = if (effectiveSelectedDate != null) {
         stringResource(
             R.string.history_selected_day_records_title,
-            uiState.selectedDate.format(dateFormatter)
+            effectiveSelectedDate.format(dateFormatter)
         )
     } else {
         stringResource(
@@ -341,8 +389,9 @@ private fun HistoryScreenContent(
                     firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     dayStates = monthDayStates,
                     appLocale = appLocale,
-                    selectedDate = uiState.selectedDate,
-                    onDayClick = onDayClick
+                    selectedDate = displayedSelectedDate,
+                    onDayClick = onDayClick,
+                    onDeferredDaySelectionRequested = { pendingSelectedDate.value = it }
                 )
             }
 
@@ -356,7 +405,7 @@ private fun HistoryScreenContent(
             item(key = "entries-title") {
                 Text(
                     text = entryListTitle.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 4.dp)
@@ -367,7 +416,7 @@ private fun HistoryScreenContent(
                 item(key = "empty-state") {
                     HistoryEmptyStateCard(
                         text = stringResource(
-                            if (uiState.selectedDate != null) {
+                            if (effectiveSelectedDate != null) {
                                 R.string.history_selected_day_empty_state
                             } else if (uiState.entries.isEmpty()) {
                                 R.string.history_empty_state
@@ -586,6 +635,7 @@ private fun HistoryMonthCalendar(
     appLocale: Locale,
     selectedDate: LocalDate?,
     onDayClick: (LocalDate) -> Unit,
+    onDeferredDaySelectionRequested: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -627,7 +677,20 @@ private fun HistoryMonthCalendar(
                         today = today,
                         dayStatus = dayStates[day.date]?.status,
                         isSelected = day.date == selectedDate,
-                        onClick = onDayClick
+                        onClick = { date ->
+                            val targetMonth = historyCalendarDayClickTargetMonth(
+                                position = day.position,
+                                date = date
+                            )
+                            if (targetMonth == null) {
+                                onDayClick(date)
+                            } else {
+                                onDeferredDaySelectionRequested(date)
+                                coroutineScope.launch {
+                                    calendarState.animateScrollToMonth(targetMonth)
+                                }
+                            }
+                        }
                     )
                 }
             )
@@ -876,6 +939,17 @@ internal fun historyCalendarIndicatorStatus(
     }
 }
 
+internal fun historyCalendarDayClickTargetMonth(
+    position: DayPosition,
+    date: LocalDate
+): YearMonth? {
+    return if (position == DayPosition.MonthDate) {
+        null
+    } else {
+        YearMonth.from(date)
+    }
+}
+
 @Composable
 private fun HistoryCalendarDayIndicator(
     date: LocalDate,
@@ -1000,7 +1074,7 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer
@@ -1011,7 +1085,7 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = weekdayLabel.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     } else {
@@ -1252,7 +1326,7 @@ private fun HistoryScreenMonthPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
-            onDisplayedMonthChange = { _ -> }
+            onDisplayedMonthChange = { _, _ -> }
         )
     }
 }
@@ -1277,7 +1351,7 @@ private fun HistoryScreenSelectedDayPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
-            onDisplayedMonthChange = { _ -> }
+            onDisplayedMonthChange = { _, _ -> }
         )
     }
 }
@@ -1301,7 +1375,7 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
-            onDisplayedMonthChange = { _ -> }
+            onDisplayedMonthChange = { _, _ -> }
         )
     }
 }

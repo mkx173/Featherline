@@ -79,14 +79,16 @@ class HistoryViewModel @Inject constructor(
             initialValue = HistoryUiState()
         )
 
-    fun setDisplayedMonth(month: YearMonth) {
+    fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
         if (displayedMonth.value == month) {
             return
         }
         displayedMonth.value = month
         selectedEntryIds.value = emptySet()
         isDeleteConfirmationVisible.value = false
-        selectedDate.value = null
+        if (clearSelection) {
+            selectedDate.value = null
+        }
     }
 
     fun toggleSelectedDate(date: LocalDate) {
