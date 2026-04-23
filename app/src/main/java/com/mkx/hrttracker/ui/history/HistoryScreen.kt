@@ -13,14 +13,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,12 +52,15 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -104,11 +110,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
+import com.mkx.hrttracker.ui.plan.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -315,7 +321,7 @@ private fun HistoryScreenContent(
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
         ) {
             item(key = "summary") {
                 HistoryMonthSummaryStrip(summary = monthSummary)
@@ -377,23 +383,32 @@ private fun HistoryScreenContent(
                         )
                     }
 
-                    items(
-                        items = dateEntries,
-                        key = { it.representativeEntry.uuid }
-                    ) { collapsedEntry ->
-                        HistoryEntryCard(
-                            collapsedEntry = collapsedEntry,
-                            appLocale = appLocale,
-                            timeFormatter = timeFormatter,
-                            groupName = collapsedEntry.representativeEntry.sourceGroupUuid?.let(groupNamesById::get),
-                            groupColorKey = collapsedEntry.representativeEntry.sourceGroupUuid?.let(groupColorsById::get),
-                            isSelected = isHistoryCollapsedEntrySelected(
-                                selectedEntryIds = uiState.selectedEntryIds,
-                                entryIds = collapsedEntry.entryIds
-                            ),
-                            onClick = { onEntryClick(collapsedEntry) },
-                            onLongClick = { onEntryLongClick(collapsedEntry) }
-                        )
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                        ) {
+                            dateEntries.forEachIndexed { index, collapsedEntry ->
+                                HistoryEntryCard(
+                                    collapsedEntry = collapsedEntry,
+                                    timeFormatter = timeFormatter,
+                                    groupName = collapsedEntry.representativeEntry.sourceGroupUuid?.let(
+                                        groupNamesById::get
+                                    ),
+                                    groupColorKey = collapsedEntry.representativeEntry.sourceGroupUuid?.let(
+                                        groupColorsById::get
+                                    ),
+                                    isSelected = isHistoryCollapsedEntrySelected(
+                                        selectedEntryIds = uiState.selectedEntryIds,
+                                        entryIds = collapsedEntry.entryIds
+                                    ),
+                                    index = index,
+                                    count = dateEntries.size,
+                                    onClick = { onEntryClick(collapsedEntry) },
+                                    onLongClick = { onEntryLongClick(collapsedEntry) }
+                                )
+                            }
+                            Spacer(modifier = Modifier.fillMaxWidth().height(4.dp))
+                        }
                     }
                 }
             }
@@ -401,7 +416,7 @@ private fun HistoryScreenContent(
             if (uiState.selectedDate != null) {
                 item(key = "clear-selection") {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Surface(
@@ -938,7 +953,7 @@ private fun HistoryEntryGroupHeader(
     modifier: Modifier = Modifier
 ) {
     val dayFormatter = remember(appLocale) {
-        DateTimeFormatter.ofPattern("MMM d").withLocale(appLocale)
+        historyEntryGroupDayFormatter(appLocale)
     }
     val isToday = date == today
     val label = if (isToday) {
@@ -1010,6 +1025,14 @@ private fun HistoryEntryGroupHeader(
     }
 }
 
+internal fun historyEntryGroupDayFormatter(appLocale: Locale): DateTimeFormatter {
+    return if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("M月d日", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("MMM d", appLocale)
+    }
+}
+
 @Composable
 private fun HistoryStatusDot(
     status: PlanCalendarDayStatus,
@@ -1035,14 +1058,16 @@ private fun HistoryStatusDot(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HistoryEntryCard(
     collapsedEntry: HistoryCollapsedEntry,
-    appLocale: Locale,
     timeFormatter: DateTimeFormatter,
     groupName: String?,
     groupColorKey: MedicationGroupColorKey?,
     isSelected: Boolean,
+    index: Int = 0,
+    count: Int = 1,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -1053,103 +1078,29 @@ private fun HistoryEntryCard(
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
         entry = entry,
+        count = collapsedEntry.count,
         groupName = groupName
     )
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainer
+    }
 
-    Surface(
+    SegmentedListItem(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
+        shapes = segmentedListItemShapes(index = index, count = count),
+        colors = ListItemDefaults.colors(containerColor = containerColor),
+        onClick = onClick,
+        onLongClick = onLongClick,
+        leadingContent = {
+            Icon(
+                imageVector = sourceVisual.icon,
+                contentDescription = stringResource(sourceVisual.contentDescriptionRes),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         },
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.surface
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                }
-            ) {
-                Box(
-                    modifier = Modifier.size(36.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = sourceVisual.icon,
-                        contentDescription = stringResource(sourceVisual.contentDescriptionRes),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = groupColorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = stringResource(entry.details.applicationType.labelRes),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = groupColorScheme.onPrimaryContainer,
-                            maxLines = 1
-                        )
-                    }
-                    Text(
-                        text = medicationDisplayName(entry.details),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (collapsedEntry.count > 1) {
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = groupColorScheme.secondaryContainer
-                        ) {
-                            Text(
-                                text = medicationCountIndicatorText(collapsedEntry.count),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = groupColorScheme.onSecondaryContainer,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
+        trailingContent = {
             Text(
                 text = entry.appliedAt
                     .atZone(ZoneId.systemDefault())
@@ -1158,6 +1109,43 @@ private fun HistoryEntryCard(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.End
+            )
+        },
+        supportingContent = {
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = groupColorScheme.primaryContainer
+            ) {
+                Text(
+                    text = stringResource(entry.details.applicationType.labelRes).uppercase(),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp).alignByBaseline(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = groupColorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                )
+            }
+            Text(
+                text = medicationDisplayName(entry.details),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline()
             )
         }
     }
@@ -1194,22 +1182,34 @@ private fun HistoryEmptyStateCard(
 @Composable
 private fun buildHistoryEntrySupportingText(
     entry: MedicationLogEntry,
+    count: Int,
     groupName: String?
 ): String {
     val doseText = medicationDoseText(entry.details)
     val fallbackText = stringResource(entry.details.applicationType.labelRes)
+    return historyEntrySupportingText(
+        primaryText = doseText ?: fallbackText,
+        count = count,
+        groupName = groupName
+    )
+}
+
+internal fun historyEntrySupportingText(
+    primaryText: String,
+    count: Int,
+    groupName: String?
+): String {
     val parts = buildList {
-        if (!doseText.isNullOrBlank()) {
-            add(doseText)
-        } else {
-            add(fallbackText)
-        }
+        add(primaryText)
+        historyEntryCountText(count)?.let(::add)
         if (!groupName.isNullOrBlank()) {
             add(groupName)
         }
     }
     return parts.joinToString(" \u00B7 ")
 }
+
+internal fun historyEntryCountText(count: Int): String? = count.takeIf { it > 1 }?.let { "${it}x" }
 
 @Preview(
     name = "History Month",
@@ -1337,6 +1337,19 @@ private fun buildHistoryPreviewUiState(
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"),
+            details = previewCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                dose = MedicationDose.MgAsMedicine(1.0)
+            ),
+            dosageMgAsEstradiol = 1.0,
+            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = nightlyGroupId,
+            appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
+            scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
+        ),
+        MedicationLogEntry(
+            uuid = UUID.fromString("0a9d4c97-0b4c-49db-ae37-dbc1b18b8fdd"),
             details = previewCatalogMedicationDetails(
                 key = MedicationKey.ESTRADIOL,
                 applicationType = MedicationApplicationType.SUBLINGUAL,

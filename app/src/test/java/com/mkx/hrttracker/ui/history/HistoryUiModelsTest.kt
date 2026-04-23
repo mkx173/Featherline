@@ -18,9 +18,50 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.ZoneId
+import java.util.Locale
 import java.util.UUID
 
 class HistoryUiModelsTest {
+    @Test
+    fun historyEntryGroupDayFormatter_uses_compact_chinese_month_day_format() {
+        assertEquals(
+            "4月23日",
+            LocalDate.of(2026, 4, 23).format(historyEntryGroupDayFormatter(Locale.SIMPLIFIED_CHINESE))
+        )
+    }
+
+    @Test
+    fun historyEntryGroupDayFormatter_keeps_default_non_chinese_pattern() {
+        assertEquals(
+            "Apr 23",
+            LocalDate.of(2026, 4, 23).format(historyEntryGroupDayFormatter(Locale.US))
+        )
+    }
+
+    @Test
+    fun historyEntrySupportingText_includes_plain_count_text_between_primary_text_and_group_name() {
+        assertEquals(
+            "1mg \u00B7 2x \u00B7 Nightly estradiol",
+            historyEntrySupportingText(
+                primaryText = "1mg",
+                count = 2,
+                groupName = "Nightly estradiol"
+            )
+        )
+    }
+
+    @Test
+    fun historyEntrySupportingText_omits_count_when_single_entry() {
+        assertEquals(
+            "1mg \u00B7 Nightly estradiol",
+            historyEntrySupportingText(
+                primaryText = "1mg",
+                count = 1,
+                groupName = "Nightly estradiol"
+            )
+        )
+    }
+
     @Test
     fun buildHistoryVisibleEntries_filters_to_selected_day_when_present() {
         val entries = listOf(
