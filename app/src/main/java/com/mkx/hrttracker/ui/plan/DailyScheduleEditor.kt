@@ -117,7 +117,6 @@ private fun DailyTimesCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(horizontal = 4.dp)
                     .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -189,7 +188,7 @@ private fun DailyTimeRow(
             }
         },
         onClick = onClick,
-        shapes = segmentedListItemShapes(index = index, count = count),
+        shapes = dailyTimesItemShapes(index = index, count = count),
     ) {
         Text(
             text = formattedTime,
@@ -229,7 +228,7 @@ private fun DailyScheduleEditorPreview() {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun segmentedListItemShapes(
+fun dailyTimesItemShapes(
     index: Int,
     count: Int,
 ): ListItemShapes {

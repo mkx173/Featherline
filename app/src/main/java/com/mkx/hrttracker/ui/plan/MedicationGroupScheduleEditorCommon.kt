@@ -194,9 +194,11 @@ internal fun decrementScheduleInterval(value: String): String {
 internal fun NotificationsCard(
     enabled: Boolean,
     toggleEnabled: Boolean,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    ListItem(
+    SegmentedListItem(
         leadingContent = {
             Icon(
                 imageVector = if (enabled) {
@@ -229,11 +231,10 @@ internal fun NotificationsCard(
         enabled = toggleEnabled,
         onClick = { onToggle(!enabled) },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
-        shapes = ListItemDefaults.shapes(
-            shape = MaterialTheme.shapes.large
-        )
+        shapes = segmentedListItemShapes(index = index, count = count)
     ) {
         Text(
             text = stringResource(R.string.group_notifications_reminder),

@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -60,7 +62,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -504,7 +510,7 @@ private fun MedicationGroupEditorScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -539,16 +545,18 @@ private fun MedicationGroupEditorScreenContent(
                     EditorSupportMessage(stringResource(R.string.group_medications_empty))
                 } else {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
-                        uiState.medications.forEach { medication ->
+                        uiState.medications.forEachIndexed { index, medication ->
                             MedicationGroupMedicationCard(
                                 medication = medication,
                                 groupColorKey = uiState.groupColorKey,
                                 appLocale = appLocale,
                                 onClick = { onMedicationClick(medication.localId) },
                                 onDecreaseClick = { onDecreaseMedicationCount(medication.localId) },
-                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) }
+                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) },
+                                index = index,
+                                count = uiState.medications.size
                             )
                         }
                     }
@@ -558,7 +566,7 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_schedule_title))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     CompositionLocalProvider(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
@@ -625,21 +633,24 @@ private fun MedicationGroupEditorScreenContent(
             item {
                 EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                 ) {
                     NotificationsCard(
                         enabled = uiState.notificationsEnabled,
                         toggleEnabled = notificationsToggleEnabled,
-                        onToggle = onNotificationsEnabledChange
+                        onToggle = onNotificationsEnabledChange,
+                        index = 0,
+                        count = if (!uiState.remindersEnabled || showInexactReminderWarning) 2 else 1
                     )
                     if (!uiState.remindersEnabled) {
                         EditorSupportMessage(
-                            text = stringResource(R.string.group_notifications_master_disabled)
+                            text = stringResource(R.string.group_notifications_master_disabled),
+                            index = 1, count = 2
                         )
-                    }
-                    if (showInexactReminderWarning) {
+                    } else if (showInexactReminderWarning) {
                         EditorSupportMessage(
-                            text = stringResource(R.string.group_notifications_inexact_warning)
+                            text = stringResource(R.string.group_notifications_inexact_warning),
+                            index = 1, count = 2
                         )
                     }
                 }
@@ -733,6 +744,7 @@ private fun maybeRequestExactAlarmAccess(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
     groupColorKey: MedicationGroupColorKey,
@@ -740,22 +752,17 @@ private fun MedicationGroupMedicationCard(
     onClick: () -> Unit,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 14.dp, top = 10.dp, end = 10.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    SegmentedListItem(
+        onClick = onClick,
+        shapes = segmentedListItemShapes(index = index, count = count),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        leadingContent = {
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = groupColorScheme.primaryContainer,
@@ -768,24 +775,27 @@ private fun MedicationGroupMedicationCard(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = medicationDisplayName(medication.details),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = medicationDoseText(medication.details)
-                        ?: stringResource(medication.details.applicationType.labelRes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        },
+        supportingContent = {
+            Text(
+                text = medicationDoseText(medication.details)
+                    ?: stringResource(medication.details.applicationType.labelRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = {
             MedicationCountEditor(
                 count = medication.count,
                 onDecreaseClick = onDecreaseClick,
                 onIncreaseClick = onIncreaseClick
             )
         }
+    ) {
+        Text(
+            text = medicationDisplayName(medication.details),
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
 
@@ -871,18 +881,30 @@ private fun EditorSectionHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun EditorSupportMessage(text: String) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
+private fun EditorSupportMessage(
+    text: String,
+    index: Int = 0,
+    count: Int = 1
+) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-        )
+        SegmentedListItem(
+            shapes = segmentedListItemShapes(index = index, count = count),
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            onClick = {},
+            modifier = Modifier.wrapContentHeight()
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -1052,4 +1074,50 @@ private fun buildMedicationGroupEditorPreviewUiState(
             )
         )
     )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun segmentedListItemShapes(
+    index: Int,
+    count: Int,
+): ListItemShapes {
+    val defaultShapes = ListItemDefaults.shapes()
+    val mediumShape = MaterialTheme.shapes.large
+
+    return remember(index, count, defaultShapes, mediumShape) {
+        val defaultBaseShape = defaultShapes.shape
+
+        if (defaultBaseShape !is CornerBasedShape || mediumShape !is CornerBasedShape) {
+            return@remember defaultShapes
+        }
+
+        when {
+            count <= 1 -> {
+                defaultShapes.copy(shape = mediumShape)
+            }
+
+            index == 0 -> {
+                defaultShapes.copy(
+                    shape = defaultBaseShape.copy(
+                        topStart = mediumShape.topStart,
+                        topEnd = mediumShape.topEnd,
+                    )
+                )
+            }
+
+            index == count - 1 -> {
+                defaultShapes.copy(
+                    shape = defaultBaseShape.copy(
+                        bottomStart = mediumShape.bottomStart,
+                        bottomEnd = mediumShape.bottomEnd,
+                    )
+                )
+            }
+
+            else -> {
+                defaultShapes
+            }
+        }
+    }
 }
