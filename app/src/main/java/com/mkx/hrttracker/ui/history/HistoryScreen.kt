@@ -45,12 +45,17 @@ import androidx.compose.material.icons.filled.PieChartOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -525,6 +530,10 @@ private fun HistoryMonthSummaryStrip(
     summary: HistoryMonthSummary,
     modifier: Modifier = Modifier
 ) {
+    val indicatorColors = historyIndicatorColors(
+        scheduledMode = HistoryIndicatorColorMode.Emphasized,
+        partialMode = HistoryIndicatorColorMode.Emphasized
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -558,20 +567,20 @@ private fun HistoryMonthSummaryStrip(
         ) {
             HistorySummaryInlineStat(
                 value = summary.onTrack,
-                color = HistoryFulfilledIndicatorColor,
+                color = indicatorColors.fulfilled,
                 kind = HistorySummaryInlineStatKind.CHECK
             )
             if (summary.partial > 0) {
                 HistorySummaryInlineStat(
                     value = summary.partial,
-                    color = OverduePartialIndicatorColor,
+                    color = indicatorColors.partial,
                     kind = HistorySummaryInlineStatKind.PARTIAL
                 )
             }
             if (summary.missed > 0) {
                 HistorySummaryInlineStat(
                     value = summary.missed,
-                    color = OverdueScheduledIndicatorColor,
+                    color = indicatorColors.scheduled,
                     kind = HistorySummaryInlineStatKind.RING
                 )
             }
@@ -621,9 +630,9 @@ private fun HistorySummaryIndicatorGlyph(
 ) {
     val imageVector = when (kind) {
         HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.Check
-        HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.PieChart
-        HistorySummaryInlineStatKind.RING -> Icons.Rounded.Error
-        HistorySummaryInlineStatKind.UNPLANNED -> Icons.Rounded.Edit
+        HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.Contrast
+        HistorySummaryInlineStatKind.RING -> Icons.Rounded.RadioButtonUnchecked
+        HistorySummaryInlineStatKind.UNPLANNED -> Icons.Rounded.Circle
         HistorySummaryInlineStatKind.NO_RECORD -> Icons.Rounded.Remove
     }
     Icon(
@@ -744,17 +753,17 @@ private fun HistoryCalendarLegendItem(
     label: String,
     modifier: Modifier = Modifier
 ) {
-    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
+    val indicatorColors = historyIndicatorColors(
+        scheduledMode = HistoryIndicatorColorMode.Emphasized,
+        partialMode = HistoryIndicatorColorMode.Emphasized
+    )
     Row(
         modifier = modifier.padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HistoryStatusIndicator(
             status = status,
-            scheduledColor = OverdueScheduledIndicatorColor,
-            partialColor = OverduePartialIndicatorColor,
-            fulfilledColor = HistoryFulfilledIndicatorColor,
-            neutralColor = neutralIndicatorColor
+            colors = indicatorColors
         )
         Text(
             text = label,
@@ -966,69 +975,60 @@ private fun HistoryCalendarDayIndicator(
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus
 ) {
-    val neutralIndicatorColor = MaterialTheme.colorScheme.outline
-    val scheduledIndicatorColor = if (date.isBefore(today)) {
-        OverdueScheduledIndicatorColor
+    val indicatorMode = if (date.isBefore(today)) {
+        HistoryIndicatorColorMode.Emphasized
     } else {
-        neutralIndicatorColor
-    }
-    val partialIndicatorColor = if (date.isBefore(today)) {
-        OverduePartialIndicatorColor
-    } else {
-        neutralIndicatorColor
+        HistoryIndicatorColorMode.Neutral
     }
 
     HistoryStatusIndicator(
         status = dayStatus,
-        scheduledColor = scheduledIndicatorColor,
-        partialColor = partialIndicatorColor,
-        fulfilledColor = HistoryFulfilledIndicatorColor,
-        neutralColor = neutralIndicatorColor
+        colors = historyIndicatorColors(
+            scheduledMode = indicatorMode,
+            partialMode = indicatorMode
+        )
     )
 }
 
 @Composable
 private fun HistoryStatusIndicator(
     status: PlanCalendarDayStatus,
-    scheduledColor: Color,
-    partialColor: Color,
-    fulfilledColor: Color,
-    neutralColor: Color,
+    colors: HistoryIndicatorColors,
     modifier: Modifier = Modifier
 ) {
     when (status) {
         PlanCalendarDayStatus.NONE -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.NO_RECORD,
-                color = neutralColor,
+                color = colors.neutral,
                 modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.UNPLANNED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.UNPLANNED,
-                color = neutralColor,
+                color = colors.unplanned,
                 modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.SCHEDULED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.RING,
-                color = scheduledColor,
+                color = colors.scheduled,
                 modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.PARTIAL -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.PARTIAL,
-                color = partialColor,
+                color = colors.partial,
                 modifier = modifier.size(12.dp)
             )
         }
         PlanCalendarDayStatus.FULFILLED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.CHECK,
-                color = fulfilledColor,
+                color = colors.fulfilled,
                 modifier = modifier.size(12.dp)
             )
         }
@@ -1150,20 +1150,64 @@ private fun HistoryStatusDot(
 ) {
     HistoryStatusIndicator(
         status = status,
-        scheduledColor = if (isPastScheduled) {
-            OverdueScheduledIndicatorColor
-        } else {
-            MaterialTheme.colorScheme.outline
-        },
-        partialColor = if (isToday) {
-            MaterialTheme.colorScheme.outline
-        } else {
-            OverduePartialIndicatorColor
-        },
-        fulfilledColor = HistoryFulfilledIndicatorColor,
-        neutralColor = MaterialTheme.colorScheme.outline,
+        colors = historyIndicatorColors(
+            scheduledMode = if (isPastScheduled) {
+                HistoryIndicatorColorMode.Emphasized
+            } else {
+                HistoryIndicatorColorMode.Neutral
+            },
+            partialMode = if (isToday) {
+                HistoryIndicatorColorMode.Neutral
+            } else {
+                HistoryIndicatorColorMode.Emphasized
+            }
+        ),
         modifier = modifier
     )
+}
+
+private enum class HistoryIndicatorColorMode {
+    Neutral,
+    Emphasized
+}
+
+private data class HistoryIndicatorColors(
+    val scheduled: Color,
+    val partial: Color,
+    val fulfilled: Color,
+    val neutral: Color,
+    val unplanned: Color
+)
+
+@Composable
+private fun historyIndicatorColors(
+    scheduledMode: HistoryIndicatorColorMode = HistoryIndicatorColorMode.Neutral,
+    partialMode: HistoryIndicatorColorMode = HistoryIndicatorColorMode.Neutral
+): HistoryIndicatorColors {
+    return HistoryIndicatorColors(
+        scheduled = historyIndicatorColor(
+            mode = scheduledMode,
+            emphasizedColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        partial = historyIndicatorColor(
+            mode = partialMode,
+            emphasizedColor = MaterialTheme.colorScheme.primary
+        ),
+        fulfilled = MaterialTheme.colorScheme.primary,
+        neutral = MaterialTheme.colorScheme.outlineVariant,
+        unplanned = MaterialTheme.colorScheme.tertiary
+    )
+}
+
+@Composable
+private fun historyIndicatorColor(
+    mode: HistoryIndicatorColorMode,
+    emphasizedColor: Color
+): Color {
+    return when (mode) {
+        HistoryIndicatorColorMode.Neutral -> MaterialTheme.colorScheme.outline
+        HistoryIndicatorColorMode.Emphasized -> emphasizedColor
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -1425,10 +1469,6 @@ private fun historyDayOfWeekLabels(
             .getDisplayName(TextStyle.NARROW, locale)
     }
 }
-
-private val HistoryFulfilledIndicatorColor = Color(0xFF2E7D32)
-private val OverdueScheduledIndicatorColor = Color(0xFFC62828)
-private val OverduePartialIndicatorColor = Color(0xFFEF6C00)
 
 private fun buildHistoryPreviewUiState(
     selectedDate: LocalDate? = null,

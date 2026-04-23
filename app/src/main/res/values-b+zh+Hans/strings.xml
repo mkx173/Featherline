@@ -91,10 +91,10 @@
     <string name="history_month_summary_title">%1$s 概览</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
     <string name="history_summary_logged">已记录</string>
-    <string name="history_summary_on_track">完成</string>
+    <string name="history_summary_on_track">按计划</string>
     <string name="history_summary_partial">部分完成</string>
-    <string name="history_summary_missed">错过</string>
-    <string name="history_legend_unplanned">未计划</string>
+    <string name="history_summary_missed">遗漏</string>
+    <string name="history_legend_unplanned">计划外</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
     <string name="history_entry_source_manual">手动记录</string>
     <string name="history_entry_source_group_manual">来自用药分组的记录</string>

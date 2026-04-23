@@ -91,10 +91,10 @@
     <string name="history_month_summary_title">%1$s summary</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
     <string name="history_summary_logged">logged</string>
-    <string name="history_summary_on_track">On Track</string>
+    <string name="history_summary_on_track">On track</string>
     <string name="history_summary_partial">Partial</string>
     <string name="history_summary_missed">Missed</string>
-    <string name="history_legend_unplanned">Unplanned</string>
+    <string name="history_legend_unplanned">Off plan</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
     <string name="history_entry_source_manual">Manual entry</string>
     <string name="history_entry_source_group_manual">Entry from medication group</string>
