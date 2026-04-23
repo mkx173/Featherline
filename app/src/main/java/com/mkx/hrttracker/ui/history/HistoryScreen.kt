@@ -975,9 +975,9 @@ private fun HistoryEntryGroupHeader(
         Surface(
             shape = CircleShape,
             color = if (isToday) {
-                MaterialTheme.colorScheme.primaryContainer
+                MaterialTheme.colorScheme.secondaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
+                MaterialTheme.colorScheme.surfaceContainer
             }
         ) {
             Row(

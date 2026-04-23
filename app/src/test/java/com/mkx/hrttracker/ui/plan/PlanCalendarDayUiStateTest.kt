@@ -238,6 +238,54 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
+    fun buildPlanCalendarDayUiState_marks_partial_when_slot_has_some_but_not_all_group_medications_logged() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("7994c7f8-cdc8-4d6c-b1a1-7efe31ed7418"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("99d4f335-d0c2-4e73-aebf-d32fd75b99d0"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                ),
+                medication(
+                    uuid = UUID.fromString("1816b815-34e0-4ce4-89ef-3b447f61c373"),
+                    details = progesteroneDetails(100.0)
+                )
+            )
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = group.uuid,
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 2),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 16)
+        )
+
+        assertEquals(0, dayStates.getValue(LocalDate.of(2026, 4, 16)).matchedOccurrenceCount)
+        assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasMatchingScheduledRecord)
+        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+    }
+
+    @Test
     fun buildPlanCalendarDayUiState_marks_unplanned_when_day_has_off_schedule_group_record() {
         val group = medicationGroup(
             uuid = UUID.fromString("6a6fc487-44d5-4979-b3bb-87cbc2df3f15"),

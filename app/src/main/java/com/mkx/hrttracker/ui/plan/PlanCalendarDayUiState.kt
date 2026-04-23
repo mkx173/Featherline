@@ -23,12 +23,13 @@ data class PlanCalendarDayUiState(
     val expectedOccurrenceCount: Int = 0,
     val matchedOccurrenceCount: Int = 0,
     val hasUnplannedRecord: Boolean = false,
+    val hasMatchingScheduledRecord: Boolean = false,
 ) {
     val status: PlanCalendarDayStatus
         get() = when {
             expectedOccurrenceCount <= 0 && hasUnplannedRecord -> PlanCalendarDayStatus.UNPLANNED
             expectedOccurrenceCount <= 0 -> PlanCalendarDayStatus.NONE
-            matchedOccurrenceCount <= 0 -> PlanCalendarDayStatus.SCHEDULED
+            matchedOccurrenceCount <= 0 && !hasMatchingScheduledRecord -> PlanCalendarDayStatus.SCHEDULED
             matchedOccurrenceCount < expectedOccurrenceCount -> PlanCalendarDayStatus.PARTIAL
             else -> PlanCalendarDayStatus.FULFILLED
         }
@@ -53,16 +54,27 @@ fun buildPlanCalendarDayUiState(
         val expectedOccurrenceCount = scheduledGroups.sumOf { group ->
             group.schedule.times.size
         }
+        val hasMatchingScheduledRecord = scheduledGroups.any { group ->
+            group.schedule.times.any { time ->
+                hasMatchingSlotRecord(
+                    group = group,
+                    date = currentDate,
+                    time = time,
+                    entries = dayEntries
+                )
+            }
+        }
         val matchedOccurrenceCount = scheduledGroups.sumOf { group ->
             group.schedule.times.count { time ->
-                isSlotFulfilled(group, currentDate, time, entries)
+                isSlotFulfilled(group, currentDate, time, dayEntries)
             }
         }.coerceAtMost(expectedOccurrenceCount)
 
         dayStates[currentDate] = PlanCalendarDayUiState(
             expectedOccurrenceCount = expectedOccurrenceCount,
             matchedOccurrenceCount = matchedOccurrenceCount,
-            hasUnplannedRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty()
+            hasUnplannedRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty(),
+            hasMatchingScheduledRecord = hasMatchingScheduledRecord
         )
         currentDate = currentDate.plusDays(1)
     }
@@ -80,10 +92,7 @@ internal fun isSlotFulfilled(
         return false
     }
 
-    val slotDateTime = LocalDateTime.of(date, time)
-    val slotLogs = entries.filter { entry ->
-        entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
-    }
+    val slotLogs = slotRecords(group, date, time, entries)
     if (slotLogs.isEmpty()) {
         return false
     }
@@ -97,6 +106,43 @@ internal fun isSlotFulfilled(
 
     return requiredCounts.all { (signature, requiredCount) ->
         loggedCounts.getOrDefault(signature, 0) >= requiredCount
+    }
+}
+
+internal fun hasMatchingSlotRecord(
+    group: MedicationGroup,
+    date: LocalDate,
+    time: LocalTime,
+    entries: List<MedicationLogEntry>
+): Boolean {
+    if (group.medications.isEmpty()) {
+        return false
+    }
+
+    val slotLogs = slotRecords(group, date, time, entries)
+    if (slotLogs.isEmpty()) {
+        return false
+    }
+
+    val requiredSignatures = group.medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .keys
+    val loggedSignatures = slotLogs
+        .map(MedicationSignature::fromLogEntry)
+        .toSet()
+
+    return requiredSignatures.any(loggedSignatures::contains)
+}
+
+private fun slotRecords(
+    group: MedicationGroup,
+    date: LocalDate,
+    time: LocalTime,
+    entries: List<MedicationLogEntry>
+): List<MedicationLogEntry> {
+    val slotDateTime = LocalDateTime.of(date, time)
+    return entries.filter { entry ->
+        entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
     }
 }
 
