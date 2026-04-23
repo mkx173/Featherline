@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.plan
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,21 +7,29 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItemShapes
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.AddChip
@@ -47,13 +54,15 @@ internal fun DailyScheduleEditor(
     onRemoveTime: (String) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = sinceDate.format(dateFormatter),
             icon = Icons.Rounded.Event,
-            onClick = { onSinceDateChange(sinceDate) }
+            onClick = { onSinceDateChange(sinceDate) },
+            index = 0,
+            count = 3
         )
 
         IntervalStepperCard(
@@ -66,6 +75,8 @@ internal fun DailyScheduleEditor(
             ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
+            index = 1,
+            count = 3
         )
 
         DailyTimesCard(
@@ -73,33 +84,41 @@ internal fun DailyScheduleEditor(
             timeFormatter = timeFormatter,
             onAddTime = onAddTime,
             onTimeClick = onTimeClick,
-            onRemoveTime = onRemoveTime
+            onRemoveTime = onRemoveTime,
+            index = 2,
+            count = 3
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DailyTimesCard(
     times: List<MedicationGroupScheduleTimeUiState>,
     timeFormatter: DateTimeFormatter,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
-    onRemoveTime: (String) -> Unit
+    onRemoveTime: (String) -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+    SegmentedListItem (
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        onClick = {}
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            modifier = Modifier.padding(bottom = 6.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(horizontal = 4.dp),
+                    .padding(horizontal = 4.dp)
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
@@ -114,12 +133,14 @@ private fun DailyTimesCard(
                 AddChip(onClick = onAddTime)
             }
             val removeEnabled = canRemoveDailyTime(times.size)
-            times.forEach { dailyTime ->
+            times.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),
                     onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
                     removeEnabled = removeEnabled,
-                    onRemoveClick = { onRemoveTime(dailyTime.localId) }
+                    onRemoveClick = { onRemoveTime(dailyTime.localId) },
+                    index = index,
+                    count = times.size
                 )
             }
         }
@@ -127,54 +148,53 @@ private fun DailyTimesCard(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun DailyTimeRow(
     formattedTime: String,
     onClick: () -> Unit,
     removeEnabled: Boolean,
-    onRemoveClick: () -> Unit
+    onRemoveClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 10.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
+    SegmentedListItem(
+        leadingContent = {
             Icon(
                 imageVector = Icons.Rounded.Schedule,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
-            Text(
-                text = formattedTime,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(
-                onClick = onRemoveClick,
-                enabled = removeEnabled,
-                modifier = Modifier.size(36.dp)
+        },
+        trailingContent = {
+            CompositionLocalProvider(
+                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Delete,
-                    contentDescription = stringResource(R.string.remove_time),
-                    tint = if (removeEnabled) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.outline
-                    },
+                IconButton(
+                    onClick = onRemoveClick,
+                    enabled = removeEnabled,
                     modifier = Modifier.size(20.dp)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = stringResource(R.string.remove_time),
+                        tint = if (removeEnabled) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
-        }
+        },
+        onClick = onClick,
+        shapes = segmentedListItemShapes(index = index, count = count),
+    ) {
+        Text(
+            text = formattedTime,
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }
 
@@ -204,5 +224,51 @@ private fun DailyScheduleEditorPreview() {
             onTimeClick = { _, _ -> },
             onRemoveTime = {}
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun segmentedListItemShapes(
+    index: Int,
+    count: Int,
+): ListItemShapes {
+    val defaultShapes = ListItemDefaults.shapes()
+    val mediumShape = MaterialTheme.shapes.medium
+
+    return remember(index, count, defaultShapes, mediumShape) {
+        val defaultBaseShape = defaultShapes.shape
+
+        if (defaultBaseShape !is CornerBasedShape || mediumShape !is CornerBasedShape) {
+            return@remember defaultShapes
+        }
+
+        when {
+            count <= 1 -> {
+                defaultShapes.copy(shape = mediumShape)
+            }
+
+            index == 0 -> {
+                defaultShapes.copy(
+                    shape = defaultBaseShape.copy(
+                        topStart = mediumShape.topStart,
+                        topEnd = mediumShape.topEnd,
+                    )
+                )
+            }
+
+            index == count - 1 -> {
+                defaultShapes.copy(
+                    shape = defaultBaseShape.copy(
+                        bottomStart = mediumShape.bottomStart,
+                        bottomEnd = mediumShape.bottomEnd,
+                    )
+                )
+            }
+
+            else -> {
+                defaultShapes
+            }
+        }
     }
 }

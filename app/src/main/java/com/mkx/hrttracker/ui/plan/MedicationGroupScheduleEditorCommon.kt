@@ -23,8 +23,14 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemColors
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -38,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun IntervalStepperCard(
     label: String,
@@ -45,54 +52,57 @@ internal fun IntervalStepperCard(
     unit: String,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+    SegmentedListItem(
+        overlineContent = {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                StepperCircleButton(
+                    icon = Icons.Rounded.Remove,
+                    contentDescription = stringResource(R.string.decrease_schedule_interval),
+                    enabled = value > 1,
+                    onClick = onDecreaseClick
+                )
+                StepperCircleButton(
+                    icon = Icons.Rounded.Add,
+                    contentDescription = stringResource(R.string.increase_schedule_interval),
+                    enabled = true,
+                    onClick = onIncreaseClick
+                )
+            }
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        onClick = { }
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            verticalAlignment = androidx.compose.ui.Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(top = 2.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    verticalAlignment = androidx.compose.ui.Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 2.dp)
-                ) {
-                    Text(
-                        text = value.toString(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = unit,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                }
-            }
-            StepperCircleButton(
-                icon = Icons.Rounded.Remove,
-                contentDescription = stringResource(R.string.decrease_schedule_interval),
-                enabled = value > 1,
-                onClick = onDecreaseClick
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
             )
-            StepperCircleButton(
-                icon = Icons.Rounded.Add,
-                contentDescription = stringResource(R.string.increase_schedule_interval),
-                enabled = true,
-                onClick = onIncreaseClick
+            Text(
+                text = unit,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
             )
         }
     }
@@ -105,78 +115,65 @@ private fun StepperCircleButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
+    FilledTonalIconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(44.dp),
-        shape = CircleShape,
-        color = if (enabled) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        }
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = androidx.compose.ui.Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.outline
-                }
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            } else {
+                MaterialTheme.colorScheme.outline
+            }
+        )
     }
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal fun EditorFieldRow(
     label: String,
     value: String,
     icon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
+    SegmentedListItem(
+        leadingContent = {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+        },
+        overlineContent = {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        trailingContent = {
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
+        },
+        onClick = onClick,
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
 
@@ -192,26 +189,15 @@ internal fun decrementScheduleInterval(value: String): String {
     return maxOf(1, parseScheduleInterval(value) - 1).toString()
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun NotificationsCard(
     enabled: Boolean,
     toggleEnabled: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
-    Surface(
-        onClick = { onToggle(!enabled) },
-        enabled = toggleEnabled,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
+    ListItem(
+        leadingContent = {
             Icon(
                 imageVector = if (enabled) {
                     Icons.Rounded.Notifications
@@ -225,64 +211,73 @@ internal fun NotificationsCard(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 }
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.group_notifications_reminder),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = stringResource(R.string.group_notifications_summary),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        },
+        trailingContent = {
             Switch(
                 checked = enabled,
                 onCheckedChange = onToggle,
                 enabled = toggleEnabled
             )
-        }
+        },
+        supportingContent = {
+            Text(
+                text = stringResource(R.string.group_notifications_summary),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        enabled = toggleEnabled,
+        onClick = { onToggle(!enabled) },
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shapes = ListItemDefaults.shapes(
+            shape = MaterialTheme.shapes.large
+        )
+    ) {
+        Text(
+            text = stringResource(R.string.group_notifications_reminder),
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DeleteMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.errorContainer
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
+    ListItem(
+        leadingContent = {
             Icon(
                 imageVector = Icons.Rounded.Delete,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(24.dp)
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.delete_medication_group).uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
+        },
+        trailingContent = {
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer
             )
-        }
+        },
+        enabled = enabled,
+        onClick = onClick,
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        ),
+        shapes = ListItemDefaults.shapes(
+            shape = MaterialTheme.shapes.large
+        )
+    ) {
+        Text(
+            text = stringResource(R.string.delete_medication_group).uppercase(),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer
+        )
     }
 }
 
@@ -296,7 +291,7 @@ private fun IntervalStepperCardPreview() {
                 value = 3,
                 unit = "days",
                 onDecreaseClick = {},
-                onIncreaseClick = {}
+                onIncreaseClick = {},
             )
         }
     }
@@ -338,7 +333,7 @@ private fun EditorFieldRowPreview() {
                 label = "Time",
                 value = "08:00",
                 icon = Icons.Default.AccessTime,
-                onClick = {}
+                onClick = {},
             )
         }
     }
