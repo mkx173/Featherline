@@ -54,6 +54,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -177,13 +178,21 @@ private fun HistoryScreenContent(
     val monthLabelFormatter = remember(appLocale) {
         historyMonthLabelFormatter(appLocale)
     }
-    val calendarState = rememberCalendarState(
-        startMonth = uiState.calendarStartMonth,
-        endMonth = uiState.calendarEndMonth,
-        firstVisibleMonth = uiState.displayedMonth,
-        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-        outDateStyle = OutDateStyle.EndOfGrid
-    )
+    val calendarState = key(
+        uiState.calendarStartMonth,
+        uiState.calendarEndMonth,
+        uiState.calendarFirstDayOfWeek
+    ) {
+        // rememberCalendarState keeps its initial bounds, so recreate it when the available
+        // month range expands or contracts after the underlying history data changes.
+        rememberCalendarState(
+            startMonth = uiState.calendarStartMonth,
+            endMonth = uiState.calendarEndMonth,
+            firstVisibleMonth = uiState.displayedMonth,
+            firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+            outDateStyle = OutDateStyle.EndOfGrid
+        )
+    }
     val displayedMonth = rememberFirstCompletelyVisibleMonth(calendarState)
     val pendingSelectedDate = remember { mutableStateOf<LocalDate?>(null) }
     val effectiveSelectedDate = remember(
