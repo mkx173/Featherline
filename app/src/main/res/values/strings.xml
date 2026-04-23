@@ -119,6 +119,7 @@
     <string name="unit_grams">g</string>
     <string name="unit_mcg_day">μg/day</string>
     <string name="field_medication_group_name">Group name</string>
+    <string name="clear_group_name">Clear group name</string>
     <string name="group_notifications_title">Notifications</string>
     <string name="group_notifications_reminder">Remind me</string>
     <string name="group_notifications_summary">Notify me when this group is scheduled.</string>

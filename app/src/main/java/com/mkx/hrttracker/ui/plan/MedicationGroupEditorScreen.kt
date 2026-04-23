@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -85,6 +87,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -427,6 +431,7 @@ private fun MedicationGroupEditorScreenContent(
     var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
+    val groupNameFocusRequester = remember { FocusRequester() }
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
         !uiState.isSaving &&
         !uiState.isDeleting
@@ -634,14 +639,28 @@ private fun MedicationGroupEditorScreenContent(
                         value = uiState.groupName,
                         onValueChange = onGroupNameChange,
                         label = { Text(text = stringResource(R.string.field_medication_group_name)) },
-                        placeholder = if (!uiState.isEditing && uiState.defaultGroupName.isNotBlank()) {
+                        trailingIcon = if (shouldShowGroupNameClearAction(uiState.groupName)) {
                             {
-                                Text(text = uiState.defaultGroupName)
+                                IconButton(
+                                    onClick = {
+                                        onGroupNameChange("")
+                                        groupNameFocusRequester.requestFocus()
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(
+                                            R.string.clear_group_name
+                                        )
+                                    )
+                                }
                             }
                         } else {
                             null
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(groupNameFocusRequester),
                         singleLine = true
                     )
                 }
@@ -884,6 +903,8 @@ internal fun shouldEnableGroupNotifications(
     pendingNotificationEnableRequest: String?
 ): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
     pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+
+internal fun shouldShowGroupNameClearAction(groupName: String): Boolean = groupName.isNotBlank()
 
 private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,

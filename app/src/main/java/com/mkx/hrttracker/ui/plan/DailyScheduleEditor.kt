@@ -232,8 +232,10 @@ fun dailyTimesItemShapes(
     index: Int,
     count: Int,
 ): ListItemShapes {
-    val defaultShapes = ListItemDefaults.shapes()
     val mediumShape = MaterialTheme.shapes.medium
+    val defaultShapes = ListItemDefaults.shapes(
+        pressedShape = mediumShape
+    )
 
     return remember(index, count, defaultShapes, mediumShape) {
         val defaultBaseShape = defaultShapes.shape

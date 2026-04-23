@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.plan
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MedicationGroupEditorNameTest {
@@ -37,5 +39,41 @@ class MedicationGroupEditorNameTest {
                 isEditing = true
             )
         )
+    }
+
+    @Test
+    fun applyDefaultGroupNameToEditorState_sets_initial_name_for_new_group() {
+        val updated = applyDefaultGroupNameToEditorState(
+            currentState = MedicationGroupEditorUiState(),
+            defaultGroupName = "Group 3"
+        )
+
+        assertEquals("Group 3", updated.groupName)
+        assertEquals("Group 3", updated.defaultGroupName)
+    }
+
+    @Test
+    fun applyDefaultGroupNameToEditorState_does_not_override_after_user_edit() {
+        val updated = applyDefaultGroupNameToEditorState(
+            currentState = MedicationGroupEditorUiState(
+                groupName = "",
+                defaultGroupName = "Group 2",
+                hasResolvedInitialGroupName = true
+            ),
+            defaultGroupName = "Group 3"
+        )
+
+        assertEquals("", updated.groupName)
+        assertEquals("Group 3", updated.defaultGroupName)
+    }
+
+    @Test
+    fun shouldShowGroupNameClearAction_returns_true_for_non_blank_name() {
+        assertTrue(shouldShowGroupNameClearAction("Morning meds"))
+    }
+
+    @Test
+    fun shouldShowGroupNameClearAction_returns_false_for_blank_name() {
+        assertFalse(shouldShowGroupNameClearAction("   "))
     }
 }

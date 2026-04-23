@@ -119,6 +119,7 @@
     <string name="unit_grams">g</string>
     <string name="unit_mcg_day">μg/天</string>
     <string name="field_medication_group_name">分组名称</string>
+    <string name="clear_group_name">清空分组名称</string>
     <string name="group_notifications_title">通知</string>
     <string name="group_notifications_reminder">用药提醒</string>
     <string name="group_notifications_summary">当这个分组到达计划时间时通知我。</string>

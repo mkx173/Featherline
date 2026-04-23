@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ListItemDefaults
@@ -58,7 +60,7 @@ internal fun WeeklyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = sinceDate.format(dateFormatter),
-            icon = Icons.Default.Event,
+            icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             index = 0,
             count = 4
@@ -116,7 +118,7 @@ internal fun WeeklyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_time),
             value = time.format(timeFormatter),
-            icon = Icons.Default.Schedule,
+            icon = Icons.Rounded.Schedule,
             onClick = { onTimeChange(time) },
             index = 3,
             count = 4

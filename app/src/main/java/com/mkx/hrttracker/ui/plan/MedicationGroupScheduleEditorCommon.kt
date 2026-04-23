@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
@@ -343,7 +344,7 @@ private fun EditorFieldRowPreview() {
             EditorFieldRow(
                 label = "Time",
                 value = "08:00",
-                icon = Icons.Default.AccessTime,
+                icon = Icons.Rounded.AccessTime,
                 onClick = {},
             )
         }

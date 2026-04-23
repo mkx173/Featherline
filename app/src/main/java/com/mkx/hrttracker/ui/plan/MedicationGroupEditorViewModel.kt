@@ -73,13 +73,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         isEditing = currentState.isEditing,
                         hasAssignedColor = currentState.hasAssignedGroupColor
                     )
-                    currentState.copy(
+                    applyDefaultGroupNameToEditorState(
+                        currentState = currentState,
                         defaultGroupName = defaultMedicationGroupName(
                             existingGroupCount = visibleGroups.size,
                             formatName = { index ->
                                 context.getString(R.string.default_group_name_format, index)
                             }
-                        ),
+                        )
+                    ).copy(
                         groupColorKey = resolvedGroupColorKey,
                         hasAssignedGroupColor = true
                     )
@@ -94,7 +96,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateGroupName(name: String) {
         _uiState.update {
-            it.copy(groupName = name)
+            it.copy(
+                groupName = name,
+                hasResolvedInitialGroupName = true
+            )
         }
     }
 
@@ -419,6 +424,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 editingGroupId = group.uuid.toString(),
                 groupName = group.name,
                 defaultGroupName = group.name,
+                hasResolvedInitialGroupName = true,
                 scheduleType = group.schedule.type,
                 sinceDate = group.schedule.since,
                 weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
@@ -609,6 +615,7 @@ data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
     val defaultGroupName: String = "",
+    val hasResolvedInitialGroupName: Boolean = false,
     val groupColorKey: MedicationGroupColorKey = MedicationGroupColorKey.ROSE,
     val hasAssignedGroupColor: Boolean = false,
     val scheduleType: MedicationGroupScheduleType = MedicationGroupScheduleType.DAILY,
@@ -636,6 +643,26 @@ data class MedicationGroupEditorUiState(
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+}
+
+internal fun applyDefaultGroupNameToEditorState(
+    currentState: MedicationGroupEditorUiState,
+    defaultGroupName: String,
+): MedicationGroupEditorUiState {
+    val shouldApplyInitialGroupName = !currentState.isEditing &&
+        !currentState.hasResolvedInitialGroupName &&
+        currentState.groupName.isBlank() &&
+        defaultGroupName.isNotBlank()
+    return currentState.copy(
+        groupName = if (shouldApplyInitialGroupName) {
+            defaultGroupName
+        } else {
+            currentState.groupName
+        },
+        defaultGroupName = defaultGroupName,
+        hasResolvedInitialGroupName = currentState.hasResolvedInitialGroupName ||
+            shouldApplyInitialGroupName
+    )
 }
 
 internal fun applyReminderSettingsToEditorState(
