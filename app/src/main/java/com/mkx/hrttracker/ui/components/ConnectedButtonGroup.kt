@@ -165,7 +165,7 @@ private fun <T> ConnectedButtonGroupButton(
         modifier = modifier,
         checked = selected,
         onCheckedChange = { onOptionToggled(option) },
-        enabled = enabled,
+        enabled = enabled || selected,
         colors = colors,
         shapes =
             when (index) {

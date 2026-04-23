@@ -97,6 +97,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -154,8 +155,13 @@ fun MedicationGroupEditorScreen(
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     val notificationPermissionDeniedMessage =
         stringResource(R.string.group_notifications_permission_denied)
+    val masterReminderPermissionDeniedMessage =
+        stringResource(R.string.settings_reminders_permission_denied)
+    val reminderNotificationsUnavailableMessage =
+        stringResource(R.string.settings_reminders_notifications_unavailable)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
+    var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
@@ -178,17 +184,61 @@ fun MedicationGroupEditorScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            viewModel.updateNotificationsEnabled(true)
             hasNotificationAccess = canPostNotifications(context)
+            if (shouldEnableMasterReminders(pendingNotificationEnableRequest)) {
+                viewModel.setMasterRemindersEnabled(true)
+            }
+            if (shouldEnableGroupNotifications(pendingNotificationEnableRequest)) {
+                viewModel.updateNotificationsEnabled(true)
+                if (canScheduleExactAlarms(context)) {
+                    showInexactReminderWarning = false
+                } else {
+                    isExactAlarmDialogVisible = true
+                }
+            }
+        } else {
+            if (shouldEnableMasterReminders(pendingNotificationEnableRequest)) {
+                Toast.makeText(
+                    context,
+                    masterReminderPermissionDeniedMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                viewModel.updateNotificationsEnabled(false)
+                hasNotificationAccess = false
+                Toast.makeText(
+                    context,
+                    notificationPermissionDeniedMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        pendingNotificationEnableRequest = null
+    }
+    val enableMasterReminders = {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingNotificationEnableRequest = MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            Toast.makeText(
+                context,
+                reminderNotificationsUnavailableMessage,
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            viewModel.setMasterRemindersEnabled(true)
+            viewModel.updateNotificationsEnabled(true)
             if (canScheduleExactAlarms(context)) {
                 showInexactReminderWarning = false
             } else {
                 isExactAlarmDialogVisible = true
             }
-        } else {
-            viewModel.updateNotificationsEnabled(false)
-            hasNotificationAccess = false
-            Toast.makeText(context, notificationPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -207,12 +257,13 @@ fun MedicationGroupEditorScreen(
     }
 
     LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled) {
-        if (!hasNotificationAccess && uiState.notificationsEnabled) {
-            viewModel.updateNotificationsEnabled(false)
-            isExactAlarmDialogVisible = false
-            showInexactReminderWarning = false
+            if (!hasNotificationAccess && uiState.notificationsEnabled) {
+                viewModel.updateNotificationsEnabled(false)
+                pendingNotificationEnableRequest = null
+                isExactAlarmDialogVisible = false
+                showInexactReminderWarning = false
+            }
         }
-    }
 
     LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled, isExactAlarmDialogVisible) {
         if (!hasNotificationAccess || !uiState.notificationsEnabled) {
@@ -265,6 +316,7 @@ fun MedicationGroupEditorScreen(
         onNotificationsEnabledChange = { enabled ->
             if (!enabled) {
                 viewModel.updateNotificationsEnabled(false)
+                pendingNotificationEnableRequest = null
                 isExactAlarmDialogVisible = false
                 showInexactReminderWarning = false
             } else if (
@@ -274,6 +326,7 @@ fun MedicationGroupEditorScreen(
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
+                pendingNotificationEnableRequest = GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 viewModel.updateNotificationsEnabled(true)
@@ -284,6 +337,7 @@ fun MedicationGroupEditorScreen(
                 }
             }
         },
+        onRecoverMasterReminders = enableMasterReminders,
         notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
@@ -318,6 +372,7 @@ private fun MedicationGroupEditorScreenContent(
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
+    onRecoverMasterReminders: () -> Unit,
     notificationsToggleEnabled: Boolean,
     showInexactReminderWarning: Boolean,
     onWeeklyIntervalChange: (String) -> Unit,
@@ -371,6 +426,7 @@ private fun MedicationGroupEditorScreenContent(
     var pendingNewDailyTime by remember { mutableStateOf<LocalTime?>(null) }
     var pendingDailyTimeEdit by remember { mutableStateOf<DailyTimeEditRequest?>(null) }
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
+    var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
         !uiState.isSaving &&
         !uiState.isDeleting
@@ -458,6 +514,35 @@ private fun MedicationGroupEditorScreenContent(
             },
             dismissButton = {
                 TextButton(onClick = onDeleteDismiss) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (isMasterReminderRecoveryDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isMasterReminderRecoveryDialogVisible = false },
+            title = {
+                Text(text = stringResource(R.string.group_notifications_reenable_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.group_notifications_reenable_message))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isMasterReminderRecoveryDialogVisible = false
+                        onRecoverMasterReminders()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.group_notifications_reenable_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { isMasterReminderRecoveryDialogVisible = false }
+                ) {
                     Text(text = stringResource(R.string.cancel))
                 }
             }
@@ -677,6 +762,16 @@ private fun MedicationGroupEditorScreenContent(
                         enabled = uiState.notificationsEnabled,
                         toggleEnabled = notificationsToggleEnabled,
                         onToggle = onNotificationsEnabledChange,
+                        onDisabledClick = if (
+                            shouldOfferMasterReminderRecovery(
+                                remindersEnabled = uiState.remindersEnabled,
+                                notificationsToggleEnabled = notificationsToggleEnabled
+                            )
+                        ) {
+                            { isMasterReminderRecoveryDialogVisible = true }
+                        } else {
+                            null
+                        },
                         index = 0,
                         count = if (!uiState.remindersEnabled || showInexactReminderWarning) 2 else 1
                     )
@@ -772,6 +867,23 @@ private data class MedicationRemovalRequest(
 )
 
 internal fun shouldConfirmMedicationRemoval(count: Int): Boolean = count <= 1
+
+internal fun shouldOfferMasterReminderRecovery(
+    remindersEnabled: Boolean,
+    notificationsToggleEnabled: Boolean,
+): Boolean = !remindersEnabled && !notificationsToggleEnabled
+
+internal const val GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST = "group_only"
+internal const val MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST = "master_and_group"
+
+internal fun shouldEnableMasterReminders(
+    pendingNotificationEnableRequest: String?
+): Boolean = pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+
+internal fun shouldEnableGroupNotifications(
+    pendingNotificationEnableRequest: String?
+): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
+    pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
 
 private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,
@@ -974,6 +1086,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onNotificationsEnabledChange = { },
+            onRecoverMasterReminders = { },
             notificationsToggleEnabled = false,
             showInexactReminderWarning = false,
             onWeeklyIntervalChange = { },
@@ -1022,6 +1135,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onNotificationsEnabledChange = { },
+            onRecoverMasterReminders = { },
             notificationsToggleEnabled = true,
             showInexactReminderWarning = true,
             onWeeklyIntervalChange = { },

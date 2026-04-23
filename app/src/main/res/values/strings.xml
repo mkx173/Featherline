@@ -123,6 +123,9 @@
     <string name="group_notifications_reminder">Remind me</string>
     <string name="group_notifications_summary">Notify me when this group is scheduled.</string>
     <string name="group_notifications_master_disabled">The master reminder switch is off in Settings, so this group will not notify until reminders are turned back on there.</string>
+    <string name="group_notifications_reenable_title">Turn reminders back on?</string>
+    <string name="group_notifications_reenable_message">The master reminder switch is off. Turn it back on now so this group can send reminders again?</string>
+    <string name="group_notifications_reenable_confirm">Turn on</string>
     <string name="group_notifications_inexact_warning">Exact alarm access is off, so reminders may be delayed.</string>
     <string name="group_notifications_permission_denied">Notification permission was denied. Dose reminders remain off.</string>
     <string name="group_notifications_exact_alarm_title">Allow exact reminders?</string>

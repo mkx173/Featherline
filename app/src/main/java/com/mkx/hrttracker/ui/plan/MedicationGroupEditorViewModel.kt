@@ -51,7 +51,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.settingsState.collect { settingsState ->
                 _uiState.update { currentState ->
-                    currentState.copy(remindersEnabled = settingsState.remindersEnabled)
+                    applyReminderSettingsToEditorState(
+                        currentState = currentState,
+                        remindersEnabled = settingsState.remindersEnabled
+                    )
                 }
             }
         }
@@ -134,6 +137,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun updateNotificationsEnabled(enabled: Boolean) {
         _uiState.update {
             it.copy(notificationsEnabled = enabled)
+        }
+    }
+
+    fun setMasterRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setRemindersEnabled(enabled)
+            medicationReminderScheduler.rescheduleAll()
         }
     }
 
@@ -437,6 +447,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 },
                 remindersEnabled = remindersEnabled,
                 notificationsEnabled = group.notificationsEnabled,
+                hasResolvedNotificationDefault = true,
                 groupColorKey = group.colorKey,
                 hasAssignedGroupColor = true,
                 medications = group.medications.map { medication ->
@@ -611,6 +622,7 @@ data class MedicationGroupEditorUiState(
     ),
     val remindersEnabled: Boolean = true,
     val notificationsEnabled: Boolean = false,
+    val hasResolvedNotificationDefault: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val editingMedication: MedicationGroupMedicationEditorUiState? = null,
     val isMedicationEditorSaved: Boolean = false,
@@ -624,6 +636,24 @@ data class MedicationGroupEditorUiState(
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+}
+
+internal fun applyReminderSettingsToEditorState(
+    currentState: MedicationGroupEditorUiState,
+    remindersEnabled: Boolean,
+): MedicationGroupEditorUiState {
+    val shouldApplyNotificationDefault =
+        !currentState.isEditing && !currentState.hasResolvedNotificationDefault
+    return currentState.copy(
+        remindersEnabled = remindersEnabled,
+        notificationsEnabled = if (shouldApplyNotificationDefault) {
+            remindersEnabled
+        } else {
+            currentState.notificationsEnabled
+        },
+        hasResolvedNotificationDefault = currentState.hasResolvedNotificationDefault ||
+            shouldApplyNotificationDefault
+    )
 }
 
 internal fun resolveMedicationGroupName(

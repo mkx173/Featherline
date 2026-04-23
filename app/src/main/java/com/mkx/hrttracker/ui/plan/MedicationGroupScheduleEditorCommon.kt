@@ -36,6 +36,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -195,10 +196,13 @@ internal fun NotificationsCard(
     enabled: Boolean,
     toggleEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
+    onDisabledClick: (() -> Unit)? = null,
     index: Int = 0,
     count: Int = 1
 ) {
+    val cardClickEnabled = toggleEnabled || onDisabledClick != null
     SegmentedListItem(
+        modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f),
         leadingContent = {
             Icon(
                 imageVector = if (enabled) {
@@ -228,8 +232,14 @@ internal fun NotificationsCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        enabled = toggleEnabled,
-        onClick = { onToggle(!enabled) },
+        enabled = cardClickEnabled,
+        onClick = {
+            if (toggleEnabled) {
+                onToggle(!enabled)
+            } else {
+                onDisabledClick?.invoke()
+            }
+        },
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer

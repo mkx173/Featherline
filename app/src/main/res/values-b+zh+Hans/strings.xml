@@ -123,6 +123,9 @@
     <string name="group_notifications_reminder">用药提醒</string>
     <string name="group_notifications_summary">当这个分组到达计划时间时通知我。</string>
     <string name="group_notifications_master_disabled">设置中的提醒总开关当前已关闭，因此这个分组在重新开启总开关之前不会发送提醒。</string>
+    <string name="group_notifications_reenable_title">重新开启提醒？</string>
+    <string name="group_notifications_reenable_message">提醒总开关当前已关闭。现在重新开启，这个分组就能再次发送提醒吗？</string>
+    <string name="group_notifications_reenable_confirm">开启</string>
     <string name="group_notifications_inexact_warning">未启用精确闹钟权限，提醒可能会延迟。</string>
     <string name="group_notifications_permission_denied">通知权限被拒绝，用药提醒将保持关闭。</string>
     <string name="group_notifications_exact_alarm_title">允许精确提醒？</string>
