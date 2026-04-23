@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.PieChartOutline
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
@@ -57,6 +59,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -423,7 +426,8 @@ private fun HistoryScreenContent(
                             } else {
                                 R.string.history_month_empty_state
                             }
-                        )
+                        ),
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
             } else {
@@ -463,7 +467,9 @@ private fun HistoryScreenContent(
                                 )
                             }
                             if (groupIndex < groupedEntries.size - 1) {
-                                Spacer(modifier = Modifier.fillMaxWidth().height(4.dp))
+                                Spacer(modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp))
                             }
                         }
                     }
@@ -473,7 +479,9 @@ private fun HistoryScreenContent(
             if (uiState.selectedDate != null) {
                 item(key = "clear-selection") {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Surface(
@@ -1074,8 +1082,8 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
@@ -1085,7 +1093,7 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = weekdayLabel.uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     } else {
@@ -1229,7 +1237,9 @@ private fun HistoryEntryCard(
             ) {
                 Text(
                     text = stringResource(entry.details.applicationType.labelRes).uppercase(),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp).alignByBaseline(),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .alignByBaseline(),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = groupColorScheme.onPrimaryContainer,
@@ -1250,30 +1260,26 @@ private fun HistoryEntryCard(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun HistoryEmptyStateCard(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        )
+    ListItem(
+        onClick = {},
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shapes = ListItemDefaults.shapes(
+            shape = MaterialTheme.shapes.large
+        ),
+        modifier = modifier
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = dimensionResource(R.dimen.padding_large)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge
+        )
     }
 }
 

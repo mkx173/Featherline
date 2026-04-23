@@ -82,11 +82,11 @@
     <string name="plan_week_previous">上一周</string>
     <string name="plan_week_current">本周</string>
     <string name="plan_week_next">下一周</string>
-    <string name="history_empty_state">暂无 HRT 记录。</string>
-    <string name="history_month_empty_state">这个月暂无 HRT 记录。</string>
+    <string name="history_empty_state">暂无记录。</string>
+    <string name="history_month_empty_state">这个月暂无记录。</string>
     <string name="history_month_entries_title">%1$s的记录</string>
     <string name="history_selected_day_records_title">%1$s的记录</string>
-    <string name="history_selected_day_empty_state">这一天暂无 HRT 记录。</string>
+    <string name="history_selected_day_empty_state">这一天暂无记录。</string>
     <string name="history_clear_selection">清除选择</string>
     <string name="history_month_summary_title">%1$s 概览</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
