@@ -187,7 +187,7 @@ private fun HistoryScreenContent(
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
     val monthLabelFormatter = remember(appLocale) {
-        DateTimeFormatter.ofPattern("LLLL").withLocale(appLocale)
+        historyMonthLabelFormatter(appLocale)
     }
     val calendarState = rememberCalendarState(
         startMonth = uiState.calendarStartMonth,
@@ -726,7 +726,7 @@ private fun HistoryCalendarTitle(
     onGoToNext: () -> Unit
 ) {
     val monthFormatter = remember(appLocale) {
-        DateTimeFormatter.ofPattern("LLLL yyyy").withLocale(appLocale)
+        historyCalendarMonthTitleFormatter(appLocale)
     }
 
     Row(
@@ -1036,6 +1036,22 @@ internal fun historyEntryGroupDayFormatter(appLocale: Locale): DateTimeFormatter
         DateTimeFormatter.ofPattern("M月d日", appLocale)
     } else {
         DateTimeFormatter.ofPattern("MMM d", appLocale)
+    }
+}
+
+internal fun historyMonthLabelFormatter(appLocale: Locale): DateTimeFormatter {
+    return if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("M月", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("LLLL", appLocale)
+    }
+}
+
+internal fun historyCalendarMonthTitleFormatter(appLocale: Locale): DateTimeFormatter {
+    return if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("yyyy年M月", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
     }
 }
 

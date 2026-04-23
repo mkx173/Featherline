@@ -39,6 +39,24 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historyMonthLabelFormatter_uses_compact_chinese_month_format() {
+        assertEquals(
+            "4月",
+            LocalDate.of(2026, 4, 23).format(historyMonthLabelFormatter(Locale.SIMPLIFIED_CHINESE))
+        )
+    }
+
+    @Test
+    fun historyCalendarMonthTitleFormatter_uses_chinese_year_month_format() {
+        assertEquals(
+            "2026年4月",
+            LocalDate.of(2026, 4, 23).format(
+                historyCalendarMonthTitleFormatter(Locale.SIMPLIFIED_CHINESE)
+            )
+        )
+    }
+
+    @Test
     fun historyEntrySupportingText_includes_plain_count_text_between_primary_text_and_group_name() {
         assertEquals(
             "1mg \u00B7 2x \u00B7 Nightly estradiol",
