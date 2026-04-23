@@ -11,13 +11,16 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonColors
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,13 +53,15 @@ internal fun WeeklyScheduleEditor(
     onTimeChange: (LocalTime) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = sinceDate.format(dateFormatter),
             icon = Icons.Default.Event,
-            onClick = { onSinceDateChange(sinceDate) }
+            onClick = { onSinceDateChange(sinceDate) },
+            index = 0,
+            count = 4
         )
 
         IntervalStepperCard(
@@ -69,15 +74,21 @@ internal fun WeeklyScheduleEditor(
             ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
+            index = 1,
+            count = 4
         )
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
+        SegmentedListItem(
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            shapes = ListItemDefaults.segmentedShapes(
+                index = 2,
+                count = 4
+            ),
+            onClick = {}
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
@@ -106,7 +117,9 @@ internal fun WeeklyScheduleEditor(
             label = stringResource(R.string.group_schedule_time),
             value = time.format(timeFormatter),
             icon = Icons.Default.Schedule,
-            onClick = { onTimeChange(time) }
+            onClick = { onTimeChange(time) },
+            index = 3,
+            count = 4
         )
     }
 }
