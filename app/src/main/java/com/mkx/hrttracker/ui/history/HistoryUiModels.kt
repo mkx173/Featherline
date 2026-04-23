@@ -139,6 +139,18 @@ internal fun toggleHistoryEntrySelection(
     }
 }
 
+internal fun countSelectedCollapsedEntries(
+    selectedEntryIds: Set<UUID>,
+    collapsedEntries: List<HistoryCollapsedEntry>
+): Int {
+    return collapsedEntries.count { collapsedEntry ->
+        isHistoryCollapsedEntrySelected(
+            selectedEntryIds = selectedEntryIds,
+            entryIds = collapsedEntry.entryIds
+        )
+    }
+}
+
 internal fun historyEntryTapAction(
     selectedEntryIds: Set<UUID>
 ): HistoryEntryTapAction {

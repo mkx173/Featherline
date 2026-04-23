@@ -245,6 +245,36 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun countSelectedCollapsedEntries_counts_collapsed_rows_not_raw_entry_ids() {
+        val collapsedEntries = listOf(
+            HistoryCollapsedEntry(
+                representativeEntry = entryAt(LocalDateTime.of(2026, 4, 10, 8, 0)),
+                entryIds = setOf(
+                    UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
+                    UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
+                ),
+                count = 2
+            ),
+            HistoryCollapsedEntry(
+                representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
+                entryIds = setOf(UUID.fromString("a17dc833-a019-40ca-a17d-8a602b3c5e6b")),
+                count = 1
+            )
+        )
+
+        assertEquals(
+            1,
+            countSelectedCollapsedEntries(
+                selectedEntryIds = setOf(
+                    UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
+                    UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
+                ),
+                collapsedEntries = collapsedEntries
+            )
+        )
+    }
+
+    @Test
     fun historyEntryTapAction_opens_editor_only_when_selection_mode_is_inactive() {
         assertEquals(
             HistoryEntryTapAction.OPEN_EDITOR,

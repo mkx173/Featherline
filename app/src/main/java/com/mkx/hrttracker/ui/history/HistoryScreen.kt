@@ -243,6 +243,12 @@ private fun HistoryScreenContent(
             collapsedEntry.representativeEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
         }
     }
+    val selectedCollapsedEntryCount = remember(collapsedEntries, uiState.selectedEntryIds) {
+        countSelectedCollapsedEntries(
+            selectedEntryIds = uiState.selectedEntryIds,
+            collapsedEntries = collapsedEntries
+        )
+    }
     val groupNamesById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.name }
     }
@@ -269,7 +275,7 @@ private fun HistoryScreenContent(
                 Text(
                     text = stringResource(
                         R.string.delete_entries_confirmation,
-                        uiState.selectedEntryIds.size
+                        selectedCollapsedEntryCount
                     )
                 )
             },
