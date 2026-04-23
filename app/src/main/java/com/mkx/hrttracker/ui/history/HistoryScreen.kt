@@ -77,6 +77,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -886,9 +887,10 @@ private fun HistoryCalendarDay(
             .fillMaxWidth()
             .padding(2.dp)
             .alpha(dayAlpha)
+            .clip(MaterialTheme.shapes.medium)
             .background(
                 color = containerColor,
-                shape = RoundedCornerShape(14.dp)
+                shape = MaterialTheme.shapes.medium
             )
             .combinedClickable(
                 enabled = isSelectable,
