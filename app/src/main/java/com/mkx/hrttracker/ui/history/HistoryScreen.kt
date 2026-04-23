@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,6 +77,7 @@ import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
 import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
+import com.kizitonwose.calendar.core.OutDateStyle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -172,7 +174,8 @@ private fun HistoryScreenContent(
         startMonth = uiState.calendarStartMonth,
         endMonth = uiState.calendarEndMonth,
         firstVisibleMonth = uiState.displayedMonth,
-        firstDayOfWeek = uiState.calendarFirstDayOfWeek
+        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+        outDateStyle = OutDateStyle.EndOfGrid
     )
     val displayedMonth = rememberFirstMostVisibleMonth(calendarState, viewportPercent = 90f)
 
@@ -771,16 +774,17 @@ private fun HistoryCalendarDay(
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (day.position != DayPosition.MonthDate) {
-        Box(
-            modifier = modifier
-                .aspectRatio(1f)
-                .fillMaxWidth()
-        )
-        return
-    }
-
+    val dayAlpha = historyCalendarDayAlpha(
+        position = day.position,
+        isFuture = day.date.isAfter(today),
+        isSelected = isSelected,
+        isToday = day.date == today
+    )
     val isFuture = day.date.isAfter(today)
+    val isSelectable = canSelectHistoryCalendarDate(
+        date = day.date,
+        today = today
+    )
     val isToday = day.date == today
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
@@ -790,7 +794,6 @@ private fun HistoryCalendarDay(
     val textColor = when {
         isSelected -> MaterialTheme.colorScheme.onPrimary
         isToday -> MaterialTheme.colorScheme.onSecondaryContainer
-        isFuture -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         else -> MaterialTheme.colorScheme.onSurface
     }
     val borderModifier = if (isToday && !isSelected) {
@@ -808,12 +811,16 @@ private fun HistoryCalendarDay(
             .aspectRatio(1f)
             .fillMaxWidth()
             .padding(2.dp)
+            .alpha(dayAlpha)
             .background(
                 color = containerColor,
                 shape = RoundedCornerShape(14.dp)
             )
             .then(borderModifier)
-            .combinedClickable(onClick = { onClick(day.date) }),
+            .combinedClickable(
+                enabled = isSelectable,
+                onClick = { onClick(day.date) }
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -837,6 +844,21 @@ private fun HistoryCalendarDay(
                 )
             }
         }
+    }
+}
+
+internal fun historyCalendarDayAlpha(
+    position: DayPosition,
+    isFuture: Boolean,
+    isSelected: Boolean,
+    isToday: Boolean
+): Float {
+    return if (isSelected || isToday) {
+        1f
+    } else if (position != DayPosition.MonthDate || isFuture) {
+        0.56f
+    } else {
+        1f
     }
 }
 

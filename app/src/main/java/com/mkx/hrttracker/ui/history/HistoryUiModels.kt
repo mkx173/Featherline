@@ -32,17 +32,23 @@ internal fun buildHistoryVisibleEntries(
     selectedDate: LocalDate?,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MedicationLogEntry> {
-    val effectiveSelectedDate = selectedDate?.takeIf { YearMonth.from(it) == displayedMonth }
     return entries
         .filter { entry ->
             val entryDate = entry.appliedAt.atZone(zoneId).toLocalDate()
-            if (effectiveSelectedDate != null) {
-                entryDate == effectiveSelectedDate
+            if (selectedDate != null) {
+                entryDate == selectedDate
             } else {
                 YearMonth.from(entryDate) == displayedMonth
             }
         }
         .sortedByDescending { it.appliedAt }
+}
+
+internal fun canSelectHistoryCalendarDate(
+    date: LocalDate,
+    today: LocalDate
+): Boolean {
+    return !date.isAfter(today)
 }
 
 internal fun buildHistoryMonthSummary(

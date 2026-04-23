@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.history
 
+import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
@@ -36,6 +37,26 @@ class HistoryUiModelsTest {
         assertEquals(1, visibleEntries.size)
         assertEquals(
             LocalDate.of(2026, 4, 11),
+            visibleEntries.single().appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
+        )
+    }
+
+    @Test
+    fun buildHistoryVisibleEntries_filters_to_selected_out_of_month_day_when_present() {
+        val entries = listOf(
+            entryAt(LocalDateTime.of(2026, 3, 30, 8, 0)),
+            entryAt(LocalDateTime.of(2026, 4, 11, 8, 0))
+        )
+
+        val visibleEntries = buildHistoryVisibleEntries(
+            entries = entries,
+            displayedMonth = YearMonth.of(2026, 4),
+            selectedDate = LocalDate.of(2026, 3, 30)
+        )
+
+        assertEquals(1, visibleEntries.size)
+        assertEquals(
+            LocalDate.of(2026, 3, 30),
             visibleEntries.single().appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
         )
     }
@@ -152,6 +173,101 @@ class HistoryUiModelsTest {
                 selectedEntryIds = setOf(
                     UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24")
                 )
+            )
+        )
+    }
+
+    @Test
+    fun historyCalendarDayAlpha_keeps_adjacent_month_days_visible() {
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.InDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = false
+            ),
+            0f
+        )
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.OutDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = false
+            ),
+            0f
+        )
+        assertEquals(
+            1f,
+            historyCalendarDayAlpha(
+                position = DayPosition.OutDate,
+                isFuture = false,
+                isSelected = true,
+                isToday = false
+            ),
+            0f
+        )
+    }
+
+    @Test
+    fun historyCalendarDayAlpha_uses_same_alpha_for_future_and_out_of_month_days() {
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.MonthDate,
+                isFuture = true,
+                isSelected = false,
+                isToday = false
+            ),
+            0f
+        )
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.OutDate,
+                isFuture = true,
+                isSelected = false,
+                isToday = false
+            ),
+            0f
+        )
+        assertEquals(
+            1f,
+            historyCalendarDayAlpha(
+                position = DayPosition.MonthDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = false
+            ),
+            0f
+        )
+    }
+
+    @Test
+    fun canSelectHistoryCalendarDate_disallows_future_dates() {
+        val today = LocalDate.of(2026, 4, 20)
+
+        assertEquals(
+            true,
+            canSelectHistoryCalendarDate(
+                date = today.minusDays(1),
+                today = today
+            )
+        )
+        assertEquals(
+            true,
+            canSelectHistoryCalendarDate(
+                date = today,
+                today = today
+            )
+        )
+        assertEquals(
+            false,
+            canSelectHistoryCalendarDate(
+                date = today.plusDays(1),
+                today = today
             )
         )
     }

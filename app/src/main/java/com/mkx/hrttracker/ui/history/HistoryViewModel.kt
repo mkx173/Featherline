@@ -61,7 +61,6 @@ class HistoryViewModel @Inject constructor(
         val calendarEndMonth = currentMonth
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
         val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
-        val visibleSelectedDate = selectedDay?.takeIf { YearMonth.from(it) == visibleMonth }
         HistoryUiState(
             isLoading = isLoading,
             entries = entries,
@@ -70,7 +69,7 @@ class HistoryViewModel @Inject constructor(
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
             displayedMonth = visibleMonth,
-            selectedDate = visibleSelectedDate,
+            selectedDate = selectedDay,
             selectedEntryIds = visibleSelection,
             isDeleteConfirmationVisible = deleteConfirmationVisible && visibleSelection.isNotEmpty()
         )
@@ -91,6 +90,9 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun toggleSelectedDate(date: LocalDate) {
+        if (!canSelectHistoryCalendarDate(date, LocalDate.now())) {
+            return
+        }
         selectedDate.value = if (selectedDate.value == date) {
             null
         } else {
