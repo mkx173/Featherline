@@ -378,7 +378,7 @@ private fun HistoryScreenContent(
                             date = date,
                             today = today,
                             dayStatus = monthDayStates[date]?.status ?: PlanCalendarDayStatus.NONE,
-                            entryCount = dateEntries.sumOf { collapsedEntry -> collapsedEntry.count },
+                            entryCount = dateEntries.size,
                             appLocale = appLocale
                         )
                     }

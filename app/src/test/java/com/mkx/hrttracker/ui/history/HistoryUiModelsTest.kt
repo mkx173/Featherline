@@ -128,6 +128,48 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun buildHistoryMonthSummary_counts_collapsed_logged_entries() {
+        val sharedAppliedAt = LocalDateTime.of(2026, 4, 10, 8, 0)
+        val sharedScheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0)
+        val summary = buildHistoryMonthSummary(
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    dosageMgAsEstradiol = 2.0,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                    appliedAt = testInstant(sharedAppliedAt),
+                    scheduledFor = sharedScheduledFor
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    dosageMgAsEstradiol = 2.0,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                    appliedAt = testInstant(sharedAppliedAt),
+                    scheduledFor = sharedScheduledFor
+                ),
+                entryAt(LocalDateTime.of(2026, 4, 11, 8, 0))
+            ),
+            displayedMonth = YearMonth.of(2026, 4),
+            dayStates = emptyMap(),
+            today = LocalDate.of(2026, 4, 20)
+        )
+
+        assertEquals(2, summary.logged)
+    }
+
+    @Test
     fun collapseHistoryEntries_collapses_exact_duplicate_logs_into_one_counted_entry() {
         val firstId = UUID.fromString("b33e87e1-7a60-461b-8fc3-0ba5afb0b147")
         val secondId = UUID.fromString("640010dc-63e5-40f4-a836-36664d4d4a68")

@@ -58,9 +58,11 @@ internal fun buildHistoryMonthSummary(
     today: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): HistoryMonthSummary {
-    val logged = entries.count { entry ->
-        YearMonth.from(entry.appliedAt.atZone(zoneId).toLocalDate()) == displayedMonth
-    }
+    val logged = collapseHistoryEntries(
+        entries.filter { entry ->
+            YearMonth.from(entry.appliedAt.atZone(zoneId).toLocalDate()) == displayedMonth
+        }
+    ).size
 
     var onTrack = 0
     var partial = 0
