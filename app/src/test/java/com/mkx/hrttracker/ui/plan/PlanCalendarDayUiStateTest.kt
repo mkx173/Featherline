@@ -131,9 +131,9 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 19)
         )
 
-        assertEquals(PlanCalendarDayStatus.UNPLANNED, dayStates.getValue(LocalDate.of(2026, 4, 15)).status)
+        assertEquals(PlanCalendarDayStatus.OFFPLAN, dayStates.getValue(LocalDate.of(2026, 4, 15)).status)
         assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
-        assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
         assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 18)).status)
         assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 19)).status)
     }
@@ -234,7 +234,7 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
     }
 
     @Test
@@ -324,7 +324,7 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 17)
         )
 
-        assertEquals(PlanCalendarDayStatus.UNPLANNED, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(PlanCalendarDayStatus.OFFPLAN, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
     }
 
     @Test
@@ -375,7 +375,7 @@ class PlanCalendarDayUiStateTest {
             endDate = LocalDate.of(2026, 4, 16)
         )
 
-        assertEquals(PlanCalendarDayStatus.SCHEDULED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
     }
 
     @Test

@@ -13,6 +13,7 @@ data class HistoryMonthSummary(
     val onTrack: Int = 0,
     val partial: Int = 0,
     val missed: Int = 0,
+    val offPlan: Int = 0,
 )
 
 data class HistoryCollapsedEntry(
@@ -105,6 +106,7 @@ internal fun buildHistoryMonthSummary(
     var onTrack = 0
     var partial = 0
     var missed = 0
+    var offPlan = 0
     var currentDate = displayedMonth.atDay(1)
     val endDate = displayedMonth.atEndOfMonth()
 
@@ -113,13 +115,14 @@ internal fun buildHistoryMonthSummary(
             when (dayStates[currentDate]?.status ?: PlanCalendarDayStatus.NONE) {
                 PlanCalendarDayStatus.FULFILLED -> onTrack++
                 PlanCalendarDayStatus.PARTIAL -> partial++
-                PlanCalendarDayStatus.SCHEDULED -> {
+                PlanCalendarDayStatus.MISSED -> {
                     if (currentDate.isBefore(today)) {
                         missed++
                     }
                 }
+                PlanCalendarDayStatus.OFFPLAN -> offPlan++
                 PlanCalendarDayStatus.NONE,
-                PlanCalendarDayStatus.UNPLANNED -> Unit
+                -> Unit
             }
         }
         currentDate = currentDate.plusDays(1)
@@ -129,7 +132,8 @@ internal fun buildHistoryMonthSummary(
         logged = logged,
         onTrack = onTrack,
         partial = partial,
-        missed = missed
+        missed = missed,
+        offPlan = offPlan
     )
 }
 

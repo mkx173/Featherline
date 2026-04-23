@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -59,7 +58,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -83,7 +81,6 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatSummary
-import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
@@ -847,7 +844,7 @@ private fun selectedDaySummaryColor(
     return when {
         overallStatus == PlanCalendarDayStatus.FULFILLED -> fulfilledIndicatorColor
         overallStatus == PlanCalendarDayStatus.PARTIAL -> overduePartialIndicatorColor
-        overallStatus == PlanCalendarDayStatus.SCHEDULED && date.isBefore(today) -> overdueScheduledIndicatorColor
+        overallStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today) -> overdueScheduledIndicatorColor
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
@@ -1359,7 +1356,7 @@ private fun DayStatusIndicator(
                     )
             )
         }
-        PlanCalendarDayStatus.UNPLANNED -> {
+        PlanCalendarDayStatus.OFFPLAN -> {
             Box(
                 modifier = Modifier
                     .size(8.dp)
@@ -1369,7 +1366,7 @@ private fun DayStatusIndicator(
                     )
             )
         }
-        PlanCalendarDayStatus.SCHEDULED -> {
+        PlanCalendarDayStatus.MISSED -> {
             Box(
                 modifier = Modifier
                     .size(8.dp)

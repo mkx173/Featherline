@@ -13,8 +13,8 @@ import java.time.ZoneId
 
 enum class PlanCalendarDayStatus {
     NONE,
-    UNPLANNED,
-    SCHEDULED,
+    OFFPLAN,
+    MISSED,
     PARTIAL,
     FULFILLED,
 }
@@ -22,14 +22,14 @@ enum class PlanCalendarDayStatus {
 data class PlanCalendarDayUiState(
     val expectedOccurrenceCount: Int = 0,
     val matchedOccurrenceCount: Int = 0,
-    val hasUnplannedRecord: Boolean = false,
+    val hasOffPlanRecord: Boolean = false,
     val hasMatchingScheduledRecord: Boolean = false,
 ) {
     val status: PlanCalendarDayStatus
         get() = when {
-            expectedOccurrenceCount <= 0 && hasUnplannedRecord -> PlanCalendarDayStatus.UNPLANNED
+            expectedOccurrenceCount <= 0 && hasOffPlanRecord -> PlanCalendarDayStatus.OFFPLAN
             expectedOccurrenceCount <= 0 -> PlanCalendarDayStatus.NONE
-            matchedOccurrenceCount <= 0 && !hasMatchingScheduledRecord -> PlanCalendarDayStatus.SCHEDULED
+            matchedOccurrenceCount <= 0 && !hasMatchingScheduledRecord -> PlanCalendarDayStatus.MISSED
             matchedOccurrenceCount < expectedOccurrenceCount -> PlanCalendarDayStatus.PARTIAL
             else -> PlanCalendarDayStatus.FULFILLED
         }
@@ -73,7 +73,7 @@ fun buildPlanCalendarDayUiState(
         dayStates[currentDate] = PlanCalendarDayUiState(
             expectedOccurrenceCount = expectedOccurrenceCount,
             matchedOccurrenceCount = matchedOccurrenceCount,
-            hasUnplannedRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty(),
+            hasOffPlanRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty(),
             hasMatchingScheduledRecord = hasMatchingScheduledRecord
         )
         currentDate = currentDate.plusDays(1)

@@ -3,11 +3,8 @@ package com.mkx.hrttracker.ui.history
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,42 +17,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.PieChartOutline
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Contrast
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Error
-import androidx.compose.material.icons.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -84,8 +61,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
@@ -581,7 +556,14 @@ private fun HistoryMonthSummaryStrip(
                 HistorySummaryInlineStat(
                     value = summary.missed,
                     color = indicatorColors.scheduled,
-                    kind = HistorySummaryInlineStatKind.RING
+                    kind = HistorySummaryInlineStatKind.MISSED
+                )
+            }
+            if (summary.offPlan > 0) {
+                HistorySummaryInlineStat(
+                    value = summary.offPlan,
+                    color = indicatorColors.unplanned,
+                    kind = HistorySummaryInlineStatKind.OFFPLAN
                 )
             }
         }
@@ -617,8 +599,8 @@ private fun HistorySummaryInlineStat(
 private enum class HistorySummaryInlineStatKind {
     CHECK,
     PARTIAL,
-    RING,
-    UNPLANNED,
+    MISSED,
+    OFFPLAN,
     NO_RECORD
 }
 
@@ -631,8 +613,8 @@ private fun HistorySummaryIndicatorGlyph(
     val imageVector = when (kind) {
         HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.Check
         HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.Contrast
-        HistorySummaryInlineStatKind.RING -> Icons.Rounded.RadioButtonUnchecked
-        HistorySummaryInlineStatKind.UNPLANNED -> Icons.Rounded.Circle
+        HistorySummaryInlineStatKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
+        HistorySummaryInlineStatKind.OFFPLAN -> Icons.Rounded.Circle
         HistorySummaryInlineStatKind.NO_RECORD -> Icons.Rounded.Remove
     }
     Icon(
@@ -737,11 +719,11 @@ private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
             label = stringResource(R.string.history_summary_partial)
         )
         HistoryCalendarLegendItem(
-            status = PlanCalendarDayStatus.SCHEDULED,
+            status = PlanCalendarDayStatus.MISSED,
             label = stringResource(R.string.history_summary_missed)
         )
         HistoryCalendarLegendItem(
-            status = PlanCalendarDayStatus.UNPLANNED,
+            status = PlanCalendarDayStatus.OFFPLAN,
             label = stringResource(R.string.history_legend_unplanned)
         )
     }
@@ -921,6 +903,7 @@ private fun HistoryCalendarDay(
             HistoryCalendarDayIndicator(
                 date = day.date,
                 today = today,
+                isSelected = isSelected,
                 dayStatus = historyCalendarIndicatorStatus(
                     date = day.date,
                     today = today,
@@ -973,6 +956,7 @@ internal fun historyCalendarDayClickTargetMonth(
 private fun HistoryCalendarDayIndicator(
     date: LocalDate,
     today: LocalDate,
+    isSelected: Boolean,
     dayStatus: PlanCalendarDayStatus
 ) {
     val indicatorMode = if (date.isBefore(today)) {
@@ -980,12 +964,18 @@ private fun HistoryCalendarDayIndicator(
     } else {
         HistoryIndicatorColorMode.Neutral
     }
+    val selectedColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        null
+    }
 
     HistoryStatusIndicator(
         status = dayStatus,
         colors = historyIndicatorColors(
             scheduledMode = indicatorMode,
-            partialMode = indicatorMode
+            partialMode = indicatorMode,
+            selectedColor = selectedColor
         )
     )
 }
@@ -1004,16 +994,16 @@ private fun HistoryStatusIndicator(
                 modifier = modifier.size(12.dp)
             )
         }
-        PlanCalendarDayStatus.UNPLANNED -> {
+        PlanCalendarDayStatus.OFFPLAN -> {
             HistorySummaryIndicatorGlyph(
-                kind = HistorySummaryInlineStatKind.UNPLANNED,
+                kind = HistorySummaryInlineStatKind.OFFPLAN,
                 color = colors.unplanned,
                 modifier = modifier.size(12.dp)
             )
         }
-        PlanCalendarDayStatus.SCHEDULED -> {
+        PlanCalendarDayStatus.MISSED -> {
             HistorySummaryIndicatorGlyph(
-                kind = HistorySummaryInlineStatKind.RING,
+                kind = HistorySummaryInlineStatKind.MISSED,
                 color = colors.scheduled,
                 modifier = modifier.size(12.dp)
             )
@@ -1079,7 +1069,7 @@ private fun HistoryEntryGroupHeader(
             ) {
                 HistoryStatusDot(
                     status = dayStatus,
-                    isPastScheduled = dayStatus == PlanCalendarDayStatus.SCHEDULED && date.isBefore(today),
+                    isPastScheduled = dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today),
                     isToday = isToday
                 )
                 Text(
@@ -1182,8 +1172,18 @@ private data class HistoryIndicatorColors(
 @Composable
 private fun historyIndicatorColors(
     scheduledMode: HistoryIndicatorColorMode = HistoryIndicatorColorMode.Neutral,
-    partialMode: HistoryIndicatorColorMode = HistoryIndicatorColorMode.Neutral
+    partialMode: HistoryIndicatorColorMode = HistoryIndicatorColorMode.Neutral,
+    selectedColor: Color? = null
 ): HistoryIndicatorColors {
+    if (selectedColor != null) {
+        return HistoryIndicatorColors(
+            scheduled = selectedColor,
+            partial = selectedColor,
+            fulfilled = selectedColor,
+            neutral = selectedColor,
+            unplanned = selectedColor
+        )
+    }
     return HistoryIndicatorColors(
         scheduled = historyIndicatorColor(
             mode = scheduledMode,

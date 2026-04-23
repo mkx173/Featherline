@@ -194,7 +194,7 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun buildHistoryMonthSummary_counts_logged_on_track_partial_and_missed_days() {
+    fun buildHistoryMonthSummary_counts_logged_on_track_partial_missed_and_off_plan_days() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(
                 entryAt(LocalDateTime.of(2026, 4, 10, 8, 0)),
@@ -205,9 +205,9 @@ class HistoryUiModelsTest {
             dayStates = mapOf(
                 LocalDate.of(2026, 4, 10) to stateFor(PlanCalendarDayStatus.FULFILLED),
                 LocalDate.of(2026, 4, 11) to stateFor(PlanCalendarDayStatus.PARTIAL),
-                LocalDate.of(2026, 4, 12) to stateFor(PlanCalendarDayStatus.SCHEDULED),
-                LocalDate.of(2026, 4, 13) to stateFor(PlanCalendarDayStatus.UNPLANNED),
-                LocalDate.of(2026, 4, 25) to stateFor(PlanCalendarDayStatus.SCHEDULED)
+                LocalDate.of(2026, 4, 12) to stateFor(PlanCalendarDayStatus.MISSED),
+                LocalDate.of(2026, 4, 13) to stateFor(PlanCalendarDayStatus.OFFPLAN),
+                LocalDate.of(2026, 4, 25) to stateFor(PlanCalendarDayStatus.MISSED)
             ),
             today = LocalDate.of(2026, 4, 20)
         )
@@ -216,6 +216,7 @@ class HistoryUiModelsTest {
         assertEquals(1, summary.onTrack)
         assertEquals(1, summary.partial)
         assertEquals(1, summary.missed)
+        assertEquals(1, summary.offPlan)
     }
 
     @Test
@@ -258,6 +259,7 @@ class HistoryUiModelsTest {
         )
 
         assertEquals(2, summary.logged)
+        assertEquals(0, summary.offPlan)
     }
 
     @Test
@@ -485,7 +487,7 @@ class HistoryUiModelsTest {
             historyCalendarIndicatorStatus(
                 date = today.plusDays(1),
                 today = today,
-                dayStatus = PlanCalendarDayStatus.SCHEDULED
+                dayStatus = PlanCalendarDayStatus.MISSED
             )
         )
         assertEquals(
@@ -530,8 +532,8 @@ class HistoryUiModelsTest {
     private fun stateFor(status: PlanCalendarDayStatus): PlanCalendarDayUiState {
         return when (status) {
             PlanCalendarDayStatus.NONE -> PlanCalendarDayUiState()
-            PlanCalendarDayStatus.UNPLANNED -> PlanCalendarDayUiState(hasUnplannedRecord = true)
-            PlanCalendarDayStatus.SCHEDULED -> PlanCalendarDayUiState(expectedOccurrenceCount = 1)
+            PlanCalendarDayStatus.OFFPLAN -> PlanCalendarDayUiState(hasOffPlanRecord = true)
+            PlanCalendarDayStatus.MISSED -> PlanCalendarDayUiState(expectedOccurrenceCount = 1)
             PlanCalendarDayStatus.PARTIAL -> PlanCalendarDayUiState(expectedOccurrenceCount = 2, matchedOccurrenceCount = 1)
             PlanCalendarDayStatus.FULFILLED -> PlanCalendarDayUiState(expectedOccurrenceCount = 1, matchedOccurrenceCount = 1)
         }
