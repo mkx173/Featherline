@@ -378,7 +378,7 @@ private fun HistoryScreenContent(
                     )
                 }
             } else {
-                groupedEntries.forEach { (date, dateEntries) ->
+                groupedEntries.entries.forEachIndexed { groupIndex, (date, dateEntries) ->
                     item(key = "header-$date") {
                         HistoryEntryGroupHeader(
                             date = date,
@@ -413,7 +413,9 @@ private fun HistoryScreenContent(
                                     onLongClick = { onEntryLongClick(collapsedEntry) }
                                 )
                             }
-                            Spacer(modifier = Modifier.fillMaxWidth().height(4.dp))
+                            if (groupIndex < groupedEntries.size - 1) {
+                                Spacer(modifier = Modifier.fillMaxWidth().height(4.dp))
+                            }
                         }
                     }
                 }
@@ -422,7 +424,7 @@ private fun HistoryScreenContent(
             if (uiState.selectedDate != null) {
                 item(key = "clear-selection") {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Surface(
@@ -1268,6 +1270,30 @@ private fun HistoryScreenSelectedDayPreview() {
             uiState = buildHistoryPreviewUiState(
                 selectedDate = LocalDate.now(),
                 selectedEntryIds = setOf(UUID.fromString("611d7af2-6108-45ab-a320-4064e0dd1233"))
+            ),
+            onEntryClick = { },
+            onEntryLongClick = { },
+            onDayClick = { },
+            onDeleteSelectedClick = { },
+            onDeleteDismiss = { },
+            onDeleteConfirm = { },
+            onDisplayedMonthChange = { _ -> }
+        )
+    }
+}
+
+@Preview(
+    name = "History Selected Day Empty",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 900
+)
+@Composable
+private fun HistoryScreenSelectedDayEmptyPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        HistoryScreenContent(
+            uiState = buildHistoryPreviewUiState(
+                selectedDate = LocalDate.now().minusDays(2)
             ),
             onEntryClick = { },
             onEntryLongClick = { },
