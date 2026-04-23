@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.SmallFloatingActionButton
@@ -126,9 +128,9 @@ fun HrtTrackerNavHost(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            ShortNavigationBar {
+            NavigationBar {
                 bottomNavItems.forEach { navItem ->
-                    ShortNavigationBarItem(
+                    NavigationBarItem(
                         selected = selectedBottomScreen == navItem.screen,
                         onClick = {
                             val isOnChildOfSelectedTopLevel =
