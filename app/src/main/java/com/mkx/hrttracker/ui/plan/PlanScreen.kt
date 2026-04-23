@@ -108,7 +108,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 @Composable
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
-    onEntryClick: (UUID) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -136,7 +136,7 @@ fun PlanScreen(
 private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
-    onEntryClick: (UUID) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -280,9 +280,9 @@ private fun PlanScreenContent(
                     headerFormatter = selectedDayHeaderFormatter,
                     timeFormatter = timeFormatter,
                     onScheduledClick = { scheduled ->
-                        val fulfillingEntryUuid = scheduled.fulfillingEntryUuids.firstOrNull()
-                        if (scheduled.isFulfilled && fulfillingEntryUuid != null) {
-                            onEntryClick(fulfillingEntryUuid)
+                        val editingEntryIds = plannedEntryEditorIds(scheduled)
+                        if (scheduled.isFulfilled && editingEntryIds.isNotEmpty()) {
+                            onEntryClick(editingEntryIds)
                         } else {
                             onQuickLogClick(
                                 scheduled.groupUuid,
@@ -296,7 +296,7 @@ private fun PlanScreenContent(
                         }
                     },
                     onUnplannedClick = { entry ->
-                        onEntryClick(entry.uuid)
+                        onEntryClick(unplannedEntryEditorIds(entry))
                     }
                 )
             }
@@ -333,6 +333,14 @@ private fun PlanScreenContent(
             }
         }
     }
+}
+
+internal fun plannedEntryEditorIds(scheduled: PlanDayScheduleEntry): Set<UUID> {
+    return scheduled.fulfillingEntryUuids.toSet()
+}
+
+internal fun unplannedEntryEditorIds(entry: MedicationLogEntry): Set<UUID> {
+    return setOf(entry.uuid)
 }
 
 @Composable

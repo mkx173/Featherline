@@ -100,9 +100,15 @@
     <string name="history_entry_source_group_manual">来自用药分组的记录</string>
     <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
+    <string name="delete_entry_title">删除记录</string>
     <string name="delete_entries_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
     <string name="delete_entries_confirm">删除</string>
+    <string name="delete_editing_entry_confirmation">删除这条记录？</string>
+    <plurals name="delete_editing_entries_confirmation">
+        <item quantity="one">删除这条记录？</item>
+        <item quantity="other">删除这 %1$d 条记录？</item>
+    </plurals>
     <string name="field_medication_category">类别</string>
     <string name="field_medication_application">应用类型</string>
     <string name="field_medication">药物</string>
@@ -153,9 +159,6 @@
     <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>
     <string name="field_time_of_application">用药时间</string>
-    <string name="save_entry">保存记录</string>
-    <string name="save_medication">保存药物</string>
-    <string name="save_medication_group">保存分组</string>
     <string name="delete_medication_group">删除分组</string>
     <string name="delete_medication_group_title">删除分组</string>
     <string name="delete_medication_group_confirmation">要删除这个用药分组吗？相关历史记录会被保留，并转换为手动记录。</string>

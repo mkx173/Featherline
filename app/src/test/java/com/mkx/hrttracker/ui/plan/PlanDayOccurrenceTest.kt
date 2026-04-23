@@ -124,6 +124,33 @@ class PlanDayOccurrenceTest {
         assertEquals(2, schedule.scheduledEntries.single().medication.count)
     }
 
+    @Test
+    fun plannedEntryEditorIds_returns_all_fulfilling_entry_ids_for_counted_fulfilled_entries() {
+        val firstId = UUID.fromString("5a09f5d0-4f91-44d7-8f51-9ff0e9b1498a")
+        val secondId = UUID.fromString("8f10f8fb-f7f8-4f51-b17f-227cd96d39da")
+        val scheduledEntry = PlanDayScheduleEntry(
+            groupUuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
+            groupName = "Test group",
+            groupColorKey = MedicationGroupColorKey.TEAL,
+            scheduledTime = LocalTime.of(9, 0),
+            medication = testMedicationGroupMedication(
+                uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0)
+                ),
+                count = 2
+            ),
+            fulfillingEntryUuids = listOf(firstId, secondId),
+            isFulfilled = true,
+            isDueSoon = false,
+            isPastDue = false
+        )
+
+        assertEquals(setOf(firstId, secondId), plannedEntryEditorIds(scheduledEntry))
+    }
+
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
         return MedicationGroup(
             uuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),

@@ -100,9 +100,15 @@
     <string name="history_entry_source_group_manual">Entry from medication group</string>
     <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
+    <string name="delete_entry_title">Delete entry</string>
     <string name="delete_entries_title">Delete entries</string>
     <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
     <string name="delete_entries_confirm">Delete</string>
+    <string name="delete_editing_entry_confirmation">Delete this entry?</string>
+    <plurals name="delete_editing_entries_confirmation">
+        <item quantity="one">Delete this entry?</item>
+        <item quantity="other">Delete these %1$d entries?</item>
+    </plurals>
     <string name="field_medication_category">Category</string>
     <string name="field_medication_application">Application</string>
     <string name="field_medication">Medication</string>
@@ -153,9 +159,6 @@
     <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
-    <string name="save_entry">Save Entry</string>
-    <string name="save_medication">Save medication</string>
-    <string name="save_medication_group">Save Group</string>
     <string name="delete_medication_group">Delete Group</string>
     <string name="delete_medication_group_title">Delete group</string>
     <string name="delete_medication_group_confirmation">Delete this medication group? Related history entries will be kept and converted to manual entries.</string>

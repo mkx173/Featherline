@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -32,6 +33,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -100,6 +102,8 @@ fun StructuredMedicationEditorSheet(
     showAppliedAtFields: Boolean = false,
     errorMessageRes: Int? = null,
     isSaving: Boolean = false,
+    destructiveButtonText: String? = null,
+    onDestructiveAction: (() -> Unit)? = null,
     onConfirm: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -388,14 +392,44 @@ fun StructuredMedicationEditorSheet(
                 )
             }
 
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = dimensionResource(R.dimen.padding_xsmall)),
-                enabled = !isSaving
-            ) {
-                Text(text = confirmButtonText)
+            val hasDestructiveAction = destructiveButtonText != null && onDestructiveAction != null
+            if (hasDestructiveAction) {
+                val destructiveAction = checkNotNull(onDestructiveAction)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = dimensionResource(R.dimen.padding_xsmall)),
+                    horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+                ) {
+                    Button(
+                        onClick = destructiveAction,
+                        modifier = Modifier.weight(1f),
+                        enabled = !isSaving,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text(text = destructiveButtonText)
+                    }
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        enabled = !isSaving
+                    ) {
+                        Text(text = confirmButtonText)
+                    }
+                }
+            } else {
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = dimensionResource(R.dimen.padding_xsmall)),
+                    enabled = !isSaving
+                ) {
+                    Text(text = confirmButtonText)
+                }
             }
         }
     }
@@ -568,7 +602,7 @@ private fun StructuredMedicationEditorSheetPreview() {
         StructuredMedicationEditorSheet(
             title = "Edit medication",
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            confirmButtonText = "Save medication",
+            confirmButtonText = "Save",
             onDismissRequest = { },
             onCloseClick = { },
             draft = defaultMedicationDraft(

@@ -834,7 +834,7 @@ private fun MedicationGroupEditorScreenContent(
                 }
             ),
             sheetState = sheetState,
-            confirmButtonText = stringResource(R.string.save_medication),
+            confirmButtonText = stringResource(R.string.save),
             onDismissRequest = onDismissMedicationEditor,
             onCloseClick = {
                 hideBottomSheet(scope, sheetState, onDismissMedicationEditor)

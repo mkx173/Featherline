@@ -1,13 +1,19 @@
 package com.mkx.hrttracker.ui.log
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -65,6 +71,7 @@ fun AddEntryScreen(
         onMedicationDraftChange = viewModel::updateMedicationDraft,
         onAppliedDateChange = viewModel::updateAppliedDate,
         onAppliedTimeChange = viewModel::updateAppliedTime,
+        onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
         modifier = modifier
     )
@@ -80,14 +87,17 @@ private fun AddEntryScreenContent(
     onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
+
     StructuredMedicationEditorSheet(
         modifier = modifier.fillMaxSize(),
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
-        confirmButtonText = stringResource(R.string.save_entry),
+        confirmButtonText = stringResource(R.string.save),
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         draft = uiState.medicationDraft,
@@ -131,8 +141,45 @@ private fun AddEntryScreenContent(
         showAppliedAtFields = true,
         errorMessageRes = uiState.errorMessageRes,
         isSaving = uiState.isSaving,
+        destructiveButtonText = if (uiState.canDelete) {
+            stringResource(R.string.delete_entries_confirm)
+        } else {
+            null
+        },
+        onDestructiveAction = if (uiState.canDelete) {
+            { isDeleteConfirmationVisible = true }
+        } else {
+            null
+        },
         onConfirm = onSaveClick
     )
+
+    if (isDeleteConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = { isDeleteConfirmationVisible = false },
+            title = { Text(text = stringResource(R.string.delete_entry_title)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.delete_editing_entry_confirmation)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isDeleteConfirmationVisible = false
+                        onDeleteClick()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDeleteConfirmationVisible = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @Preview(showBackground = true)
@@ -157,6 +204,7 @@ private fun AddEntryScreenPreview() {
             onMedicationDraftChange = { },
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
+            onDeleteClick = { },
             onSaveClick = { }
         )
     }

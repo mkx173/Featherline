@@ -146,4 +146,14 @@ class AddEntryViewModelTest {
         requireNotNull(uiState)
         assertTrue(uiState.canEditMedicationIdentity)
     }
+
+    @Test
+    fun addEntryUiState_allows_delete_only_while_editing() {
+        assertFalse(AddEntryUiState().canDelete)
+        assertTrue(
+            AddEntryUiState(
+                editingEntryIds = listOf(UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString())
+            ).canDelete
+        )
+    }
 }

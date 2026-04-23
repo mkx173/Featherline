@@ -226,9 +226,9 @@ fun HrtTrackerNavHost(
                             )
                         )
                     },
-                    onEntryClick = { entryId ->
+                    onEntryClick = { entryIds ->
                         addEntrySheetRequest = AddEntrySheetRequest(
-                            entryIds = listOf(entryId.toString())
+                            entryIds = entryIds.map(UUID::toString)
                         )
                     },
                     onQuickLogClick = { groupId, scheduledAt, medicationDetails, medicationCount ->

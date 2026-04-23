@@ -123,6 +123,28 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
+    fun deleteEntry() {
+        val editingEntryUuids = _uiState.value.editingEntryIds.map(UUID::fromString)
+        if (editingEntryUuids.isEmpty()) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
+
+            medicationLogRepository.deleteEntries(editingEntryUuids)
+            medicationReminderScheduler.rescheduleAll()
+
+            _uiState.update {
+                it.copy(
+                    isSaving = false,
+                    isSaved = true,
+                    errorMessageRes = null
+                )
+            }
+        }
+    }
+
     fun consumeSavedState() {
         _uiState.update { it.copy(isSaved = false) }
     }
@@ -156,6 +178,9 @@ data class AddEntryUiState(
 
     val canEditMedicationIdentity: Boolean
         get() = sourceGroupUuid == null
+
+    val canDelete: Boolean
+        get() = isEditing
 }
 
 internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {
