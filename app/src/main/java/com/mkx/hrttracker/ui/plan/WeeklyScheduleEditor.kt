@@ -82,7 +82,7 @@ internal fun WeeklyScheduleEditor(
 
         SegmentedListItem(
             colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             ),
             shapes = ListItemDefaults.segmentedShapes(
                 index = 2,

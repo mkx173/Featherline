@@ -21,28 +21,31 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
@@ -52,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -72,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -340,7 +345,7 @@ private fun HistoryScreenContent(
             if (uiState.isSelectionMode) {
                 FloatingActionButton(onClick = onDeleteSelectedClick) {
                     Icon(
-                        imageVector = Icons.Filled.Delete,
+                        imageVector = Icons.Rounded.Delete,
                         contentDescription = stringResource(R.string.delete_entries_fab)
                     )
                 }
@@ -492,7 +497,7 @@ private fun HistoryScreenContent(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.Rounded.Close,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
                                     tint = MaterialTheme.colorScheme.primary
@@ -521,9 +526,7 @@ private fun HistoryMonthSummaryStrip(
         partialMode = HistoryIndicatorColorMode.Emphasized
     )
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 0.dp),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -660,12 +663,18 @@ private fun HistoryMonthCalendar(
         ) {
             HistoryCalendarTitle(
                 displayedMonth = displayedMonth,
+                currentMonth = YearMonth.from(today),
                 appLocale = appLocale,
                 canGoToPrevious = displayedMonth > calendarState.startMonth,
                 canGoToNext = displayedMonth < calendarState.endMonth,
                 onGoToPrevious = {
                     coroutineScope.launch {
                         calendarState.animateScrollToMonth(displayedMonth.minusMonths(1))
+                    }
+                },
+                onGoToCurrent = {
+                    coroutineScope.launch {
+                        calendarState.animateScrollToMonth(YearMonth.from(today))
                     }
                 },
                 onGoToNext = {
@@ -795,39 +804,58 @@ private fun HistoryMonthHeader(
 @Composable
 private fun HistoryCalendarTitle(
     displayedMonth: YearMonth,
+    currentMonth: YearMonth,
     appLocale: Locale,
     canGoToPrevious: Boolean,
     canGoToNext: Boolean,
     onGoToPrevious: () -> Unit,
+    onGoToCurrent: () -> Unit,
     onGoToNext: () -> Unit
 ) {
     val monthFormatter = remember(appLocale) {
         historyCalendarMonthTitleFormatter(appLocale)
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        HistoryCalendarNavigationButton(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-            enabled = canGoToPrevious,
-            onClick = onGoToPrevious
-        )
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HistoryCalendarNavigationButton(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                    enabled = canGoToPrevious,
+                    contentDescription = stringResource(R.string.history_previous_month),
+                    onClick = onGoToPrevious,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HistoryCalendarNavigationButton(
+                    imageVector = Icons.Rounded.RestartAlt,
+                    enabled = displayedMonth != currentMonth,
+                    contentDescription = stringResource(R.string.history_current_month),
+                    onClick = onGoToCurrent,
+                    modifier = Modifier.size(24.dp)
+                )
+                HistoryCalendarNavigationButton(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    enabled = canGoToNext,
+                    contentDescription = stringResource(R.string.history_next_month),
+                    onClick = onGoToNext,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+
         Text(
             text = displayedMonth.atDay(1).format(monthFormatter),
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontSize = 20.sp
-            ),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f)
-        )
-        HistoryCalendarNavigationButton(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            enabled = canGoToNext,
-            onClick = onGoToNext
+            modifier = Modifier.align(Alignment.Center)
         )
     }
 }
@@ -836,19 +864,25 @@ private fun HistoryCalendarTitle(
 private fun HistoryCalendarNavigationButton(
     imageVector: ImageVector,
     enabled: Boolean,
+    contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            modifier = Modifier.size(30.dp)
-        )
+        FilledTonalIconButton(
+            onClick = onClick,
+            enabled = enabled,
+        ) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                modifier = modifier
+            )
+        }
     }
+
 }
 
 @Composable
@@ -1247,7 +1281,7 @@ private fun HistoryEntryCard(
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceContainer
+        MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     SegmentedListItem(
@@ -1325,7 +1359,7 @@ private fun HistoryEmptyStateCard(
     ListItem(
         onClick = {},
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shapes = ListItemDefaults.shapes(
             shape = MaterialTheme.shapes.large
@@ -1454,17 +1488,17 @@ private fun historySourceVisual(
 ): HistorySourceVisual {
     if (fulfillsSchedule) {
         return HistorySourceVisual(
-            icon = Icons.Default.CalendarMonth,
+            icon = Icons.Rounded.CalendarMonth,
             contentDescriptionRes = R.string.history_entry_source_group_schedule
         )
     }
     return when (sourceType) {
         MedicationLogEntrySourceType.MANUAL -> HistorySourceVisual(
-            icon = Icons.Default.Edit,
+            icon = Icons.Rounded.Edit,
             contentDescriptionRes = R.string.history_entry_source_manual
         )
         MedicationLogEntrySourceType.GROUP_MANUAL -> HistorySourceVisual(
-            icon = Icons.AutoMirrored.Filled.ViewList,
+            icon = Icons.AutoMirrored.Rounded.ViewList,
             contentDescriptionRes = R.string.history_entry_source_group_manual
         )
     }

@@ -88,6 +88,9 @@
     <string name="history_selected_day_records_title">Records on %1$s</string>
     <string name="history_selected_day_empty_state">No entries for this day.</string>
     <string name="history_clear_selection">Clear selection</string>
+    <string name="history_previous_month">Previous month</string>
+    <string name="history_current_month">Current month</string>
+    <string name="history_next_month">Next month</string>
     <string name="history_month_summary_title">%1$s summary</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
     <string name="history_summary_logged">logged</string>

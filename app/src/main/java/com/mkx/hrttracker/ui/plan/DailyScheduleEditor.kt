@@ -104,7 +104,7 @@ private fun DailyTimesCard(
 ) {
     SegmentedListItem (
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         onClick = {}

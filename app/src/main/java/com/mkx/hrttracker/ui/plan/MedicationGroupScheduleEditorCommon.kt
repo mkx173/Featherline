@@ -85,7 +85,7 @@ internal fun IntervalStepperCard(
             }
         },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         onClick = { }
@@ -168,7 +168,7 @@ internal fun EditorFieldRow(
         },
         onClick = onClick,
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
     ) {
@@ -242,8 +242,8 @@ internal fun NotificationsCard(
             }
         },
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         shapes = segmentedListItemShapes(index = index, count = count)
     ) {

@@ -941,7 +941,7 @@ private fun MedicationGroupMedicationCard(
         onClick = onClick,
         shapes = segmentedListItemShapes(index = index, count = count),
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         leadingContent = {
             Surface(
@@ -1075,7 +1075,7 @@ private fun EditorSupportMessage(
         SegmentedListItem(
             shapes = segmentedListItemShapes(index = index, count = count),
             colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             ),
             onClick = {},
             modifier = Modifier.wrapContentHeight()
