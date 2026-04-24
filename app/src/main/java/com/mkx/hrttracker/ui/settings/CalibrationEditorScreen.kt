@@ -21,12 +21,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -55,6 +60,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
@@ -124,7 +130,9 @@ fun CalibrationEditorScreen(
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onE2ValueChange = viewModel::updateE2Value,
+        onE2UnitChange = viewModel::updateE2Unit,
         onAnalyteValueChange = viewModel::updateAnalyteValue,
+        onAnalyteUnitChange = viewModel::updateAnalyteUnit,
         onRemoveAnalyteClick = viewModel::removeAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
         onSaveClick = viewModel::save,
@@ -153,7 +161,9 @@ private fun CalibrationEditorScreenContent(
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
     onE2ValueChange: (String) -> Unit,
+    onE2UnitChange: (BloodUnitKey) -> Unit,
     onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
+    onAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
     onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
     onAddAnalyteClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -228,7 +238,9 @@ private fun CalibrationEditorScreenContent(
                     CalibrationAnalyteCard(
                         analyteKey = uiState.e2Draft.analyteKey,
                         valueText = uiState.e2Draft.valueText,
+                        unit = uiState.e2Draft.unit,
                         onValueChange = onE2ValueChange,
+                        onUnitChange = onE2UnitChange,
                     )
                 }
                 if (uiState.additionalDrafts.isNotEmpty()) {
@@ -246,8 +258,12 @@ private fun CalibrationEditorScreenContent(
                         CalibrationAnalyteCard(
                             analyteKey = draft.analyteKey,
                             valueText = draft.valueText,
+                            unit = draft.unit,
                             onValueChange = { value ->
                                 onAnalyteValueChange(draft.analyteKey, value)
+                            },
+                            onUnitChange = { unit ->
+                                onAnalyteUnitChange(draft.analyteKey, unit)
                             },
                             onRemoveClick = {
                                 onRemoveAnalyteClick(draft.analyteKey)
@@ -354,7 +370,9 @@ private fun CalibrationMetadataChip(
 private fun CalibrationAnalyteCard(
     analyteKey: BloodAnalyteKey,
     valueText: String,
+    unit: BloodUnitKey,
     onValueChange: (String) -> Unit,
+    onUnitChange: (BloodUnitKey) -> Unit,
     onRemoveClick: (() -> Unit)? = null,
 ) {
     CalibrationEditorCard {
@@ -374,11 +392,6 @@ private fun CalibrationAnalyteCard(
                         text = calibrationAnalyteLabel(analyteKey),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Text(
-                        text = calibrationUnitLabelFor(analyteKey),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
                 onRemoveClick?.let { removeClick ->
                     IconButton(onClick = removeClick) {
@@ -389,6 +402,11 @@ private fun CalibrationAnalyteCard(
                     }
                 }
             }
+            CalibrationUnitDropdown(
+                analyteKey = analyteKey,
+                selectedUnit = unit,
+                onUnitSelected = onUnitChange,
+            )
             OutlinedTextField(
                 value = valueText,
                 onValueChange = onValueChange,
@@ -399,6 +417,58 @@ private fun CalibrationAnalyteCard(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalibrationUnitDropdown(
+    analyteKey: BloodAnalyteKey,
+    selectedUnit: BloodUnitKey,
+    onUnitSelected: (BloodUnitKey) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val allowedUnits = remember(analyteKey) {
+        calibrationAllowedUnitsFor(analyteKey)
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = calibrationUnitLabel(selectedUnit),
+            onValueChange = {},
+            modifier = Modifier
+                .menuAnchor(
+                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                    enabled = true,
+                )
+                .fillMaxWidth(),
+            readOnly = true,
+            label = {
+                Text(text = stringResource(R.string.settings_calibration_unit_label))
+            },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            colors = OutlinedTextFieldDefaults.colors(),
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            allowedUnits.forEach { unit ->
+                DropdownMenuItem(
+                    text = { Text(text = calibrationUnitLabel(unit)) },
+                    onClick = {
+                        onUnitSelected(unit)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }
@@ -498,17 +568,20 @@ private fun CalibrationEditorScreenPreview() {
                 e2Draft = CalibrationResultDraftUiState(
                     analyteKey = BloodAnalyteKey.E2,
                     valueText = "152.4",
+                    unit = BloodUnitKey.PMOL_L,
                 ),
                 additionalDrafts = listOf(
                     CalibrationResultDraftUiState(
                         analyteKey = BloodAnalyteKey.T,
                         resultUuid = UUID.fromString("c047ef42-a1d6-4764-8ae8-203ef1ed54d6"),
                         valueText = "31.7",
+                        unit = BloodUnitKey.NMOL_L,
                     ),
                     CalibrationResultDraftUiState(
                         analyteKey = BloodAnalyteKey.FSH,
                         resultUuid = UUID.fromString("342f9176-5346-48ea-bb6a-7e9e5837fc2f"),
                         valueText = "0.2",
+                        unit = BloodUnitKey.MIU_ML,
                     ),
                 ),
             ),
@@ -518,7 +591,9 @@ private fun CalibrationEditorScreenPreview() {
             onDateClick = { },
             onTimeClick = { },
             onE2ValueChange = { },
+            onE2UnitChange = { },
             onAnalyteValueChange = { _, _ -> },
+            onAnalyteUnitChange = { _, _ -> },
             onRemoveAnalyteClick = { },
             onAddAnalyteClick = { },
             onSaveClick = { },

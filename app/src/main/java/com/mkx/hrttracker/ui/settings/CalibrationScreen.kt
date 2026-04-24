@@ -35,6 +35,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -195,13 +196,19 @@ internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): String {
         analyte?.key == BloodAnalyteKey.E2
     }
     if (e2Result != null) {
-        return "E2 ${formatCalibrationNumericValue(e2Result.value)} ${formatCalibrationUnitLabel(e2Result.unitSnapshot)}"
+        return formatCalibrationBuiltinResultSummary(
+            analyteKey = BloodAnalyteKey.E2,
+            canonicalValue = e2Result.canonicalValue,
+        )
     }
 
     return panel.results.joinToString(separator = " · ") { result ->
         when (val analyte = result.analyte) {
             is BloodTestResultAnalyte.Builtin -> {
-                "${calibrationAnalyteLabel(analyte.key)} ${formatCalibrationNumericValue(result.value)} ${formatCalibrationUnitLabel(result.unitSnapshot)}"
+                formatCalibrationBuiltinResultSummary(
+                    analyteKey = analyte.key,
+                    canonicalValue = result.canonicalValue,
+                )
             }
 
             is BloodTestResultAnalyte.Custom -> {
@@ -215,8 +222,21 @@ internal fun calibrationAnalyteLabel(analyteKey: BloodAnalyteKey): String {
     return analyteKey.storageValue.uppercase()
 }
 
+internal fun formatCalibrationBuiltinResultSummary(
+    analyteKey: BloodAnalyteKey,
+    canonicalValue: Double,
+): String {
+    return "${calibrationAnalyteLabel(analyteKey)} ${formatCalibrationNumericValue(canonicalValue)} ${
+        calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey))
+    }"
+}
+
 internal fun calibrationUnitLabelFor(analyteKey: BloodAnalyteKey): String {
-    return formatCalibrationUnitLabel(calibrationUnitFor(analyteKey).storageValue)
+    return formatCalibrationUnitLabel(defaultCalibrationUnitFor(analyteKey).storageValue)
+}
+
+internal fun calibrationUnitLabel(unit: BloodUnitKey): String {
+    return formatCalibrationUnitLabel(unit.storageValue)
 }
 
 internal fun formatCalibrationUnitLabel(unitSnapshot: String): String {
@@ -279,8 +299,8 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
                     createdAt = Instant.parse("2026-04-24T00:30:00Z"),
                     displayOrder = 0,
                     analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
-                    value = 152.4,
-                    unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                    value = 559.5,
+                    unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
                     canonicalValue = 152.4,
                 ),
                 BloodTestResult(
@@ -288,8 +308,8 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
                     createdAt = Instant.parse("2026-04-24T00:30:00Z"),
                     displayOrder = 1,
                     analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
-                    value = 34.0,
-                    unitSnapshot = BloodUnitKey.NG_DL.storageValue,
+                    value = 1.18,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
                     canonicalValue = 34.0,
                 ),
             ),

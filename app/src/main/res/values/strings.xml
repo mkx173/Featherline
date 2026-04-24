@@ -276,6 +276,7 @@
     <string name="settings_calibration_collected_at">Collected at</string>
     <string name="settings_calibration_date_label">Date</string>
     <string name="settings_calibration_time_label">Time</string>
+    <string name="settings_calibration_unit_label">Unit</string>
     <string name="settings_calibration_additional_results">Additional results</string>
     <string name="settings_calibration_add_analyte">Add another result</string>
     <string name="settings_calibration_add_analyte_title">Add result</string>

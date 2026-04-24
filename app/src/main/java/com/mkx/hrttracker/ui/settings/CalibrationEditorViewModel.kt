@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
@@ -76,12 +77,34 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateE2Unit(unit: BloodUnitKey) {
+        _uiState.update { state ->
+            state.copy(
+                e2Draft = state.e2Draft.copy(unit = unit)
+            )
+        }
+    }
+
     fun updateAnalyteValue(analyteKey: BloodAnalyteKey, value: String) {
         _uiState.update { state ->
             state.copy(
                 additionalDrafts = state.additionalDrafts.map { draft ->
                     if (draft.analyteKey == analyteKey) {
                         draft.copy(valueText = value)
+                    } else {
+                        draft
+                    }
+                }
+            )
+        }
+    }
+
+    fun updateAnalyteUnit(analyteKey: BloodAnalyteKey, unit: BloodUnitKey) {
+        _uiState.update { state ->
+            state.copy(
+                additionalDrafts = state.additionalDrafts.map { draft ->
+                    if (draft.analyteKey == analyteKey) {
+                        draft.copy(unit = unit)
                     } else {
                         draft
                     }
@@ -100,7 +123,8 @@ class CalibrationEditorViewModel @Inject constructor(
             } else {
                 state.copy(
                     additionalDrafts = (state.additionalDrafts + CalibrationResultDraftUiState(
-                        analyteKey = analyteKey
+                        analyteKey = analyteKey,
+                        unit = defaultCalibrationUnitFor(analyteKey),
                     )).sortedBy(::calibrationAdditionalAnalyteSortIndex)
                 )
             }
@@ -198,7 +222,7 @@ class CalibrationEditorViewModel @Inject constructor(
         return BloodTestResultInput.Builtin(
             uuid = resultUuid,
             analyteKey = analyteKey,
-            unit = calibrationUnitFor(analyteKey),
+            unit = unit,
             value = parsedValue,
         )
     }
@@ -212,6 +236,8 @@ class CalibrationEditorViewModel @Inject constructor(
                 analyteKey = analyte.key,
                 resultUuid = result.uuid,
                 valueText = formatCalibrationNumericValue(result.value),
+                unit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
+                    ?: defaultCalibrationUnitFor(analyte.key),
             )
         }
         val e2Draft = builtinDrafts.firstOrNull { draft ->
@@ -256,6 +282,7 @@ data class CalibrationResultDraftUiState(
     val analyteKey: BloodAnalyteKey,
     val resultUuid: UUID? = null,
     val valueText: String = "",
+    val unit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
 )
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {
@@ -281,16 +308,13 @@ internal fun calibrationAdditionalAnalyteOptions(
     return calibrationAdditionalAnalytes.filterNot(presentAnalytes::contains)
 }
 
-internal fun calibrationUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
-    return when (analyteKey) {
-        BloodAnalyteKey.E2 -> BloodUnitKey.PG_ML
-        BloodAnalyteKey.T -> BloodUnitKey.NG_DL
-        BloodAnalyteKey.PROG -> BloodUnitKey.NG_ML
-        BloodAnalyteKey.PRL -> BloodUnitKey.NG_ML
-        BloodAnalyteKey.FSH,
-        BloodAnalyteKey.LH,
-        -> BloodUnitKey.MIU_ML
-    }
+internal fun calibrationAllowedUnitsFor(analyteKey: BloodAnalyteKey): List<BloodUnitKey> {
+    return BloodTestCatalog.definitionFor(analyteKey).allowedUnits
+        .sortedBy(BloodUnitKey::ordinal)
+}
+
+internal fun defaultCalibrationUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
+    return calibrationAllowedUnitsFor(analyteKey).first()
 }
 
 private fun calibrationAdditionalAnalyteSortIndex(

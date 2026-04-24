@@ -58,8 +58,8 @@ class CalibrationEditorViewModelTest {
                     createdAt = Instant.parse("2026-04-24T00:30:00Z"),
                     displayOrder = 0,
                     analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
-                    value = 152.4,
-                    unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                    value = 559.5,
+                    unitSnapshot = BloodUnitKey.PMOL_L.storageValue,
                     canonicalValue = 152.4,
                 ),
                 BloodTestResult(
@@ -67,8 +67,8 @@ class CalibrationEditorViewModelTest {
                     createdAt = Instant.parse("2026-04-24T00:30:00Z"),
                     displayOrder = 1,
                     analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
-                    value = 31.7,
-                    unitSnapshot = BloodUnitKey.NG_DL.storageValue,
+                    value = 1.1,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
                     canonicalValue = 31.7,
                 ),
             )
@@ -87,9 +87,11 @@ class CalibrationEditorViewModelTest {
         assertFalse(uiState.isLoading)
         assertEquals(LocalDate.of(2026, 4, 24), uiState.collectedDate)
         assertEquals(LocalTime.of(9, 30), uiState.collectedTime)
-        assertEquals("152.4", uiState.e2Draft.valueText)
+        assertEquals("559.5", uiState.e2Draft.valueText)
+        assertEquals(BloodUnitKey.PMOL_L, uiState.e2Draft.unit)
         assertEquals(listOf(BloodAnalyteKey.T), uiState.additionalDrafts.map { it.analyteKey })
-        assertEquals("31.7", uiState.additionalDrafts.single().valueText)
+        assertEquals("1.1", uiState.additionalDrafts.single().valueText)
+        assertEquals(BloodUnitKey.NMOL_L, uiState.additionalDrafts.single().unit)
     }
 
     @Test
@@ -112,8 +114,10 @@ class CalibrationEditorViewModelTest {
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
         viewModel.updateCollectedTime(LocalTime.of(9, 30))
         viewModel.updateE2Value("152.4")
+        viewModel.updateE2Unit(BloodUnitKey.PMOL_L)
         viewModel.addAnalyte(BloodAnalyteKey.T)
         viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
 
         val expectedZoneId = ZoneId.of(viewModel.uiState.value.timeZoneId)
         val expectedInstant = LocalDateTime.of(2026, 4, 24, 9, 30)
@@ -131,10 +135,10 @@ class CalibrationEditorViewModelTest {
         val e2Result = savedResults[0] as BloodTestResultInput.Builtin
         val tResult = savedResults[1] as BloodTestResultInput.Builtin
         assertEquals(BloodAnalyteKey.E2, e2Result.analyteKey)
-        assertEquals(BloodUnitKey.PG_ML, e2Result.unit)
+        assertEquals(BloodUnitKey.PMOL_L, e2Result.unit)
         assertEquals(152.4, e2Result.value, 1e-9)
         assertEquals(BloodAnalyteKey.T, tResult.analyteKey)
-        assertEquals(BloodUnitKey.NG_DL, tResult.unit)
+        assertEquals(BloodUnitKey.NMOL_L, tResult.unit)
         assertEquals(31.7, tResult.value, 1e-9)
 
         coVerify {

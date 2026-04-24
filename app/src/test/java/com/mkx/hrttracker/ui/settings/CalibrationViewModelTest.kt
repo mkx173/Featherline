@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,40 @@ class CalibrationViewModelTest {
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun formatCalibrationPanelValueSummary_usesCanonicalUnitsForBuiltinResults() {
+        val panel = testBloodTestPanel(
+            results = listOf(
+                BloodTestResult(
+                    uuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
+                    value = 1.1,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
+                    canonicalValue = 31.7,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("2c35207b-c771-4c11-b6f2-f35f485542cd"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 1,
+                    analyte = BloodTestResultAnalyte.Custom(
+                        uuid = UUID.fromString("387e4ffb-6ddb-4b69-a6d9-95353d2e1f55"),
+                        name = "Marker",
+                    ),
+                    value = 8.5,
+                    unitSnapshot = "ratio",
+                    canonicalValue = 8.5,
+                )
+            )
+        )
+
+        assertEquals(
+            "T 31.7 ng/dL · Marker 8.5 ratio",
+            formatCalibrationPanelValueSummary(panel)
+        )
     }
 }
 
