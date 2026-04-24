@@ -104,14 +104,9 @@
     <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
     <string name="delete_entry_title">Delete entry</string>
-    <string name="delete_entries_title">Delete entries</string>
     <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
     <string name="delete_entries_confirm">Delete</string>
     <string name="delete_editing_entry_confirmation">Delete this entry?</string>
-    <plurals name="delete_editing_entries_confirmation">
-        <item quantity="one">Delete this entry?</item>
-        <item quantity="other">Delete these %1$d entries?</item>
-    </plurals>
     <string name="field_medication_category">Category</string>
     <string name="field_medication_application">Application</string>
     <string name="field_medication">Medication</string>
@@ -284,7 +279,6 @@
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_target_range">Target %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">Target &lt;%1$s %2$s</string>
-    <string name="settings_calibration_save_result">Save result</string>
     <string name="settings_calibration_analyte_prog">Progesterone</string>
     <string name="settings_calibration_analyte_prl">Prolactin</string>
     <string name="settings_calibration_analyte_fsh">Follicle-stimulating hormone</string>

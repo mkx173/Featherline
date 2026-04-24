@@ -309,7 +309,7 @@ private fun HistoryScreenContent(
     if (uiState.isDeleteConfirmationVisible) {
         AlertDialog(
             onDismissRequest = onDeleteDismiss,
-            title = { Text(text = stringResource(R.string.delete_entries_title)) },
+            title = { Text(text = stringResource(R.string.delete_entry_title)) },
             text = {
                 Text(
                     text = stringResource(

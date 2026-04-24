@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.coVerify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -58,6 +59,31 @@ class CalibrationViewModelTest {
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun refresh_reloads_latest_panels() = runTest {
+        val initialPanel = testBloodTestPanel(
+            uuid = UUID.fromString("9c95f940-d8c3-4d04-b766-c55f0e014b58")
+        )
+        val updatedPanel = testBloodTestPanel(
+            uuid = UUID.fromString("5d802712-bfc0-4af9-96f9-ae9c050b6af8")
+        )
+        coEvery { repository.getPanels() } returnsMany listOf(
+            listOf(initialPanel),
+            listOf(updatedPanel),
+        )
+
+        val viewModel = CalibrationViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(updatedPanel), viewModel.uiState.value.panels)
+        assertFalse(viewModel.uiState.value.isLoading)
+        coVerify(exactly = 2) { repository.getPanels() }
     }
 
     @Test

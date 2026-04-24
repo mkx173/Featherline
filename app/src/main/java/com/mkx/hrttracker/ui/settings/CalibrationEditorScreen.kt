@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -97,10 +99,18 @@ fun CalibrationEditorScreen(
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isAddAnalyteSheetVisible by rememberSaveable { mutableStateOf(false) }
+    var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             viewModel.consumeSavedState()
+            onSaved()
+        }
+    }
+
+    LaunchedEffect(uiState.isDeleted) {
+        if (uiState.isDeleted) {
+            viewModel.consumeDeletedState()
             onSaved()
         }
     }
@@ -125,6 +135,37 @@ fun CalibrationEditorScreen(
         )
     }
 
+    if (isDeleteDialogVisible && uiState.isEditing) {
+        AlertDialog(
+            onDismissRequest = { isDeleteDialogVisible = false },
+            title = {
+                Text(text = stringResource(R.string.delete_entry_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.delete_editing_entry_confirmation))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isDeleteDialogVisible = false
+                        viewModel.delete()
+                    },
+                    enabled = !uiState.isDeleting,
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { isDeleteDialogVisible = false },
+                    enabled = !uiState.isDeleting,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     CalibrationEditorScreenContent(
         uiState = uiState,
         dateFormatter = dateFormatter,
@@ -138,6 +179,7 @@ fun CalibrationEditorScreen(
         onAnalyteFocusLost = viewModel::markAnalyteFocusLost,
         onRemoveAnalyteClick = viewModel::removeAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
+        onDeleteClick = { isDeleteDialogVisible = true },
         onSaveClick = viewModel::save,
         modifier = modifier,
     )
@@ -169,10 +211,14 @@ private fun CalibrationEditorScreenContent(
     onAnalyteFocusLost: (BloodAnalyteKey) -> Unit,
     onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
     onAddAnalyteClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val canSave = canSaveCalibrationEditorState(uiState) && !uiState.isLoading && !uiState.isSaving
+    val canSave = canSaveCalibrationEditorState(uiState) &&
+        !uiState.isLoading &&
+        !uiState.isSaving &&
+        !uiState.isDeleting
     val remainingAnalyteCount = calibrationAnalyteOptions(uiState).size
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -324,6 +370,28 @@ private fun CalibrationEditorScreenContent(
                         onNotesChange = onNotesChange,
                     )
                 }
+                if (uiState.isEditing) {
+                    item {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                        Button(
+                            onClick = onDeleteClick,
+                            enabled = !uiState.isSaving && !uiState.isDeleting,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
+                            )
+                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
+                            Text(text = stringResource(R.string.delete_entries_confirm))
+                        }
+                    }
+                }
             }
         }
     }
@@ -449,6 +517,7 @@ private fun CalibrationEditorScreenPreview() {
             onAnalyteFocusLost = { },
             onRemoveAnalyteClick = { },
             onAddAnalyteClick = { },
+            onDeleteClick = { },
             onSaveClick = { },
         )
     }

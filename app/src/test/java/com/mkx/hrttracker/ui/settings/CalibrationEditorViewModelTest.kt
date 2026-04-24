@@ -209,6 +209,29 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
+    fun delete_existingPanel_marksEntryDeleted() = runTest {
+        val panelUuid = UUID.fromString("9f8a2bcc-5b67-41e1-81f4-adfe3f0bcf8e")
+        coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(uuid = panelUuid)
+        coEvery { repository.deletePanel(panelUuid) } returns Unit
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            )
+        )
+        advanceUntilIdle()
+
+        viewModel.delete()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isDeleted)
+        assertFalse(viewModel.uiState.value.isDeleting)
+        coVerify(exactly = 1) { repository.deletePanel(panelUuid) }
+    }
+
+    @Test
     fun updateCollectedDateAndTime_recomputesTimeSinceLastEstradiolDose() = runTest {
         val viewModel = CalibrationEditorViewModel(
             repository,

@@ -104,14 +104,9 @@
     <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
     <string name="delete_entry_title">删除记录</string>
-    <string name="delete_entries_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
     <string name="delete_entries_confirm">删除</string>
     <string name="delete_editing_entry_confirmation">删除这条记录？</string>
-    <plurals name="delete_editing_entries_confirmation">
-        <item quantity="one">删除这条记录？</item>
-        <item quantity="other">删除这 %1$d 条记录？</item>
-    </plurals>
     <string name="field_medication_category">类别</string>
     <string name="field_medication_application">应用类型</string>
     <string name="field_medication">药物</string>
@@ -284,11 +279,10 @@
     <string name="settings_calibration_value_label">数值</string>
     <string name="settings_calibration_target_range">目标 %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">目标 &lt;%1$s %2$s</string>
-    <string name="settings_calibration_save_result">保存结果</string>
     <string name="settings_calibration_analyte_prog">孕酮</string>
     <string name="settings_calibration_analyte_prl">催乳素</string>
     <string name="settings_calibration_analyte_fsh">促卵泡激素</string>
-    <string name="settings_calibration_analyte_lh">促黄体生成素</string>
+    <string name="settings_calibration_analyte_lh">黄体生成素</string>
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>

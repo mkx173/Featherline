@@ -159,7 +159,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     fun save() {
         val currentState = uiState.value
-        if (currentState.isSaving || !canSaveCalibrationEditorState(currentState)) {
+        if (currentState.isSaving || currentState.isDeleting || !canSaveCalibrationEditorState(currentState)) {
             return
         }
 
@@ -202,9 +202,44 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    fun delete() {
+        val panelUuid = editingPanelUuid ?: return
+        val currentState = uiState.value
+        if (currentState.isSaving || currentState.isDeleting) {
+            return
+        }
+
+        _uiState.update { state ->
+            state.copy(isDeleting = true)
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                bloodTestRepository.deletePanel(panelUuid)
+            }.onSuccess {
+                _uiState.update { state ->
+                    state.copy(
+                        isDeleting = false,
+                        isDeleted = true,
+                    )
+                }
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(isDeleting = false)
+                }
+            }
+        }
+    }
+
     fun consumeSavedState() {
         _uiState.update { state ->
             state.copy(isSaved = false)
+        }
+    }
+
+    fun consumeDeletedState() {
+        _uiState.update { state ->
+            state.copy(isDeleted = false)
         }
     }
 
@@ -297,7 +332,9 @@ data class CalibrationEditorUiState(
     val isEditing: Boolean = false,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
+    val isDeleted: Boolean = false,
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val timeZoneId: String = ZoneId.systemDefault().id,
