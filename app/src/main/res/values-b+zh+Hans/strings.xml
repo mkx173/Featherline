@@ -250,7 +250,7 @@
     <string name="medication_name_cyproterone_acetate">醋酸环丙孕酮</string>
     <string name="group_danger_zone_title">危险操作</string>
     <string name="settings_reminders">用药提醒</string>
-    <string name="settings_reminders_summary">提醒总开关。关闭后会停用所有提醒，但不会修改各分组的提醒设置。</string>
+    <string name="settings_reminders_summary">提醒总开关。关闭后会停用所有提醒。</string>
     <string name="settings_reminders_permission_off_summary">应用通知权限当前已关闭。请先启用通知，再重新开启提醒。</string>
     <string name="settings_reminders_permission_denied">通知权限被拒绝，提醒将保持关闭。</string>
     <string name="settings_reminders_notifications_unavailable">请先在系统设置中启用应用通知。</string>
@@ -264,6 +264,18 @@
     <string name="settings_hide_screen_content">隐藏屏幕内容</string>
     <string name="settings_hide_screen_content_summary">阻止截屏，并在最近任务中隐藏应用内容。</string>
     <string name="settings_personalization">个性化</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_about_privacy_policy">隐私政策</string>
+    <string name="settings_about_model">关于模型</string>
+    <string name="settings_about_model_summary">LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test</string>
+    <string name="settings_about_contact_developer">联系开发者</string>
+    <string name="settings_about_contact_developer_summary">@mikanmkx</string>
+    <string name="settings_about_open_link_title">打开外部链接？</string>
+    <string name="settings_about_open_link_message">要打开外部链接吗？</string>
+    <string name="settings_about_open_link_confirm">打开</string>
+    <string name="settings_about_app_info_version">%1$s（%2$s）</string>
+    <string name="settings_about_app_info_copy_text">%1$s · %2$s（%3$s）</string>
+    <string name="settings_about_app_info_copied">已复制应用信息。</string>
     <string name="personalization_weight">体重</string>
     <string name="personalization_weight_not_set">未设置</string>
     <string name="personalization_weight_display">%1$s %2$s</string>

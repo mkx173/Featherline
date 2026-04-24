@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
@@ -339,6 +340,9 @@ fun MedicationGroupEditorScreen(
                 }
             }
         },
+        onRequestExactAlarmAccess = {
+            maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+        },
         onRecoverMasterReminders = enableMasterReminders,
         notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
@@ -374,6 +378,7 @@ private fun MedicationGroupEditorScreenContent(
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
     onRecoverMasterReminders: () -> Unit,
     notificationsToggleEnabled: Boolean,
     showInexactReminderWarning: Boolean,
@@ -797,11 +802,15 @@ private fun MedicationGroupEditorScreenContent(
                     if (!uiState.remindersEnabled) {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled),
+                            icon = Icons.Rounded.Info,
                             index = 1, count = 2
                         )
                     } else if (showInexactReminderWarning) {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_inexact_warning),
+                            icon = Icons.Rounded.Info,
+                            onClick = onRequestExactAlarmAccess,
+                            showChevron = true,
                             index = 1, count = 2
                         )
                     }
@@ -1061,6 +1070,9 @@ private fun EditorSectionHeader(
 @Composable
 private fun EditorSupportMessage(
     text: String,
+    icon: ImageVector? = null,
+    onClick: (() -> Unit)? = null,
+    showChevron: Boolean = false,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -1070,8 +1082,28 @@ private fun EditorSupportMessage(
         EditorSegmentedListItem(
             index = index,
             count = count,
-            onClick = {},
+            onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
+            leadingContent = icon?.let { iconVector ->
+                {
+                    Icon(
+                        imageVector = iconVector,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            trailingContent = if (showChevron) {
+                {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                null
+            }
         ) {
             Text(
                 text = text,
@@ -1103,6 +1135,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onNotificationsEnabledChange = { },
+            onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
             notificationsToggleEnabled = false,
             showInexactReminderWarning = false,
@@ -1152,6 +1185,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onNotificationsEnabledChange = { },
+            onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
             notificationsToggleEnabled = true,
             showInexactReminderWarning = true,

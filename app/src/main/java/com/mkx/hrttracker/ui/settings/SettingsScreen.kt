@@ -1,11 +1,28 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Policy
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,17 +30,27 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.LockClock
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,11 +59,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -86,6 +117,14 @@ fun SettingsScreen(
             hasNotificationAccess = false
             Toast.makeText(context, reminderPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
         }
+    }
+    val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        showInexactReminderWarning =
+            hasNotificationAccess &&
+                settingsState.remindersEnabled &&
+                !canScheduleExactAlarms(context)
     }
 
     LaunchedEffect(configuration) {
@@ -152,6 +191,9 @@ fun SettingsScreen(
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
         onRemindersEnabledChange = onRemindersEnabledChange,
+        onRequestExactAlarmAccess = {
+            requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+        },
         onScreenLockProtectionToggle = viewModel::onScreenLockProtectionToggle,
         onAppLockGracePeriodOptionChange = viewModel::setAppLockGracePeriodOption,
         onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
@@ -171,6 +213,7 @@ private fun SettingsScreenContent(
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
     onRemindersEnabledChange: (Boolean) -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
@@ -180,11 +223,28 @@ private fun SettingsScreenContent(
     modifier: Modifier = Modifier
 ) {
     val settingsState = uiState.settingsState
+    val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    val appName = stringResource(R.string.app_name)
+    val appVersionInfo = remember(context) { resolveAppVersionInfo(context) }
+    val copyAppInfoMessage = stringResource(R.string.settings_about_app_info_copied)
+    val appInfoSummary = stringResource(
+        R.string.settings_about_app_info_version,
+        appVersionInfo.versionName,
+        appVersionInfo.versionCode.toString()
+    )
+    val appInfoCopyText = stringResource(
+        R.string.settings_about_app_info_copy_text,
+        appName,
+        appVersionInfo.versionName,
+        appVersionInfo.versionCode.toString()
+    )
 
     Scaffold(
         modifier = modifier,
@@ -196,8 +256,9 @@ private fun SettingsScreenContent(
     ) { innerPadding ->
         Column(
             modifier = Modifier
+                .verticalScroll(rememberScrollState())
                 .padding(innerPadding)
-                .padding(dimensionResource(R.dimen.padding_medium))
+                .padding(dimensionResource(R.dimen.padding_medium)),
         ) {
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_personalization)
@@ -208,6 +269,11 @@ private fun SettingsScreenContent(
                 count = 1,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { showWeightDialog = true },
+                leadingContent = {
+                    SettingsLeadingIconSlot(
+                        icon = Icons.Rounded.Edit
+                    )
+                },
                 supportingContent = {
                     Text(text = formatWeightSummary(uiState.userProfile))
                 }
@@ -221,39 +287,53 @@ private fun SettingsScreenContent(
                 text = stringResource(R.string.settings_notifications)
             )
 
-            EditorSegmentedListItem(
-                index = 0,
-                count = 1,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { onRemindersEnabledChange(!settingsState.remindersEnabled) },
-                supportingContent = {
-                    Column {
-                        Text(
-                            text = stringResource(
-                                if (hasNotificationAccess) {
-                                    R.string.settings_reminders_summary
-                                } else {
-                                    R.string.settings_reminders_permission_off_summary
-                                }
-                            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
+                EditorSegmentedListItem(
+                    index = 0,
+                    count = if (!hasNotificationAccess || showInexactReminderWarning) 2 else 1,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onRemindersEnabledChange(!settingsState.remindersEnabled) },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.Notifications
                         )
-                        if (showInexactReminderWarning) {
-                            Text(
-                                text = stringResource(R.string.group_notifications_inexact_warning),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.settings_reminders_summary))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.remindersEnabled && hasNotificationAccess,
+                            onCheckedChange = onRemindersEnabledChange
+                        )
                     }
-                },
-                trailingContent = {
-                    Switch(
-                        checked = settingsState.remindersEnabled && hasNotificationAccess,
-                        onCheckedChange = onRemindersEnabledChange
+                ) {
+                    Text(text = stringResource(R.string.settings_reminders))
+                }
+
+                if (!hasNotificationAccess) {
+                    SettingsSupportMessage(
+                        text = stringResource(R.string.settings_reminders_permission_off_summary),
+                        icon = Icons.Rounded.Info,
+                        onClick = { onRemindersEnabledChange(true) },
+                        showChevron = true,
+                        index = 1,
+                        count = 2
+                    )
+                } else if (showInexactReminderWarning) {
+                    SettingsSupportMessage(
+                        text = stringResource(R.string.group_notifications_inexact_warning),
+                        icon = Icons.Rounded.Info,
+                        onClick = onRequestExactAlarmAccess,
+                        showChevron = true,
+                        index = 1,
+                        count = 2
                     )
                 }
-            ) {
-                Text(text = stringResource(R.string.settings_reminders))
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -278,6 +358,11 @@ private fun SettingsScreenContent(
                             !settingsState.screenLockProtectionEnabled
                         )
                     },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.Lock
+                        )
+                    },
                     supportingContent = {
                         Text(text = stringResource(R.string.settings_screen_lock_protection_summary))
                     },
@@ -298,6 +383,11 @@ private fun SettingsScreenContent(
                             count = securityItemCount,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { setAppLockGracePeriodMenuExpanded(true) },
+                            leadingContent = {
+                                SettingsLeadingIconSlot(
+                                    icon = Icons.Rounded.LockClock
+                                )
+                            },
                             supportingContent = {
                                 Text(text = stringResource(settingsState.appLockGracePeriodOption.labelRes))
                             }
@@ -310,15 +400,15 @@ private fun SettingsScreenContent(
                             modifier = Modifier.width(IntrinsicSize.Min)
                         ) {
                             AppLockGracePeriodOption.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(text = stringResource(option.labelRes)) },
-                                onClick = {
-                                    onAppLockGracePeriodOptionChange(option)
-                                    setAppLockGracePeriodMenuExpanded(false)
-                                }
-                            )
+                                DropdownMenuItem(
+                                    text = { Text(text = stringResource(option.labelRes)) },
+                                    onClick = {
+                                        onAppLockGracePeriodOptionChange(option)
+                                        setAppLockGracePeriodMenuExpanded(false)
+                                    }
+                                )
+                            }
                         }
-                    }
                     }
                 }
 
@@ -329,6 +419,11 @@ private fun SettingsScreenContent(
                     onClick = {
                         onHideScreenContentEnabledChange(
                             !settingsState.hideScreenContentEnabled
+                        )
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.VisibilityOff
                         )
                     },
                     supportingContent = {
@@ -370,6 +465,11 @@ private fun SettingsScreenContent(
                         count = 3,
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { setLanguageMenuExpanded(true) },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                icon = Icons.Rounded.Language
+                            )
+                        },
                         supportingContent = {
                             Text(text = stringResource(settingsState.appLanguageOption.labelRes))
                         }
@@ -399,6 +499,11 @@ private fun SettingsScreenContent(
                         count = 3,
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { setDarkModeMenuExpanded(true) },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                icon = Icons.Rounded.DarkMode
+                            )
+                        },
                         supportingContent = {
                             Text(text = stringResource(settingsState.darkModeOption.labelRes))
                         }
@@ -429,6 +534,11 @@ private fun SettingsScreenContent(
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.Palette
+                        )
+                    },
                     trailingContent = {
                         Switch(
                             checked = settingsState.adaptiveColorEnabled,
@@ -439,7 +549,131 @@ private fun SettingsScreenContent(
                     Text(text = stringResource(R.string.settings_adaptive_color))
                 }
             }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_about)
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
+                EditorSegmentedListItem(
+                    index = 0,
+                    count = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showPrivacyPolicyDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.Policy
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_about_privacy_policy))
+                }
+
+                EditorSegmentedListItem(
+                    index = 1,
+                    count = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_github)
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.settings_about_model_summary))
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_about_model))
+                }
+
+                EditorSegmentedListItem(
+                    index = 2,
+                    count = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { pendingExternalUrl = DEVELOPER_X_URL },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_x)
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.settings_about_contact_developer_summary))
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_about_contact_developer))
+                }
+
+                EditorSegmentedListItem(
+                    index = 3,
+                    count = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        context.getSystemService(ClipboardManager::class.java)
+                            ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
+                        Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT).show()
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            icon = Icons.Rounded.Info
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = appInfoSummary)
+                    }
+                ) {
+                    Text(text = appName)
+                }
+            }
         }
+    }
+
+    if (showPrivacyPolicyDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyPolicyDialog = false },
+            title = { Text(text = stringResource(R.string.settings_about_privacy_policy)) },
+            text = { Text(text = stringResource(R.string.onboarding_privacy_message)) },
+            confirmButton = {
+                TextButton(onClick = { showPrivacyPolicyDialog = false }) {
+                    Text(text = stringResource(R.string.confirm))
+                }
+            }
+        )
+    }
+
+    pendingExternalUrl?.let { externalUrl ->
+        AlertDialog(
+            onDismissRequest = { pendingExternalUrl = null },
+            title = { Text(text = stringResource(R.string.settings_about_open_link_title)) },
+            text = { Text(text = stringResource(R.string.settings_about_open_link_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(externalUrl)))
+                        pendingExternalUrl = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_about_open_link_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingExternalUrl = null }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 
     if (showWeightDialog) {
@@ -472,6 +706,90 @@ private fun SettingsSectionTitle(
 }
 
 @Composable
+private fun SettingsLeadingIconSlot(
+    icon: ImageVector? = null,
+    painter: Painter? = null,
+    modifier: Modifier = Modifier
+) {
+    when {
+        icon != null -> {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = modifier.size(20.dp)
+            )
+        }
+
+        painter != null -> {
+            Icon(
+                painter = painter,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSupportMessage(
+    text: String,
+    icon: ImageVector,
+    onClick: (() -> Unit)? = null,
+    showChevron: Boolean = false,
+    index: Int = 0,
+    count: Int = 1
+) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+    ) {
+        EditorSegmentedListItem(
+            index = index,
+            count = count,
+            onClick = onClick ?: {},
+            modifier = Modifier.wrapContentHeight(),
+            leadingContent = {
+                SettingsLeadingIconSlot(icon = icon)
+            },
+            trailingContent = if (showChevron) {
+                {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                null
+            }
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun requestExactAlarmAccess(
+    context: Context,
+    launch: (Intent) -> Unit
+) {
+    if (canScheduleExactAlarms(context)) {
+        return
+    }
+
+    launch(
+        Intent(
+            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+            Uri.parse("package:${context.packageName}")
+        )
+    )
+}
+
+@Composable
 private fun formatWeightSummary(profile: UserProfile): String {
     val value = profile.weightOriginalValue
     val unit = profile.weightOriginalUnit
@@ -490,6 +808,38 @@ private fun formatWeightSummary(profile: UserProfile): String {
         )
     }
 }
+
+private data class AppVersionInfo(
+    val versionName: String,
+    val versionCode: Long
+)
+
+private fun resolveAppVersionInfo(context: Context): AppVersionInfo {
+    val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.PackageInfoFlags.of(0)
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        packageInfo.longVersionCode
+    } else {
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode.toLong()
+    }
+    val versionName = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: versionCode.toString()
+    return AppVersionInfo(
+        versionName = versionName,
+        versionCode = versionCode
+    )
+}
+
+private const val MODEL_REPOSITORY_URL =
+    "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
+private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"
 
 @Preview(
     name = "Settings Screen",
@@ -522,6 +872,7 @@ private fun SettingsScreenPreview() {
             onWeightSave = { _, _ -> },
             onWeightClear = { },
             onRemindersEnabledChange = { },
+            onRequestExactAlarmAccess = { },
             onScreenLockProtectionToggle = { },
             onAppLockGracePeriodOptionChange = { },
             onHideScreenContentEnabledChange = { },
