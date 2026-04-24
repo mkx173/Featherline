@@ -269,7 +269,7 @@
     <string name="settings_calibration_edit_result">Edit blood test result</string>
     <string name="settings_calibration_empty_state">No blood test results yet.</string>
     <string name="settings_calibration_row_meta">%1$s · %2$s</string>
-    <string name="settings_calibration_last_e2_elapsed">Since last E2 dose: %1$s</string>
+    <string name="settings_calibration_last_e2_elapsed">Drawn %1$s after last E2 dose.</string>
     <string name="settings_calibration_entry_title">Add result</string>
     <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
     <string name="settings_calibration_entry_timezone">Time zone: %1$s</string>
@@ -284,6 +284,10 @@
     <string name="settings_calibration_add_analyte_title">Add result</string>
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_save_result">Save result</string>
+    <string name="settings_calibration_analyte_prog">Progesterone</string>
+    <string name="settings_calibration_analyte_prl">Prolactin</string>
+    <string name="settings_calibration_analyte_fsh">Follicle-stimulating hormone</string>
+    <string name="settings_calibration_analyte_lh">Luteinizing hormone</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>

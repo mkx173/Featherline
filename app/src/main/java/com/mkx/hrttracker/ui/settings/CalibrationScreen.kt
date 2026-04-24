@@ -236,6 +236,17 @@ internal fun calibrationAnalyteLabel(analyteKey: BloodAnalyteKey): String {
     return analyteKey.storageValue.uppercase()
 }
 
+internal fun calibrationAnalyteFullNameRes(analyteKey: BloodAnalyteKey): Int {
+    return when (analyteKey) {
+        BloodAnalyteKey.E2 -> R.string.medication_category_estradiol
+        BloodAnalyteKey.T -> R.string.medication_category_testosterone
+        BloodAnalyteKey.PROG -> R.string.settings_calibration_analyte_prog
+        BloodAnalyteKey.PRL -> R.string.settings_calibration_analyte_prl
+        BloodAnalyteKey.FSH -> R.string.settings_calibration_analyte_fsh
+        BloodAnalyteKey.LH -> R.string.settings_calibration_analyte_lh
+    }
+}
+
 internal fun formatCalibrationBuiltinResultSummary(
     analyteKey: BloodAnalyteKey,
     canonicalValue: Double,

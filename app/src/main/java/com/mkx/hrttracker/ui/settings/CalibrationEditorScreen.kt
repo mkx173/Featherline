@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.text.format.DateFormat
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,13 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -28,8 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,7 +47,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -60,8 +55,6 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.DatePickerModal
-import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
-import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -314,202 +307,6 @@ private fun CalibrationEditorScreenContent(
     }
 }
 
-@Composable
-private fun CalibrationNotesCard(
-    notes: String,
-    onNotesChange: (String) -> Unit,
-) {
-    CalibrationEditorCard {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_calibration_notes_label),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            OutlinedTextField(
-                value = notes,
-                onValueChange = onNotesChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text(text = stringResource(R.string.settings_calibration_notes_label))
-                },
-                minLines = 3,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalibrationDateTimeCard(
-    dateLabel: String,
-    timeLabel: String,
-    timeZoneId: String,
-    timeSinceLastEstradiolDoseMillis: Long?,
-    onDateClick: () -> Unit,
-    onTimeClick: () -> Unit,
-) {
-    CalibrationEditorCard {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_calibration_collected_at),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-            ) {
-                CalibrationMetadataChip(
-                    label = stringResource(R.string.settings_calibration_date_label),
-                    value = dateLabel,
-                    onClick = onDateClick,
-                    modifier = Modifier.weight(1f),
-                )
-                CalibrationMetadataChip(
-                    label = stringResource(R.string.settings_calibration_time_label),
-                    value = timeLabel,
-                    onClick = onTimeClick,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
-                Text(
-                    text = stringResource(
-                        R.string.settings_calibration_last_e2_elapsed,
-                        calibrationElapsedDurationLabel(elapsedMillis)
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                text = stringResource(R.string.settings_calibration_entry_timezone, timeZoneId),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalibrationMetadataChip(
-    label: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(dimensionResource(R.dimen.padding_small)),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalibrationAnalyteCard(
-    analyteKey: BloodAnalyteKey,
-    valueText: String,
-    unit: BloodUnitKey,
-    onValueChange: (String) -> Unit,
-    onUnitChange: (BloodUnitKey) -> Unit,
-    onRemoveClick: (() -> Unit)? = null,
-) {
-    CalibrationEditorCard {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = calibrationAnalyteLabel(analyteKey),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                onRemoveClick?.let { removeClick ->
-                    IconButton(onClick = removeClick) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.remove_time),
-                        )
-                    }
-                }
-            }
-            val allowedUnits = remember(analyteKey) {
-                calibrationAllowedUnitsFor(analyteKey)
-            }
-            if (allowedUnits.size > 1) {
-                ConnectedButtonGroup(
-                    modifier = Modifier.fillMaxWidth(),
-                    options = allowedUnits,
-                    selectedOption = unit,
-                    optionLabel = { option -> calibrationUnitLabel(option) },
-                    onOptionSelected = onUnitChange,
-                    layout = ConnectedButtonGroupLayout.ROW,
-                    expandOptions = true,
-                )
-            }
-            OutlinedTextField(
-                value = valueText,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text(text = stringResource(R.string.settings_calibration_value_label))
-                },
-                suffix = {
-                    Text(text = calibrationUnitLabel(unit))
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalibrationEditorCard(
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        color = MaterialTheme.colorScheme.surface,
-    ) {
-        Box(
-            modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium)),
-        ) {
-            content()
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalibrationAddAnalyteSheet(
@@ -524,47 +321,66 @@ private fun CalibrationAddAnalyteSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(
-                    start = dimensionResource(R.dimen.padding_medium),
-                    end = dimensionResource(R.dimen.padding_medium),
-                    bottom = dimensionResource(R.dimen.padding_medium),
-                ),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_calibration_add_analyte_title),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                TextButton(onClick = onDismissRequest) {
-                    Text(text = stringResource(R.string.cancel))
+        CalibrationAddAnalyteSheetContent(
+            availableAnalytes = availableAnalytes,
+            onDismissRequest = onDismissRequest,
+            onAnalyteClick = { analyteKey ->
+                hideBottomSheet(scope, sheetState) {
+                    onAnalyteClick(analyteKey)
                 }
+            },
+        )
+    }
+}
+
+@Composable
+private fun CalibrationAddAnalyteSheetContent(
+    availableAnalytes: List<BloodAnalyteKey>,
+    onDismissRequest: () -> Unit,
+    onAnalyteClick: (BloodAnalyteKey) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(
+                start = dimensionResource(R.dimen.padding_medium),
+                end = dimensionResource(R.dimen.padding_medium),
+                bottom = dimensionResource(R.dimen.padding_medium),
+            ),
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.settings_calibration_add_analyte_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            TextButton(onClick = onDismissRequest) {
+                Text(text = stringResource(R.string.cancel))
             }
-            availableAnalytes.forEach { analyteKey ->
-                ListItem(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            hideBottomSheet(scope, sheetState) {
-                                onAnalyteClick(analyteKey)
-                            }
-                        },
-                    headlineContent = {
-                        Text(text = calibrationAnalyteLabel(analyteKey))
+        }
+        availableAnalytes.forEach { analyteKey ->
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onAnalyteClick(analyteKey)
                     },
-                    supportingContent = {
+                headlineContent = {
+                    Text(text = calibrationAnalyteLabel(analyteKey))
+                },
+                supportingContent = {
+                    Column {
+                        Text(text = stringResource(calibrationAnalyteFullNameRes(analyteKey)))
                         Text(text = calibrationUnitLabelFor(analyteKey))
-                    },
-                )
-            }
+                    }
+                },
+            )
         }
     }
 }
@@ -614,6 +430,40 @@ private fun CalibrationEditorScreenPreview() {
             onAddAnalyteClick = { },
             onSaveClick = { },
         )
+    }
+}
+
+@Preview(
+    name = "Calibration Add Analyte Sheet",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 520,
+)
+@Composable
+private fun CalibrationAddAnalyteSheetPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                CalibrationAddAnalyteSheetContent(
+                    availableAnalytes = listOf(
+                        BloodAnalyteKey.T,
+                        BloodAnalyteKey.PROG,
+                        BloodAnalyteKey.PRL,
+                    ),
+                    onDismissRequest = { },
+                    onAnalyteClick = { },
+                )
+            }
+        }
     }
 }
 
