@@ -2,6 +2,7 @@ package com.mkx.hrttracker.model.medication
 
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 
 enum class MedicationLogEntrySourceType {
@@ -22,6 +23,7 @@ data class MedicationLogEntry(
     val sourceType: MedicationLogEntrySourceType,
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
+    val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     val scheduledFor: LocalDateTime? = null,
     val count: Int = 1,
 ) {

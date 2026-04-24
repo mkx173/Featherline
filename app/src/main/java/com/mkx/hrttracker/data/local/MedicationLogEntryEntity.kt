@@ -2,6 +2,7 @@ package com.mkx.hrttracker.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.ZoneId
 
 @Entity(tableName = "medication_log_entries")
 data class MedicationLogEntryEntity(
@@ -20,6 +21,7 @@ data class MedicationLogEntryEntity(
     val sourceType: String,
     val sourceGroupUuid: String?,
     val appliedAtEpochMillis: Long,
+    val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     val scheduledForIso: String? = null,
     val count: Int = 1,
 )
