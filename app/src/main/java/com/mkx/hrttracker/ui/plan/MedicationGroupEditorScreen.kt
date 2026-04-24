@@ -413,7 +413,6 @@ private fun MedicationGroupEditorScreenContent(
     val medicationEditorInfoMessage = uiState.medicationEditorInfoMessageRes?.let { messageRes ->
         stringResource(messageRes)
     }
-    val groupColorScheme = rememberMedicationGroupColorScheme(uiState.groupColorKey)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
     )
