@@ -18,6 +18,8 @@ data class BloodTestPanelEntity(
     val collectedAtInstantEpochMillis: Long,
     val collectedAtTimeZoneId: String,
     val notes: String?,
+    val timeSinceLastEstradiolDoseMillis: Long?,
+    val timeSinceLastTestosteroneDoseMillis: Long?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
 )

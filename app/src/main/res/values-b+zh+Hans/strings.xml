@@ -269,6 +269,7 @@
     <string name="settings_calibration_edit_result">编辑验血结果</string>
     <string name="settings_calibration_empty_state">还没有验血结果。</string>
     <string name="settings_calibration_row_meta">%1$s · %2$s</string>
+    <string name="settings_calibration_last_e2_elapsed">距上次 E2 用药：%1$s</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
     <string name="settings_calibration_entry_timezone">时区：%1$s</string>

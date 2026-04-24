@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -42,6 +43,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -173,13 +175,25 @@ private fun CalibrationPanelRow(
             Text(text = collectedAtLabel)
         },
         supportingContent = {
-            Text(
-                text = stringResource(
-                    R.string.settings_calibration_row_meta,
-                    valueSummary,
-                    panel.collectedAtTimeZoneId
+            androidx.compose.foundation.layout.Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.settings_calibration_row_meta,
+                        valueSummary,
+                        panel.collectedAtTimeZoneId
+                    )
                 )
-            )
+                panel.timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
+                    Text(
+                        text = stringResource(
+                            R.string.settings_calibration_last_e2_elapsed,
+                            calibrationElapsedDurationLabel(elapsedMillis)
+                        )
+                    )
+                }
+            }
         },
         trailingContent = {
             Icon(
@@ -260,6 +274,34 @@ internal fun formatCalibrationNumericValue(value: Double): String {
     }
 }
 
+@Composable
+internal fun calibrationElapsedDurationLabel(durationMillis: Long): String {
+    val clampedSeconds = Duration.ofMillis(durationMillis).seconds.coerceAtLeast(0)
+    val totalMinutes = clampedSeconds / 60
+    val days = totalMinutes / (24 * 60)
+    val hours = (totalMinutes % (24 * 60)) / 60
+    val minutes = totalMinutes % 60
+
+    return when {
+        days > 0 -> stringResource(
+            R.string.main_duration_days_hours,
+            days,
+            hours
+        )
+
+        hours > 0 -> stringResource(
+            R.string.main_duration_hours_minutes,
+            hours,
+            minutes
+        )
+
+        else -> stringResource(
+            R.string.main_duration_minutes,
+            minutes.coerceAtLeast(1)
+        )
+    }
+}
+
 @Preview(
     name = "Calibration Page",
     showBackground = true,
@@ -293,6 +335,8 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
             collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
             collectedAtTimeZoneId = "Asia/Tokyo",
             notes = null,
+            timeSinceLastEstradiolDoseMillis = Duration.ofHours(9).plusMinutes(30).toMillis(),
+            timeSinceLastTestosteroneDoseMillis = null,
             results = listOf(
                 BloodTestResult(
                     uuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a"),
@@ -321,6 +365,8 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
             collectedAt = Instant.parse("2026-04-12T22:15:00Z"),
             collectedAtTimeZoneId = "America/Los_Angeles",
             notes = null,
+            timeSinceLastEstradiolDoseMillis = Duration.ofHours(26).toMillis(),
+            timeSinceLastTestosteroneDoseMillis = null,
             results = listOf(
                 BloodTestResult(
                     uuid = UUID.fromString("2c35207b-c771-4c11-b6f2-f35f485542cd"),

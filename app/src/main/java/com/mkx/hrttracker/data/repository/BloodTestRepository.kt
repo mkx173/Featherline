@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodTestTrendPoint
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -25,6 +26,7 @@ import javax.inject.Singleton
 @Singleton
 class BloodTestRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
+    private val medicationLogRepository: MedicationLogRepository,
 ) {
     suspend fun getPanels(): List<BloodTestPanel> {
         val dao = databaseHolder.get().bloodTestDao()
@@ -56,6 +58,7 @@ class BloodTestRepository @Inject constructor(
         val existingResultsByUuid = existingPanel?.orEmptyResultsByUuid().orEmpty()
         val customAnalytesByUuid = resolveCustomAnalytesForResults(results, dao)
         validateUniqueAnalytes(results)
+        val timeSinceLastEstradiolDoseMillis = resolveTimeSinceLastEstradiolDoseMillis(collectedAt)
 
         val normalizedResults = results.mapIndexed { index, result ->
             result.toEntity(
@@ -74,6 +77,8 @@ class BloodTestRepository @Inject constructor(
                 collectedAtInstantEpochMillis = collectedAt.toEpochMilli(),
                 collectedAtTimeZoneId = collectedAtTimeZoneId,
                 notes = notes?.trim()?.takeUnless(String::isEmpty),
+                timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
+                timeSinceLastTestosteroneDoseMillis = null,
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = now.toEpochMilli(),
             ),
@@ -238,6 +243,17 @@ class BloodTestRepository @Inject constructor(
         ZoneId.of(timeZoneId)
     }
 
+    private suspend fun resolveTimeSinceLastEstradiolDoseMillis(
+        collectedAt: Instant,
+    ): Long? {
+        val lastEstradiolEntry = findLastEstradiolEntry(
+            entries = medicationLogRepository.getEntries(),
+            onOrBefore = collectedAt,
+        ) ?: return null
+        return (collectedAt.toEpochMilli() - lastEstradiolEntry.appliedAt.toEpochMilli())
+            .coerceAtLeast(0L)
+    }
+
     private fun normalizeCustomField(
         value: String,
         fieldName: String,
@@ -304,6 +320,8 @@ class BloodTestRepository @Inject constructor(
             collectedAt = Instant.ofEpochMilli(panel.collectedAtInstantEpochMillis),
             collectedAtTimeZoneId = panel.collectedAtTimeZoneId,
             notes = panel.notes,
+            timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis,
+            timeSinceLastTestosteroneDoseMillis = panel.timeSinceLastTestosteroneDoseMillis,
             results = results.sortedBy(BloodTestResultEntity::displayOrder).map { result ->
                 result.toModel(customAnalytesByUuid = customAnalytesByUuid)
             },

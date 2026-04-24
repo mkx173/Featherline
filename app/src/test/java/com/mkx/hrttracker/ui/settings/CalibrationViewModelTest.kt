@@ -114,6 +114,8 @@ internal fun testBloodTestPanel(
         collectedAt = collectedAt,
         collectedAtTimeZoneId = collectedAtTimeZoneId,
         notes = notes,
+        timeSinceLastEstradiolDoseMillis = null,
+        timeSinceLastTestosteroneDoseMillis = null,
         results = results,
         createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
         updatedAt = Instant.ofEpochMilli(1_700_000_000_000L)

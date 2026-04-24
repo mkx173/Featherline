@@ -8,6 +8,8 @@ data class BloodTestPanel(
     val collectedAt: Instant,
     val collectedAtTimeZoneId: String,
     val notes: String?,
+    val timeSinceLastEstradiolDoseMillis: Long?,
+    val timeSinceLastTestosteroneDoseMillis: Long?,
     val results: List<BloodTestResult>,
     val createdAt: Instant,
     val updatedAt: Instant,

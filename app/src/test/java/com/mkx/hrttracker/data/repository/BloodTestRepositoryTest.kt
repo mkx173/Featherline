@@ -10,6 +10,12 @@ import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -27,6 +33,7 @@ class BloodTestRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: BloodTestDao = mockk(relaxed = true)
+    private val medicationLogRepository: MedicationLogRepository = mockk()
 
     private lateinit var repository: BloodTestRepository
 
@@ -35,7 +42,7 @@ class BloodTestRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.bloodTestDao() } returns dao
 
-        repository = BloodTestRepository(databaseHolder)
+        repository = BloodTestRepository(databaseHolder, medicationLogRepository)
     }
 
     @Test
@@ -43,6 +50,18 @@ class BloodTestRepositoryTest {
         val panelSlot = slot<BloodTestPanelEntity>()
         val resultsSlot = slot<List<BloodTestResultEntity>>()
         val customAnalyteUuid = UUID.randomUUID()
+        coEvery { medicationLogRepository.getEntries() } returns listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0)
+                ),
+                sourceType = MedicationLogEntrySourceType.MANUAL,
+                sourceGroupUuid = null,
+                appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
+            )
+        )
         coEvery { dao.getCustomAnalytesByIds(listOf(customAnalyteUuid.toString())) } returns listOf(
             customAnalyte(
                 uuid = customAnalyteUuid,
@@ -74,6 +93,8 @@ class BloodTestRepositoryTest {
         assertEquals(panelUuid.toString(), panelSlot.captured.uuid)
         assertEquals("Asia/Tokyo", panelSlot.captured.collectedAtTimeZoneId)
         assertEquals("fasting", panelSlot.captured.notes)
+        assertEquals(1_000_000L, panelSlot.captured.timeSinceLastEstradiolDoseMillis)
+        assertNull(panelSlot.captured.timeSinceLastTestosteroneDoseMillis)
         assertEquals(2, resultsSlot.captured.size)
 
         val first = resultsSlot.captured[0]
@@ -91,6 +112,7 @@ class BloodTestRepositoryTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun savePanel_rejects_empty_results() = runTest {
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
         repository.savePanel(
             uuid = null,
             collectedAt = Instant.ofEpochMilli(1L),
@@ -103,6 +125,7 @@ class BloodTestRepositoryTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun savePanel_rejects_duplicate_builtin_analytes() = runTest {
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
         repository.savePanel(
             uuid = null,
             collectedAt = Instant.ofEpochMilli(1L),
@@ -136,6 +159,8 @@ class BloodTestRepositoryTest {
                 collectedAtInstantEpochMillis = 1_700_000_000_000L,
                 collectedAtTimeZoneId = "Asia/Tokyo",
                 notes = null,
+                timeSinceLastEstradiolDoseMillis = 3_600_000L,
+                timeSinceLastTestosteroneDoseMillis = null,
                 createdAtEpochMillis = 1_700_000_000_000L,
                 updatedAtEpochMillis = 1_700_000_100_000L
             ),
@@ -176,6 +201,8 @@ class BloodTestRepositoryTest {
 
         checkNotNull(panel)
         assertEquals(listOf(firstResultUuid, secondResultUuid), panel.results.map { it.uuid })
+        assertEquals(3_600_000L, panel.timeSinceLastEstradiolDoseMillis)
+        assertNull(panel.timeSinceLastTestosteroneDoseMillis)
         assertEquals(
             BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
             panel.results.first().analyte
@@ -295,6 +322,31 @@ class BloodTestRepositoryTest {
         assertEquals(1, analytes.size)
         assertEquals(analyteUuid, analytes.single().uuid)
         assertNull(analytes.single().archivedAt)
+    }
+
+    @Test
+    fun savePanel_persists_null_when_no_prior_estradiol_dose_exists() = runTest {
+        val panelSlot = slot<BloodTestPanelEntity>()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { dao.upsertPanelWithResults(capture(panelSlot), any()) } returns Unit
+
+        repository.savePanel(
+            uuid = null,
+            collectedAt = Instant.ofEpochMilli(1_700_000_000_000L),
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = null,
+            results = listOf(
+                BloodTestResultInput.Builtin(
+                    analyteKey = BloodAnalyteKey.E2,
+                    unit = com.mkx.hrttracker.model.bloodtest.BloodUnitKey.PG_ML,
+                    value = 100.0
+                )
+            ),
+            now = Instant.ofEpochMilli(1_700_000_100_000L)
+        )
+
+        assertNull(panelSlot.captured.timeSinceLastEstradiolDoseMillis)
+        assertNull(panelSlot.captured.timeSinceLastTestosteroneDoseMillis)
     }
 
     private fun customAnalyte(

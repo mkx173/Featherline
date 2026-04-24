@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.ui.plan.MedicationSignature
@@ -90,10 +91,7 @@ internal fun buildMainE2Hero(
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): MainE2HeroUiState {
-    val lastEstradiolEntry = entries
-        .asSequence()
-        .filter { entry -> entry.category == MedicationCategory.ESTRADIOL }
-        .maxByOrNull { entry -> entry.appliedAt }
+    val lastEstradiolEntry = findLastEstradiolEntry(entries)
 
     return MainE2HeroUiState(
         lastDoseDetails = lastEstradiolEntry?.details,

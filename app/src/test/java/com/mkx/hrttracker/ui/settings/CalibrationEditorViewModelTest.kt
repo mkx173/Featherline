@@ -2,11 +2,18 @@ package com.mkx.hrttracker.ui.settings
 
 import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -21,10 +28,12 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -34,11 +43,13 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalibrationEditorViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
+    private val medicationLogRepository: MedicationLogRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
     }
 
     @After
@@ -77,6 +88,7 @@ class CalibrationEditorViewModelTest {
 
         val viewModel = CalibrationEditorViewModel(
             repository,
+            medicationLogRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             )
@@ -94,6 +106,7 @@ class CalibrationEditorViewModelTest {
         assertEquals(listOf(BloodAnalyteKey.T), uiState.additionalDrafts.map { it.analyteKey })
         assertEquals("1.1", uiState.additionalDrafts.single().valueText)
         assertEquals(BloodUnitKey.NMOL_L, uiState.additionalDrafts.single().unit)
+        assertNull(uiState.timeSinceLastEstradiolDoseMillis)
     }
 
     @Test
@@ -111,7 +124,11 @@ class CalibrationEditorViewModelTest {
             )
         } returns panelUuid
 
-        val viewModel = CalibrationEditorViewModel(repository, SavedStateHandle())
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            SavedStateHandle()
+        )
         advanceUntilIdle()
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
         viewModel.updateCollectedTime(LocalTime.of(9, 30))
@@ -170,7 +187,11 @@ class CalibrationEditorViewModelTest {
             )
         } returns UUID.randomUUID()
 
-        val viewModel = CalibrationEditorViewModel(repository, SavedStateHandle())
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            SavedStateHandle()
+        )
         advanceUntilIdle()
         viewModel.updateE2Value("95")
         viewModel.addAnalyte(BloodAnalyteKey.FSH)
@@ -181,6 +202,42 @@ class CalibrationEditorViewModelTest {
         val savedResults = resultInputSlot.captured
         assertEquals(1, savedResults.size)
         assertEquals(BloodAnalyteKey.E2, (savedResults.single() as BloodTestResultInput.Builtin).analyteKey)
+    }
+
+    @Test
+    fun updateCollectedDateAndTime_recomputesTimeSinceLastEstradiolDose() = runTest {
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+
+        val zoneId = ZoneId.of(viewModel.uiState.value.timeZoneId)
+        val selectedCollectedAt = LocalDateTime.of(2026, 4, 24, 9, 30)
+            .atZone(zoneId)
+            .toInstant()
+        coEvery { medicationLogRepository.getEntries() } returns listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceType = MedicationLogEntrySourceType.MANUAL,
+                sourceGroupUuid = null,
+                appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),
+            )
+        )
+
+        viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
+        viewModel.updateCollectedTime(LocalTime.of(9, 30))
+        advanceUntilIdle()
+
+        assertEquals(
+            Duration.ofHours(9).plusMinutes(30).toMillis(),
+            viewModel.uiState.value.timeSinceLastEstradiolDoseMillis
+        )
     }
 
     @Test

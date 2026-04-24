@@ -4,12 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +37,7 @@ private val calibrationAdditionalAnalytes = listOf(
 @HiltViewModel
 class CalibrationEditorViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val editingPanelUuid = savedStateHandle.get<String>(PANEL_ID_ARG)?.let { panelId ->
@@ -54,6 +57,7 @@ class CalibrationEditorViewModel @Inject constructor(
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
     init {
+        refreshTimeSinceLastEstradiolDose()
         editingPanelUuid?.let(::loadPanelForEditing)
     }
 
@@ -61,12 +65,14 @@ class CalibrationEditorViewModel @Inject constructor(
         _uiState.update { state ->
             state.copy(collectedDate = date)
         }
+        refreshTimeSinceLastEstradiolDose()
     }
 
     fun updateCollectedTime(time: LocalTime) {
         _uiState.update { state ->
             state.copy(collectedTime = time.withSecond(0).withNano(0))
         }
+        refreshTimeSinceLastEstradiolDose()
     }
 
     fun updateNotes(value: String) {
@@ -209,6 +215,29 @@ class CalibrationEditorViewModel @Inject constructor(
             }
 
             _uiState.value = panel.toEditorState()
+            refreshTimeSinceLastEstradiolDose()
+        }
+    }
+
+    private fun refreshTimeSinceLastEstradiolDose() {
+        viewModelScope.launch {
+            val targetState = uiState.value
+            val targetCollectedAt = targetState.toCollectedAtInstant()
+            val elapsedMillis = findLastEstradiolEntry(
+                entries = medicationLogRepository.getEntries(),
+                onOrBefore = targetCollectedAt,
+            )?.let { lastEntry ->
+                (targetCollectedAt.toEpochMilli() - lastEntry.appliedAt.toEpochMilli())
+                    .coerceAtLeast(0L)
+            }
+
+            _uiState.update { state ->
+                if (state.toCollectedAtInstant() != targetCollectedAt) {
+                    state
+                } else {
+                    state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
+                }
+            }
         }
     }
 
@@ -279,6 +308,7 @@ data class CalibrationEditorUiState(
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val timeZoneId: String = ZoneId.systemDefault().id,
+    val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
     val e2Draft: CalibrationResultDraftUiState = CalibrationResultDraftUiState(
         analyteKey = BloodAnalyteKey.E2
@@ -331,4 +361,10 @@ private fun calibrationAdditionalAnalyteSortIndex(
     return calibrationAdditionalAnalytes.indexOf(draft.analyteKey).takeIf { index ->
         index >= 0
     } ?: Int.MAX_VALUE
+}
+
+private fun CalibrationEditorUiState.toCollectedAtInstant(): Instant {
+    return LocalDateTime.of(collectedDate, collectedTime)
+        .atZone(ZoneId.of(timeZoneId))
+        .toInstant()
 }

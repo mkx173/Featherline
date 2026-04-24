@@ -234,6 +234,7 @@ private fun CalibrationEditorScreenContent(
                         dateLabel = uiState.collectedDate.format(dateFormatter),
                         timeLabel = uiState.collectedTime.format(timeFormatter),
                         timeZoneId = uiState.timeZoneId,
+                        timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
                         onDateClick = onDateClick,
                         onTimeClick = onTimeClick,
                     )
@@ -346,6 +347,7 @@ private fun CalibrationDateTimeCard(
     dateLabel: String,
     timeLabel: String,
     timeZoneId: String,
+    timeSinceLastEstradiolDoseMillis: Long?,
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
 ) {
@@ -372,6 +374,16 @@ private fun CalibrationDateTimeCard(
                     value = timeLabel,
                     onClick = onTimeClick,
                     modifier = Modifier.weight(1f),
+                )
+            }
+            timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
+                Text(
+                    text = stringResource(
+                        R.string.settings_calibration_last_e2_elapsed,
+                        calibrationElapsedDurationLabel(elapsedMillis)
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(
@@ -613,6 +625,7 @@ private fun CalibrationEditorScreenPreview() {
                 collectedDate = LocalDate.of(2026, 4, 24),
                 collectedTime = LocalTime.of(9, 30),
                 timeZoneId = "Asia/Tokyo",
+                timeSinceLastEstradiolDoseMillis = 34_200_000L,
                 notes = "Trough draw before morning dose.",
                 e2Draft = CalibrationResultDraftUiState(
                     analyteKey = BloodAnalyteKey.E2,
