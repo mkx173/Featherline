@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -65,10 +64,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
-import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -124,6 +120,7 @@ import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -937,12 +934,10 @@ private fun MedicationGroupMedicationCard(
     count: Int = 1
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
         onClick = onClick,
-        shapes = segmentedListItemShapes(index = index, count = count),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
         leadingContent = {
             Surface(
                 shape = RoundedCornerShape(6.dp),
@@ -1072,13 +1067,11 @@ private fun EditorSupportMessage(
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        SegmentedListItem(
-            shapes = segmentedListItemShapes(index = index, count = count),
-            colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
+        EditorSegmentedListItem(
+            index = index,
+            count = count,
             onClick = {},
-            modifier = Modifier.wrapContentHeight()
+            modifier = Modifier.wrapContentHeight(),
         ) {
             Text(
                 text = text,
@@ -1259,48 +1252,3 @@ private fun buildMedicationGroupEditorPreviewUiState(
     )
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-fun segmentedListItemShapes(
-    index: Int,
-    count: Int,
-): ListItemShapes {
-    val defaultShapes = ListItemDefaults.shapes()
-    val mediumShape = MaterialTheme.shapes.large
-
-    return remember(index, count, defaultShapes, mediumShape) {
-        val defaultBaseShape = defaultShapes.shape
-
-        if (defaultBaseShape !is CornerBasedShape || mediumShape !is CornerBasedShape) {
-            return@remember defaultShapes
-        }
-
-        when {
-            count <= 1 -> {
-                defaultShapes.copy(shape = mediumShape)
-            }
-
-            index == 0 -> {
-                defaultShapes.copy(
-                    shape = defaultBaseShape.copy(
-                        topStart = mediumShape.topStart,
-                        topEnd = mediumShape.topEnd,
-                    )
-                )
-            }
-
-            index == count - 1 -> {
-                defaultShapes.copy(
-                    shape = defaultBaseShape.copy(
-                        bottomStart = mediumShape.bottomStart,
-                        bottomEnd = mediumShape.bottomEnd,
-                    )
-                )
-            }
-
-            else -> {
-                defaultShapes
-            }
-        }
-    }
-}

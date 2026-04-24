@@ -28,11 +28,8 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemColors
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -57,7 +55,10 @@ internal fun IntervalStepperCard(
     index: Int = 0,
     count: Int = 1
 ) {
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = { },
         overlineContent = {
             Text(
                 text = label.uppercase(),
@@ -84,11 +85,6 @@ internal fun IntervalStepperCard(
                 )
             }
         },
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        onClick = { }
     ) {
         Row(
             verticalAlignment = androidx.compose.ui.Alignment.Bottom,
@@ -143,7 +139,10 @@ internal fun EditorFieldRow(
     index: Int = 0,
     count: Int = 1
 ) {
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = onClick,
         leadingContent = {
             Icon(
                 imageVector = icon,
@@ -166,11 +165,6 @@ internal fun EditorFieldRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        onClick = onClick,
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
     ) {
         Text(
             text = value,
@@ -202,8 +196,18 @@ internal fun NotificationsCard(
     count: Int = 1
 ) {
     val cardClickEnabled = toggleEnabled || onDisabledClick != null
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
         modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f),
+        enabled = cardClickEnabled,
+        onClick = {
+            if (toggleEnabled) {
+                onToggle(!enabled)
+            } else {
+                onDisabledClick?.invoke()
+            }
+        },
         leadingContent = {
             Icon(
                 imageVector = if (enabled) {
@@ -233,19 +237,6 @@ internal fun NotificationsCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        enabled = cardClickEnabled,
-        onClick = {
-            if (toggleEnabled) {
-                onToggle(!enabled)
-            } else {
-                onDisabledClick?.invoke()
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shapes = segmentedListItemShapes(index = index, count = count)
     ) {
         Text(
             text = stringResource(R.string.group_notifications_reminder),

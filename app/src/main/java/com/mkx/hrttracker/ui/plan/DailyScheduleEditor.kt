@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Event
@@ -15,8 +14,6 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
@@ -33,6 +30,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.AddChip
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
 import java.time.LocalTime
@@ -102,12 +101,10 @@ private fun DailyTimesCard(
     index: Int = 0,
     count: Int = 1
 ) {
-    SegmentedListItem (
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
-        onClick = {}
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = {},
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
@@ -188,7 +185,12 @@ private fun DailyTimeRow(
             }
         },
         onClick = onClick,
-        shapes = dailyTimesItemShapes(index = index, count = count),
+        shapes = segmentedListItemShapes(
+            index = index,
+            count = count,
+            cornerShape = MaterialTheme.shapes.medium,
+            pressedShape = MaterialTheme.shapes.medium
+        ),
     ) {
         Text(
             text = formattedTime,
@@ -226,50 +228,3 @@ private fun DailyScheduleEditorPreview() {
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-fun dailyTimesItemShapes(
-    index: Int,
-    count: Int,
-): ListItemShapes {
-    val mediumShape = MaterialTheme.shapes.medium
-    val defaultShapes = ListItemDefaults.shapes(
-        pressedShape = mediumShape
-    )
-
-    return remember(index, count, defaultShapes, mediumShape) {
-        val defaultBaseShape = defaultShapes.shape
-
-        if (defaultBaseShape !is CornerBasedShape || mediumShape !is CornerBasedShape) {
-            return@remember defaultShapes
-        }
-
-        when {
-            count <= 1 -> {
-                defaultShapes.copy(shape = mediumShape)
-            }
-
-            index == 0 -> {
-                defaultShapes.copy(
-                    shape = defaultBaseShape.copy(
-                        topStart = mediumShape.topStart,
-                        topEnd = mediumShape.topEnd,
-                    )
-                )
-            }
-
-            index == count - 1 -> {
-                defaultShapes.copy(
-                    shape = defaultBaseShape.copy(
-                        bottomStart = mediumShape.bottomStart,
-                        bottomEnd = mediumShape.bottomEnd,
-                    )
-                )
-            }
-
-            else -> {
-                defaultShapes
-            }
-        }
-    }
-}

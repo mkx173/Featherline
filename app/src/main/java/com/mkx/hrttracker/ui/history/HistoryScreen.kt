@@ -48,7 +48,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -106,7 +105,7 @@ import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
-import com.mkx.hrttracker.ui.plan.segmentedListItemShapes
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -1285,12 +1284,13 @@ private fun HistoryEntryCard(
         MaterialTheme.colorScheme.surfaceContainerLow
     }
 
-    SegmentedListItem(
-        modifier = Modifier.fillMaxWidth(),
-        shapes = segmentedListItemShapes(index = index, count = count),
-        colors = ListItemDefaults.colors(containerColor = containerColor),
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
         onClick = onClick,
         onLongClick = onLongClick,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = containerColor,
         leadingContent = {
             Icon(
                 imageVector = sourceVisual.icon,
