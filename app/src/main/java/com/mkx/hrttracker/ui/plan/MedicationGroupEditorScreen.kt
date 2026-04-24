@@ -1050,7 +1050,7 @@ private fun EditorSectionHeader(
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(vertical = trailing?.let { 0.dp } ?: 4.dp)
         )
         trailing?.invoke()

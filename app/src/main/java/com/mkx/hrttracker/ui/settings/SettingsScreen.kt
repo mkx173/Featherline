@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -35,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -194,8 +197,7 @@ private fun SettingsScreenContent(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(dimensionResource(R.dimen.padding_medium)),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium))
+                .padding(dimensionResource(R.dimen.padding_medium))
         ) {
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_personalization)
@@ -212,6 +214,8 @@ private fun SettingsScreenContent(
             ) {
                 Text(text = stringResource(R.string.personalization_weight))
             }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_notifications)
@@ -251,6 +255,8 @@ private fun SettingsScreenContent(
             ) {
                 Text(text = stringResource(R.string.settings_reminders))
             }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_security)
@@ -346,6 +352,8 @@ private fun SettingsScreenContent(
                     modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium))
                 )
             }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_appearance)
@@ -456,10 +464,10 @@ private fun SettingsSectionTitle(
     modifier: Modifier = Modifier
 ) {
     Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
+        text = text.uppercase(),
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
     )
 }
 

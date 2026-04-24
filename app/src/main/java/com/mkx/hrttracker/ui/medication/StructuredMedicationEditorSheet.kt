@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -135,7 +136,7 @@ fun StructuredMedicationEditorSheet(
                     start = dimensionResource(R.dimen.padding_large),
                     end = dimensionResource(R.dimen.padding_large),
                 ),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+//            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -144,16 +145,21 @@ fun StructuredMedicationEditorSheet(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
                 )
                 FilledTonalButton(onClick = onCloseClick) {
                     Text(text = stringResource(R.string.cancel))
                 }
             }
 
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
             Text(
                 text = stringResource(R.string.field_medication_category),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             )
             ConnectedButtonGroup(
                 options = editorMedicationCategories(),
@@ -163,9 +169,13 @@ fun StructuredMedicationEditorSheet(
                 enabled = isMedicationIdentityEditable
             )
 
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
             Text(
                 text = stringResource(R.string.field_medication_application),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             )
             ConnectedButtonGroup(
                 options = MedicationCatalog.applicationTypesFor(draft.category),
@@ -174,6 +184,8 @@ fun StructuredMedicationEditorSheet(
                 onOptionSelected = onApplicationTypeChange,
                 enabled = isMedicationIdentityEditable
             )
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
             if (draft.supportsCatalogSelection() && draft.supportsCustomName()) {
                 DropdownField(
@@ -196,12 +208,16 @@ fun StructuredMedicationEditorSheet(
                     onOptionSelected = onSelectionKindChange,
                     enabled = isMedicationIdentityEditable
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
             if (draft.supportsCatalogSelection() && draft.selectionKind == MedicationSelectionKind.CATALOG) {
                 Text(
                     text = stringResource(R.string.field_medication),
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
                 ConnectedButtonGroup(
                     options = catalog.entries.mapNotNull { it.medicationKey },
@@ -210,6 +226,8 @@ fun StructuredMedicationEditorSheet(
                     onOptionSelected = onMedicationKeyChange,
                     enabled = isMedicationIdentityEditable
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
             if (draft.requiresCustomName()) {
@@ -232,12 +250,16 @@ fun StructuredMedicationEditorSheet(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
             if (draft.availableDoseKinds().size > 1) {
                 Text(
                     text = stringResource(R.string.field_dose_type),
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
                 ConnectedButtonGroup(
                     options = draft.availableDoseKinds(),
@@ -245,6 +267,8 @@ fun StructuredMedicationEditorSheet(
                     optionLabel = { doseKind -> stringResource(doseKindLabelRes(doseKind)) },
                     onOptionSelected = onDoseKindChange
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
             when (draft.doseKind) {
@@ -314,6 +338,8 @@ fun StructuredMedicationEditorSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
             if (showAppliedAtFields && appliedDate != null && appliedTime != null) {
                 var showDatePickerModal by remember { mutableStateOf(false) }
 
@@ -351,6 +377,8 @@ fun StructuredMedicationEditorSheet(
                     },
                     singleLine = true,
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
                 var showTimePickerModal by remember { mutableStateOf(false) }
 
@@ -390,6 +418,8 @@ fun StructuredMedicationEditorSheet(
                     },
                     singleLine = true,
                 )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
             val hasDestructiveAction = destructiveButtonText != null && onDestructiveAction != null
