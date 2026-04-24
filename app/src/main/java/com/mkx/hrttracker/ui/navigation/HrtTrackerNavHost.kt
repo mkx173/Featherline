@@ -52,6 +52,7 @@ import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanScreen
+import com.mkx.hrttracker.ui.settings.CalibrationScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.time.LocalDateTime
 import java.util.UUID
@@ -61,6 +62,19 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Plan : Screen("plan", R.string.tab_plan)
     data object History : Screen("history", R.string.tab_history)
     data object Settings : Screen("settings", R.string.tab_settings)
+    data object SettingsCalibration : Screen(
+        "settings_calibration?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_personalization_calibration
+    ) {
+        const val baseRoute = "settings_calibration"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+        ): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
     data object EditMedicationGroup : Screen(
         "edit_medication_group?" +
             "${MedicationGroupEditorViewModel.GROUP_ID_ARG}={${MedicationGroupEditorViewModel.GROUP_ID_ARG}}" +
@@ -274,6 +288,25 @@ fun HrtTrackerNavHost(
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     modifier = modifier.padding(innerPadding),
+                    onCalibrationClick = {
+                        navController.navigate(
+                            Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                        )
+                    }
+                )
+            }
+            composable(
+                route = Screen.SettingsCalibration.route,
+                arguments = listOf(
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Settings.route
+                    }
+                )
+            ) {
+                CalibrationScreen(
+                    modifier = modifier.padding(innerPadding),
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(

@@ -95,6 +95,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    onCalibrationClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -202,6 +203,7 @@ fun SettingsScreen(
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onCalibrationClick = onCalibrationClick,
         modifier = modifier
     )
 }
@@ -222,6 +224,7 @@ private fun SettingsScreenContent(
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onCalibrationClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val settingsState = uiState.settingsState
@@ -293,7 +296,7 @@ private fun SettingsScreenContent(
                     index = 1,
                     count = 2,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { },
+                    onClick = onCalibrationClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_experiment)
@@ -967,6 +970,7 @@ private fun SettingsScreenPreview() {
             onAppLanguageOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onCalibrationClick = { },
         )
     }
 }

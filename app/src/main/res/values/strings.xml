@@ -265,6 +265,14 @@
     <string name="settings_hide_screen_content_summary">Hide app content in recents and screenshots.</string>
     <string name="settings_personalization">Personalization</string>
     <string name="settings_personalization_calibration">Calibration</string>
+    <string name="settings_calibration_add_result">Add blood test result</string>
+    <string name="settings_calibration_empty_state">No blood test results yet.</string>
+    <string name="settings_calibration_row_meta">%1$s · %2$s</string>
+    <string name="settings_calibration_entry_title">Add result</string>
+    <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
+    <string name="settings_calibration_entry_timezone">Time zone: %1$s</string>
+    <string name="settings_calibration_e2_field">E2 (pg/mL)</string>
+    <string name="settings_calibration_save_result">Save result</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
