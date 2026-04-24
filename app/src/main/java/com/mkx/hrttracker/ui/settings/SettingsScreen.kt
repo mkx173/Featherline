@@ -15,13 +15,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,7 +34,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.LockClock
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material3.AlertDialog
@@ -272,7 +269,7 @@ private fun SettingsScreenContent(
                 onClick = { showWeightDialog = true },
                 leadingContent = {
                     SettingsLeadingIconSlot(
-                        icon = Icons.Rounded.Edit
+                        painter = painterResource(R.drawable.ic_weight)
                     )
                 },
                 supportingContent = {
@@ -319,7 +316,7 @@ private fun SettingsScreenContent(
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        icon = Icons.Outlined.Info,
+                        painter = painterResource(R.drawable.ic_info),
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
@@ -328,7 +325,7 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
-                        icon = Icons.Outlined.Info,
+                        painter = painterResource(R.drawable.ic_info),
                         onClick = onRequestExactAlarmAccess,
                         showChevron = true,
                         index = 1,
@@ -752,7 +749,8 @@ private fun SettingsLeadingIconSlot(
 @Composable
 private fun SettingsSupportMessage(
     text: String,
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    painter: Painter? = null,
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = false,
     index: Int = 0,
@@ -767,7 +765,7 @@ private fun SettingsSupportMessage(
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                SettingsLeadingIconSlot(icon = icon)
+                SettingsLeadingIconSlot(icon = icon, painter = painter)
             },
             trailingContent = if (showChevron) {
                 {

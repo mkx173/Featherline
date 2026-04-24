@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -87,12 +86,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -800,7 +801,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.ACCESS_OFF -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                icon = Icons.Outlined.Info,
+                                painter = painterResource(R.drawable.ic_info),
                                 onClick = onRecoverMasterReminders,
                                 showChevron = true,
                                 index = 1,
@@ -811,7 +812,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.MASTER_OFF -> {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled),
-                            icon = Icons.Outlined.Info,
+                            painter = painterResource(R.drawable.ic_info),
                             onClick = { isMasterReminderRecoveryDialogVisible = true },
                             showChevron = true,
                             index = 1,
@@ -822,7 +823,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.INEXACT -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.group_notifications_inexact_warning),
-                                icon = Icons.Outlined.Info,
+                                painter = painterResource(R.drawable.ic_info),
                                 onClick = onRequestExactAlarmAccess,
                                 showChevron = true,
                                 index = 1,
@@ -1102,6 +1103,7 @@ private fun EditorSectionHeader(
 private fun EditorSupportMessage(
     text: String,
     icon: ImageVector? = null,
+    painter: Painter? = null,
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = false,
     index: Int = 0,
@@ -1115,14 +1117,26 @@ private fun EditorSupportMessage(
             count = count,
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
-            leadingContent = icon?.let { iconVector ->
-                {
-                    Icon(
-                        imageVector = iconVector,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            leadingContent = when {
+                icon != null -> {
+                    {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+                painter != null -> {
+                    {
+                        Icon(
+                            painter = painter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                else -> null
             },
             trailingContent = if (showChevron) {
                 {

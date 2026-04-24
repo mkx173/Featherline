@@ -273,8 +273,8 @@
     <string name="settings_about_open_link_title">打开外部链接</string>
     <string name="settings_about_open_link_message">该链接将在应用外打开，是否继续？</string>
     <string name="settings_about_open_link_confirm">打开</string>
-    <string name="settings_about_app_info_version">%1$s（%2$s）</string>
-    <string name="settings_about_app_info_copy_text">%1$s（%2$s）</string>
+    <string name="settings_about_app_info_version">%1$s (%2$s)</string>
+    <string name="settings_about_app_info_copy_text">%1$s (%2$s)</string>
     <string name="settings_about_app_info_copied">已复制</string>
     <string name="personalization_weight">体重</string>
     <string name="personalization_weight_not_set">未设置</string>
