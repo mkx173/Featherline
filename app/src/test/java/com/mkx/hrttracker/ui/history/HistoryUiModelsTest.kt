@@ -166,6 +166,14 @@ class HistoryUiModelsTest {
                 selectedDate = LocalDate.of(2026, 3, 31)
             )
         )
+        assertEquals(
+            null,
+            resolveHistoryDisplayedSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
     }
 
     @Test

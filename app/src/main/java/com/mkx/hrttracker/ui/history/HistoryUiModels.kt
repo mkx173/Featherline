@@ -73,13 +73,9 @@ internal fun resolveHistoryDisplayedSelectedDate(
     selectedDate: LocalDate?
 ): LocalDate? {
     return if (pendingSelectedDate != null) {
-        if (YearMonth.from(pendingSelectedDate) == displayedMonth) {
-            pendingSelectedDate
-        } else {
-            null
-        }
+        pendingSelectedDate.takeIf { YearMonth.from(it) == displayedMonth }
     } else {
-        selectedDate
+        selectedDate?.takeIf { YearMonth.from(it) == displayedMonth }
     }
 }
 

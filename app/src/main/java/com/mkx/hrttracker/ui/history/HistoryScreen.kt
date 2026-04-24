@@ -696,7 +696,8 @@ private fun HistoryMonthCalendar(
                         day = day,
                         today = today,
                         dayStatus = dayStates[day.date]?.status,
-                        isSelected = day.date == selectedDate,
+                        isSelected = day.date == selectedDate &&
+                            day.position == DayPosition.MonthDate,
                         onClick = { date ->
                             val targetMonth = historyCalendarDayClickTargetMonth(
                                 position = day.position,
