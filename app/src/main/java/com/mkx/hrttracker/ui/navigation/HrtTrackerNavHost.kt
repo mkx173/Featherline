@@ -52,6 +52,8 @@ import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanScreen
+import com.mkx.hrttracker.ui.settings.CalibrationEditorScreen
+import com.mkx.hrttracker.ui.settings.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.settings.CalibrationScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.time.LocalDateTime
@@ -72,6 +74,25 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             topLevelParentRoute: String,
         ): String {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+    data object SettingsCalibrationEntry : Screen(
+        "settings_calibration_entry?" +
+            "${CalibrationEditorViewModel.PANEL_ID_ARG}={${CalibrationEditorViewModel.PANEL_ID_ARG}}" +
+            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_calibration_add_result
+    ) {
+        const val baseRoute = "settings_calibration_entry"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+            panelId: String? = null,
+        ): String {
+            return if (panelId == null) {
+                "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            } else {
+                "$baseRoute?${CalibrationEditorViewModel.PANEL_ID_ARG}=$panelId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            }
         }
     }
 
@@ -306,7 +327,40 @@ fun HrtTrackerNavHost(
             ) {
                 CalibrationScreen(
                     modifier = modifier.padding(innerPadding),
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onAddClick = {
+                        navController.navigate(
+                            Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
+                        )
+                    },
+                    onPanelClick = { panelUuid ->
+                        navController.navigate(
+                            Screen.SettingsCalibrationEntry.createRoute(
+                                topLevelParentRoute = Screen.Settings.route,
+                                panelId = panelUuid.toString()
+                            )
+                        )
+                    }
+                )
+            }
+            composable(
+                route = Screen.SettingsCalibrationEntry.route,
+                arguments = listOf(
+                    navArgument(CalibrationEditorViewModel.PANEL_ID_ARG) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Settings.route
+                    }
+                )
+            ) {
+                CalibrationEditorScreen(
+                    modifier = modifier.padding(innerPadding),
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() }
                 )
             }
             composable(
