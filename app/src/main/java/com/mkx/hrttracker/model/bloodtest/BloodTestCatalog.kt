@@ -132,6 +132,54 @@ object BloodTestCatalog {
         }
     }
 
+    fun fromCanonical(
+        analyteKey: BloodAnalyteKey,
+        canonicalValue: Double,
+        unit: BloodUnitKey,
+    ): Double {
+        require(canonicalValue.isFinite()) { "Blood test value must be finite." }
+        require(isUnitAllowed(analyteKey, unit)) {
+            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
+        }
+
+        return when (analyteKey) {
+            BloodAnalyteKey.E2 -> when (unit) {
+                BloodUnitKey.PG_ML -> canonicalValue
+                BloodUnitKey.PMOL_L -> canonicalValue * E2_PMOL_L_PER_PG_ML
+                BloodUnitKey.NG_DL -> canonicalValue / PG_ML_PER_NG_DL
+                else -> unreachableUnit(analyteKey, unit)
+            }
+
+            BloodAnalyteKey.T -> when (unit) {
+                BloodUnitKey.NG_DL -> canonicalValue
+                BloodUnitKey.NMOL_L -> canonicalValue * T_NMOL_L_PER_NG_DL
+                BloodUnitKey.NG_ML -> canonicalValue / NG_DL_PER_NG_ML
+                else -> unreachableUnit(analyteKey, unit)
+            }
+
+            BloodAnalyteKey.PROG -> when (unit) {
+                BloodUnitKey.NG_ML -> canonicalValue
+                BloodUnitKey.NMOL_L -> canonicalValue * PROG_NMOL_L_PER_NG_ML
+                else -> unreachableUnit(analyteKey, unit)
+            }
+
+            BloodAnalyteKey.PRL -> when (unit) {
+                BloodUnitKey.NG_ML -> canonicalValue
+                else -> unreachableUnit(analyteKey, unit)
+            }
+
+            BloodAnalyteKey.FSH,
+            BloodAnalyteKey.LH,
+            -> when (unit) {
+                BloodUnitKey.MIU_ML,
+                BloodUnitKey.IU_L,
+                -> canonicalValue
+
+                else -> unreachableUnit(analyteKey, unit)
+            }
+        }
+    }
+
     private fun unreachableUnit(
         analyteKey: BloodAnalyteKey,
         unit: BloodUnitKey,

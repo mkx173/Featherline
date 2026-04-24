@@ -285,6 +285,51 @@ internal fun formatCalibrationNumericValue(value: Double): String {
     }
 }
 
+private sealed interface CalibrationCanonicalTarget {
+    data class Range(val low: Double, val high: Double) : CalibrationCanonicalTarget
+    data class UpperBound(val high: Double) : CalibrationCanonicalTarget
+}
+
+private val calibrationCanonicalTargets: Map<BloodAnalyteKey, CalibrationCanonicalTarget> = mapOf(
+    BloodAnalyteKey.E2 to CalibrationCanonicalTarget.Range(low = 100.0, high = 200.0),
+    BloodAnalyteKey.T to CalibrationCanonicalTarget.UpperBound(high = 50.0),
+)
+
+@Composable
+internal fun calibrationTargetLabel(
+    analyteKey: BloodAnalyteKey,
+    unit: BloodUnitKey,
+): String? {
+    val target = calibrationCanonicalTargets[analyteKey] ?: return null
+    val unitLabel = formatCalibrationUnitLabel(unit.storageValue)
+    return when (target) {
+        is CalibrationCanonicalTarget.Range -> stringResource(
+            R.string.settings_calibration_target_range,
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.low, unit)),
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            unitLabel,
+        )
+        is CalibrationCanonicalTarget.UpperBound -> stringResource(
+            R.string.settings_calibration_target_upper,
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            unitLabel,
+        )
+    }
+}
+
+private fun formatCalibrationTargetValue(value: Double): String {
+    val rounded = if (value >= 10.0) {
+        Math.round(value).toDouble()
+    } else {
+        Math.round(value * 10.0) / 10.0
+    }
+    return if (rounded == rounded.toLong().toDouble()) {
+        rounded.toLong().toString()
+    } else {
+        String.format(java.util.Locale.ROOT, "%.1f", rounded)
+    }
+}
+
 @Composable
 internal fun calibrationElapsedDurationLabel(durationMillis: Long): String {
     val clampedSeconds = Duration.ofMillis(durationMillis).seconds.coerceAtLeast(0)

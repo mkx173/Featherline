@@ -204,8 +204,10 @@ internal fun CalibrationAnalyteCard(
                             text = stringResource(calibrationAnalyteFullNameRes(analyteKey)),
                             style = MaterialTheme.typography.titleMedium,
                         )
+                        val abbreviation = calibrationAnalyteLabel(analyteKey)
+                        val target = calibrationTargetLabel(analyteKey, unit)
                         Text(
-                            text = calibrationAnalyteLabel(analyteKey),
+                            text = if (target != null) "$abbreviation · $target" else abbreviation,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
