@@ -42,7 +42,10 @@ class CalibrationViewModelTest {
     fun parseCalibrationNumericInput_accepts_comma_decimal() {
         assertEquals(123.4, checkNotNull(parseCalibrationNumericInput("123,4")), 1e-9)
         assertEquals(123.4, checkNotNull(parseCalibrationNumericInput(" 123.4 ")), 1e-9)
+        assertEquals(0.0, checkNotNull(parseCalibrationNumericInput("0")), 1e-9)
         assertEquals(null, parseCalibrationNumericInput("abc"))
+        assertEquals(null, parseCalibrationNumericInput("-1"))
+        assertEquals(null, parseCalibrationNumericInput("-0.5"))
     }
 
     @Test

@@ -48,5 +48,5 @@ internal fun parseCalibrationNumericInput(input: String): Double? {
     return input.trim()
         .replace(',', '.')
         .toDoubleOrNull()
-        ?.takeIf(Double::isFinite)
+        ?.takeIf { value -> value.isFinite() && value >= 0.0 }
 }

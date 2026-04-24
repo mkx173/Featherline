@@ -26,12 +26,18 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
-private val calibrationAdditionalAnalytes = listOf(
+private val calibrationAnalytes = listOf(
+    BloodAnalyteKey.E2,
     BloodAnalyteKey.T,
     BloodAnalyteKey.PROG,
     BloodAnalyteKey.PRL,
     BloodAnalyteKey.FSH,
     BloodAnalyteKey.LH,
+)
+
+private val defaultCalibrationAnalytes = listOf(
+    BloodAnalyteKey.E2,
+    BloodAnalyteKey.T,
 )
 
 @HiltViewModel
@@ -81,26 +87,10 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
-    fun updateE2Value(value: String) {
-        _uiState.update { state ->
-            state.copy(
-                e2Draft = state.e2Draft.copy(valueText = value)
-            )
-        }
-    }
-
-    fun updateE2Unit(unit: BloodUnitKey) {
-        _uiState.update { state ->
-            state.copy(
-                e2Draft = state.e2Draft.copy(unit = unit)
-            )
-        }
-    }
-
     fun updateAnalyteValue(analyteKey: BloodAnalyteKey, value: String) {
         _uiState.update { state ->
             state.copy(
-                additionalDrafts = state.additionalDrafts.map { draft ->
+                drafts = state.drafts.map { draft ->
                     if (draft.analyteKey == analyteKey) {
                         draft.copy(valueText = value)
                     } else {
@@ -114,7 +104,7 @@ class CalibrationEditorViewModel @Inject constructor(
     fun updateAnalyteUnit(analyteKey: BloodAnalyteKey, unit: BloodUnitKey) {
         _uiState.update { state ->
             state.copy(
-                additionalDrafts = state.additionalDrafts.map { draft ->
+                drafts = state.drafts.map { draft ->
                     if (draft.analyteKey == analyteKey) {
                         draft.copy(unit = unit)
                     } else {
@@ -125,19 +115,33 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    fun markAnalyteFocusLost(analyteKey: BloodAnalyteKey) {
+        _uiState.update { state ->
+            state.copy(
+                drafts = state.drafts.map { draft ->
+                    if (draft.analyteKey == analyteKey) {
+                        draft.copy(hasLostFocus = true)
+                    } else {
+                        draft
+                    }
+                }
+            )
+        }
+    }
+
     fun addAnalyte(analyteKey: BloodAnalyteKey) {
-        if (analyteKey == BloodAnalyteKey.E2 || analyteKey !in calibrationAdditionalAnalytes) {
+        if (analyteKey !in calibrationAnalytes) {
             return
         }
         _uiState.update { state ->
-            if (state.additionalDrafts.any { draft -> draft.analyteKey == analyteKey }) {
+            if (state.drafts.any { draft -> draft.analyteKey == analyteKey }) {
                 state
             } else {
                 state.copy(
-                    additionalDrafts = (state.additionalDrafts + CalibrationResultDraftUiState(
+                    drafts = (state.drafts + CalibrationResultDraftUiState(
                         analyteKey = analyteKey,
                         unit = defaultCalibrationUnitFor(analyteKey),
-                    )).sortedBy(::calibrationAdditionalAnalyteSortIndex)
+                    )).sortedBy(::calibrationAnalyteSortIndex)
                 )
             }
         }
@@ -146,7 +150,7 @@ class CalibrationEditorViewModel @Inject constructor(
     fun removeAnalyte(analyteKey: BloodAnalyteKey) {
         _uiState.update { state ->
             state.copy(
-                additionalDrafts = state.additionalDrafts.filterNot { draft ->
+                drafts = state.drafts.filterNot { draft ->
                     draft.analyteKey == analyteKey
                 }
             )
@@ -244,12 +248,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private fun buildResultInputs(
         state: CalibrationEditorUiState,
     ): List<BloodTestResultInput.Builtin> {
-        return buildList {
-            state.e2Draft.toResultInput()?.let(::add)
-            state.additionalDrafts.forEach { draft ->
-                draft.toResultInput()?.let(::add)
-            }
-        }
+        return state.drafts.mapNotNull { draft -> draft.toResultInput() }
     }
 
     private fun CalibrationResultDraftUiState.toResultInput(): BloodTestResultInput.Builtin? {
@@ -265,7 +264,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private fun BloodTestPanel.toEditorState(): CalibrationEditorUiState {
         val zoneId = ZoneId.of(collectedAtTimeZoneId)
         val collectedDateTime = collectedAt.atZone(zoneId).toLocalDateTime()
-        val builtinDrafts = results.mapNotNull { result ->
+        val drafts = results.mapNotNull { result ->
             val analyte = result.analyte as? BloodTestResultAnalyte.Builtin ?: return@mapNotNull null
             CalibrationResultDraftUiState(
                 analyteKey = analyte.key,
@@ -274,10 +273,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 unit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
                     ?: defaultCalibrationUnitFor(analyte.key),
             )
-        }
-        val e2Draft = builtinDrafts.firstOrNull { draft ->
-            draft.analyteKey == BloodAnalyteKey.E2
-        } ?: CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.E2)
+        }.sortedBy(::calibrationAnalyteSortIndex)
 
         return CalibrationEditorUiState(
             panelUuid = uuid.toString(),
@@ -287,10 +283,7 @@ class CalibrationEditorViewModel @Inject constructor(
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
             timeZoneId = collectedAtTimeZoneId,
             notes = notes.orEmpty(),
-            e2Draft = e2Draft,
-            additionalDrafts = builtinDrafts
-                .filterNot { draft -> draft.analyteKey == BloodAnalyteKey.E2 }
-                .sortedBy(::calibrationAdditionalAnalyteSortIndex),
+            drafts = drafts,
         )
     }
 
@@ -310,10 +303,9 @@ data class CalibrationEditorUiState(
     val timeZoneId: String = ZoneId.systemDefault().id,
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
-    val e2Draft: CalibrationResultDraftUiState = CalibrationResultDraftUiState(
-        analyteKey = BloodAnalyteKey.E2
-    ),
-    val additionalDrafts: List<CalibrationResultDraftUiState> = emptyList(),
+    val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationAnalytes.map { analyteKey ->
+        CalibrationResultDraftUiState(analyteKey = analyteKey)
+    },
 )
 
 data class CalibrationResultDraftUiState(
@@ -321,29 +313,29 @@ data class CalibrationResultDraftUiState(
     val resultUuid: UUID? = null,
     val valueText: String = "",
     val unit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
+    val hasLostFocus: Boolean = false,
 )
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {
-    val allDrafts = listOf(state.e2Draft) + state.additionalDrafts
-    var hasValidValue = false
-    allDrafts.forEach { draft ->
-        val trimmedValue = draft.valueText.trim()
-        if (trimmedValue.isBlank()) {
-            return@forEach
-        }
-        if (parseCalibrationNumericInput(trimmedValue) == null) {
-            return false
-        }
-        hasValidValue = true
+    if (state.drafts.isEmpty()) return false
+    return state.drafts.all { draft ->
+        val trimmed = draft.valueText.trim()
+        trimmed.isNotEmpty() && parseCalibrationNumericInput(trimmed) != null
     }
-    return hasValidValue
 }
 
-internal fun calibrationAdditionalAnalyteOptions(
+internal fun calibrationAnalyteHasError(draft: CalibrationResultDraftUiState): Boolean {
+    if (!draft.hasLostFocus) return false
+    val trimmed = draft.valueText.trim()
+    if (trimmed.isEmpty()) return false
+    return parseCalibrationNumericInput(trimmed) == null
+}
+
+internal fun calibrationAnalyteOptions(
     state: CalibrationEditorUiState,
 ): List<BloodAnalyteKey> {
-    val presentAnalytes = state.additionalDrafts.map(CalibrationResultDraftUiState::analyteKey).toSet()
-    return calibrationAdditionalAnalytes.filterNot(presentAnalytes::contains)
+    val presentAnalytes = state.drafts.map(CalibrationResultDraftUiState::analyteKey).toSet()
+    return calibrationAnalytes.filterNot(presentAnalytes::contains)
 }
 
 internal fun calibrationAllowedUnitsFor(analyteKey: BloodAnalyteKey): List<BloodUnitKey> {
@@ -355,10 +347,10 @@ internal fun defaultCalibrationUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKe
     return calibrationAllowedUnitsFor(analyteKey).first()
 }
 
-private fun calibrationAdditionalAnalyteSortIndex(
+private fun calibrationAnalyteSortIndex(
     draft: CalibrationResultDraftUiState,
 ): Int {
-    return calibrationAdditionalAnalytes.indexOf(draft.analyteKey).takeIf { index ->
+    return calibrationAnalytes.indexOf(draft.analyteKey).takeIf { index ->
         index >= 0
     } ?: Int.MAX_VALUE
 }

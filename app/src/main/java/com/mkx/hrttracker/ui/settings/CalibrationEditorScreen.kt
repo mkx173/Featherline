@@ -133,10 +133,9 @@ fun CalibrationEditorScreen(
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onNotesChange = viewModel::updateNotes,
-        onE2ValueChange = viewModel::updateE2Value,
-        onE2UnitChange = viewModel::updateE2Unit,
         onAnalyteValueChange = viewModel::updateAnalyteValue,
         onAnalyteUnitChange = viewModel::updateAnalyteUnit,
+        onAnalyteFocusLost = viewModel::markAnalyteFocusLost,
         onRemoveAnalyteClick = viewModel::removeAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
         onSaveClick = viewModel::save,
@@ -145,7 +144,7 @@ fun CalibrationEditorScreen(
 
     if (isAddAnalyteSheetVisible) {
         CalibrationAddAnalyteSheet(
-            availableAnalytes = calibrationAdditionalAnalyteOptions(uiState),
+            availableAnalytes = calibrationAnalyteOptions(uiState),
             onDismissRequest = { isAddAnalyteSheetVisible = false },
             onAnalyteClick = { analyteKey ->
                 viewModel.addAnalyte(analyteKey)
@@ -165,17 +164,16 @@ private fun CalibrationEditorScreenContent(
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
     onNotesChange: (String) -> Unit,
-    onE2ValueChange: (String) -> Unit,
-    onE2UnitChange: (BloodUnitKey) -> Unit,
     onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
     onAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
+    onAnalyteFocusLost: (BloodAnalyteKey) -> Unit,
     onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
     onAddAnalyteClick: () -> Unit,
     onSaveClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSave = canSaveCalibrationEditorState(uiState) && !uiState.isLoading && !uiState.isSaving
-    val remainingAnalyteCount = calibrationAdditionalAnalyteOptions(uiState).size
+    val remainingAnalyteCount = calibrationAnalyteOptions(uiState).size
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -254,36 +252,26 @@ private fun CalibrationEditorScreenContent(
                     )
                 }
                 itemsIndexed(
-                    items = listOf(uiState.e2Draft) + uiState.additionalDrafts,
+                    items = uiState.drafts,
                     key = { _, draft -> draft.analyteKey.storageValue },
                 ) { index, draft ->
-                    val totalCount = uiState.additionalDrafts.size + 1
+                    val totalCount = uiState.drafts.size
 
                     CalibrationAnalyteCard(
                         index = index,
-                        count = uiState.additionalDrafts.size + 1,
+                        count = totalCount,
                         analyteKey = draft.analyteKey,
                         valueText = draft.valueText,
                         unit = draft.unit,
+                        isError = calibrationAnalyteHasError(draft),
                         onValueChange = { value ->
-                            if (index == 0) {
-                                onE2ValueChange(value)
-                            } else {
-                                onAnalyteValueChange(draft.analyteKey, value)
-                            }
+                            onAnalyteValueChange(draft.analyteKey, value)
                         },
                         onUnitChange = { unit ->
-                            if (index == 0) {
-                                onE2UnitChange(unit)
-                            } else {
-                                onAnalyteUnitChange(draft.analyteKey, unit)
-                            }
+                            onAnalyteUnitChange(draft.analyteKey, unit)
                         },
-                        onRemoveClick = if (index == 0) {
-                            null
-                        } else {
-                            { onRemoveAnalyteClick(draft.analyteKey) }
-                        },
+                        onFocusLost = { onAnalyteFocusLost(draft.analyteKey) },
+                        onRemoveClick = { onRemoveAnalyteClick(draft.analyteKey) },
                     )
 
                     if (index < totalCount - 1) {
@@ -436,12 +424,12 @@ private fun CalibrationEditorScreenPreview() {
                 timeZoneId = "Asia/Tokyo",
                 timeSinceLastEstradiolDoseMillis = 34_200_000L,
                 notes = "Trough draw before morning dose.",
-                e2Draft = CalibrationResultDraftUiState(
-                    analyteKey = BloodAnalyteKey.E2,
-                    valueText = "152.4",
-                    unit = BloodUnitKey.PMOL_L,
-                ),
-                additionalDrafts = listOf(
+                drafts = listOf(
+                    CalibrationResultDraftUiState(
+                        analyteKey = BloodAnalyteKey.E2,
+                        valueText = "152.4",
+                        unit = BloodUnitKey.PMOL_L,
+                    ),
                     CalibrationResultDraftUiState(
                         analyteKey = BloodAnalyteKey.T,
                         resultUuid = UUID.fromString("c047ef42-a1d6-4764-8ae8-203ef1ed54d6"),
@@ -456,10 +444,9 @@ private fun CalibrationEditorScreenPreview() {
             onDateClick = { },
             onTimeClick = { },
             onNotesChange = { },
-            onE2ValueChange = { },
-            onE2UnitChange = { },
             onAnalyteValueChange = { _, _ -> },
             onAnalyteUnitChange = { _, _ -> },
+            onAnalyteFocusLost = { },
             onRemoveAnalyteClick = { },
             onAddAnalyteClick = { },
             onSaveClick = { },

@@ -34,10 +34,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -164,11 +168,13 @@ internal fun CalibrationAnalyteCard(
     analyteKey: BloodAnalyteKey,
     valueText: String,
     unit: BloodUnitKey,
+    isError: Boolean,
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
-    onRemoveClick: (() -> Unit)? = null,
+    onFocusLost: () -> Unit,
+    onRemoveClick: () -> Unit,
     index: Int = 0,
-    count: Int = 1
+    count: Int = 1,
 ) {
     CalibrationEditorCard(
         index = index,
@@ -206,27 +212,35 @@ internal fun CalibrationAnalyteCard(
                     }
                 }
 
-                onRemoveClick?.let { removeClick ->
-                    CompositionLocalProvider(
-                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                ) {
+                    IconButton(
+                        onClick = onRemoveClick,
+                        modifier = Modifier.size(24.dp)
                     ) {
-                        IconButton(
-                            onClick = removeClick,
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.remove_time),
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.remove_time),
+                        )
                     }
                 }
             }
 
+            var wasFocused by remember { mutableStateOf(false) }
             OutlinedTextField(
                 value = valueText,
                 onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                            wasFocused = true
+                        } else if (wasFocused) {
+                            onFocusLost()
+                        }
+                    },
+                isError = isError,
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
                 },
@@ -328,8 +342,10 @@ private fun CalibrationAnalyteCardPreview() {
             analyteKey = BloodAnalyteKey.T,
             valueText = "31.7",
             unit = BloodUnitKey.NMOL_L,
+            isError = false,
             onValueChange = { },
             onUnitChange = { },
+            onFocusLost = { },
             onRemoveClick = { },
         )
     }

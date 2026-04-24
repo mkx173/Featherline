@@ -101,11 +101,16 @@ class CalibrationEditorViewModelTest {
         assertEquals(LocalDate.of(2026, 4, 24), uiState.collectedDate)
         assertEquals(LocalTime.of(9, 30), uiState.collectedTime)
         assertEquals("Lab draw before morning dose", uiState.notes)
-        assertEquals("559.5", uiState.e2Draft.valueText)
-        assertEquals(BloodUnitKey.PMOL_L, uiState.e2Draft.unit)
-        assertEquals(listOf(BloodAnalyteKey.T), uiState.additionalDrafts.map { it.analyteKey })
-        assertEquals("1.1", uiState.additionalDrafts.single().valueText)
-        assertEquals(BloodUnitKey.NMOL_L, uiState.additionalDrafts.single().unit)
+        assertEquals(
+            listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),
+            uiState.drafts.map(CalibrationResultDraftUiState::analyteKey),
+        )
+        val e2Draft = uiState.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
+        assertEquals("559.5", e2Draft.valueText)
+        assertEquals(BloodUnitKey.PMOL_L, e2Draft.unit)
+        val tDraft = uiState.drafts.first { it.analyteKey == BloodAnalyteKey.T }
+        assertEquals("1.1", tDraft.valueText)
+        assertEquals(BloodUnitKey.NMOL_L, tDraft.unit)
         assertNull(uiState.timeSinceLastEstradiolDoseMillis)
     }
 
@@ -133,9 +138,8 @@ class CalibrationEditorViewModelTest {
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
         viewModel.updateCollectedTime(LocalTime.of(9, 30))
         viewModel.updateNotes("Taken fasting")
-        viewModel.updateE2Value("152.4")
-        viewModel.updateE2Unit(BloodUnitKey.PMOL_L)
-        viewModel.addAnalyte(BloodAnalyteKey.T)
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
         viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
         viewModel.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
 
@@ -174,7 +178,7 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun save_ignoresBlankAdditionalAnalytes() = runTest {
+    fun save_omitsDeletedDefaultAnalytes() = runTest {
         val resultInputSlot = slot<List<BloodTestResultInput>>()
         coEvery {
             repository.savePanel(
@@ -193,8 +197,8 @@ class CalibrationEditorViewModelTest {
             SavedStateHandle()
         )
         advanceUntilIdle()
-        viewModel.updateE2Value("95")
-        viewModel.addAnalyte(BloodAnalyteKey.FSH)
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "95")
+        viewModel.removeAnalyte(BloodAnalyteKey.T)
 
         viewModel.save()
         advanceUntilIdle()
@@ -241,32 +245,74 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun canSaveCalibrationEditorState_requiresAtLeastOneValidValue() {
+    fun canSaveCalibrationEditorState_requiresAllDraftsValidAndNonEmpty() {
         val emptyState = CalibrationEditorUiState()
-        val validState = emptyState.copy(
-            e2Draft = emptyState.e2Draft.copy(valueText = "95")
-        )
-        val invalidState = emptyState.copy(
-            e2Draft = emptyState.e2Draft.copy(valueText = "abc")
-        )
+        val e2Draft = emptyState.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
+        val tDraft = emptyState.drafts.first { it.analyteKey == BloodAnalyteKey.T }
 
         assertFalse(canSaveCalibrationEditorState(emptyState))
+
+        val partialState = emptyState.copy(
+            drafts = listOf(e2Draft.copy(valueText = "95"), tDraft),
+        )
+        assertFalse(canSaveCalibrationEditorState(partialState))
+
+        val validState = emptyState.copy(
+            drafts = listOf(
+                e2Draft.copy(valueText = "95"),
+                tDraft.copy(valueText = "42"),
+            ),
+        )
         assertTrue(canSaveCalibrationEditorState(validState))
+
+        val invalidState = emptyState.copy(
+            drafts = listOf(
+                e2Draft.copy(valueText = "abc"),
+                tDraft.copy(valueText = "42"),
+            ),
+        )
         assertFalse(canSaveCalibrationEditorState(invalidState))
+
+        val oneRemainingValidState = emptyState.copy(
+            drafts = listOf(e2Draft.copy(valueText = "95")),
+        )
+        assertTrue(canSaveCalibrationEditorState(oneRemainingValidState))
+
+        val noDraftsState = emptyState.copy(drafts = emptyList())
+        assertFalse(canSaveCalibrationEditorState(noDraftsState))
     }
 
     @Test
-    fun calibrationAdditionalAnalyteOptions_excludesAlreadyAddedAnalytes() {
+    fun calibrationAnalyteHasError_onlyTriggersAfterFocusLossForInvalidInput() {
+        val baseDraft = CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.E2)
+
+        assertFalse(calibrationAnalyteHasError(baseDraft))
+        assertFalse(calibrationAnalyteHasError(baseDraft.copy(valueText = "abc")))
+        assertFalse(calibrationAnalyteHasError(baseDraft.copy(hasLostFocus = true)))
+        assertFalse(
+            calibrationAnalyteHasError(
+                baseDraft.copy(valueText = "95", hasLostFocus = true)
+            )
+        )
+        assertTrue(
+            calibrationAnalyteHasError(
+                baseDraft.copy(valueText = "abc", hasLostFocus = true)
+            )
+        )
+    }
+
+    @Test
+    fun calibrationAnalyteOptions_excludesAlreadyAddedAnalytes() {
         val state = CalibrationEditorUiState(
-            additionalDrafts = listOf(
+            drafts = listOf(
                 CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.T),
                 CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.FSH),
             )
         )
 
         assertEquals(
-            listOf(BloodAnalyteKey.PROG, BloodAnalyteKey.PRL, BloodAnalyteKey.LH),
-            calibrationAdditionalAnalyteOptions(state)
+            listOf(BloodAnalyteKey.E2, BloodAnalyteKey.PROG, BloodAnalyteKey.PRL, BloodAnalyteKey.LH),
+            calibrationAnalyteOptions(state)
         )
     }
 }
