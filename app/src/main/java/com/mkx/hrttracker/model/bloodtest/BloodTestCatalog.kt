@@ -17,10 +17,10 @@ enum class BloodAnalyteKey(val storageValue: String) {
 
 enum class BloodUnitKey(val storageValue: String) {
     PG_ML("pg_ml"),
-    PMOL_L("pmol_l"),
-    NG_DL("ng_dl"),
-    NMOL_L("nmol_l"),
     NG_ML("ng_ml"),
+    NG_DL("ng_dl"),
+    PMOL_L("pmol_l"),
+    NMOL_L("nmol_l"),
     MIU_ML("miu_ml"),
     IU_L("iu_l");
 

@@ -279,9 +279,8 @@
     <string name="settings_calibration_time_label">时间</string>
     <string name="settings_calibration_unit_label">单位</string>
     <string name="settings_calibration_notes_label">备注</string>
-    <string name="settings_calibration_additional_results">其他结果</string>
-    <string name="settings_calibration_add_analyte">添加其他结果</string>
-    <string name="settings_calibration_add_analyte_title">添加结果</string>
+    <string name="settings_calibration_results">血液检测结果</string>
+    <string name="settings_calibration_add_analyte">添加结果</string>
     <string name="settings_calibration_value_label">数值</string>
     <string name="settings_calibration_save_result">保存结果</string>
     <string name="settings_calibration_analyte_prog">孕酮</string>
@@ -346,12 +345,10 @@
     <string name="onboarding_reminders_message">到了计划用药时间时提醒您。您可以随时在「设置」中更改。</string>
     <string name="onboarding_reminders_enable">开启</string>
     <string name="onboarding_reminders_decline">暂不</string>
+    <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
-    </plurals>
-    <plurals name="settings_calibration_remaining_analytes">
-        <item quantity="other">剩余 %1$d 项可添加</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="other">条记录</item>

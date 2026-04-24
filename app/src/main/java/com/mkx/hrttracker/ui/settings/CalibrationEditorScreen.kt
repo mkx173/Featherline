@@ -7,20 +7,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -43,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
@@ -145,7 +155,7 @@ fun CalibrationEditorScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CalibrationEditorScreenContent(
     uiState: CalibrationEditorUiState,
@@ -167,8 +177,9 @@ private fun CalibrationEditorScreenContent(
     val canSave = canSaveCalibrationEditorState(uiState) && !uiState.isLoading && !uiState.isSaving
     val remainingAnalyteCount = calibrationAdditionalAnalyteOptions(uiState).size
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = {
@@ -188,19 +199,21 @@ private fun CalibrationEditorScreenContent(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.cancel),
                         )
                     }
                 },
                 actions = {
-                    TextButton(
+                    Button(
                         onClick = onSaveClick,
                         enabled = canSave,
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(text = stringResource(R.string.save))
                     }
                 },
+                scrollBehavior = scrollBehavior
             )
         },
     ) { innerPadding ->
@@ -219,7 +232,6 @@ private fun CalibrationEditorScreenContent(
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             ) {
                 item {
                     CalibrationDateTimeCard(
@@ -231,76 +243,98 @@ private fun CalibrationEditorScreenContent(
                         onTimeClick = onTimeClick,
                     )
                 }
+
                 item {
-                    CalibrationAnalyteCard(
-                        analyteKey = uiState.e2Draft.analyteKey,
-                        valueText = uiState.e2Draft.valueText,
-                        unit = uiState.e2Draft.unit,
-                        onValueChange = onE2ValueChange,
-                        onUnitChange = onE2UnitChange,
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    Text(
+                        text = stringResource(R.string.settings_calibration_results).uppercase(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
                     )
                 }
+                itemsIndexed(
+                    items = listOf(uiState.e2Draft) + uiState.additionalDrafts,
+                    key = { _, draft -> draft.analyteKey.storageValue },
+                ) { index, draft ->
+                    val totalCount = uiState.additionalDrafts.size + 1
+
+                    CalibrationAnalyteCard(
+                        index = index,
+                        count = uiState.additionalDrafts.size + 1,
+                        analyteKey = draft.analyteKey,
+                        valueText = draft.valueText,
+                        unit = draft.unit,
+                        onValueChange = { value ->
+                            if (index == 0) {
+                                onE2ValueChange(value)
+                            } else {
+                                onAnalyteValueChange(draft.analyteKey, value)
+                            }
+                        },
+                        onUnitChange = { unit ->
+                            if (index == 0) {
+                                onE2UnitChange(unit)
+                            } else {
+                                onAnalyteUnitChange(draft.analyteKey, unit)
+                            }
+                        },
+                        onRemoveClick = if (index == 0) {
+                            null
+                        } else {
+                            { onRemoveAnalyteClick(draft.analyteKey) }
+                        },
+                    )
+
+                    if (index < totalCount - 1) {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                    }
+                }
                 item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small))
+                    ) {
+                        FilledTonalButton(
+                            onClick = onAddAnalyteClick,
+                            enabled = remainingAnalyteCount > 0,
+                            contentPadding =
+                                ButtonDefaults.contentPaddingFor(ButtonDefaults.MinHeight, hasStartIcon = true)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight))
+                            )
+                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
+                            Text(
+                                text = stringResource(R.string.settings_calibration_add_analyte),
+                            )
+                        }
+                        Text(
+                            text = stringResource(
+                                R.string.settings_calibration_remaining_analytes,
+                                remainingAnalyteCount,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                }
+                item {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    Text(
+                        text = stringResource(R.string.settings_calibration_notes_label).uppercase(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
+                    )
                     CalibrationNotesCard(
                         notes = uiState.notes,
                         onNotesChange = onNotesChange,
                     )
-                }
-                if (uiState.additionalDrafts.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.settings_calibration_additional_results),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    items(
-                        items = uiState.additionalDrafts,
-                        key = { draft -> draft.analyteKey.storageValue },
-                    ) { draft ->
-                        CalibrationAnalyteCard(
-                            analyteKey = draft.analyteKey,
-                            valueText = draft.valueText,
-                            unit = draft.unit,
-                            onValueChange = { value ->
-                                onAnalyteValueChange(draft.analyteKey, value)
-                            },
-                            onUnitChange = { unit ->
-                                onAnalyteUnitChange(draft.analyteKey, unit)
-                            },
-                            onRemoveClick = {
-                                onRemoveAnalyteClick(draft.analyteKey)
-                            },
-                        )
-                    }
-                }
-                if (remainingAnalyteCount > 0) {
-                    item {
-                        Text(
-                            text = pluralStringResource(
-                                R.plurals.settings_calibration_remaining_analytes,
-                                remainingAnalyteCount,
-                                remainingAnalyteCount
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    item {
-                        Button(
-                            onClick = onAddAnalyteClick,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                            )
-                            Text(
-                                text = stringResource(R.string.settings_calibration_add_analyte),
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -357,7 +391,7 @@ private fun CalibrationAddAnalyteSheetContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = stringResource(R.string.settings_calibration_add_analyte_title),
+                text = stringResource(R.string.settings_calibration_add_analyte),
                 style = MaterialTheme.typography.titleLarge,
             )
             TextButton(onClick = onDismissRequest) {

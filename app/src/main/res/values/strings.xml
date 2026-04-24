@@ -279,9 +279,8 @@
     <string name="settings_calibration_time_label">Time</string>
     <string name="settings_calibration_unit_label">Unit</string>
     <string name="settings_calibration_notes_label">Notes</string>
-    <string name="settings_calibration_additional_results">Additional results</string>
-    <string name="settings_calibration_add_analyte">Add another result</string>
-    <string name="settings_calibration_add_analyte_title">Add result</string>
+    <string name="settings_calibration_results">Blood test results</string>
+    <string name="settings_calibration_add_analyte">Add result</string>
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_save_result">Save result</string>
     <string name="settings_calibration_analyte_prog">Progesterone</string>
@@ -346,14 +345,11 @@
     <string name="onboarding_reminders_message">Get notified when a scheduled dose is due. You can change this anytime in Settings.</string>
     <string name="onboarding_reminders_enable">Enable</string>
     <string name="onboarding_reminders_decline">Not now</string>
+    <string name="settings_calibration_remaining_analytes">%1$d available</string>
 
     <plurals name="plan_group_medication_count">
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
-    </plurals>
-    <plurals name="settings_calibration_remaining_analytes">
-        <item quantity="one">%1$d analyte remaining</item>
-        <item quantity="other">%1$d analytes remaining</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="one">entry logged</item>

@@ -785,7 +785,7 @@ private fun SettingsSectionTitle(
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
     )
 }

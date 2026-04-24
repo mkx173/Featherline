@@ -51,20 +51,23 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @Composable
 internal fun CalibrationEditorCard(
     modifier: Modifier = Modifier,
+    index: Int = 0,
+    count: Int = 1,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = {}
     ) {
         Box(
-            modifier = Modifier.padding(dimensionResource(R.dimen.padding_medium)),
+            modifier = modifier,
         ) {
             content()
         }
@@ -80,7 +83,9 @@ internal fun CalibrationDateTimeCard(
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
 ) {
-    CalibrationEditorCard {
+    CalibrationEditorCard(
+        modifier = Modifier.padding(vertical = 8.dp)
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
@@ -106,7 +111,7 @@ internal fun CalibrationDateTimeCard(
             timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer
+                    color = MaterialTheme.colorScheme.tertiaryContainer
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -116,7 +121,7 @@ internal fun CalibrationDateTimeCard(
                         Icon(
                             painter = painterResource(R.drawable.ic_labs),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
@@ -125,7 +130,7 @@ internal fun CalibrationDateTimeCard(
                                 calibrationElapsedDurationLabel(elapsedMillis)
                             ),
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     }
                 }
@@ -139,25 +144,18 @@ internal fun CalibrationNotesCard(
     notes: String,
     onNotesChange: (String) -> Unit,
 ) {
-    CalibrationEditorCard {
-        Column(
+    CalibrationEditorCard(
+        modifier = Modifier.padding(bottom = 8.dp)
+    ) {
+        OutlinedTextField(
+            value = notes,
+            onValueChange = onNotesChange,
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_calibration_notes_label),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            OutlinedTextField(
-                value = notes,
-                onValueChange = onNotesChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text(text = stringResource(R.string.settings_calibration_notes_label))
-                },
-                minLines = 3,
-            )
-        }
+            label = {
+                Text(text = stringResource(R.string.settings_calibration_notes_label))
+            },
+            minLines = 3,
+        )
     }
 }
 
@@ -169,8 +167,13 @@ internal fun CalibrationAnalyteCard(
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
     onRemoveClick: (() -> Unit)? = null,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    CalibrationEditorCard {
+    CalibrationEditorCard(
+        index = index,
+        count = count
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
@@ -197,7 +200,7 @@ internal fun CalibrationAnalyteCard(
                         )
                         Text(
                             text = calibrationAnalyteLabel(analyteKey),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -237,20 +240,18 @@ internal fun CalibrationAnalyteCard(
             val allowedUnits = remember(analyteKey) {
                 calibrationAllowedUnitsFor(analyteKey)
             }
-            if (allowedUnits.size > 1) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    ConnectedButtonGroup(
-                        modifier = Modifier.wrapContentWidth(),
-                        options = allowedUnits,
-                        selectedOption = unit,
-                        optionLabel = { option -> calibrationUnitLabel(option) },
-                        onOptionSelected = onUnitChange,
-                        layout = ConnectedButtonGroupLayout.ROW,
-                    )
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                ConnectedButtonGroup(
+                    modifier = Modifier.wrapContentWidth(),
+                    options = allowedUnits,
+                    selectedOption = unit,
+                    optionLabel = { option -> calibrationUnitLabel(option) },
+                    onOptionSelected = onUnitChange,
+                    layout = ConnectedButtonGroupLayout.ROW,
+                )
             }
         }
     }
