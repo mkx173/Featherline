@@ -136,16 +136,16 @@ fun HistoryScreen(
 
     HistoryScreenContent(
         uiState = uiState,
-        onEntryClick = { collapsedEntry ->
+        onEntryClick = { entry ->
             when (historyEntryTapAction(uiState.selectedEntryIds)) {
-                HistoryEntryTapAction.OPEN_EDITOR -> onEntryClick(collapsedEntry.entryIds)
+                HistoryEntryTapAction.OPEN_EDITOR -> onEntryClick(setOf(entry.uuid))
                 HistoryEntryTapAction.TOGGLE_SELECTION -> {
-                    viewModel.toggleEntrySelection(collapsedEntry.entryIds)
+                    viewModel.toggleEntrySelection(entry.uuid)
                 }
             }
         },
-        onEntryLongClick = { collapsedEntry ->
-            viewModel.toggleEntrySelection(collapsedEntry.entryIds)
+        onEntryLongClick = { entry ->
+            viewModel.toggleEntrySelection(entry.uuid)
         },
         onDayClick = viewModel::toggleSelectedDate,
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
@@ -162,8 +162,8 @@ fun HistoryScreen(
 @Composable
 private fun HistoryScreenContent(
     uiState: HistoryUiState,
-    onEntryClick: (HistoryCollapsedEntry) -> Unit,
-    onEntryLongClick: (HistoryCollapsedEntry) -> Unit,
+    onEntryClick: (MedicationLogEntry) -> Unit,
+    onEntryLongClick: (MedicationLogEntry) -> Unit,
     onDayClick: (LocalDate) -> Unit,
     onDeleteSelectedClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
@@ -282,17 +282,11 @@ private fun HistoryScreenContent(
             selectedDate = effectiveSelectedDate
         )
     }
-    val collapsedEntries = remember(visibleEntries) {
-        collapseHistoryEntries(visibleEntries)
+    val groupedEntries = remember(visibleEntries) {
+        groupHistoryEntriesByDate(visibleEntries)
     }
-    val groupedEntries = remember(collapsedEntries) {
-        groupHistoryEntriesByDate(collapsedEntries)
-    }
-    val selectedCollapsedEntryCount = remember(collapsedEntries, uiState.selectedEntryIds) {
-        countSelectedCollapsedEntries(
-            selectedEntryIds = uiState.selectedEntryIds,
-            collapsedEntries = collapsedEntries
-        )
+    val selectedEntryCount = remember(visibleEntries, uiState.selectedEntryIds) {
+        visibleEntries.count { entry -> entry.uuid in uiState.selectedEntryIds }
     }
     val groupNamesById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.name }
@@ -320,7 +314,7 @@ private fun HistoryScreenContent(
                 Text(
                     text = stringResource(
                         R.string.delete_entries_confirmation,
-                        selectedCollapsedEntryCount
+                        selectedEntryCount
                     )
                 )
             },
@@ -411,7 +405,7 @@ private fun HistoryScreenContent(
                 )
             }
 
-            if (collapsedEntries.isEmpty()) {
+            if (visibleEntries.isEmpty()) {
                 item(key = "empty-state") {
                     HistoryEmptyStateCard(
                         text = stringResource(
@@ -442,24 +436,17 @@ private fun HistoryScreenContent(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                         ) {
-                            dateEntries.forEachIndexed { index, collapsedEntry ->
+                            dateEntries.forEachIndexed { index, entry ->
                                 HistoryEntryCard(
-                                    collapsedEntry = collapsedEntry,
+                                    entry = entry,
                                     timeFormatter = timeFormatter,
-                                    groupName = collapsedEntry.representativeEntry.sourceGroupUuid?.let(
-                                        groupNamesById::get
-                                    ),
-                                    groupColorKey = collapsedEntry.representativeEntry.sourceGroupUuid?.let(
-                                        groupColorsById::get
-                                    ),
-                                    isSelected = isHistoryCollapsedEntrySelected(
-                                        selectedEntryIds = uiState.selectedEntryIds,
-                                        entryIds = collapsedEntry.entryIds
-                                    ),
+                                    groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
+                                    groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
+                                    isSelected = entry.uuid in uiState.selectedEntryIds,
                                     index = index,
                                     count = dateEntries.size,
-                                    onClick = { onEntryClick(collapsedEntry) },
-                                    onLongClick = { onEntryLongClick(collapsedEntry) }
+                                    onClick = { onEntryClick(entry) },
+                                    onLongClick = { onEntryLongClick(entry) }
                                 )
                             }
                             if (groupIndex < groupedEntries.size - 1) {
@@ -1258,7 +1245,7 @@ private fun historyIndicatorColor(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HistoryEntryCard(
-    collapsedEntry: HistoryCollapsedEntry,
+    entry: MedicationLogEntry,
     timeFormatter: DateTimeFormatter,
     groupName: String?,
     groupColorKey: MedicationGroupColorKey?,
@@ -1268,14 +1255,13 @@ private fun HistoryEntryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val entry = collapsedEntry.representativeEntry
     val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
         historySourceVisual(entry.sourceType, entry.scheduledFor != null)
     }
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
         entry = entry,
-        count = collapsedEntry.count,
+        count = entry.count,
         groupName = groupName
     )
     val containerColor = if (isSelected) {

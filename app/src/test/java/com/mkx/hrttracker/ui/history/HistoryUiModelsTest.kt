@@ -6,7 +6,6 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testInstant
@@ -257,67 +256,12 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun collapseHistoryEntries_keeps_persisted_counted_rows_as_single_visible_entries() {
-        val countedId = UUID.fromString("b33e87e1-7a60-461b-8fc3-0ba5afb0b147")
-        val singleId = UUID.fromString("cd74c798-022a-49e0-a8cd-67d9f92d2c59")
-        val collapsedEntries = collapseHistoryEntries(
-            listOf(
-                testMedicationLogEntry(
-                    uuid = countedId,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
-                    dosageMgAsEstradiol = 2.0,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                    sourceGroupUuid = UUID.fromString("d6378318-4ee8-46b3-8430-3131af61efdf"),
-                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
-                    scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0),
-                    count = 2
-                ),
-                testMedicationLogEntry(
-                    uuid = singleId,
-                    details = testCustomMedicationDetails(
-                        medicationName = "Progesterone",
-                        dose = MedicationDose.MgAsMedicine(100.0)
-                    ),
-                    dosageMgAsEstradiol = null,
-                    sourceType = MedicationLogEntrySourceType.MANUAL,
-                    sourceGroupUuid = null,
-                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 22, 0))
-                )
-            )
-        )
-
-        val countedEntry = collapsedEntries.first { entry -> entry.count == 2 }
-        val singleEntry = collapsedEntries.first { entry -> entry.count == 1 }
-
-        assertEquals(2, collapsedEntries.size)
-        assertEquals(setOf(countedId), countedEntry.entryIds)
-        assertEquals(1, singleEntry.count)
-        assertEquals(setOf(singleId), singleEntry.entryIds)
-    }
-
-    @Test
     fun groupHistoryEntriesByDate_keeps_days_in_existing_order_and_sorts_entries_within_day_ascending() {
         val groupedEntries = groupHistoryEntriesByDate(
             listOf(
-                HistoryCollapsedEntry(
-                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 22, 0)),
-                    entryIds = setOf(UUID.fromString("11111111-1111-1111-1111-111111111111")),
-                    count = 1
-                ),
-                HistoryCollapsedEntry(
-                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
-                    entryIds = setOf(UUID.fromString("22222222-2222-2222-2222-222222222222")),
-                    count = 1
-                ),
-                HistoryCollapsedEntry(
-                    representativeEntry = entryAt(LocalDateTime.of(2026, 4, 10, 20, 0)),
-                    entryIds = setOf(UUID.fromString("33333333-3333-3333-3333-333333333333")),
-                    count = 1
-                ),
+                entryAt(LocalDateTime.of(2026, 4, 11, 22, 0)),
+                entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
+                entryAt(LocalDateTime.of(2026, 4, 10, 20, 0)),
             )
         )
 
@@ -330,60 +274,27 @@ class HistoryUiModelsTest {
                 LocalDateTime.of(2026, 4, 11, 8, 0),
                 LocalDateTime.of(2026, 4, 11, 22, 0)
             ),
-            groupedEntries.getValue(LocalDate.of(2026, 4, 11)).map { collapsedEntry ->
-                collapsedEntry.representativeEntry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDateTime()
+            groupedEntries.getValue(LocalDate.of(2026, 4, 11)).map { entry ->
+                entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDateTime()
             }
         )
     }
 
     @Test
-    fun toggleHistoryEntrySelection_adds_or_removes_the_full_collapsed_entry_set() {
-        val entryIds = setOf(
-            UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
-            UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
-        )
+    fun toggleHistoryEntrySelection_adds_or_removes_single_entry_id() {
+        val entryId = UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24")
 
         val selected = toggleHistoryEntrySelection(
             currentSelection = emptySet(),
-            entryIds = entryIds
+            entryId = entryId
         )
         val deselected = toggleHistoryEntrySelection(
             currentSelection = selected,
-            entryIds = entryIds
+            entryId = entryId
         )
 
-        assertEquals(entryIds, selected)
+        assertEquals(setOf(entryId), selected)
         assertEquals(emptySet<UUID>(), deselected)
-    }
-
-    @Test
-    fun countSelectedCollapsedEntries_counts_collapsed_rows_not_raw_entry_ids() {
-        val collapsedEntries = listOf(
-            HistoryCollapsedEntry(
-                representativeEntry = entryAt(LocalDateTime.of(2026, 4, 10, 8, 0)),
-                entryIds = setOf(
-                    UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
-                    UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
-                ),
-                count = 2
-            ),
-            HistoryCollapsedEntry(
-                representativeEntry = entryAt(LocalDateTime.of(2026, 4, 11, 8, 0)),
-                entryIds = setOf(UUID.fromString("a17dc833-a019-40ca-a17d-8a602b3c5e6b")),
-                count = 1
-            )
-        )
-
-        assertEquals(
-            1,
-            countSelectedCollapsedEntries(
-                selectedEntryIds = setOf(
-                    UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24"),
-                    UUID.fromString("fd27ff9d-3991-4159-a117-225bad74532b")
-                ),
-                collapsedEntries = collapsedEntries
-            )
-        )
     }
 
     @Test

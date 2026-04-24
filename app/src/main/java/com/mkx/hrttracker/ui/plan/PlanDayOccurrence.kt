@@ -56,15 +56,13 @@ fun buildPlanDaySchedule(
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val loggedCount = matchingLogs.sumOf { entry -> entry.count }
                     val isFulfilled = loggedCount >= requiredCount
-                    val fulfillingEntries = matchingLogs
-                        .sortedBy(MedicationLogEntry::appliedAt)
                     PlanDayScheduleEntry(
                         groupUuid = group.uuid,
                         groupName = group.name,
                         groupColorKey = group.colorKey,
                         scheduledTime = time,
                         medication = medicationsForSignature.first().copy(count = requiredCount),
-                        fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
+                        fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,

@@ -16,12 +16,6 @@ data class HistoryMonthSummary(
     val offPlan: Int = 0,
 )
 
-data class HistoryCollapsedEntry(
-    val representativeEntry: MedicationLogEntry,
-    val entryIds: Set<UUID>,
-    val count: Int,
-)
-
 internal enum class HistoryEntryTapAction {
     OPEN_EDITOR,
     TOGGLE_SELECTION,
@@ -93,11 +87,9 @@ internal fun buildHistoryMonthSummary(
     today: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): HistoryMonthSummary {
-    val logged = collapseHistoryEntries(
-        entries.filter { entry ->
-            YearMonth.from(entry.appliedAt.atZone(zoneId).toLocalDate()) == displayedMonth
-        }
-    ).size
+    val logged = entries.count { entry ->
+        YearMonth.from(entry.appliedAt.atZone(zoneId).toLocalDate()) == displayedMonth
+    }
 
     var onTrack = 0
     var partial = 0
@@ -133,60 +125,25 @@ internal fun buildHistoryMonthSummary(
     )
 }
 
-internal fun collapseHistoryEntries(
-    entries: List<MedicationLogEntry>
-): List<HistoryCollapsedEntry> {
-    return entries
-        .sortedByDescending { entry -> entry.appliedAt }
-        .map { entry ->
-            HistoryCollapsedEntry(
-                representativeEntry = entry,
-                entryIds = setOf(entry.uuid),
-                count = entry.count
-            )
-        }
-}
-
 internal fun groupHistoryEntriesByDate(
-    collapsedEntries: List<HistoryCollapsedEntry>,
+    entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault()
-): Map<LocalDate, List<HistoryCollapsedEntry>> {
-    return collapsedEntries
-        .groupBy { collapsedEntry ->
-            collapsedEntry.representativeEntry.appliedAt.atZone(zoneId).toLocalDate()
-        }
+): Map<LocalDate, List<MedicationLogEntry>> {
+    return entries
+        .groupBy { entry -> entry.appliedAt.atZone(zoneId).toLocalDate() }
         .mapValues { (_, dateEntries) ->
-            dateEntries.sortedBy { collapsedEntry -> collapsedEntry.representativeEntry.appliedAt }
+            dateEntries.sortedBy { entry -> entry.appliedAt }
         }
-}
-
-internal fun isHistoryCollapsedEntrySelected(
-    selectedEntryIds: Set<UUID>,
-    entryIds: Set<UUID>
-): Boolean {
-    return entryIds.any { entryId -> entryId in selectedEntryIds }
 }
 
 internal fun toggleHistoryEntrySelection(
     currentSelection: Set<UUID>,
-    entryIds: Set<UUID>
+    entryId: UUID
 ): Set<UUID> {
-    return if (isHistoryCollapsedEntrySelected(currentSelection, entryIds)) {
-        currentSelection - entryIds
+    return if (entryId in currentSelection) {
+        currentSelection - entryId
     } else {
-        currentSelection + entryIds
-    }
-}
-
-internal fun countSelectedCollapsedEntries(
-    selectedEntryIds: Set<UUID>,
-    collapsedEntries: List<HistoryCollapsedEntry>
-): Int {
-    return collapsedEntries.count { collapsedEntry ->
-        isHistoryCollapsedEntrySelected(
-            selectedEntryIds = selectedEntryIds,
-            entryIds = collapsedEntry.entryIds
-        )
+        currentSelection + entryId
     }
 }
 
