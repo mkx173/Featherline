@@ -260,13 +260,12 @@ fun MedicationGroupEditorScreen(
     }
 
     LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled) {
-            if (!hasNotificationAccess && uiState.notificationsEnabled) {
-                viewModel.updateNotificationsEnabled(false)
-                pendingNotificationEnableRequest = null
-                isExactAlarmDialogVisible = false
-                showInexactReminderWarning = false
-            }
+        if (!hasNotificationAccess) {
+            pendingNotificationEnableRequest = null
+            isExactAlarmDialogVisible = false
+            showInexactReminderWarning = false
         }
+    }
 
     LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled, isExactAlarmDialogVisible) {
         if (!hasNotificationAccess || !uiState.notificationsEnabled) {
@@ -344,6 +343,7 @@ fun MedicationGroupEditorScreen(
             maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
         },
         onRecoverMasterReminders = enableMasterReminders,
+        hasNotificationAccess = hasNotificationAccess,
         notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
@@ -380,6 +380,7 @@ private fun MedicationGroupEditorScreenContent(
     onNotificationsEnabledChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onRecoverMasterReminders: () -> Unit,
+    hasNotificationAccess: Boolean,
     notificationsToggleEnabled: Boolean,
     showInexactReminderWarning: Boolean,
     onWeeklyIntervalChange: (String) -> Unit,
@@ -421,6 +422,11 @@ private fun MedicationGroupEditorScreenContent(
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
+    val notificationSupportState = resolveNotificationSupportState(
+        hasNotificationAccess = hasNotificationAccess,
+        remindersEnabled = uiState.remindersEnabled,
+        showInexactReminderWarning = showInexactReminderWarning
+    )
     val is24Hour = DateFormat.is24HourFormat(context)
     val scheduleOptions = remember {
         listOf(
@@ -786,33 +792,44 @@ private fun MedicationGroupEditorScreenContent(
                         enabled = uiState.notificationsEnabled,
                         toggleEnabled = notificationsToggleEnabled,
                         onToggle = onNotificationsEnabledChange,
-                        onDisabledClick = if (
-                            shouldOfferMasterReminderRecovery(
-                                remindersEnabled = uiState.remindersEnabled,
-                                notificationsToggleEnabled = notificationsToggleEnabled
-                            )
-                        ) {
-                            { isMasterReminderRecoveryDialogVisible = true }
-                        } else {
-                            null
-                        },
                         index = 0,
-                        count = if (!uiState.remindersEnabled || showInexactReminderWarning) 2 else 1
+                        count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2
                     )
-                    if (!uiState.remindersEnabled) {
+                    when (notificationSupportState) {
+                        NotificationSupportState.ACCESS_OFF -> {
+                            EditorSupportMessage(
+                                text = stringResource(R.string.settings_reminders_permission_off_summary),
+                                icon = Icons.Rounded.Info,
+                                onClick = onRecoverMasterReminders,
+                                showChevron = true,
+                                index = 1,
+                                count = 2
+                            )
+                        }
+
+                        NotificationSupportState.MASTER_OFF -> {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled),
                             icon = Icons.Rounded.Info,
-                            index = 1, count = 2
-                        )
-                    } else if (showInexactReminderWarning) {
-                        EditorSupportMessage(
-                            text = stringResource(R.string.group_notifications_inexact_warning),
-                            icon = Icons.Rounded.Info,
-                            onClick = onRequestExactAlarmAccess,
+                            onClick = { isMasterReminderRecoveryDialogVisible = true },
                             showChevron = true,
-                            index = 1, count = 2
+                            index = 1,
+                            count = 2
                         )
+                        }
+
+                        NotificationSupportState.INEXACT -> {
+                            EditorSupportMessage(
+                                text = stringResource(R.string.group_notifications_inexact_warning),
+                                icon = Icons.Rounded.Info,
+                                onClick = onRequestExactAlarmAccess,
+                                showChevron = true,
+                                index = 1,
+                                count = 2
+                            )
+                        }
+
+                        NotificationSupportState.NONE -> Unit
                     }
                 }
             }
@@ -896,10 +913,23 @@ private data class MedicationRemovalRequest(
 
 internal fun shouldConfirmMedicationRemoval(count: Int): Boolean = count <= 1
 
-internal fun shouldOfferMasterReminderRecovery(
+internal enum class NotificationSupportState {
+    NONE,
+    ACCESS_OFF,
+    MASTER_OFF,
+    INEXACT
+}
+
+internal fun resolveNotificationSupportState(
+    hasNotificationAccess: Boolean,
     remindersEnabled: Boolean,
-    notificationsToggleEnabled: Boolean,
-): Boolean = !remindersEnabled && !notificationsToggleEnabled
+    showInexactReminderWarning: Boolean
+): NotificationSupportState = when {
+    !hasNotificationAccess -> NotificationSupportState.ACCESS_OFF
+    !remindersEnabled -> NotificationSupportState.MASTER_OFF
+    showInexactReminderWarning -> NotificationSupportState.INEXACT
+    else -> NotificationSupportState.NONE
+}
 
 internal const val GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST = "group_only"
 internal const val MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST = "master_and_group"
@@ -1137,6 +1167,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onNotificationsEnabledChange = { },
             onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
+            hasNotificationAccess = false,
             notificationsToggleEnabled = false,
             showInexactReminderWarning = false,
             onWeeklyIntervalChange = { },
@@ -1187,6 +1218,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onNotificationsEnabledChange = { },
             onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
+            hasNotificationAccess = true,
             notificationsToggleEnabled = true,
             showInexactReminderWarning = true,
             onWeeklyIntervalChange = { },

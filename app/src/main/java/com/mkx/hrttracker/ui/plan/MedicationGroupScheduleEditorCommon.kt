@@ -191,23 +191,15 @@ internal fun NotificationsCard(
     enabled: Boolean,
     toggleEnabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    onDisabledClick: (() -> Unit)? = null,
     index: Int = 0,
     count: Int = 1
 ) {
-    val cardClickEnabled = toggleEnabled || onDisabledClick != null
     EditorSegmentedListItem(
         index = index,
         count = count,
         modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f),
-        enabled = cardClickEnabled,
-        onClick = {
-            if (toggleEnabled) {
-                onToggle(!enabled)
-            } else {
-                onDisabledClick?.invoke()
-            }
-        },
+        enabled = toggleEnabled,
+        onClick = { onToggle(!enabled) },
         leadingContent = {
             Icon(
                 imageVector = if (enabled) {

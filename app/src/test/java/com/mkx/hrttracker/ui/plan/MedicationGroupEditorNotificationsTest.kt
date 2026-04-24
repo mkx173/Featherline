@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.plan
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MedicationGroupEditorNotificationsTest {
@@ -52,31 +53,65 @@ class MedicationGroupEditorNotificationsTest {
     }
 
     @Test
-    fun shouldOfferMasterReminderRecovery_returns_true_when_master_switch_is_off() {
-        assertTrue(
-            shouldOfferMasterReminderRecovery(
+    fun applyReminderSettingsToEditorState_preserves_group_notifications_choice_when_master_turns_off() {
+        val updated = applyReminderSettingsToEditorState(
+            currentState = MedicationGroupEditorUiState(
+                editingGroupId = "group-id",
+                remindersEnabled = true,
+                notificationsEnabled = true,
+                hasResolvedNotificationDefault = true
+            ),
+            remindersEnabled = false
+        )
+
+        assertFalse(updated.remindersEnabled)
+        assertTrue(updated.notificationsEnabled)
+    }
+
+    @Test
+    fun resolveNotificationSupportState_prioritizes_access_off() {
+        assertEquals(
+            NotificationSupportState.ACCESS_OFF,
+            resolveNotificationSupportState(
+                hasNotificationAccess = false,
+                remindersEnabled = true,
+                showInexactReminderWarning = true
+            )
+        )
+    }
+
+    @Test
+    fun resolveNotificationSupportState_returns_master_off_when_access_available_and_master_off() {
+        assertEquals(
+            NotificationSupportState.MASTER_OFF,
+            resolveNotificationSupportState(
+                hasNotificationAccess = true,
                 remindersEnabled = false,
-                notificationsToggleEnabled = false
+                showInexactReminderWarning = false
             )
         )
     }
 
     @Test
-    fun shouldOfferMasterReminderRecovery_returns_false_when_toggle_is_available() {
-        assertFalse(
-            shouldOfferMasterReminderRecovery(
+    fun resolveNotificationSupportState_returns_inexact_when_only_exact_alarm_access_is_missing() {
+        assertEquals(
+            NotificationSupportState.INEXACT,
+            resolveNotificationSupportState(
+                hasNotificationAccess = true,
                 remindersEnabled = true,
-                notificationsToggleEnabled = true
+                showInexactReminderWarning = true
             )
         )
     }
 
     @Test
-    fun shouldOfferMasterReminderRecovery_returns_false_when_disabled_for_non_master_reason() {
-        assertFalse(
-            shouldOfferMasterReminderRecovery(
+    fun resolveNotificationSupportState_returns_none_when_no_support_message_is_needed() {
+        assertEquals(
+            NotificationSupportState.NONE,
+            resolveNotificationSupportState(
+                hasNotificationAccess = true,
                 remindersEnabled = true,
-                notificationsToggleEnabled = false
+                showInexactReminderWarning = false
             )
         )
     }
