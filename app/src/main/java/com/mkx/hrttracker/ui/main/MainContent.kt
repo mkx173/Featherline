@@ -1101,7 +1101,7 @@ private fun remainingQuickLogCount(
     totalCount: Int,
     fulfilledCount: Int
 ): Int {
-    return (totalCount - fulfilledCount).coerceAtLeast(1)
+    return totalCount - fulfilledCount
 }
 
 @Composable

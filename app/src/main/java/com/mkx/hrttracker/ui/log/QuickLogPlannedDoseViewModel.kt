@@ -42,7 +42,7 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
             groupId = groupId,
             scheduledFor = scheduledFor,
             medicationDetails = medicationDetails,
-            medicationCount = medicationCount.coerceAtLeast(1)
+            medicationCount = medicationCount
         )
         if (loadedKey == key) {
             return
@@ -158,7 +158,7 @@ internal fun buildCollapsedQuickLogDraftEntries(
             details = details,
             appliedDate = appliedDate,
             appliedTime = appliedTime,
-            count = count.coerceAtLeast(1)
+            count = count
         )
     )
 }

@@ -206,12 +206,14 @@ fun HrtTrackerNavHost(
                 MainScreen(
                     modifier.padding(innerPadding),
                     onQuickLogDoseClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
-                        quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
-                            groupId = groupId,
-                            scheduledFor = scheduledAt,
-                            medicationDetails = medicationDetails,
-                            medicationCount = medicationCount
-                        )
+                        if (medicationCount > 0) {
+                            quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
+                                groupId = groupId,
+                                scheduledFor = scheduledAt,
+                                medicationDetails = medicationDetails,
+                                medicationCount = medicationCount
+                            )
+                        }
                     }
                 )
             }
@@ -232,12 +234,14 @@ fun HrtTrackerNavHost(
                         )
                     },
                     onQuickLogClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
-                        quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
-                            groupId = groupId,
-                            scheduledFor = scheduledAt,
-                            medicationDetails = medicationDetails,
-                            medicationCount = medicationCount
-                        )
+                        if (medicationCount > 0) {
+                            quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
+                                groupId = groupId,
+                                scheduledFor = scheduledAt,
+                                medicationDetails = medicationDetails,
+                                medicationCount = medicationCount
+                            )
+                        }
                     },
                     onAddGroupClick = {
                         navController.navigate(
