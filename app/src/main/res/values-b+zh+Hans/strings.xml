@@ -264,6 +264,10 @@
     <string name="settings_hide_screen_content">隐藏屏幕内容</string>
     <string name="settings_hide_screen_content_summary">在最近任务和截屏中隐藏应用内容</string>
     <string name="settings_personalization">个性化</string>
+    <string name="settings_personalization_calibration">校准</string>
+    <string name="settings_backup_restore">备份与恢复</string>
+    <string name="settings_backup_to_file">备份到文件</string>
+    <string name="settings_restore_from_file">从备份恢复</string>
     <string name="settings_about">关于</string>
     <string name="settings_about_privacy_policy">隐私政策</string>
     <string name="settings_about_model">关于模型</string>

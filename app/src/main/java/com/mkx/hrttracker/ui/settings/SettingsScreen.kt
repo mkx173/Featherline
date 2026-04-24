@@ -48,6 +48,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -60,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -244,11 +247,13 @@ private fun SettingsScreenContent(
         appVersionInfo.versionCode.toString()
     )
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = stringResource(R.string.tab_settings)) }
+            TopAppBar(
+                title = { Text(text = stringResource(R.string.tab_settings)) },
+                scrollBehavior = scrollBehavior
             )
         }
     ) { innerPadding ->
@@ -262,21 +267,44 @@ private fun SettingsScreenContent(
                 text = stringResource(R.string.settings_personalization)
             )
 
-            EditorSegmentedListItem(
-                index = 0,
-                count = 1,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { showWeightDialog = true },
-                leadingContent = {
-                    SettingsLeadingIconSlot(
-                        painter = painterResource(R.drawable.ic_weight)
-                    )
-                },
-                supportingContent = {
-                    Text(text = formatWeightSummary(uiState.userProfile))
-                }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
             ) {
-                Text(text = stringResource(R.string.personalization_weight))
+                EditorSegmentedListItem(
+                    index = 0,
+                    count = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showWeightDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_weight)
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = formatWeightSummary(uiState.userProfile))
+                    }
+                ) {
+                    Text(text = stringResource(R.string.personalization_weight))
+                }
+
+                EditorSegmentedListItem(
+                    index = 1,
+                    count = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_experiment)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_personalization_calibration))
+                }
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -557,6 +585,52 @@ private fun SettingsScreenContent(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
             SettingsSectionTitle(
+                text = stringResource(R.string.settings_backup_restore)
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
+                EditorSegmentedListItem(
+                    index = 0,
+                    count = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_file_export)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_backup_to_file))
+                }
+
+                EditorSegmentedListItem(
+                    index = 1,
+                    count = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_settings_backup)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_restore_from_file))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+            SettingsSectionTitle(
                 text = stringResource(R.string.settings_about)
             )
 
@@ -576,11 +650,7 @@ private fun SettingsScreenContent(
                         )
                     },
                     trailingContent = {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        SettingsChevronTrailingIcon()
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_privacy_policy))
@@ -601,11 +671,7 @@ private fun SettingsScreenContent(
                         Text(text = stringResource(R.string.settings_about_model_summary))
                     },
                     trailingContent = {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        SettingsChevronTrailingIcon()
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_model))
@@ -626,11 +692,7 @@ private fun SettingsScreenContent(
                         Text(text = stringResource(R.string.settings_about_contact_developer_summary))
                     },
                     trailingContent = {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        SettingsChevronTrailingIcon()
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_contact_developer))
@@ -753,6 +815,15 @@ private fun SettingsLeadingIconSlot(
 }
 
 @Composable
+private fun SettingsChevronTrailingIcon() {
+    Icon(
+        imageVector = Icons.Rounded.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
 private fun SettingsSupportMessage(
     text: String,
     icon: ImageVector? = null,
@@ -775,11 +846,7 @@ private fun SettingsSupportMessage(
             },
             trailingContent = if (showChevron) {
                 {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    SettingsChevronTrailingIcon()
                 }
             } else {
                 null
