@@ -57,6 +57,7 @@ data class MainTodayDoseRowUiState(
     val status: MainTodayDoseStatus,
     val loggedAt: LocalDateTime? = null,
     val fulfillingEntryUuids: List<UUID> = emptyList(),
+    val loggedCount: Int = 0,
 )
 
 enum class MainTodayDoseStatus {
@@ -190,7 +191,8 @@ internal fun buildMainTodaySection(
                 ?.appliedAt
                 ?.atZone(zoneId)
                 ?.toLocalDateTime(),
-            fulfillingEntryUuids = fulfillingEntries.map { it.uuid }
+            fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
+            loggedCount = scheduledEntry.loggedCount
         )
     }
 

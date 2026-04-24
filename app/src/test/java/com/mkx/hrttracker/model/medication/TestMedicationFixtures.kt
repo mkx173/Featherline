@@ -52,6 +52,7 @@ fun testMedicationLogEntry(
     sourceGroupUuid: UUID?,
     appliedAt: Instant,
     scheduledFor: LocalDateTime? = null,
+    count: Int = 1,
 ): MedicationLogEntry {
     return MedicationLogEntry(
         uuid = uuid,
@@ -60,7 +61,8 @@ fun testMedicationLogEntry(
         sourceType = sourceType,
         sourceGroupUuid = sourceGroupUuid,
         appliedAt = appliedAt,
-        scheduledFor = scheduledFor
+        scheduledFor = scheduledFor,
+        count = count
     )
 }
 

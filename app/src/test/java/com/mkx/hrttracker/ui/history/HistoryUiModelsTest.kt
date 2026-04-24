@@ -228,9 +228,7 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun buildHistoryMonthSummary_counts_collapsed_logged_entries() {
-        val sharedAppliedAt = LocalDateTime.of(2026, 4, 10, 8, 0)
-        val sharedScheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0)
+    fun buildHistoryMonthSummary_counts_persisted_counted_rows_as_one_logged_entry() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(
                 testMedicationLogEntry(
@@ -243,21 +241,9 @@ class HistoryUiModelsTest {
                     dosageMgAsEstradiol = 2.0,
                     sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                    appliedAt = testInstant(sharedAppliedAt),
-                    scheduledFor = sharedScheduledFor
-                ),
-                testMedicationLogEntry(
-                    uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
-                    dosageMgAsEstradiol = 2.0,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                    sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                    appliedAt = testInstant(sharedAppliedAt),
-                    scheduledFor = sharedScheduledFor
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
+                    scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0),
+                    count = 2
                 ),
                 entryAt(LocalDateTime.of(2026, 4, 11, 8, 0))
             ),
@@ -271,14 +257,13 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun collapseHistoryEntries_collapses_exact_duplicate_logs_into_one_counted_entry() {
-        val firstId = UUID.fromString("b33e87e1-7a60-461b-8fc3-0ba5afb0b147")
-        val secondId = UUID.fromString("640010dc-63e5-40f4-a836-36664d4d4a68")
-        val sharedAppliedAt = LocalDateTime.of(2026, 4, 10, 8, 0)
+    fun collapseHistoryEntries_keeps_persisted_counted_rows_as_single_visible_entries() {
+        val countedId = UUID.fromString("b33e87e1-7a60-461b-8fc3-0ba5afb0b147")
+        val singleId = UUID.fromString("cd74c798-022a-49e0-a8cd-67d9f92d2c59")
         val collapsedEntries = collapseHistoryEntries(
             listOf(
                 testMedicationLogEntry(
-                    uuid = firstId,
+                    uuid = countedId,
                     details = testCatalogMedicationDetails(
                         key = MedicationKey.ESTRADIOL,
                         applicationType = MedicationApplicationType.ORAL,
@@ -287,24 +272,12 @@ class HistoryUiModelsTest {
                     dosageMgAsEstradiol = 2.0,
                     sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = UUID.fromString("d6378318-4ee8-46b3-8430-3131af61efdf"),
-                    appliedAt = testInstant(sharedAppliedAt),
-                    scheduledFor = sharedAppliedAt
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
+                    scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0),
+                    count = 2
                 ),
                 testMedicationLogEntry(
-                    uuid = secondId,
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    ),
-                    dosageMgAsEstradiol = 2.0,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                    sourceGroupUuid = UUID.fromString("d6378318-4ee8-46b3-8430-3131af61efdf"),
-                    appliedAt = testInstant(sharedAppliedAt),
-                    scheduledFor = sharedAppliedAt
-                ),
-                testMedicationLogEntry(
-                    uuid = UUID.fromString("cd74c798-022a-49e0-a8cd-67d9f92d2c59"),
+                    uuid = singleId,
                     details = testCustomMedicationDetails(
                         medicationName = "Progesterone",
                         dose = MedicationDose.MgAsMedicine(100.0)
@@ -317,12 +290,13 @@ class HistoryUiModelsTest {
             )
         )
 
-        val duplicateEntry = collapsedEntries.first { entry -> entry.count == 2 }
+        val countedEntry = collapsedEntries.first { entry -> entry.count == 2 }
         val singleEntry = collapsedEntries.first { entry -> entry.count == 1 }
 
         assertEquals(2, collapsedEntries.size)
-        assertEquals(setOf(firstId, secondId), duplicateEntry.entryIds)
+        assertEquals(setOf(countedId), countedEntry.entryIds)
         assertEquals(1, singleEntry.count)
+        assertEquals(setOf(singleId), singleEntry.entryIds)
     }
 
     @Test

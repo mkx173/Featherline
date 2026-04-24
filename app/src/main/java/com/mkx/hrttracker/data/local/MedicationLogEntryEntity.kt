@@ -21,4 +21,5 @@ data class MedicationLogEntryEntity(
     val sourceGroupUuid: String?,
     val appliedAtEpochMillis: Long,
     val scheduledForIso: String? = null,
+    val count: Int = 1,
 )

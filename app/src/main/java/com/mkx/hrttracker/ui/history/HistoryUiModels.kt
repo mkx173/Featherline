@@ -137,26 +137,14 @@ internal fun collapseHistoryEntries(
     entries: List<MedicationLogEntry>
 ): List<HistoryCollapsedEntry> {
     return entries
-        .groupBy { entry ->
-            HistoryCollapseKey(
-                details = entry.details,
-                sourceType = entry.sourceType,
-                sourceGroupUuid = entry.sourceGroupUuid,
-                appliedAtEpochMillis = entry.appliedAt.toEpochMilli(),
-                scheduledFor = entry.scheduledFor
-            )
-        }
-        .values
-        .map { groupedEntries ->
-            val representativeEntry = groupedEntries.maxByOrNull(MedicationLogEntry::uuid)
-                ?: groupedEntries.first()
+        .sortedByDescending { entry -> entry.appliedAt }
+        .map { entry ->
             HistoryCollapsedEntry(
-                representativeEntry = representativeEntry,
-                entryIds = groupedEntries.mapTo(linkedSetOf(), MedicationLogEntry::uuid),
-                count = groupedEntries.size
+                representativeEntry = entry,
+                entryIds = setOf(entry.uuid),
+                count = entry.count
             )
         }
-        .sortedByDescending { collapsedEntry -> collapsedEntry.representativeEntry.appliedAt }
 }
 
 internal fun groupHistoryEntriesByDate(
@@ -211,11 +199,3 @@ internal fun historyEntryTapAction(
         HistoryEntryTapAction.TOGGLE_SELECTION
     }
 }
-
-private data class HistoryCollapseKey(
-    val details: com.mkx.hrttracker.model.medication.MedicationDetails,
-    val sourceType: com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType,
-    val sourceGroupUuid: UUID?,
-    val appliedAtEpochMillis: Long,
-    val scheduledFor: java.time.LocalDateTime?,
-)

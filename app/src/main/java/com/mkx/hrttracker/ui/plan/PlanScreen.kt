@@ -290,7 +290,7 @@ private fun PlanScreenContent(
                                 scheduled.medication.details,
                                 remainingQuickLogCount(
                                     totalCount = scheduled.medication.count,
-                                    fulfilledCount = scheduled.fulfillingEntryUuids.size
+                                    fulfilledCount = scheduled.loggedCount
                                 )
                             )
                         }

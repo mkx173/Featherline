@@ -101,8 +101,10 @@ internal fun isSlotFulfilled(
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapValues { (_, medications) -> medications.sumOf { medication -> medication.count } }
     val loggedCounts = slotLogs
-        .groupingBy(MedicationSignature::fromLogEntry)
-        .eachCount()
+        .groupBy(MedicationSignature::fromLogEntry)
+        .mapValues { (_, entriesForSignature) ->
+            entriesForSignature.sumOf { entry -> entry.count }
+        }
 
     return requiredCounts.all { (signature, requiredCount) ->
         loggedCounts.getOrDefault(signature, 0) >= requiredCount

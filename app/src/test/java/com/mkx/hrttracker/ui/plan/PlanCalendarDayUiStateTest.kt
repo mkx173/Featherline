@@ -440,6 +440,66 @@ class PlanCalendarDayUiStateTest {
         )
     }
 
+    @Test
+    fun isSlotFulfilled_accepts_single_counted_log_row_when_its_count_meets_requirement() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("71a82ba5-4f60-455f-b2b2-acd98265f933"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("2f81db0f-22d8-4326-8667-fbf27d6560f8"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    ),
+                    count = 2
+                )
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+
+        assertEquals(
+            false,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.plusMinutes(2),
+                        scheduledFor = scheduledFor,
+                        count = 1
+                    )
+                )
+            )
+        )
+        assertEquals(
+            true,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.plusMinutes(2),
+                        scheduledFor = scheduledFor,
+                        count = 2
+                    )
+                )
+            )
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         schedule: MedicationGroupSchedule,
@@ -459,7 +519,8 @@ class PlanCalendarDayUiStateTest {
         groupUuid: UUID,
         details: MedicationDetails,
         appliedAt: LocalDateTime,
-        scheduledFor: LocalDateTime? = null
+        scheduledFor: LocalDateTime? = null,
+        count: Int = 1
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
@@ -468,13 +529,15 @@ class PlanCalendarDayUiStateTest {
             sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
-            scheduledFor = scheduledFor
+            scheduledFor = scheduledFor,
+            count = count
         )
     }
 
     private fun manualEntry(
         details: MedicationDetails,
-        appliedAt: LocalDateTime
+        appliedAt: LocalDateTime,
+        count: Int = 1
     ): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.randomUUID(),
@@ -482,7 +545,8 @@ class PlanCalendarDayUiStateTest {
             dosageMgAsEstradiol = estradiolEquivalent(details),
             sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
-            appliedAt = testInstant(appliedAt)
+            appliedAt = testInstant(appliedAt),
+            count = count
         )
     }
 
@@ -519,7 +583,7 @@ class PlanCalendarDayUiStateTest {
 
     private fun estradiolEquivalent(details: MedicationDetails): Double? {
         return when (details.selection) {
-            is MedicationSelection.Catalog -> when ((details.selection as MedicationSelection.Catalog).medicationKey) {
+            is MedicationSelection.Catalog -> when (details.selection.medicationKey) {
                 MedicationKey.ESTRADIOL,
                 MedicationKey.ESTRADIOL_GEL -> when (val dose = details.dose) {
                     is MedicationDose.MgAsMedicine -> dose.valueMg

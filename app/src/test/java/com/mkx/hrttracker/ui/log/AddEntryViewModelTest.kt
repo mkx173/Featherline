@@ -81,6 +81,7 @@ class AddEntryViewModelTest {
         assertEquals(scheduledFor, uiState.scheduledFor)
         assertEquals(LocalDate.of(2026, 4, 22), uiState.appliedDate)
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
+        assertEquals(1, uiState.count)
         assertTrue(uiState.isBulkEditing)
         assertFalse(uiState.canEditMedicationIdentity)
     }
@@ -145,6 +146,31 @@ class AddEntryViewModelTest {
 
         requireNotNull(uiState)
         assertTrue(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun buildEditingUiState_preserves_existing_count_for_single_counted_entry() {
+        val entry = testMedicationLogEntry(
+            uuid = UUID.fromString("3ed5b4b7-fca2-4dff-ae06-e74cb15508a9"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+            sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+            count = 2
+        )
+
+        val uiState = buildEditingUiState(listOf(entry))
+
+        requireNotNull(uiState)
+        assertEquals(listOf(entry.uuid.toString()), uiState.editingEntryIds)
+        assertEquals(2, uiState.count)
+        assertFalse(uiState.isBulkEditing)
     }
 
     @Test

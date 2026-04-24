@@ -99,7 +99,8 @@ class MedicationLogRepository @Inject constructor(
         sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
-        scheduledFor: LocalDateTime? = null
+        scheduledFor: LocalDateTime? = null,
+        count: Int = 1
     ) {
         databaseHolder.get().medicationLogDao().insertEntry(
             buildEntryEntity(
@@ -108,7 +109,8 @@ class MedicationLogRepository @Inject constructor(
                 sourceType = sourceType,
                 sourceGroupUuid = sourceGroupUuid,
                 appliedAt = appliedAt,
-                scheduledFor = scheduledFor
+                scheduledFor = scheduledFor,
+                count = count
             )
         )
     }
@@ -119,7 +121,8 @@ class MedicationLogRepository @Inject constructor(
         sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
-        scheduledFor: LocalDateTime? = null
+        scheduledFor: LocalDateTime? = null,
+        count: Int = 1
     ) {
         val targetUuids = uuids.distinct()
         if (targetUuids.isEmpty()) {
@@ -129,7 +132,8 @@ class MedicationLogRepository @Inject constructor(
                 sourceType = sourceType,
                 sourceGroupUuid = sourceGroupUuid,
                 appliedAt = appliedAt,
-                scheduledFor = scheduledFor
+                scheduledFor = scheduledFor,
+                count = count
             )
             return
         }
@@ -142,7 +146,8 @@ class MedicationLogRepository @Inject constructor(
                     sourceType = sourceType,
                     sourceGroupUuid = sourceGroupUuid,
                     appliedAt = appliedAt,
-                    scheduledFor = scheduledFor
+                    scheduledFor = scheduledFor,
+                    count = count
                 )
             }
         )
@@ -156,7 +161,8 @@ class MedicationLogRepository @Inject constructor(
             sourceType = MedicationLogEntrySourceType.fromStorageValue(sourceType),
             sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
             appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
-            scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
+            scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
+            count = count.coerceAtLeast(1)
         )
     }
 
@@ -210,7 +216,8 @@ class MedicationLogRepository @Inject constructor(
         sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
-        scheduledFor: LocalDateTime?
+        scheduledFor: LocalDateTime?,
+        count: Int
     ): MedicationLogEntryEntity {
         return MedicationLogEntryEntity(
             uuid = uuid.toString(),
@@ -250,7 +257,8 @@ class MedicationLogRepository @Inject constructor(
             sourceType = sourceType.name,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
-            scheduledForIso = scheduledFor?.toString()
+            scheduledForIso = scheduledFor?.toString(),
+            count = count.coerceAtLeast(1)
         )
     }
 }

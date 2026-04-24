@@ -26,6 +26,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -50,6 +51,7 @@ import com.mkx.hrttracker.model.medication.totalMedicationCount
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
@@ -216,7 +218,6 @@ private fun QuickAddMedicationGroupSheetContent(
                 uiState.draftEntries.forEach { entry ->
                     QuickAddMedicationGroupEntryRow(
                         entry = entry,
-                        appLocale = appLocale,
                         dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
                         onDateClick = { datePickerEntryId = entry.localId },
@@ -381,7 +382,6 @@ private fun QuickAddPlannedSlotRow(
 @Composable
 private fun QuickAddMedicationGroupEntryRow(
     entry: QuickAddMedicationGroupItemUiState,
-    appLocale: Locale,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onDateClick: () -> Unit,
@@ -393,7 +393,23 @@ private fun QuickAddMedicationGroupEntryRow(
             Text(text = stringResource(entry.details.applicationType.labelRes))
         },
         headlineContent = {
-            Text(text = medicationDisplayName(entry.details))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(text = medicationDisplayName(entry.details))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = MaterialTheme.shapes.extraSmall
+                ) {
+                    Text(
+                        text = medicationCountIndicatorText(entry.count),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
         },
         supportingContent = {
             medicationDoseText(entry.details)?.let { doseText ->

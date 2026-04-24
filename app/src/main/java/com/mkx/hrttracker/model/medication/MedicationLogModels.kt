@@ -23,7 +23,12 @@ data class MedicationLogEntry(
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
     val scheduledFor: LocalDateTime? = null,
+    val count: Int = 1,
 ) {
+    init {
+        require(count > 0) { "Medication log count must be at least 1." }
+    }
+
     val category: MedicationCategory
         get() = details.category
 

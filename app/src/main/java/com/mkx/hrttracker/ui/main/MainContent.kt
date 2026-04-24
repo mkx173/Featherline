@@ -768,7 +768,7 @@ private fun MainTodayDoseRow(
                             row.medication.details,
                             remainingQuickLogCount(
                                 totalCount = row.medication.count,
-                                fulfilledCount = row.fulfillingEntryUuids.size
+                                fulfilledCount = row.loggedCount
                             )
                         )
                     }

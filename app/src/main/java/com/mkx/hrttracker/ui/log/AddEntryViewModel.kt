@@ -99,7 +99,8 @@ class AddEntryViewModel @Inject constructor(
                     sourceType = currentState.sourceType,
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
-                    scheduledFor = currentState.scheduledFor
+                    scheduledFor = currentState.scheduledFor,
+                    count = currentState.count
                 )
             } else {
                 medicationLogRepository.saveEntry(
@@ -108,7 +109,8 @@ class AddEntryViewModel @Inject constructor(
                     sourceType = currentState.sourceType,
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
-                    scheduledFor = currentState.scheduledFor
+                    scheduledFor = currentState.scheduledFor,
+                    count = currentState.count
                 )
             }
             medicationReminderScheduler.rescheduleAll()
@@ -164,6 +166,7 @@ data class AddEntryUiState(
     val sourceType: MedicationLogEntrySourceType = MedicationLogEntrySourceType.MANUAL,
     val sourceGroupUuid: UUID? = null,
     val scheduledFor: LocalDateTime? = null,
+    val count: Int = 1,
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,
@@ -200,6 +203,7 @@ internal fun buildEditingUiState(entries: List<MedicationLogEntry>): AddEntryUiS
         sourceType = representativeEntry.sourceType,
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
         scheduledFor = representativeEntry.scheduledFor,
+        count = representativeEntry.count,
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
     )
@@ -216,6 +220,7 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
             entry.sourceType == firstEntry.sourceType &&
             entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
             entry.appliedAt == firstEntry.appliedAt &&
-            entry.scheduledFor == firstEntry.scheduledFor
+            entry.scheduledFor == firstEntry.scheduledFor &&
+            entry.count == firstEntry.count
     }
 }

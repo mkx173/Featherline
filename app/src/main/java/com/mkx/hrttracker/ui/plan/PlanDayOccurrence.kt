@@ -18,6 +18,7 @@ data class PlanDayScheduleEntry(
     val scheduledTime: LocalTime,
     val medication: MedicationGroupMedication,
     val fulfillingEntryUuids: List<UUID>,
+    val loggedCount: Int = 0,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
     val isPastDue: Boolean,
@@ -52,10 +53,11 @@ fun buildPlanDaySchedule(
                 medicationsBySignature.map { (signature, medicationsForSignature) ->
                     val requiredCount = medicationsForSignature.sumOf { medication -> medication.count }
                     val matchingLogs = logsBySignature[signature].orEmpty()
+                        .sortedBy(MedicationLogEntry::appliedAt)
+                    val loggedCount = matchingLogs.sumOf { entry -> entry.count }
+                    val isFulfilled = loggedCount >= requiredCount
                     val fulfillingEntries = matchingLogs
                         .sortedBy(MedicationLogEntry::appliedAt)
-                        .take(requiredCount)
-                    val isFulfilled = matchingLogs.size >= requiredCount
                     PlanDayScheduleEntry(
                         groupUuid = group.uuid,
                         groupName = group.name,
@@ -63,6 +65,7 @@ fun buildPlanDaySchedule(
                         scheduledTime = time,
                         medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
+                        loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,
                         isPastDue = !isFulfilled && isPastDue(slotDateTime, now)

@@ -8,9 +8,9 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.expandedInstances
 import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -90,14 +90,18 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
 
         selectedGroupId.value = groupId
         selectedSlotId.value = null
-        draftEntries.value = group.medications.expandedInstances().map { medication ->
-            QuickAddMedicationGroupItemUiState(
-                groupMedicationId = medication.groupMedicationUuid,
-                details = medication.details,
-                appliedDate = defaultDate,
-                appliedTime = defaultTime
-            )
-        }
+        draftEntries.value = group.medications
+            .groupBy { medication -> medication.details }
+            .values
+            .map { matchingMedications ->
+                val medication = matchingMedications.first()
+                QuickAddMedicationGroupItemUiState(
+                    details = medication.details,
+                    appliedDate = defaultDate,
+                    appliedTime = defaultTime,
+                    count = matchingMedications.sumOf { it.count }
+                )
+            }
     }
 
     fun clearSelectedGroup() {
@@ -173,7 +177,8 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
                     sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = currentGroupId,
                     appliedAt = appliedAt,
-                    scheduledFor = scheduledFor
+                    scheduledFor = scheduledFor,
+                    count = entry.count
                 )
             }
 
@@ -200,13 +205,15 @@ class QuickAddMedicationGroupViewModel @Inject constructor(
         val windowStart = today.minusDays(SLOT_WINDOW_PAST_DAYS)
         val windowEnd = today.plusDays(SLOT_WINDOW_FUTURE_DAYS)
 
-        val fulfilledSlots = allEntries
-            .filter { it.sourceGroupUuid == group.uuid && it.scheduledFor != null }
-            .mapNotNull { it.scheduledFor }
-            .toSet()
-
         return group.schedule.occurrencesBetween(windowStart, windowEnd)
-            .filter { occurrence -> occurrence !in fulfilledSlots }
+            .filterNot { occurrence ->
+                isSlotFulfilled(
+                    group = group,
+                    date = occurrence.toLocalDate(),
+                    time = occurrence.toLocalTime(),
+                    entries = allEntries
+                )
+            }
             .map { occurrence ->
                 QuickAddScheduleSlotUiOption(
                     slotId = occurrence.toString(),
@@ -234,10 +241,10 @@ data class QuickAddMedicationGroupUiState(
 
 data class QuickAddMedicationGroupItemUiState(
     val localId: String = UUID.randomUUID().toString(),
-    val groupMedicationId: UUID,
     val details: MedicationDetails,
     val appliedDate: LocalDate,
     val appliedTime: LocalTime,
+    val count: Int = 1,
 )
 
 data class QuickAddScheduleSlotUiOption(

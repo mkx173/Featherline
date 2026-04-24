@@ -108,16 +108,15 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
                 val appliedAt = LocalDateTime.of(entry.appliedDate, entry.appliedTime)
                     .atZone(ZoneId.systemDefault())
                     .toInstant()
-                repeat(entry.count) {
-                    medicationLogRepository.saveEntry(
-                        uuid = null,
-                        medication = entry.details,
-                        sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
-                        sourceGroupUuid = group.uuid,
-                        appliedAt = appliedAt,
-                        scheduledFor = scheduledFor
-                    )
-                }
+                medicationLogRepository.saveEntry(
+                    uuid = null,
+                    medication = entry.details,
+                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = appliedAt,
+                    scheduledFor = scheduledFor,
+                    count = entry.count
+                )
             }
 
             medicationReminderScheduler.rescheduleAll()

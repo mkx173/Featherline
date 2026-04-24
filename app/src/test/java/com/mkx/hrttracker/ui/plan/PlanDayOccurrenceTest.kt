@@ -125,9 +125,62 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
-    fun plannedEntryEditorIds_returns_all_fulfilling_entry_ids_for_counted_fulfilled_entries() {
-        val firstId = UUID.fromString("5a09f5d0-4f91-44d7-8f51-9ff0e9b1498a")
-        val secondId = UUID.fromString("8f10f8fb-f7f8-4f51-b17f-227cd96d39da")
+    fun buildPlanDaySchedule_uses_single_counted_log_row_for_fulfillment_progress() {
+        val group = MedicationGroup(
+            uuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
+            name = "Test group",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    count = 2
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val countedEntryId = UUID.fromString("5a09f5d0-4f91-44d7-8f51-9ff0e9b1498a")
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(
+                com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+                    uuid = countedEntryId,
+                    details = group.medications.single().details,
+                    dosageMgAsEstradiol = 2.0,
+                    sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 9, 3)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toInstant(),
+                    scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0),
+                    count = 2
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 10, 0)
+        )
+
+        val scheduledEntry = schedule.scheduledEntries.single()
+        assertEquals(2, scheduledEntry.loggedCount)
+        assertEquals(listOf(countedEntryId), scheduledEntry.fulfillingEntryUuids)
+        assertTrue(scheduledEntry.isFulfilled)
+    }
+
+    @Test
+    fun plannedEntryEditorIds_returns_single_backing_id_for_counted_fulfilled_entry() {
+        val countedEntryId = UUID.fromString("5a09f5d0-4f91-44d7-8f51-9ff0e9b1498a")
         val scheduledEntry = PlanDayScheduleEntry(
             groupUuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
             groupName = "Test group",
@@ -142,13 +195,14 @@ class PlanDayOccurrenceTest {
                 ),
                 count = 2
             ),
-            fulfillingEntryUuids = listOf(firstId, secondId),
+            fulfillingEntryUuids = listOf(countedEntryId),
+            loggedCount = 2,
             isFulfilled = true,
             isDueSoon = false,
             isPastDue = false
         )
 
-        assertEquals(setOf(firstId, secondId), plannedEntryEditorIds(scheduledEntry))
+        assertEquals(setOf(countedEntryId), plannedEntryEditorIds(scheduledEntry))
     }
 
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
