@@ -52,6 +52,7 @@ class CalibrationEditorViewModelTest {
         coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(
             uuid = panelUuid,
             collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            notes = "Lab draw before morning dose",
             results = listOf(
                 BloodTestResult(
                     uuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a"),
@@ -87,6 +88,7 @@ class CalibrationEditorViewModelTest {
         assertFalse(uiState.isLoading)
         assertEquals(LocalDate.of(2026, 4, 24), uiState.collectedDate)
         assertEquals(LocalTime.of(9, 30), uiState.collectedTime)
+        assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals("559.5", uiState.e2Draft.valueText)
         assertEquals(BloodUnitKey.PMOL_L, uiState.e2Draft.unit)
         assertEquals(listOf(BloodAnalyteKey.T), uiState.additionalDrafts.map { it.analyteKey })
@@ -103,7 +105,7 @@ class CalibrationEditorViewModelTest {
                 uuid = null,
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
-                notes = null,
+                notes = any(),
                 results = capture(resultInputSlot),
                 now = any()
             )
@@ -113,6 +115,7 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
         viewModel.updateCollectedTime(LocalTime.of(9, 30))
+        viewModel.updateNotes("Taken fasting")
         viewModel.updateE2Value("152.4")
         viewModel.updateE2Unit(BloodUnitKey.PMOL_L)
         viewModel.addAnalyte(BloodAnalyteKey.T)
@@ -146,7 +149,7 @@ class CalibrationEditorViewModelTest {
                 uuid = null,
                 collectedAt = expectedInstant,
                 collectedAtTimeZoneId = viewModel.uiState.value.timeZoneId,
-                notes = null,
+                notes = "Taken fasting",
                 results = any(),
                 now = any()
             )
@@ -161,7 +164,7 @@ class CalibrationEditorViewModelTest {
                 uuid = null,
                 collectedAt = any(),
                 collectedAtTimeZoneId = any(),
-                notes = null,
+                notes = any(),
                 results = capture(resultInputSlot),
                 now = any()
             )
@@ -193,5 +196,20 @@ class CalibrationEditorViewModelTest {
         assertFalse(canSaveCalibrationEditorState(emptyState))
         assertTrue(canSaveCalibrationEditorState(validState))
         assertFalse(canSaveCalibrationEditorState(invalidState))
+    }
+
+    @Test
+    fun calibrationAdditionalAnalyteOptions_excludesAlreadyAddedAnalytes() {
+        val state = CalibrationEditorUiState(
+            additionalDrafts = listOf(
+                CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.T),
+                CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.FSH),
+            )
+        )
+
+        assertEquals(
+            listOf(BloodAnalyteKey.PROG, BloodAnalyteKey.PRL, BloodAnalyteKey.LH),
+            calibrationAdditionalAnalyteOptions(state)
+        )
     }
 }

@@ -96,6 +96,7 @@ internal fun testBloodTestPanel(
     uuid: UUID = UUID.fromString("9c95f940-d8c3-4d04-b766-c55f0e014b58"),
     collectedAt: Instant = Instant.ofEpochMilli(1_700_000_000_000L),
     collectedAtTimeZoneId: String = "Asia/Tokyo",
+    notes: String? = null,
     results: List<BloodTestResult> = listOf(
         BloodTestResult(
             uuid = UUID.fromString("b39b8e68-3c42-4c90-bf70-6c8bc486bd98"),
@@ -112,7 +113,7 @@ internal fun testBloodTestPanel(
         uuid = uuid,
         collectedAt = collectedAt,
         collectedAtTimeZoneId = collectedAtTimeZoneId,
-        notes = null,
+        notes = notes,
         results = results,
         createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
         updatedAt = Instant.ofEpochMilli(1_700_000_000_000L)

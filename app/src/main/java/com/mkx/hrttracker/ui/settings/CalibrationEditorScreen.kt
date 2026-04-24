@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -129,6 +130,7 @@ fun CalibrationEditorScreen(
         onNavigateBack = onNavigateBack,
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
+        onNotesChange = viewModel::updateNotes,
         onE2ValueChange = viewModel::updateE2Value,
         onE2UnitChange = viewModel::updateE2Unit,
         onAnalyteValueChange = viewModel::updateAnalyteValue,
@@ -160,6 +162,7 @@ private fun CalibrationEditorScreenContent(
     onNavigateBack: () -> Unit,
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
+    onNotesChange: (String) -> Unit,
     onE2ValueChange: (String) -> Unit,
     onE2UnitChange: (BloodUnitKey) -> Unit,
     onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
@@ -170,6 +173,7 @@ private fun CalibrationEditorScreenContent(
     modifier: Modifier = Modifier,
 ) {
     val canSave = canSaveCalibrationEditorState(uiState) && !uiState.isLoading && !uiState.isSaving
+    val remainingAnalyteCount = calibrationAdditionalAnalyteOptions(uiState).size
 
     Scaffold(
         modifier = modifier,
@@ -243,6 +247,12 @@ private fun CalibrationEditorScreenContent(
                         onUnitChange = onE2UnitChange,
                     )
                 }
+                item {
+                    CalibrationNotesCard(
+                        notes = uiState.notes,
+                        onNotesChange = onNotesChange,
+                    )
+                }
                 if (uiState.additionalDrafts.isNotEmpty()) {
                     item {
                         Text(
@@ -271,7 +281,18 @@ private fun CalibrationEditorScreenContent(
                         )
                     }
                 }
-                if (calibrationAdditionalAnalyteOptions(uiState).isNotEmpty()) {
+                if (remainingAnalyteCount > 0) {
+                    item {
+                        Text(
+                            text = pluralStringResource(
+                                R.plurals.settings_calibration_remaining_analytes,
+                                remainingAnalyteCount,
+                                remainingAnalyteCount
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     item {
                         Button(
                             onClick = onAddAnalyteClick,
@@ -289,6 +310,33 @@ private fun CalibrationEditorScreenContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationNotesCard(
+    notes: String,
+    onNotesChange: (String) -> Unit,
+) {
+    CalibrationEditorCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_calibration_notes_label),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            OutlinedTextField(
+                value = notes,
+                onValueChange = onNotesChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text(text = stringResource(R.string.settings_calibration_notes_label))
+                },
+                minLines = 3,
+            )
         }
     }
 }
@@ -565,6 +613,7 @@ private fun CalibrationEditorScreenPreview() {
                 collectedDate = LocalDate.of(2026, 4, 24),
                 collectedTime = LocalTime.of(9, 30),
                 timeZoneId = "Asia/Tokyo",
+                notes = "Trough draw before morning dose.",
                 e2Draft = CalibrationResultDraftUiState(
                     analyteKey = BloodAnalyteKey.E2,
                     valueText = "152.4",
@@ -577,12 +626,6 @@ private fun CalibrationEditorScreenPreview() {
                         valueText = "31.7",
                         unit = BloodUnitKey.NMOL_L,
                     ),
-                    CalibrationResultDraftUiState(
-                        analyteKey = BloodAnalyteKey.FSH,
-                        resultUuid = UUID.fromString("342f9176-5346-48ea-bb6a-7e9e5837fc2f"),
-                        valueText = "0.2",
-                        unit = BloodUnitKey.MIU_ML,
-                    ),
                 ),
             ),
             dateFormatter = previewCalibrationEditorDateFormatter(),
@@ -590,6 +633,7 @@ private fun CalibrationEditorScreenPreview() {
             onNavigateBack = { },
             onDateClick = { },
             onTimeClick = { },
+            onNotesChange = { },
             onE2ValueChange = { },
             onE2UnitChange = { },
             onAnalyteValueChange = { _, _ -> },

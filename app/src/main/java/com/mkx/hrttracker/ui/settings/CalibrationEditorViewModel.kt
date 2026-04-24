@@ -69,6 +69,12 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateNotes(value: String) {
+        _uiState.update { state ->
+            state.copy(notes = value)
+        }
+    }
+
     fun updateE2Value(value: String) {
         _uiState.update { state ->
             state.copy(
@@ -165,7 +171,7 @@ class CalibrationEditorViewModel @Inject constructor(
                     uuid = editingPanelUuid,
                     collectedAt = collectedAt,
                     collectedAtTimeZoneId = latestState.timeZoneId,
-                    notes = null,
+                    notes = latestState.notes,
                     results = resultInputs,
                     now = Instant.now(),
                 )
@@ -251,6 +257,7 @@ class CalibrationEditorViewModel @Inject constructor(
             collectedDate = collectedDateTime.toLocalDate(),
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
             timeZoneId = collectedAtTimeZoneId,
+            notes = notes.orEmpty(),
             e2Draft = e2Draft,
             additionalDrafts = builtinDrafts
                 .filterNot { draft -> draft.analyteKey == BloodAnalyteKey.E2 }
@@ -272,6 +279,7 @@ data class CalibrationEditorUiState(
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val timeZoneId: String = ZoneId.systemDefault().id,
+    val notes: String = "",
     val e2Draft: CalibrationResultDraftUiState = CalibrationResultDraftUiState(
         analyteKey = BloodAnalyteKey.E2
     ),
