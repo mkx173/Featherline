@@ -293,8 +293,13 @@ private fun SettingsScreenContent(
                 EditorSegmentedListItem(
                     index = 0,
                     count = if (!hasNotificationAccess || showInexactReminderWarning) 2 else 1,
+                    enabled = hasNotificationAccess,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { onRemindersEnabledChange(!settingsState.remindersEnabled) },
+                    onClick = {
+                        if (hasNotificationAccess) {
+                            onRemindersEnabledChange(!settingsState.remindersEnabled)
+                        }
+                    },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.Notifications
@@ -306,7 +311,8 @@ private fun SettingsScreenContent(
                     trailingContent = {
                         Switch(
                             checked = settingsState.remindersEnabled && hasNotificationAccess,
-                            onCheckedChange = onRemindersEnabledChange
+                            onCheckedChange = onRemindersEnabledChange,
+                            enabled = hasNotificationAccess
                         )
                     }
                 ) {
