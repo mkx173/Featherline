@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -799,7 +800,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.ACCESS_OFF -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                icon = Icons.Rounded.Info,
+                                icon = Icons.Outlined.Info,
                                 onClick = onRecoverMasterReminders,
                                 showChevron = true,
                                 index = 1,
@@ -810,7 +811,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.MASTER_OFF -> {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled),
-                            icon = Icons.Rounded.Info,
+                            icon = Icons.Outlined.Info,
                             onClick = { isMasterReminderRecoveryDialogVisible = true },
                             showChevron = true,
                             index = 1,
@@ -821,7 +822,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.INEXACT -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.group_notifications_inexact_warning),
-                                icon = Icons.Rounded.Info,
+                                icon = Icons.Outlined.Info,
                                 onClick = onRequestExactAlarmAccess,
                                 showChevron = true,
                                 index = 1,

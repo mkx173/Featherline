@@ -36,7 +36,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.LockClock
+import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
@@ -241,7 +243,6 @@ private fun SettingsScreenContent(
     )
     val appInfoCopyText = stringResource(
         R.string.settings_about_app_info_copy_text,
-        appName,
         appVersionInfo.versionName,
         appVersionInfo.versionCode.toString()
     )
@@ -318,7 +319,7 @@ private fun SettingsScreenContent(
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        icon = Icons.Rounded.Info,
+                        icon = Icons.Outlined.Info,
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
@@ -327,7 +328,7 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
-                        icon = Icons.Rounded.Info,
+                        icon = Icons.Outlined.Info,
                         onClick = onRequestExactAlarmAccess,
                         showChevron = true,
                         index = 1,
@@ -568,7 +569,7 @@ private fun SettingsScreenContent(
                     onClick = { showPrivacyPolicyDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.Policy
+                            icon = Icons.Rounded.PrivacyTip
                         )
                     },
                     trailingContent = {
@@ -589,11 +590,19 @@ private fun SettingsScreenContent(
                     onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_github)
+                            painter = painterResource(R.drawable.ic_github),
+                            modifier = Modifier.size(20.dp)
                         )
                     },
                     supportingContent = {
                         Text(text = stringResource(R.string.settings_about_model_summary))
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_model))
@@ -606,11 +615,19 @@ private fun SettingsScreenContent(
                     onClick = { pendingExternalUrl = DEVELOPER_X_URL },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_x)
+                            painter = painterResource(R.drawable.ic_x),
+                            modifier = Modifier.size(16.dp)
                         )
                     },
                     supportingContent = {
                         Text(text = stringResource(R.string.settings_about_contact_developer_summary))
+                    },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_contact_developer))
