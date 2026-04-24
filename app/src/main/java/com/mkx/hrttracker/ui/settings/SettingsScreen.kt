@@ -6,7 +6,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -17,7 +17,6 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -35,21 +34,26 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,11 +68,6 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     var showInexactReminderWarning by remember { mutableStateOf(false) }
-    var showWeightDialog by rememberSaveable { mutableStateOf(false) }
-    val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
-        remember { mutableStateOf(false) }
-    val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
-    val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
     val reminderPermissionDeniedMessage =
         stringResource(R.string.settings_reminders_permission_denied)
     val reminderNotificationsUnavailableMessage =
@@ -121,6 +120,69 @@ fun SettingsScreen(
         onError = viewModel::onScreenLockProtectionPromptError
     )
 
+    val onRemindersEnabledChange = { enabled: Boolean ->
+        if (!enabled) {
+            viewModel.setRemindersEnabled(false)
+        } else if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            Toast.makeText(
+                context,
+                reminderNotificationsUnavailableMessage,
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            viewModel.setRemindersEnabled(true)
+        }
+    }
+
+    SettingsScreenContent(
+        uiState = uiState,
+        hasNotificationAccess = hasNotificationAccess,
+        showInexactReminderWarning = showInexactReminderWarning,
+        onWeightSave = viewModel::setWeight,
+        onWeightClear = viewModel::clearWeight,
+        onRemindersEnabledChange = onRemindersEnabledChange,
+        onScreenLockProtectionToggle = viewModel::onScreenLockProtectionToggle,
+        onAppLockGracePeriodOptionChange = viewModel::setAppLockGracePeriodOption,
+        onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
+        onAppLanguageOptionChange = viewModel::setAppLanguageOption,
+        onDarkModeOptionChange = viewModel::setDarkModeOption,
+        onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        modifier = modifier
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreenContent(
+    uiState: SettingsUiState,
+    hasNotificationAccess: Boolean,
+    showInexactReminderWarning: Boolean,
+    onWeightSave: (Double, WeightUnit) -> Unit,
+    onWeightClear: () -> Unit,
+    onRemindersEnabledChange: (Boolean) -> Unit,
+    onScreenLockProtectionToggle: (Boolean) -> Unit,
+    onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
+    onHideScreenContentEnabledChange: (Boolean) -> Unit,
+    onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
+    onDarkModeOptionChange: (DarkModeOption) -> Unit,
+    onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val settingsState = uiState.settingsState
+    var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
+        remember { mutableStateOf(false) }
+    val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
+    val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -132,71 +194,34 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(dimensionResource(R.dimen.padding_small))
+                .padding(dimensionResource(R.dimen.padding_medium)),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_medium))
         ) {
-            ListItem(
-                modifier = Modifier.fillMaxWidth(),
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.settings_personalization),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_personalization)
             )
 
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showWeightDialog = true },
-                headlineContent = {
-                    Text(text = stringResource(R.string.personalization_weight))
-                },
+            EditorSegmentedListItem(
+                index = 0,
+                count = 1,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { showWeightDialog = true },
                 supportingContent = {
                     Text(text = formatWeightSummary(uiState.userProfile))
                 }
-            )
-
-            ListItem(
-                modifier = Modifier.fillMaxWidth(),
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.settings_notifications),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            )
-
-            val onRemindersEnabledChange = { enabled: Boolean ->
-                if (!enabled) {
-                    viewModel.setRemindersEnabled(false)
-                } else if (
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-                    Toast.makeText(
-                        context,
-                        reminderNotificationsUnavailableMessage,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    viewModel.setRemindersEnabled(true)
-                }
+            ) {
+                Text(text = stringResource(R.string.personalization_weight))
             }
 
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onRemindersEnabledChange(!settingsState.remindersEnabled) },
-                headlineContent = {
-                    Text(text = stringResource(R.string.settings_reminders))
-                },
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_notifications)
+            )
+
+            EditorSegmentedListItem(
+                index = 0,
+                count = 1,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onRemindersEnabledChange(!settingsState.remindersEnabled) },
                 supportingContent = {
                     Column {
                         Text(
@@ -223,40 +248,96 @@ fun SettingsScreen(
                         onCheckedChange = onRemindersEnabledChange
                     )
                 }
+            ) {
+                Text(text = stringResource(R.string.settings_reminders))
+            }
+
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_security)
             )
 
-            ListItem(
-                modifier = Modifier.fillMaxWidth(),
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.settings_security),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            )
+            val securityItemCount = if (settingsState.screenLockProtectionEnabled) 3 else 2
 
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        viewModel.onScreenLockProtectionToggle(
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
+                EditorSegmentedListItem(
+                    index = 0,
+                    count = securityItemCount,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        onScreenLockProtectionToggle(
                             !settingsState.screenLockProtectionEnabled
                         )
                     },
-                headlineContent = {
+                    supportingContent = {
+                        Text(text = stringResource(R.string.settings_screen_lock_protection_summary))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.screenLockProtectionEnabled,
+                            onCheckedChange = onScreenLockProtectionToggle
+                        )
+                    }
+                ) {
                     Text(text = stringResource(R.string.settings_screen_lock_protection))
-                },
-                supportingContent = {
-                    Text(text = stringResource(R.string.settings_screen_lock_protection_summary))
-                },
-                trailingContent = {
-                    Switch(
-                        checked = settingsState.screenLockProtectionEnabled,
-                        onCheckedChange = viewModel::onScreenLockProtectionToggle
-                    )
                 }
-            )
+
+                if (settingsState.screenLockProtectionEnabled) {
+                    Box {
+                        EditorSegmentedListItem(
+                            index = 1,
+                            count = securityItemCount,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { setAppLockGracePeriodMenuExpanded(true) },
+                            supportingContent = {
+                                Text(text = stringResource(settingsState.appLockGracePeriodOption.labelRes))
+                            }
+                        ) {
+                            Text(text = stringResource(R.string.settings_app_lock_grace_period))
+                        }
+                        DropdownMenu(
+                            expanded = isAppLockGracePeriodMenuExpanded,
+                            onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
+                            modifier = Modifier.width(IntrinsicSize.Min)
+                        ) {
+                            AppLockGracePeriodOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(option.labelRes)) },
+                                onClick = {
+                                    onAppLockGracePeriodOptionChange(option)
+                                    setAppLockGracePeriodMenuExpanded(false)
+                                }
+                            )
+                        }
+                    }
+                    }
+                }
+
+                EditorSegmentedListItem(
+                    index = if (settingsState.screenLockProtectionEnabled) 2 else 1,
+                    count = securityItemCount,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        onHideScreenContentEnabledChange(
+                            !settingsState.hideScreenContentEnabled
+                        )
+                    },
+                    supportingContent = {
+                        Text(text = stringResource(R.string.settings_hide_screen_content_summary))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.hideScreenContentEnabled,
+                            onCheckedChange = onHideScreenContentEnabledChange
+                        )
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_hide_screen_content))
+                }
+            }
 
             uiState.securityErrorMessageRes?.let { messageRes ->
                 Text(
@@ -266,144 +347,90 @@ fun SettingsScreen(
                 )
             }
 
-            if (settingsState.screenLockProtectionEnabled) {
+            SettingsSectionTitle(
+                text = stringResource(R.string.settings_appearance)
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
                 Box {
-                    ListItem(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { setAppLockGracePeriodMenuExpanded(true) },
-                        headlineContent = {
-                            Text(text = stringResource(R.string.settings_app_lock_grace_period))
-                        },
+                    EditorSegmentedListItem(
+                        index = 0,
+                        count = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { setLanguageMenuExpanded(true) },
                         supportingContent = {
-                            Text(text = stringResource(settingsState.appLockGracePeriodOption.labelRes))
+                            Text(text = stringResource(settingsState.appLanguageOption.labelRes))
                         }
-                    )
+                    ) {
+                        Text(text = stringResource(R.string.settings_app_language))
+                    }
                     DropdownMenu(
-                        expanded = isAppLockGracePeriodMenuExpanded,
-                        onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
+                        expanded = isLanguageMenuExpanded,
+                        onDismissRequest = { setLanguageMenuExpanded(false) },
                         modifier = Modifier.width(IntrinsicSize.Min)
                     ) {
-                        AppLockGracePeriodOption.entries.forEach { option ->
+                        AppLanguageOption.entries.forEach { option ->
                             DropdownMenuItem(
                                 text = { Text(text = stringResource(option.labelRes)) },
                                 onClick = {
-                                    viewModel.setAppLockGracePeriodOption(option)
-                                    setAppLockGracePeriodMenuExpanded(false)
+                                    onAppLanguageOptionChange(option)
+                                    setLanguageMenuExpanded(false)
                                 }
                             )
                         }
                     }
                 }
-            }
 
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        viewModel.setHideScreenContentEnabled(
-                            !settingsState.hideScreenContentEnabled
-                        )
-                    },
-                headlineContent = {
-                    Text(text = stringResource(R.string.settings_hide_screen_content))
-                },
-                supportingContent = {
-                    Text(text = stringResource(R.string.settings_hide_screen_content_summary))
-                },
-                trailingContent = {
-                    Switch(
-                        checked = settingsState.hideScreenContentEnabled,
-                        onCheckedChange = viewModel::setHideScreenContentEnabled
-                    )
-                }
-            )
-
-            ListItem(
-                modifier = Modifier.fillMaxWidth(),
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.settings_appearance),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            )
-
-            Box {
-                ListItem(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { setLanguageMenuExpanded(true) },
-                    headlineContent = {
-                        Text(text = stringResource(R.string.settings_app_language))
-                    },
-                    supportingContent = {
-                        Text(text = stringResource(settingsState.appLanguageOption.labelRes))
-                    }
-                )
-                DropdownMenu(
-                    expanded = isLanguageMenuExpanded,
-                    onDismissRequest = { setLanguageMenuExpanded(false) },
-                    modifier = Modifier.width(IntrinsicSize.Min)
-                ) {
-                    AppLanguageOption.entries.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(text = stringResource(option.labelRes)) },
-                            onClick = {
-                                viewModel.setAppLanguageOption(option)
-                                setLanguageMenuExpanded(false)
-                            }
-                        )
-                    }
-                }
-            }
-
-            Box {
-                ListItem(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { setDarkModeMenuExpanded(true) },
-                    headlineContent = {
+                Box {
+                    EditorSegmentedListItem(
+                        index = 1,
+                        count = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { setDarkModeMenuExpanded(true) },
+                        supportingContent = {
+                            Text(text = stringResource(settingsState.darkModeOption.labelRes))
+                        }
+                    ) {
                         Text(text = stringResource(R.string.settings_dark_mode))
-                    },
-                    supportingContent = {
-                        Text(text = stringResource(settingsState.darkModeOption.labelRes))
                     }
-                )
-                DropdownMenu(
-                    expanded = isDarkModeMenuExpanded,
-                    onDismissRequest = { setDarkModeMenuExpanded(false) },
-                    modifier = Modifier.width(IntrinsicSize.Min)
-                ) {
-                    DarkModeOption.entries.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(text = stringResource(option.labelRes)) },
-                            onClick = {
-                                viewModel.setDarkModeOption(option)
-                                setDarkModeMenuExpanded(false)
-                            }
+                    DropdownMenu(
+                        expanded = isDarkModeMenuExpanded,
+                        onDismissRequest = { setDarkModeMenuExpanded(false) },
+                        modifier = Modifier.width(IntrinsicSize.Min)
+                    ) {
+                        DarkModeOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(text = stringResource(option.labelRes)) },
+                                onClick = {
+                                    onDarkModeOptionChange(option)
+                                    setDarkModeMenuExpanded(false)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                EditorSegmentedListItem(
+                    index = 2,
+                    count = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.adaptiveColorEnabled,
+                            onCheckedChange = onAdaptiveColorEnabledChange
                         )
                     }
+                ) {
+                    Text(text = stringResource(R.string.settings_adaptive_color))
                 }
             }
-
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        viewModel.setAdaptiveColorEnabled(!settingsState.adaptiveColorEnabled)
-                    },
-                headlineContent = {
-                    Text(text = stringResource(R.string.settings_adaptive_color))
-                },
-                trailingContent = {
-                    Switch(
-                        checked = settingsState.adaptiveColorEnabled,
-                        onCheckedChange = viewModel::setAdaptiveColorEnabled
-                    )
-                }
-            )
         }
     }
 
@@ -411,16 +438,29 @@ fun SettingsScreen(
         WeightDialog(
             profile = uiState.userProfile,
             onSave = { value, unit ->
-                viewModel.setWeight(value, unit)
+                onWeightSave(value, unit)
                 showWeightDialog = false
             },
             onClear = {
-                viewModel.clearWeight()
+                onWeightClear()
                 showWeightDialog = false
             },
             onDismiss = { showWeightDialog = false }
         )
     }
+}
+
+@Composable
+private fun SettingsSectionTitle(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.fillMaxWidth()
+    )
 }
 
 @Composable
@@ -443,3 +483,43 @@ private fun formatWeightSummary(profile: UserProfile): String {
     }
 }
 
+@Preview(
+    name = "Settings Screen",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun SettingsScreenPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        SettingsScreenContent(
+            uiState = SettingsUiState(
+                settingsState = SettingsState(
+                    darkModeOption = DarkModeOption.DARK,
+                    adaptiveColorEnabled = true,
+                    appLanguageOption = AppLanguageOption.ENGLISH,
+                    remindersEnabled = true,
+                    screenLockProtectionEnabled = true,
+                    appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
+                    hideScreenContentEnabled = true,
+                ),
+                userProfile = UserProfile(
+                    weightKg = 52.2,
+                    weightOriginalValue = 115.0,
+                    weightOriginalUnit = WeightUnit.POUNDS,
+                )
+            ),
+            hasNotificationAccess = true,
+            showInexactReminderWarning = true,
+            onWeightSave = { _, _ -> },
+            onWeightClear = { },
+            onRemindersEnabledChange = { },
+            onScreenLockProtectionToggle = { },
+            onAppLockGracePeriodOptionChange = { },
+            onHideScreenContentEnabledChange = { },
+            onAppLanguageOptionChange = { },
+            onDarkModeOptionChange = { },
+            onAdaptiveColorEnabledChange = { },
+        )
+    }
+}
