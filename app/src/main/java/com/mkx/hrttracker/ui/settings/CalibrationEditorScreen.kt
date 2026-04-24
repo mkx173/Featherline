@@ -23,9 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -63,6 +60,8 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -462,11 +461,20 @@ private fun CalibrationAnalyteCard(
                     }
                 }
             }
-            CalibrationUnitDropdown(
-                analyteKey = analyteKey,
-                selectedUnit = unit,
-                onUnitSelected = onUnitChange,
-            )
+            val allowedUnits = remember(analyteKey) {
+                calibrationAllowedUnitsFor(analyteKey)
+            }
+            if (allowedUnits.size > 1) {
+                ConnectedButtonGroup(
+                    modifier = Modifier.fillMaxWidth(),
+                    options = allowedUnits,
+                    selectedOption = unit,
+                    optionLabel = { option -> calibrationUnitLabel(option) },
+                    onOptionSelected = onUnitChange,
+                    layout = ConnectedButtonGroupLayout.ROW,
+                    expandOptions = true,
+                )
+            }
             OutlinedTextField(
                 value = valueText,
                 onValueChange = onValueChange,
@@ -474,61 +482,12 @@ private fun CalibrationAnalyteCard(
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
                 },
+                suffix = {
+                    Text(text = calibrationUnitLabel(unit))
+                },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CalibrationUnitDropdown(
-    analyteKey: BloodAnalyteKey,
-    selectedUnit: BloodUnitKey,
-    onUnitSelected: (BloodUnitKey) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val allowedUnits = remember(analyteKey) {
-        calibrationAllowedUnitsFor(analyteKey)
-    }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-    ) {
-        OutlinedTextField(
-            value = calibrationUnitLabel(selectedUnit),
-            onValueChange = {},
-            modifier = Modifier
-                .menuAnchor(
-                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                    enabled = true,
-                )
-                .fillMaxWidth(),
-            readOnly = true,
-            label = {
-                Text(text = stringResource(R.string.settings_calibration_unit_label))
-            },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            colors = OutlinedTextFieldDefaults.colors(),
-        )
-
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            allowedUnits.forEach { unit ->
-                DropdownMenuItem(
-                    text = { Text(text = calibrationUnitLabel(unit)) },
-                    onClick = {
-                        onUnitSelected(unit)
-                        expanded = false
-                    },
-                )
-            }
         }
     }
 }

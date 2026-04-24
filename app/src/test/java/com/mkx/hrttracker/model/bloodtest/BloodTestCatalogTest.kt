@@ -16,6 +16,17 @@ class BloodTestCatalogTest {
     }
 
     @Test
+    fun toCanonical_converts_e2_ng_dl_to_pg_ml() {
+        val canonical = BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            value = 15.24,
+            unit = BloodUnitKey.NG_DL
+        )
+
+        assertEquals(152.4, canonical, 1e-6)
+    }
+
+    @Test
     fun toCanonical_converts_testosterone_nmol_l_to_ng_dl() {
         val canonical = BloodTestCatalog.toCanonical(
             analyteKey = BloodAnalyteKey.T,
@@ -24,6 +35,17 @@ class BloodTestCatalogTest {
         )
 
         assertEquals(100.0, canonical, 1e-6)
+    }
+
+    @Test
+    fun toCanonical_converts_testosterone_ng_ml_to_ng_dl() {
+        val canonical = BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.T,
+            value = 3.17,
+            unit = BloodUnitKey.NG_ML
+        )
+
+        assertEquals(317.0, canonical, 1e-6)
     }
 
     @Test
@@ -43,6 +65,18 @@ class BloodTestCatalogTest {
             analyteKey = BloodAnalyteKey.PRL,
             value = 10.0,
             unit = BloodUnitKey.IU_L
+        )
+    }
+
+    @Test
+    fun definitionFor_exposes_new_e2_and_t_units() {
+        assertEquals(
+            setOf(BloodUnitKey.PG_ML, BloodUnitKey.PMOL_L, BloodUnitKey.NG_DL),
+            BloodTestCatalog.definitionFor(BloodAnalyteKey.E2).allowedUnits
+        )
+        assertEquals(
+            setOf(BloodUnitKey.NG_DL, BloodUnitKey.NMOL_L, BloodUnitKey.NG_ML),
+            BloodTestCatalog.definitionFor(BloodAnalyteKey.T).allowedUnits
         )
     }
 }

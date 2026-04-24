@@ -38,17 +38,19 @@ data class BloodAnalyteDefinition(
 
 object BloodTestCatalog {
     private const val E2_PMOL_L_PER_PG_ML = 3.671
+    private const val PG_ML_PER_NG_DL = 10.0
     private const val T_NMOL_L_PER_NG_DL = 0.0347
+    private const val NG_DL_PER_NG_ML = 100.0
     private const val PROG_NMOL_L_PER_NG_ML = 3.18
 
     private val definitions: Map<BloodAnalyteKey, BloodAnalyteDefinition> = mapOf(
         BloodAnalyteKey.E2 to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.PG_ML,
-            allowedUnits = setOf(BloodUnitKey.PG_ML, BloodUnitKey.PMOL_L)
+            allowedUnits = setOf(BloodUnitKey.PG_ML, BloodUnitKey.PMOL_L, BloodUnitKey.NG_DL)
         ),
         BloodAnalyteKey.T to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_DL,
-            allowedUnits = setOf(BloodUnitKey.NG_DL, BloodUnitKey.NMOL_L)
+            allowedUnits = setOf(BloodUnitKey.NG_DL, BloodUnitKey.NMOL_L, BloodUnitKey.NG_ML)
         ),
         BloodAnalyteKey.PROG to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_ML,
@@ -96,12 +98,14 @@ object BloodTestCatalog {
             BloodAnalyteKey.E2 -> when (unit) {
                 BloodUnitKey.PG_ML -> value
                 BloodUnitKey.PMOL_L -> value / E2_PMOL_L_PER_PG_ML
+                BloodUnitKey.NG_DL -> value * PG_ML_PER_NG_DL
                 else -> unreachableUnit(analyteKey, unit)
             }
 
             BloodAnalyteKey.T -> when (unit) {
                 BloodUnitKey.NG_DL -> value
                 BloodUnitKey.NMOL_L -> value / T_NMOL_L_PER_NG_DL
+                BloodUnitKey.NG_ML -> value * NG_DL_PER_NG_ML
                 else -> unreachableUnit(analyteKey, unit)
             }
 
