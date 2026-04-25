@@ -288,7 +288,6 @@ private fun CalibrationEditorScreenContent(
                     CalibrationDateTimeCard(
                         dateLabel = uiState.collectedDate.format(dateFormatter),
                         timeLabel = uiState.collectedTime.format(timeFormatter),
-                        timeZoneId = uiState.timeZoneId,
                         timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
                         onDateClick = onDateClick,
                         onTimeClick = onTimeClick,
@@ -510,7 +509,6 @@ private fun CalibrationEditorScreenPreview() {
                 isEditing = true,
                 collectedDate = LocalDate.of(2026, 4, 24),
                 collectedTime = LocalTime.of(9, 30),
-                timeZoneId = "Asia/Tokyo",
                 timeSinceLastEstradiolDoseMillis = 34_200_000L,
                 notes = "Trough draw before morning dose.",
                 drafts = listOf(

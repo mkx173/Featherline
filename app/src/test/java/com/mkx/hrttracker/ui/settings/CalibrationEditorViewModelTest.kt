@@ -96,10 +96,13 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
 
         val uiState = viewModel.uiState.value
+        val expectedCollectedDateTime = Instant.parse("2026-04-24T00:30:00Z")
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
         assertTrue(uiState.isEditing)
         assertFalse(uiState.isLoading)
-        assertEquals(LocalDate.of(2026, 4, 24), uiState.collectedDate)
-        assertEquals(LocalTime.of(9, 30), uiState.collectedTime)
+        assertEquals(expectedCollectedDateTime.toLocalDate(), uiState.collectedDate)
+        assertEquals(expectedCollectedDateTime.toLocalTime().withSecond(0).withNano(0), uiState.collectedTime)
         assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),
@@ -143,7 +146,7 @@ class CalibrationEditorViewModelTest {
         viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
         viewModel.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
 
-        val expectedZoneId = ZoneId.of(viewModel.uiState.value.timeZoneId)
+        val expectedZoneId = ZoneId.systemDefault()
         val expectedInstant = LocalDateTime.of(2026, 4, 24, 9, 30)
             .atZone(expectedZoneId)
             .toInstant()
@@ -169,7 +172,7 @@ class CalibrationEditorViewModelTest {
             repository.savePanel(
                 uuid = null,
                 collectedAt = expectedInstant,
-                collectedAtTimeZoneId = viewModel.uiState.value.timeZoneId,
+                collectedAtTimeZoneId = expectedZoneId.id,
                 notes = "Taken fasting",
                 results = any(),
                 now = any()
@@ -240,7 +243,7 @@ class CalibrationEditorViewModelTest {
         )
         advanceUntilIdle()
 
-        val zoneId = ZoneId.of(viewModel.uiState.value.timeZoneId)
+        val zoneId = ZoneId.systemDefault()
         val selectedCollectedAt = LocalDateTime.of(2026, 4, 24, 9, 30)
             .atZone(zoneId)
             .toInstant()

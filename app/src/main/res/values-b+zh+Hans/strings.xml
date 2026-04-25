@@ -266,7 +266,6 @@
     <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s 后采血</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
-    <string name="settings_calibration_entry_timezone">时区：%1$s</string>
     <string name="settings_calibration_e2_field">E2（pg/mL）</string>
     <string name="settings_calibration_collected_at">采样时间</string>
     <string name="settings_calibration_date_label">日期</string>

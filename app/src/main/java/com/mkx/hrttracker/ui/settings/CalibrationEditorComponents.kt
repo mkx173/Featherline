@@ -92,7 +92,6 @@ internal fun CalibrationEditorCard(
 internal fun CalibrationDateTimeCard(
     dateLabel: String,
     timeLabel: String,
-    timeZoneId: String,
     timeSinceLastEstradiolDoseMillis: Long?,
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
@@ -424,7 +423,6 @@ private fun CalibrationDateTimeCardPreview() {
         CalibrationDateTimeCard(
             dateLabel = "Apr 24, 2026",
             timeLabel = "9:30 AM",
-            timeZoneId = "Asia/Tokyo",
             timeSinceLastEstradiolDoseMillis = 34_200_000L,
             onDateClick = { },
             onTimeClick = { },

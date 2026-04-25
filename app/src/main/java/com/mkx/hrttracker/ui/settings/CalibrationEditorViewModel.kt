@@ -57,7 +57,6 @@ class CalibrationEditorViewModel @Inject constructor(
             isLoading = editingPanelUuid != null,
             collectedDate = LocalDate.now(defaultZoneId),
             collectedTime = LocalTime.now(defaultZoneId).withSecond(0).withNano(0),
-            timeZoneId = defaultZoneId.id,
         )
     )
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
@@ -155,18 +154,14 @@ class CalibrationEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             val latestState = uiState.value
-            val zoneId = ZoneId.of(latestState.timeZoneId)
-            val collectedAt = LocalDateTime.of(
-                latestState.collectedDate,
-                latestState.collectedTime,
-            ).atZone(zoneId).toInstant()
+            val collectedAt = latestState.toCollectedAtInstant(defaultZoneId)
             val resultInputs = buildResultInputs(latestState)
 
             runCatching {
                 bloodTestRepository.savePanel(
                     uuid = editingPanelUuid,
                     collectedAt = collectedAt,
-                    collectedAtTimeZoneId = latestState.timeZoneId,
+                    collectedAtTimeZoneId = defaultZoneId.id,
                     notes = latestState.notes,
                     results = resultInputs,
                     now = Instant.now(),
@@ -247,7 +242,7 @@ class CalibrationEditorViewModel @Inject constructor(
     private fun refreshTimeSinceLastEstradiolDose() {
         viewModelScope.launch {
             val targetState = uiState.value
-            val targetCollectedAt = targetState.toCollectedAtInstant()
+            val targetCollectedAt = targetState.toCollectedAtInstant(defaultZoneId)
             val elapsedMillis = findLastEstradiolEntry(
                 entries = medicationLogRepository.getEntries(),
                 onOrBefore = targetCollectedAt,
@@ -257,7 +252,7 @@ class CalibrationEditorViewModel @Inject constructor(
             }
 
             _uiState.update { state ->
-                if (state.toCollectedAtInstant() != targetCollectedAt) {
+                if (state.toCollectedAtInstant(defaultZoneId) != targetCollectedAt) {
                     state
                 } else {
                     state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
@@ -283,8 +278,7 @@ class CalibrationEditorViewModel @Inject constructor(
     }
 
     private fun BloodTestPanel.toEditorState(): CalibrationEditorUiState {
-        val zoneId = ZoneId.of(collectedAtTimeZoneId)
-        val collectedDateTime = collectedAt.atZone(zoneId).toLocalDateTime()
+        val collectedDateTime = collectedAt.atZone(defaultZoneId).toLocalDateTime()
         val drafts = results.mapNotNull { result ->
             val analyte = result.analyte as? BloodTestResultAnalyte.Builtin ?: return@mapNotNull null
             CalibrationResultDraftUiState(
@@ -302,7 +296,6 @@ class CalibrationEditorViewModel @Inject constructor(
             isLoading = false,
             collectedDate = collectedDateTime.toLocalDate(),
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
-            timeZoneId = collectedAtTimeZoneId,
             notes = notes.orEmpty(),
             drafts = drafts,
         )
@@ -323,7 +316,6 @@ data class CalibrationEditorUiState(
     val isDeleted: Boolean = false,
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
-    val timeZoneId: String = ZoneId.systemDefault().id,
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
     val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationAnalytes.map { analyteKey ->
@@ -370,8 +362,8 @@ private fun calibrationAnalyteSortIndex(
     } ?: Int.MAX_VALUE
 }
 
-private fun CalibrationEditorUiState.toCollectedAtInstant(): Instant {
+private fun CalibrationEditorUiState.toCollectedAtInstant(zoneId: ZoneId): Instant {
     return LocalDateTime.of(collectedDate, collectedTime)
-        .atZone(ZoneId.of(timeZoneId))
+        .atZone(zoneId)
         .toInstant()
 }

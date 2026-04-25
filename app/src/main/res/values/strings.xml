@@ -266,7 +266,6 @@
     <string name="settings_calibration_last_e2_elapsed">Drawn %1$s after last E2 dose.</string>
     <string name="settings_calibration_entry_title">Add result</string>
     <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
-    <string name="settings_calibration_entry_timezone">Time zone: %1$s</string>
     <string name="settings_calibration_e2_field">E2 (pg/mL)</string>
     <string name="settings_calibration_collected_at">Collected at</string>
     <string name="settings_calibration_date_label">Date</string>
