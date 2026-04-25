@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
@@ -173,9 +174,11 @@ fun CalibrationEditorScreen(
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
         onNotesCommit = viewModel::updateNotes,
-        onAnalyteValueChange = viewModel::updateAnalyteValue,
-        onAnalyteUnitChange = viewModel::updateAnalyteUnit,
-        onRemoveAnalyteClick = viewModel::removeAnalyte,
+        onBuiltinAnalyteValueChange = viewModel::updateAnalyteValue,
+        onCustomAnalyteValueChange = viewModel::updateCustomAnalyteValue,
+        onBuiltinAnalyteUnitChange = viewModel::updateAnalyteUnit,
+        onRemoveBuiltinAnalyteClick = viewModel::removeAnalyte,
+        onRemoveCustomAnalyteClick = viewModel::removeCustomAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
         onDeleteClick = { isDeleteDialogVisible = true },
         onSaveClick = { notes ->
@@ -187,10 +190,18 @@ fun CalibrationEditorScreen(
 
     if (isAddAnalyteSheetVisible) {
         CalibrationAddAnalyteSheet(
-            availableAnalytes = calibrationAnalyteOptions(uiState),
+            availableAnalytes = calibrationAddAnalyteOptions(uiState),
             onDismissRequest = { isAddAnalyteSheetVisible = false },
-            onAnalyteClick = { analyteKey ->
-                viewModel.addAnalyte(analyteKey)
+            onAnalyteClick = { option ->
+                when (option) {
+                    is CalibrationAddAnalyteOption.Builtin -> {
+                        viewModel.addAnalyte(option.analyteKey)
+                    }
+
+                    is CalibrationAddAnalyteOption.Custom -> {
+                        viewModel.addCustomAnalyte(option.customAnalyte)
+                    }
+                }
                 isAddAnalyteSheetVisible = false
             },
         )
@@ -207,19 +218,24 @@ private fun CalibrationEditorScreenContent(
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
     onNotesCommit: (String) -> Unit,
-    onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
-    onAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
-    onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
+    onBuiltinAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
+    onCustomAnalyteValueChange: (UUID, String) -> Unit,
+    onBuiltinAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
+    onRemoveBuiltinAnalyteClick: (BloodAnalyteKey) -> Unit,
+    onRemoveCustomAnalyteClick: (UUID) -> Unit,
     onAddAnalyteClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val addAnalyteOptions = remember(uiState.drafts, uiState.customAnalytes) {
+        calibrationAddAnalyteOptions(uiState)
+    }
     val canSave = canSaveCalibrationEditorState(uiState) &&
         !uiState.isLoading &&
         !uiState.isSaving &&
         !uiState.isDeleting
-    val remainingAnalyteCount = calibrationAnalyteOptions(uiState).size
+    val remainingAnalyteCount = addAnalyteOptions.size
     var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
 
     LaunchedEffect(uiState.panelUuid, uiState.isLoading) {
@@ -305,25 +321,42 @@ private fun CalibrationEditorScreenContent(
                 }
                 itemsIndexed(
                     items = uiState.drafts,
-                    key = { _, draft -> draft.analyteKey.storageValue },
+                    key = { _, draft -> draft.draftKey },
                 ) { index, draft ->
                     val totalCount = uiState.drafts.size
 
-                    CalibrationAnalyteCard(
+                    draft.analyteKey?.let { analyteKey ->
+                        CalibrationAnalyteCard(
+                            index = index,
+                            count = totalCount,
+                            analyteKey = analyteKey,
+                            valueText = draft.valueText,
+                            unit = checkNotNull(draft.unit),
+                            defaultUnit = checkNotNull(draft.defaultUnit),
+                            originalUnit = draft.originalUnit,
+                            onValueChange = { value ->
+                                onBuiltinAnalyteValueChange(analyteKey, value)
+                            },
+                            onUnitChange = { unit ->
+                                onBuiltinAnalyteUnitChange(analyteKey, unit)
+                            },
+                            onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
+                        )
+                    } ?: CalibrationCustomAnalyteCard(
                         index = index,
                         count = totalCount,
-                        analyteKey = draft.analyteKey,
+                        name = checkNotNull(draft.customAnalyteName),
+                        unitLabel = checkNotNull(draft.customUnitLabel),
                         valueText = draft.valueText,
-                        unit = draft.unit,
-                        defaultUnit = draft.defaultUnit,
-                        originalUnit = draft.originalUnit,
                         onValueChange = { value ->
-                            onAnalyteValueChange(draft.analyteKey, value)
+                            onCustomAnalyteValueChange(
+                                checkNotNull(draft.customAnalyteUuid),
+                                value,
+                            )
                         },
-                        onUnitChange = { unit ->
-                            onAnalyteUnitChange(draft.analyteKey, unit)
+                        onRemoveClick = {
+                            onRemoveCustomAnalyteClick(checkNotNull(draft.customAnalyteUuid))
                         },
-                        onRemoveClick = { onRemoveAnalyteClick(draft.analyteKey) },
                     )
 
                     if (index < totalCount - 1) {
@@ -407,9 +440,9 @@ private fun CalibrationEditorScreenContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalibrationAddAnalyteSheet(
-    availableAnalytes: List<BloodAnalyteKey>,
+    availableAnalytes: List<CalibrationAddAnalyteOption>,
     onDismissRequest: () -> Unit,
-    onAnalyteClick: (BloodAnalyteKey) -> Unit,
+    onAnalyteClick: (CalibrationAddAnalyteOption) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -432,9 +465,9 @@ private fun CalibrationAddAnalyteSheet(
 
 @Composable
 private fun CalibrationAddAnalyteSheetContent(
-    availableAnalytes: List<BloodAnalyteKey>,
+    availableAnalytes: List<CalibrationAddAnalyteOption>,
     onDismissRequest: () -> Unit,
-    onAnalyteClick: (BloodAnalyteKey) -> Unit,
+    onAnalyteClick: (CalibrationAddAnalyteOption) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -462,15 +495,33 @@ private fun CalibrationAddAnalyteSheetContent(
             }
         }
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        availableAnalytes.forEachIndexed { index, analyteKey ->
-            val unitsLabel = calibrationAllowedUnitsFor(analyteKey).joinToString(
-                separator = " · ",
-            ) { unit -> calibrationUnitLabel(unit) }
+        availableAnalytes.forEachIndexed { index, option ->
+            val title = when (option) {
+                is CalibrationAddAnalyteOption.Builtin -> {
+                    stringResource(calibrationAnalyteFullNameRes(option.analyteKey))
+                }
+
+                is CalibrationAddAnalyteOption.Custom -> option.customAnalyte.name
+            }
+            val supportingText = when (option) {
+                is CalibrationAddAnalyteOption.Builtin -> {
+                    val unitsLabel = calibrationAllowedUnitsFor(option.analyteKey).joinToString(
+                        separator = " · ",
+                    ) { unit -> calibrationUnitLabel(unit) }
+                    "${calibrationAnalyteLabel(option.analyteKey)} - $unitsLabel"
+                }
+
+                is CalibrationAddAnalyteOption.Custom -> option.customAnalyte.unitLabel
+            }
+            val overlineText = when (option) {
+                is CalibrationAddAnalyteOption.Builtin -> null
+                is CalibrationAddAnalyteOption.Custom -> stringResource(R.string.medication_category_custom)
+            }
 
             EditorSegmentedListItem(
                 index = index,
                 count = availableAnalytes.size,
-                onClick = { onAnalyteClick(analyteKey) },
+                onClick = { onAnalyteClick(option) },
                 modifier = Modifier.fillMaxWidth(),
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 leadingContent = {
@@ -480,8 +531,13 @@ private fun CalibrationAddAnalyteSheetContent(
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 },
+                overlineContent = overlineText?.let { text ->
+                    {
+                        Text(text = text)
+                    }
+                },
                 supportingContent = {
-                    Text(text = "${calibrationAnalyteLabel(analyteKey)} - $unitsLabel")
+                    Text(text = supportingText)
                 },
                 trailingContent = {
                     Icon(
@@ -491,7 +547,7 @@ private fun CalibrationAddAnalyteSheetContent(
                     )
                 }
             ) {
-                Text(text = stringResource(calibrationAnalyteFullNameRes(analyteKey)))
+                Text(text = title)
             }
         }
     }
@@ -525,7 +581,14 @@ private fun CalibrationEditorScreenPreview() {
                         valueText = "31.7",
                         unit = BloodUnitKey.NMOL_L,
                     ),
+                    CalibrationResultDraftUiState(
+                        customAnalyteUuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+                        customAnalyteName = "DHT",
+                        customUnitLabel = "ng/dL",
+                        valueText = "18.4",
+                    ),
                 ),
+                customAnalytes = previewCalibrationCustomAnalytes(),
             ),
             dateFormatter = previewCalibrationEditorDateFormatter(),
             timeFormatter = previewCalibrationEditorTimeFormatter(),
@@ -533,9 +596,11 @@ private fun CalibrationEditorScreenPreview() {
             onDateClick = { },
             onTimeClick = { },
             onNotesCommit = { _ -> },
-            onAnalyteValueChange = { _, _ -> },
-            onAnalyteUnitChange = { _, _ -> },
-            onRemoveAnalyteClick = { },
+            onBuiltinAnalyteValueChange = { _, _ -> },
+            onCustomAnalyteValueChange = { _, _ -> },
+            onBuiltinAnalyteUnitChange = { _, _ -> },
+            onRemoveBuiltinAnalyteClick = { },
+            onRemoveCustomAnalyteClick = { },
             onAddAnalyteClick = { },
             onDeleteClick = { },
             onSaveClick = { _ -> },
@@ -565,9 +630,18 @@ private fun CalibrationAddAnalyteSheetPreview() {
             ) {
                 CalibrationAddAnalyteSheetContent(
                     availableAnalytes = listOf(
-                        BloodAnalyteKey.T,
-                        BloodAnalyteKey.PROG,
-                        BloodAnalyteKey.PRL,
+                        CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.T),
+                        CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.PROG),
+                        CalibrationAddAnalyteOption.Custom(
+                            CustomBloodAnalyte(
+                                uuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+                                name = "DHT",
+                                unitLabel = "ng/dL",
+                                createdAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),
+                                updatedAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),
+                                archivedAt = null,
+                            )
+                        ),
                     ),
                     onDismissRequest = { },
                     onAnalyteClick = { },
@@ -583,4 +657,17 @@ private fun previewCalibrationEditorDateFormatter(): DateTimeFormatter {
 
 private fun previewCalibrationEditorTimeFormatter(): DateTimeFormatter {
     return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.ENGLISH)
+}
+
+private fun previewCalibrationCustomAnalytes(): List<CustomBloodAnalyte> {
+    return listOf(
+        CustomBloodAnalyte(
+            uuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+            name = "DHT",
+            unitLabel = "ng/dL",
+            createdAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),
+            updatedAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),
+            archivedAt = null,
+        )
+    )
 }

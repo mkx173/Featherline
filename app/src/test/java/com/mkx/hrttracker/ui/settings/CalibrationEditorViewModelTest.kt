@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -56,6 +57,7 @@ class CalibrationEditorViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { repository.getActiveCustomAnalytes() } returns emptyList()
         settingsStateFlow = MutableStateFlow(SettingsState())
         every { settingsRepository.settingsState } returns settingsStateFlow
     }
@@ -115,7 +117,7 @@ class CalibrationEditorViewModelTest {
         assertEquals("Lab draw before morning dose", uiState.notes)
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.T),
-            uiState.drafts.map(CalibrationResultDraftUiState::analyteKey),
+            uiState.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey),
         )
         val e2Draft = uiState.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
         assertEquals("559.5", e2Draft.valueText)
@@ -126,6 +128,49 @@ class CalibrationEditorViewModelTest {
         assertEquals(BloodUnitKey.NMOL_L, tDraft.unit)
         assertEquals(BloodUnitKey.NMOL_L, tDraft.originalUnit)
         assertNull(uiState.timeSinceLastEstradiolDoseMillis)
+    }
+
+    @Test
+    fun loadPanelForEditing_mapsExistingCustomResultsIntoDrafts() = runTest {
+        val panelUuid = UUID.fromString("f791a95e-f0e0-495d-a1ce-0f41150eed2d")
+        val customAnalyteUuid = UUID.fromString("7e4edcb1-baa1-47ba-b1a9-0548f7f194ba")
+        coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(
+            uuid = panelUuid,
+            collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            results = listOf(
+                BloodTestResult(
+                    uuid = UUID.fromString("1893720a-819e-4a47-85fe-3cb546411ee8"),
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Custom(
+                        uuid = customAnalyteUuid,
+                        name = "DHT",
+                    ),
+                    value = 18.4,
+                    unitSnapshot = "ng/dL",
+                    canonicalValue = 18.4,
+                ),
+            )
+        )
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            )
+        )
+        advanceUntilIdle()
+
+        val customDraft = viewModel.uiState.value.drafts.single()
+        assertNull(customDraft.analyteKey)
+        assertEquals(customAnalyteUuid, customDraft.customAnalyteUuid)
+        assertEquals("DHT", customDraft.customAnalyteName)
+        assertEquals("ng/dL", customDraft.customUnitLabel)
+        assertEquals("18.4", customDraft.valueText)
+        assertNull(customDraft.unit)
+        assertNull(customDraft.defaultUnit)
     }
 
     @Test
@@ -222,6 +267,54 @@ class CalibrationEditorViewModelTest {
         val savedResults = resultInputSlot.captured
         assertEquals(1, savedResults.size)
         assertEquals(BloodAnalyteKey.E2, (savedResults.single() as BloodTestResultInput.Builtin).analyteKey)
+    }
+
+    @Test
+    fun save_persistsCustomAnalytes() = runTest {
+        val resultInputSlot = slot<List<BloodTestResultInput>>()
+        val panelUuid = UUID.fromString("35ab5226-f26d-4c22-918d-785e6687e4e2")
+        val customAnalyteUuid = UUID.fromString("7e4edcb1-baa1-47ba-b1a9-0548f7f194ba")
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = capture(resultInputSlot),
+                now = any()
+            )
+        } returns panelUuid
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.removeAnalyte(BloodAnalyteKey.T)
+        viewModel.addCustomAnalyte(
+            CustomBloodAnalyte(
+                uuid = customAnalyteUuid,
+                name = "DHT",
+                unitLabel = "ng/dL",
+                createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                updatedAt = Instant.parse("2026-04-24T00:30:00Z"),
+                archivedAt = null,
+            )
+        )
+        viewModel.updateCustomAnalyteValue(customAnalyteUuid, "18.4")
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        val savedResults = resultInputSlot.captured
+        assertEquals(2, savedResults.size)
+        assertEquals(BloodAnalyteKey.E2, (savedResults[0] as BloodTestResultInput.Builtin).analyteKey)
+        val customResult = savedResults[1] as BloodTestResultInput.Custom
+        assertEquals(customAnalyteUuid, customResult.customAnalyteUuid)
+        assertEquals(18.4, customResult.value, 1e-9)
     }
 
     @Test
@@ -360,6 +453,48 @@ class CalibrationEditorViewModelTest {
         assertEquals(
             listOf(BloodAnalyteKey.E2, BloodAnalyteKey.PROG, BloodAnalyteKey.PRL, BloodAnalyteKey.LH),
             calibrationAnalyteOptions(state)
+        )
+    }
+
+    @Test
+    fun calibrationAddAnalyteOptions_includeRemainingBuiltinsAndCustomAnalytes() {
+        val firstCustomAnalyte = CustomBloodAnalyte(
+            uuid = UUID.fromString("7e4edcb1-baa1-47ba-b1a9-0548f7f194ba"),
+            name = "DHT",
+            unitLabel = "ng/dL",
+            createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+            updatedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            archivedAt = null,
+        )
+        val secondCustomAnalyte = firstCustomAnalyte.copy(
+            uuid = UUID.fromString("973e0580-6aea-44ff-9964-0d1e0f43f8c9"),
+            name = "SHBG",
+            unitLabel = "nmol/L",
+        )
+        val state = CalibrationEditorUiState(
+            customAnalytes = listOf(firstCustomAnalyte, secondCustomAnalyte),
+            drafts = listOf(
+                CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.T),
+                CalibrationResultDraftUiState(
+                    customAnalyteUuid = firstCustomAnalyte.uuid,
+                    customAnalyteName = firstCustomAnalyte.name,
+                    customUnitLabel = firstCustomAnalyte.unitLabel,
+                ),
+            )
+        )
+
+        val options = calibrationAddAnalyteOptions(state)
+
+        assertEquals(
+            listOf(
+                CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.E2),
+                CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.PROG),
+                CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.PRL),
+                CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.FSH),
+                CalibrationAddAnalyteOption.Builtin(BloodAnalyteKey.LH),
+                CalibrationAddAnalyteOption.Custom(secondCustomAnalyte),
+            ),
+            options,
         )
     }
 }

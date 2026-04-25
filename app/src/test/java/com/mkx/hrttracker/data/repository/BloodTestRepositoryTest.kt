@@ -228,7 +228,7 @@ class BloodTestRepositoryTest {
             updatedAtEpochMillis = 200L,
             archivedAtEpochMillis = 300L
         )
-        coEvery { dao.insertCustomAnalyte(capture(captured)) } returns Unit
+        coEvery { dao.updateCustomAnalyte(capture(captured)) } returns Unit
 
         repository.saveCustomAnalyte(
             uuid = analyteUuid,
@@ -243,7 +243,7 @@ class BloodTestRepositoryTest {
         assertEquals("ng/dl", captured.captured.normalizedUnitLabel)
         assertEquals(100L, captured.captured.createdAtEpochMillis)
         assertEquals(400L, captured.captured.updatedAtEpochMillis)
-        assertEquals(300L, captured.captured.archivedAtEpochMillis)
+        assertNull(captured.captured.archivedAtEpochMillis)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -266,6 +266,33 @@ class BloodTestRepositoryTest {
     }
 
     @Test
+    fun saveCustomAnalyte_allows_reusing_name_and_unit_after_archive() = runTest {
+        val archivedUuid = UUID.randomUUID()
+        val captured = slot<CustomBloodAnalyteEntity>()
+        coEvery {
+            dao.getCustomAnalyteByNormalizedPair("dht", "ng/dl")
+        } returns customAnalyte(
+            uuid = archivedUuid,
+            name = "DHT",
+            unitLabel = "ng/dL",
+            archivedAtEpochMillis = 100L,
+        )
+        coEvery { dao.updateCustomAnalyte(capture(captured)) } returns Unit
+
+        val restoredUuid = repository.saveCustomAnalyte(
+            uuid = null,
+            name = "DHT",
+            unitLabel = "ng/dL",
+            now = Instant.ofEpochMilli(200L)
+        )
+
+        assertEquals(archivedUuid, restoredUuid)
+        assertEquals(archivedUuid.toString(), captured.captured.uuid)
+        assertNull(captured.captured.archivedAtEpochMillis)
+        coVerify(exactly = 1) { dao.updateCustomAnalyte(any()) }
+    }
+
+    @Test
     fun archiveCustomAnalyte_sets_archived_at_timestamp() = runTest {
         val analyteUuid = UUID.randomUUID()
         val captured = slot<CustomBloodAnalyteEntity>()
@@ -275,7 +302,7 @@ class BloodTestRepositoryTest {
             unitLabel = "ng/dL",
             archivedAtEpochMillis = null
         )
-        coEvery { dao.insertCustomAnalyte(capture(captured)) } returns Unit
+        coEvery { dao.updateCustomAnalyte(capture(captured)) } returns Unit
 
         repository.archiveCustomAnalyte(
             uuid = analyteUuid,

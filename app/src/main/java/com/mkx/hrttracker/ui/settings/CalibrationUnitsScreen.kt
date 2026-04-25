@@ -346,6 +346,7 @@ private fun CalibrationCustomAnalyteDialog(
     var isUnitErrorVisible by rememberSaveable { mutableStateOf(false) }
     var actionErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var isWorking by rememberSaveable { mutableStateOf(false) }
+    var isArchiveConfirmationVisible by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         modifier = modifier,
@@ -477,18 +478,7 @@ private fun CalibrationCustomAnalyteDialog(
                 customAnalyte?.let { existingAnalyte ->
                     TextButton(
                         enabled = !isWorking,
-                        onClick = {
-                            coroutineScope.launch {
-                                isWorking = true
-                                val error = onArchive(existingAnalyte.uuid)
-                                isWorking = false
-                                if (error == null) {
-                                    onDismiss()
-                                } else {
-                                    actionErrorMessage = archiveErrorMessage
-                                }
-                            }
-                        },
+                        onClick = { isArchiveConfirmationVisible = true },
                     ) {
                         Text(text = stringResource(R.string.archive))
                     }
@@ -502,6 +492,59 @@ private fun CalibrationCustomAnalyteDialog(
             }
         }
     )
+
+    if (isArchiveConfirmationVisible && customAnalyte != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isWorking) {
+                    isArchiveConfirmationVisible = false
+                }
+            },
+            title = {
+                Text(
+                    text = stringResource(
+                        R.string.settings_calibration_custom_analyte_archive_title
+                    )
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.settings_calibration_custom_analyte_archive_message,
+                        customAnalyte.name,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isWorking,
+                    onClick = {
+                        isArchiveConfirmationVisible = false
+                        coroutineScope.launch {
+                            isWorking = true
+                            val error = onArchive(customAnalyte.uuid)
+                            isWorking = false
+                            if (error == null) {
+                                onDismiss()
+                            } else {
+                                actionErrorMessage = archiveErrorMessage
+                            }
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.archive))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isWorking,
+                    onClick = { isArchiveConfirmationVisible = false },
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 private fun resolveCustomAnalyteSaveErrorMessage(

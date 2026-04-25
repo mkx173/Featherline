@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -110,6 +111,7 @@ interface BloodTestDao {
         SELECT * FROM custom_blood_analytes
         WHERE normalizedName = :normalizedName
           AND normalizedUnitLabel = :normalizedUnitLabel
+        ORDER BY archivedAtEpochMillis IS NULL DESC, updatedAtEpochMillis DESC
         LIMIT 1
         """
     )
@@ -118,8 +120,11 @@ interface BloodTestDao {
         normalizedUnitLabel: String,
     ): CustomBloodAnalyteEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCustomAnalyte(analyte: CustomBloodAnalyteEntity)
+
+    @Update
+    suspend fun updateCustomAnalyte(analyte: CustomBloodAnalyteEntity)
 
     @Query(
         """

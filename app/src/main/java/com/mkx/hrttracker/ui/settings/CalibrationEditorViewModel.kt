@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
@@ -69,6 +70,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     init {
         observeCalibrationDefaultUnits()
+        refreshAvailableCustomAnalytes()
         refreshTimeSinceLastEstradiolDose()
         editingPanelUuid?.let(::loadPanelForEditing)
     }
@@ -94,10 +96,27 @@ class CalibrationEditorViewModel @Inject constructor(
     }
 
     fun updateAnalyteValue(analyteKey: BloodAnalyteKey, value: String) {
+        updateDraftValue(
+            matchesDraft = { draft -> draft.analyteKey == analyteKey },
+            value = value,
+        )
+    }
+
+    fun updateCustomAnalyteValue(customAnalyteUuid: UUID, value: String) {
+        updateDraftValue(
+            matchesDraft = { draft -> draft.customAnalyteUuid == customAnalyteUuid },
+            value = value,
+        )
+    }
+
+    private fun updateDraftValue(
+        matchesDraft: (CalibrationResultDraftUiState) -> Boolean,
+        value: String,
+    ) {
         _uiState.update { state ->
             state.copy(
                 drafts = state.drafts.map { draft ->
-                    if (draft.analyteKey == analyteKey) {
+                    if (matchesDraft(draft)) {
                         draft.copy(valueText = value)
                     } else {
                         draft
@@ -140,11 +159,37 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    fun addCustomAnalyte(customAnalyte: CustomBloodAnalyte) {
+        _uiState.update { state ->
+            if (state.drafts.any { draft -> draft.customAnalyteUuid == customAnalyte.uuid }) {
+                state
+            } else {
+                state.copy(
+                    drafts = (state.drafts + CalibrationResultDraftUiState(
+                        customAnalyteUuid = customAnalyte.uuid,
+                        customAnalyteName = customAnalyte.name,
+                        customUnitLabel = customAnalyte.unitLabel,
+                    )).sortedBy(::calibrationAnalyteSortIndex)
+                )
+            }
+        }
+    }
+
     fun removeAnalyte(analyteKey: BloodAnalyteKey) {
         _uiState.update { state ->
             state.copy(
                 drafts = state.drafts.filterNot { draft ->
                     draft.analyteKey == analyteKey
+                }
+            )
+        }
+    }
+
+    fun removeCustomAnalyte(customAnalyteUuid: UUID) {
+        _uiState.update { state ->
+            state.copy(
+                drafts = state.drafts.filterNot { draft ->
+                    draft.customAnalyteUuid == customAnalyteUuid
                 }
             )
         }
@@ -238,12 +283,14 @@ class CalibrationEditorViewModel @Inject constructor(
                 latestSettingsState = settingsState
                 _uiState.update { state ->
                     val draftsWithUpdatedDefaults = state.drafts.map { draft ->
-                        draft.copy(
-                            defaultUnit = defaultCalibrationUnitFor(
-                                draft.analyteKey,
-                                settingsState,
+                        draft.analyteKey?.let { analyteKey ->
+                            draft.copy(
+                                defaultUnit = defaultCalibrationUnitFor(
+                                    analyteKey,
+                                    settingsState,
+                                )
                             )
-                        )
+                        } ?: draft
                     }
                     if (
                         state.isEditing ||
@@ -256,9 +303,9 @@ class CalibrationEditorViewModel @Inject constructor(
                     } else {
                         state.copy(
                             drafts = draftsWithUpdatedDefaults.map { draft ->
-                                draft.copy(
-                                    unit = draft.defaultUnit,
-                                )
+                                draft.analyteKey?.let {
+                                    draft.copy(unit = draft.defaultUnit)
+                                } ?: draft
                             }
                         )
                     }
@@ -277,8 +324,22 @@ class CalibrationEditorViewModel @Inject constructor(
                 return@launch
             }
 
-            _uiState.value = panel.toEditorState()
+            _uiState.update { state ->
+                panel.toEditorState().copy(customAnalytes = state.customAnalytes)
+            }
             refreshTimeSinceLastEstradiolDose()
+        }
+    }
+
+    private fun refreshAvailableCustomAnalytes() {
+        viewModelScope.launch {
+            val customAnalytes = runCatching {
+                bloodTestRepository.getActiveCustomAnalytes()
+            }.getOrDefault(emptyList())
+
+            _uiState.update { state ->
+                state.copy(customAnalytes = customAnalytes)
+            }
         }
     }
 
@@ -306,33 +367,50 @@ class CalibrationEditorViewModel @Inject constructor(
 
     private fun buildResultInputs(
         state: CalibrationEditorUiState,
-    ): List<BloodTestResultInput.Builtin> {
+    ): List<BloodTestResultInput> {
         return state.drafts.mapNotNull { draft -> draft.toResultInput() }
     }
 
-    private fun CalibrationResultDraftUiState.toResultInput(): BloodTestResultInput.Builtin? {
+    private fun CalibrationResultDraftUiState.toResultInput(): BloodTestResultInput? {
         val parsedValue = parseCalibrationNumericInput(valueText) ?: return null
-        return BloodTestResultInput.Builtin(
+        return analyteKey?.let { builtinAnalyteKey ->
+            BloodTestResultInput.Builtin(
+                uuid = resultUuid,
+                analyteKey = builtinAnalyteKey,
+                unit = checkNotNull(unit),
+                value = parsedValue,
+            )
+        } ?: BloodTestResultInput.Custom(
             uuid = resultUuid,
-            analyteKey = analyteKey,
-            unit = unit,
+            customAnalyteUuid = checkNotNull(customAnalyteUuid),
             value = parsedValue,
         )
     }
 
     private fun BloodTestPanel.toEditorState(): CalibrationEditorUiState {
         val collectedDateTime = collectedAt.atZone(defaultZoneId).toLocalDateTime()
-        val drafts = results.mapNotNull { result ->
-            val analyte = result.analyte as? BloodTestResultAnalyte.Builtin ?: return@mapNotNull null
-            val storedUnit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
-            CalibrationResultDraftUiState(
-                analyteKey = analyte.key,
-                resultUuid = result.uuid,
-                valueText = formatCalibrationNumericValue(result.value),
-                unit = storedUnit ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
-                defaultUnit = defaultCalibrationUnitFor(analyte.key, latestSettingsState),
-                originalUnit = storedUnit,
-            )
+        val drafts = results.map { result ->
+            when (val analyte = result.analyte) {
+                is BloodTestResultAnalyte.Builtin -> {
+                    val storedUnit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
+                    CalibrationResultDraftUiState(
+                        analyteKey = analyte.key,
+                        resultUuid = result.uuid,
+                        valueText = formatCalibrationNumericValue(result.value),
+                        unit = storedUnit ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                        defaultUnit = defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                        originalUnit = storedUnit,
+                    )
+                }
+
+                is BloodTestResultAnalyte.Custom -> CalibrationResultDraftUiState(
+                    customAnalyteUuid = analyte.uuid,
+                    customAnalyteName = analyte.name ?: "Custom",
+                    customUnitLabel = result.unitSnapshot,
+                    resultUuid = result.uuid,
+                    valueText = formatCalibrationNumericValue(result.value),
+                )
+            }
         }.sortedBy(::calibrationAnalyteSortIndex)
 
         return CalibrationEditorUiState(
@@ -363,19 +441,26 @@ data class CalibrationEditorUiState(
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
+    val customAnalytes: List<CustomBloodAnalyte> = emptyList(),
     val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationAnalytes.map { analyteKey ->
         CalibrationResultDraftUiState(analyteKey = analyteKey)
     },
 )
 
 data class CalibrationResultDraftUiState(
-    val analyteKey: BloodAnalyteKey,
+    val analyteKey: BloodAnalyteKey? = null,
+    val customAnalyteUuid: UUID? = null,
+    val customAnalyteName: String? = null,
+    val customUnitLabel: String? = null,
     val resultUuid: UUID? = null,
     val valueText: String = "",
-    val unit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
-    val defaultUnit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
+    val unit: BloodUnitKey? = analyteKey?.let(::defaultCalibrationUnitFor),
+    val defaultUnit: BloodUnitKey? = analyteKey?.let(::defaultCalibrationUnitFor),
     val originalUnit: BloodUnitKey? = null,
-)
+) {
+    val draftKey: String
+        get() = analyteKey?.storageValue ?: "custom:${checkNotNull(customAnalyteUuid)}"
+}
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {
     if (state.drafts.isEmpty()) return false
@@ -388,8 +473,38 @@ internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boo
 internal fun calibrationAnalyteOptions(
     state: CalibrationEditorUiState,
 ): List<BloodAnalyteKey> {
-    val presentAnalytes = state.drafts.map(CalibrationResultDraftUiState::analyteKey).toSet()
+    val presentAnalytes = state.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey).toSet()
     return calibrationAnalytes.filterNot(presentAnalytes::contains)
+}
+
+internal sealed interface CalibrationAddAnalyteOption {
+    val optionKey: String
+
+    data class Builtin(
+        val analyteKey: BloodAnalyteKey,
+    ) : CalibrationAddAnalyteOption {
+        override val optionKey: String = analyteKey.storageValue
+    }
+
+    data class Custom(
+        val customAnalyte: CustomBloodAnalyte,
+    ) : CalibrationAddAnalyteOption {
+        override val optionKey: String = "custom:${customAnalyte.uuid}"
+    }
+}
+
+internal fun calibrationAddAnalyteOptions(
+    state: CalibrationEditorUiState,
+): List<CalibrationAddAnalyteOption> {
+    val presentBuiltinAnalytes = state.drafts.mapNotNull(CalibrationResultDraftUiState::analyteKey).toSet()
+    val presentCustomAnalytes = state.drafts.mapNotNull(CalibrationResultDraftUiState::customAnalyteUuid).toSet()
+    val builtinOptions = calibrationAnalytes
+        .filterNot(presentBuiltinAnalytes::contains)
+        .map(CalibrationAddAnalyteOption::Builtin)
+    val customOptions = state.customAnalytes
+        .filterNot { customAnalyte -> customAnalyte.uuid in presentCustomAnalytes }
+        .map(CalibrationAddAnalyteOption::Custom)
+    return builtinOptions + customOptions
 }
 
 internal fun calibrationAllowedUnitsFor(analyteKey: BloodAnalyteKey): List<BloodUnitKey> {
@@ -408,7 +523,8 @@ internal fun defaultCalibrationUnitFor(
 private fun calibrationAnalyteSortIndex(
     draft: CalibrationResultDraftUiState,
 ): Int {
-    return calibrationAnalytes.indexOf(draft.analyteKey).takeIf { index ->
+    val analyteKey = draft.analyteKey ?: return Int.MAX_VALUE
+    return calibrationAnalytes.indexOf(analyteKey).takeIf { index ->
         index >= 0
     } ?: Int.MAX_VALUE
 }

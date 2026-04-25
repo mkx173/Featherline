@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.settings
 
-import android.graphics.drawable.Icon
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -392,6 +391,91 @@ internal fun CalibrationAnalyteCard(
 }
 
 @Composable
+internal fun CalibrationCustomAnalyteCard(
+    name: String,
+    unitLabel: String,
+    valueText: String,
+    onValueChange: (String) -> Unit,
+    onRemoveClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    CalibrationEditorCard(
+        index = index,
+        count = count,
+    ) {
+        val focusManager = LocalFocusManager.current
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.WaterDrop,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Column {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = unitLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                ) {
+                    IconButton(
+                        onClick = onRemoveClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.remove_time),
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = valueText,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text(text = stringResource(R.string.settings_calibration_value_label))
+                },
+                suffix = {
+                    Text(text = unitLabel)
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+            )
+        }
+    }
+}
+
+@Composable
 private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
     val icon = when (status) {
         CalibrationRangeStatus.ABOVE -> Icons.Rounded.ArrowDropUp
@@ -508,6 +592,20 @@ private fun CalibrationAnalyteCardPreview() {
             originalUnit = BloodUnitKey.NG_DL,
             onValueChange = { },
             onUnitChange = { },
+            onRemoveClick = { },
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun CalibrationCustomAnalyteCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        CalibrationCustomAnalyteCard(
+            name = "DHT",
+            unitLabel = "ng/dL",
+            valueText = "18.4",
+            onValueChange = { },
             onRemoveClick = { },
         )
     }

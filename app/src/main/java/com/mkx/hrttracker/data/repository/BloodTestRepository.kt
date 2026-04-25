@@ -129,25 +129,37 @@ class BloodTestRepository @Inject constructor(
             normalizedName = normalizedName,
             normalizedUnitLabel = normalizedUnitLabel,
         )
-        require(existingDuplicate == null || existingDuplicate.uuid == uuid?.toString()) {
+        val reusableArchivedDuplicate = existingDuplicate?.takeIf { duplicate ->
+            duplicate.archivedAtEpochMillis != null && uuid == null
+        }
+        require(
+            existingDuplicate == null ||
+                existingDuplicate.uuid == uuid?.toString() ||
+                reusableArchivedDuplicate != null
+        ) {
             "A custom analyte with the same name and unit already exists."
         }
 
-        val analyteUuid = uuid ?: UUID.randomUUID()
-        val existingAnalyte = uuid?.let { dao.getCustomAnalyte(it.toString()) }
+        val analyteUuid = uuid
+            ?: reusableArchivedDuplicate?.uuid?.let(UUID::fromString)
+            ?: UUID.randomUUID()
+        val existingAnalyte = uuid?.let { dao.getCustomAnalyte(it.toString()) } ?: reusableArchivedDuplicate
         val nowEpochMillis = now.toEpochMilli()
-        dao.insertCustomAnalyte(
-            CustomBloodAnalyteEntity(
-                uuid = analyteUuid.toString(),
-                name = name.trim(),
-                normalizedName = normalizedName,
-                unitLabel = unitLabel.trim(),
-                normalizedUnitLabel = normalizedUnitLabel,
-                createdAtEpochMillis = existingAnalyte?.createdAtEpochMillis ?: nowEpochMillis,
-                updatedAtEpochMillis = nowEpochMillis,
-                archivedAtEpochMillis = existingAnalyte?.archivedAtEpochMillis,
-            )
+        val entity = CustomBloodAnalyteEntity(
+            uuid = analyteUuid.toString(),
+            name = name.trim(),
+            normalizedName = normalizedName,
+            unitLabel = unitLabel.trim(),
+            normalizedUnitLabel = normalizedUnitLabel,
+            createdAtEpochMillis = existingAnalyte?.createdAtEpochMillis ?: nowEpochMillis,
+            updatedAtEpochMillis = nowEpochMillis,
+            archivedAtEpochMillis = null,
         )
+        if (existingAnalyte == null) {
+            dao.insertCustomAnalyte(entity)
+        } else {
+            dao.updateCustomAnalyte(entity)
+        }
         return analyteUuid
     }
 
@@ -160,7 +172,7 @@ class BloodTestRepository @Inject constructor(
             "Custom analyte $uuid does not exist."
         }
 
-        dao.insertCustomAnalyte(
+        dao.updateCustomAnalyte(
             existing.copy(
                 updatedAtEpochMillis = now.toEpochMilli(),
                 archivedAtEpochMillis = now.toEpochMilli(),

@@ -297,6 +297,8 @@
     <string name="settings_calibration_custom_analyte_error_duplicate">相同名称和单位的分析项已存在</string>
     <string name="settings_calibration_custom_analyte_error_save">无法保存这个自定义分析项</string>
     <string name="settings_calibration_custom_analyte_error_archive">无法归档这个自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_archive_title">归档自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_archive_message">要归档 %1$s 吗？现有检查结果会保留。</string>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>
     </plurals>
