@@ -183,6 +183,7 @@
     <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
+    <string name="archive">归档</string>
     <string name="medication_source_catalog">内置</string>
     <string name="medication_source_custom">自定义名称</string>
     <string name="dose_type_mg_as_medicine">mg 剂量</string>
@@ -260,7 +261,7 @@
     <string name="settings_hide_screen_content_summary">在最近任务和截屏中隐藏应用内容</string>
     <string name="settings_personalization">个性化</string>
     <string name="settings_personalization_calibration">校准</string>
-    <string name="settings_calibration_default_units">默认单位</string>
+    <string name="settings_calibration_settings">校准设置</string>
     <string name="settings_calibration_add_result">添加检查结果</string>
     <string name="settings_calibration_edit_result">编辑检查结果</string>
     <string name="settings_calibration_empty_state">还没有检查结果</string>
@@ -285,6 +286,17 @@
     <string name="settings_calibration_analyte_prl">催乳素</string>
     <string name="settings_calibration_analyte_fsh">促卵泡激素</string>
     <string name="settings_calibration_analyte_lh">黄体生成素</string>
+    <string name="settings_calibration_builtin_analytes">内置分析项</string>
+    <string name="settings_calibration_custom_analytes">自定义分析项</string>
+    <string name="settings_calibration_custom_analytes_empty">还没有自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_add_title">添加自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_edit_title">编辑自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_name_label">名称</string>
+    <string name="settings_calibration_custom_analyte_error_required_name">请输入名称</string>
+    <string name="settings_calibration_custom_analyte_error_required_unit">请输入单位</string>
+    <string name="settings_calibration_custom_analyte_error_duplicate">相同名称和单位的分析项已存在</string>
+    <string name="settings_calibration_custom_analyte_error_save">无法保存这个自定义分析项</string>
+    <string name="settings_calibration_custom_analyte_error_archive">无法归档这个自定义分析项</string>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>
     </plurals>

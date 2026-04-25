@@ -183,6 +183,7 @@
     <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
+    <string name="archive">Archive</string>
     <string name="medication_source_catalog">Built-in</string>
     <string name="medication_source_custom">Custom name</string>
     <string name="dose_type_mg_as_medicine">Dose in mg</string>
@@ -260,7 +261,7 @@
     <string name="settings_hide_screen_content_summary">Hide app content in recents and screenshots.</string>
     <string name="settings_personalization">Personalization</string>
     <string name="settings_personalization_calibration">Calibrations</string>
-    <string name="settings_calibration_default_units">Default units</string>
+    <string name="settings_calibration_settings">Calibration settings</string>
     <string name="settings_calibration_add_result">Add test result</string>
     <string name="settings_calibration_edit_result">Edit test result</string>
     <string name="settings_calibration_empty_state">No test results yet.</string>
@@ -285,6 +286,17 @@
     <string name="settings_calibration_analyte_prl">Prolactin</string>
     <string name="settings_calibration_analyte_fsh">Follicle-stimulating hormone</string>
     <string name="settings_calibration_analyte_lh">Luteinizing hormone</string>
+    <string name="settings_calibration_builtin_analytes">Built-in analytes</string>
+    <string name="settings_calibration_custom_analytes">Custom analytes</string>
+    <string name="settings_calibration_custom_analytes_empty">No custom analytes yet.</string>
+    <string name="settings_calibration_custom_analyte_add_title">Add custom analyte</string>
+    <string name="settings_calibration_custom_analyte_edit_title">Edit custom analyte</string>
+    <string name="settings_calibration_custom_analyte_name_label">Name</string>
+    <string name="settings_calibration_custom_analyte_error_required_name">Enter a name.</string>
+    <string name="settings_calibration_custom_analyte_error_required_unit">Enter a unit.</string>
+    <string name="settings_calibration_custom_analyte_error_duplicate">That name and unit already exist.</string>
+    <string name="settings_calibration_custom_analyte_error_save">Unable to save this custom analyte.</string>
+    <string name="settings_calibration_custom_analyte_error_archive">Unable to archive this custom analyte.</string>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="one">+%1$d entry</item>
         <item quantity="other">+%1$d entries</item>

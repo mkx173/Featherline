@@ -79,7 +79,7 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
     data object SettingsCalibrationUnits : Screen(
         "settings_calibration_units?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
-        R.string.settings_calibration_default_units
+        R.string.settings_calibration_settings
     ) {
         const val baseRoute = "settings_calibration_units"
 

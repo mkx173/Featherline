@@ -237,6 +237,26 @@ class CalibrationViewModelTest {
     }
 
     @Test
+    fun calibrationRangeStatus_respectsSelectedUnit() {
+        assertEquals(
+            CalibrationRangeStatus.IN_RANGE,
+            calibrationRangeStatus(
+                analyteKey = BloodAnalyteKey.T,
+                valueText = "40",
+                unit = BloodUnitKey.NG_DL,
+            ),
+        )
+        assertEquals(
+            CalibrationRangeStatus.ABOVE,
+            calibrationRangeStatus(
+                analyteKey = BloodAnalyteKey.T,
+                valueText = "40",
+                unit = BloodUnitKey.NMOL_L,
+            ),
+        )
+    }
+
+    @Test
     fun formatCalibrationPanelValueSummary_withoutEstradiolShowsFirstResultOnly() {
         val panel = testBloodTestPanel(
             results = listOf(

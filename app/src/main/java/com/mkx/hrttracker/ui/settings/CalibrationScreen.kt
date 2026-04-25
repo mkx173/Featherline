@@ -152,7 +152,7 @@ private fun CalibrationScreenContent(
                         Icon(
                             imageVector = Icons.Rounded.Tune,
                             contentDescription = stringResource(
-                                R.string.settings_calibration_default_units
+                                R.string.settings_calibration_settings
                             ),
                         )
                     }

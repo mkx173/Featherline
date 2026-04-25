@@ -43,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -226,6 +227,12 @@ internal fun CalibrationAnalyteCard(
         var latchedValueText by remember(analyteKey) { mutableStateOf(valueText) }
         var latchedUnit by remember(analyteKey) { mutableStateOf(unit) }
         var editedSinceLatch by remember(analyteKey) { mutableStateOf(false) }
+        LaunchedEffect(valueText, unit, editedSinceLatch) {
+            if (!editedSinceLatch) {
+                latchedValueText = valueText
+                latchedUnit = unit
+            }
+        }
         val rangeStatus = calibrationRangeStatus(
             analyteKey = analyteKey,
             valueText = latchedValueText,
@@ -372,7 +379,11 @@ internal fun CalibrationAnalyteCard(
                             null
                         }
                     },
-                    onOptionSelected = onUnitChange,
+                    onOptionSelected = { selectedUnit ->
+                        latchedValueText = valueText
+                        latchedUnit = selectedUnit
+                        onUnitChange(selectedUnit)
+                    },
                     layout = ConnectedButtonGroupLayout.ROW,
                 )
             }
