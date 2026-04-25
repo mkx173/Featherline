@@ -266,7 +266,7 @@ private fun PlanScreenContent(
             item(key = "calendar-divider") {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium)),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
             }
 

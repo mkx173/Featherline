@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,10 +14,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Water
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -24,22 +32,32 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -312,20 +330,64 @@ private fun CalibrationPanelRow(
         formatCalibrationPanelValueSummary(panel)
     }
 
+//    EditorSegmentedListItem(
+//        index = index,
+//        count = count,
+//        onClick = onClick,
+//        leadingContent = {
+//            CalibrationPanelDateTimeColumn(
+//                labels = dateTimeLabels,
+//            )
+//        }
+//    ) {
+//        CalibrationPanelResultSummaryColumn(
+//            panel = panel,
+//            valueSummary = valueSummary,
+//        )
+//    }
+
+    var dateTimeColumnWidth by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+
     EditorSegmentedListItem(
         index = index,
         count = count,
         onClick = onClick,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            CalibrationPanelDateTimeColumn(labels = dateTimeLabels)
-            CalibrationPanelResultSummaryColumn(
-                panel = panel,
-                valueSummary = valueSummary,
-            )
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CalibrationPanelDateTimeColumn(
+                    labels = dateTimeLabels,
+                    modifier = Modifier.onSizeChanged {
+                        dateTimeColumnWidth = it.width
+                    }
+                )
+
+                CalibrationPanelResultSummaryColumn(
+                    modifier = Modifier.weight(1f),
+                    panel = panel,
+                    valueSummary = valueSummary,
+                )
+
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
+                CalibrationPanelResultAdditionalSummaryRow(
+                    resultSummary = testosteroneResultSummary,
+                    modifier = Modifier.padding(
+                        start = with(density) {
+                            dateTimeColumnWidth.toDp() + 12.dp
+                        }
+                    )
+                )
+            }
         }
     }
 }
@@ -337,11 +399,11 @@ private fun CalibrationPanelDateTimeColumn(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
-        modifier = modifier.widthIn(min = 58.dp),
+        verticalArrangement = Arrangement.spacedBy((-2).dp),
+        modifier = modifier,
     ) {
         Text(
-            text = labels.monthLabel,
+            text = labels.monthLabel.uppercase(),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -357,7 +419,7 @@ private fun CalibrationPanelDateTimeColumn(
         )
         Text(
             text = labels.timeLabel,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -368,24 +430,16 @@ private fun CalibrationPanelDateTimeColumn(
 
 @Composable
 private fun CalibrationPanelResultSummaryColumn(
+    modifier: Modifier = Modifier,
     panel: BloodTestPanel,
     valueSummary: CalibrationPanelValueSummary,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         valueSummary.mainResultSummary?.let { mainResultSummary ->
-            CalibrationPanelResultSummaryRow(
-                resultSummary = mainResultSummary,
-                isPrimary = true,
-            )
-        }
-        valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
-            CalibrationPanelResultSummaryRow(
-                resultSummary = testosteroneResultSummary,
-                isPrimary = false,
-            )
+            CalibrationPanelResultSummaryRow(resultSummary = mainResultSummary)
         }
         CalibrationPanelMetadataRow(
             timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis,
@@ -398,47 +452,77 @@ private fun CalibrationPanelResultSummaryColumn(
 @Composable
 private fun CalibrationPanelResultSummaryRow(
     resultSummary: CalibrationPanelResultSummary,
-    isPrimary: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val valueStyle = if (isPrimary) {
-        MaterialTheme.typography.bodyLarge
-    } else {
-        MaterialTheme.typography.bodyMedium
-    }
-    val valueColor = if (isPrimary) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
     Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Text(
+            text = resultSummary.value,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontSize = 24.sp
+            ),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.alignByBaseline(),
+        )
+        Text(
+            text = resultSummary.unit,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.alignByBaseline(),
+        )
         Text(
             text = resultSummary.abbreviation,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            modifier = Modifier.widthIn(min = 28.dp),
+            modifier = Modifier.alignByBaseline(),
         )
-        Text(
-            text = resultSummary.value,
-            style = valueStyle,
-            color = valueColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Text(
-            text = resultSummary.unit,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    }
+}
+
+@Composable
+private fun CalibrationPanelResultAdditionalSummaryRow(
+    resultSummary: CalibrationPanelResultSummary,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.padding(vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WaterDrop,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = resultSummary.value,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Text(
+                text = resultSummary.unit,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Text(
+                text = resultSummary.abbreviation,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
     }
 }
 
@@ -452,58 +536,64 @@ private fun CalibrationPanelMetadataRow(
         return
     }
 
-    FlowRow(
+    Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
-            CalibrationPanelElapsedEstradiolDoseLabel(elapsedMillis = elapsedMillis)
+
+            CalibrationPanelPill(
+                color = MaterialTheme.colorScheme.tertiaryContainer
+            ) {
+                Text(
+                    text = "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
+                )
+            }
         }
         if (remainingResultCount > 0) {
-            Text(
-                text = pluralStringResource(
-                    R.plurals.settings_calibration_extra_entries,
-                    remainingResultCount,
-                    remainingResultCount,
-                ),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
+            CalibrationPanelPill(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.settings_calibration_extra_entries,
+                        remainingResultCount,
+                        remainingResultCount,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
+                )
+            }
         }
         if (hasNotes) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Notes,
+                imageVector = Icons.AutoMirrored.Outlined.StickyNote2,
                 contentDescription = stringResource(R.string.settings_calibration_notes_label),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(16.dp),
             )
         }
     }
 }
 
 @Composable
-private fun CalibrationPanelElapsedEstradiolDoseLabel(
-    elapsedMillis: Long,
+private fun CalibrationPanelPill(
     modifier: Modifier = Modifier,
+    color: Color,
+    content: @Composable () -> Unit,
 ) {
-    Row(
+    Surface(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        shape = CircleShape,
+        color = color
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_labs),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = "+${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+        content()
     }
 }
 
@@ -754,15 +844,13 @@ private fun CalibrationScreenPreview() {
 @Composable
 private fun CalibrationPanelRowPreview() {
     HrtTrackerTheme(dynamicColor = false) {
-        Box(modifier = Modifier.padding(16.dp)) {
-            CalibrationPanelRow(
-                panel = previewCalibrationPanels().first(),
-                dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
-                index = 0,
-                count = 1,
-                onClick = { },
-            )
-        }
+        CalibrationPanelRow(
+            panel = previewCalibrationPanels().first(),
+            dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
+            index = 0,
+            count = 1,
+            onClick = { },
+        )
     }
 }
 
