@@ -133,7 +133,6 @@
     <string name="group_notifications_reenable_message">Turn reminders back on for this group?</string>
     <string name="group_notifications_reenable_confirm">Turn on</string>
     <string name="group_notifications_inexact_warning">Reminders may be delayed.</string>
-    <string name="group_notifications_permission_denied">Notification permission denied. Reminders stay off.</string>
     <string name="group_notifications_exact_alarm_title">Allow exact alarms?</string>
     <string name="group_notifications_exact_alarm_message">Without exact alarms, reminders may be delayed. You can continue or open settings.</string>
     <string name="group_notifications_exact_alarm_settings">Open settings</string>
@@ -255,8 +254,7 @@
     <string name="settings_reminders">Dose reminders</string>
     <string name="settings_reminders_summary">Controls all reminders.</string>
     <string name="settings_reminders_permission_off_summary">Notifications are off for this app.</string>
-    <string name="settings_reminders_permission_denied">Notification permission denied. Reminders stay off.</string>
-    <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings first.</string>
+    <string name="settings_reminders_notifications_unavailable">Enable app notifications in system settings.</string>
     <string name="settings_appearance">Appearance</string>
     <string name="settings_app_language">App language</string>
     <string name="settings_dark_mode">Dark mode</string>

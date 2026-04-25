@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,6 +74,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -88,6 +90,7 @@ import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -103,12 +106,12 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val context = LocalContext.current
+    val activity = LocalActivity.current
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     var showInexactReminderWarning by remember { mutableStateOf(false) }
-    val reminderPermissionDeniedMessage =
-        stringResource(R.string.settings_reminders_permission_denied)
+    var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -120,7 +123,11 @@ fun SettingsScreen(
         } else {
             viewModel.setRemindersEnabled(false)
             hasNotificationAccess = false
-            Toast.makeText(context, reminderPermissionDeniedMessage, Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                reminderNotificationsUnavailableMessage,
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
@@ -177,7 +184,27 @@ fun SettingsScreen(
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (
+                shouldShowNotificationPermissionRecoveryToast(
+                    sdkInt = Build.VERSION.SDK_INT,
+                    hasRequestedPermissionBefore = hasRequestedNotificationPermission,
+                    shouldShowPermissionRationale = activity?.let {
+                        ActivityCompat.shouldShowRequestPermissionRationale(
+                            it,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        )
+                    } ?: false
+                )
+            ) {
+                Toast.makeText(
+                    context,
+                    reminderNotificationsUnavailableMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                hasRequestedNotificationPermission = true
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             Toast.makeText(
                 context,

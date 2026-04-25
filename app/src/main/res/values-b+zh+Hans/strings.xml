@@ -133,7 +133,6 @@
     <string name="group_notifications_reenable_message">要为这个分组重新开启提醒吗</string>
     <string name="group_notifications_reenable_confirm">开启</string>
     <string name="group_notifications_inexact_warning">提醒可能会延迟</string>
-    <string name="group_notifications_permission_denied">通知权限被拒绝，提醒保持关闭</string>
     <string name="group_notifications_exact_alarm_title">允许精确闹钟？</string>
     <string name="group_notifications_exact_alarm_message">如果不允许精确闹钟，提醒可能会延迟，可继续或前往设置开启</string>
     <string name="group_notifications_exact_alarm_settings">打开设置</string>
@@ -255,8 +254,7 @@
     <string name="settings_reminders">用药提醒</string>
     <string name="settings_reminders_summary">控制所有提醒</string>
     <string name="settings_reminders_permission_off_summary">此应用的通知已关闭</string>
-    <string name="settings_reminders_permission_denied">通知权限被拒绝，提醒保持关闭</string>
-    <string name="settings_reminders_notifications_unavailable">请先在系统设置中开启应用通知</string>
+    <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>

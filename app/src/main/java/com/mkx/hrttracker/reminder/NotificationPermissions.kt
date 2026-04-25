@@ -1,12 +1,12 @@
 package com.mkx.hrttracker.reminder
 
-import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import android.Manifest
+import android.content.pm.PackageManager
 
 fun canPostNotifications(context: Context): Boolean {
     if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
@@ -22,4 +22,16 @@ fun canPostNotifications(context: Context): Boolean {
 
 fun canScheduleExactAlarms(context: Context): Boolean {
     return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+}
+
+internal fun shouldShowNotificationPermissionRecoveryToast(
+    sdkInt: Int,
+    hasRequestedPermissionBefore: Boolean,
+    shouldShowPermissionRationale: Boolean
+): Boolean {
+    if (sdkInt < Build.VERSION_CODES.TIRAMISU) {
+        return false
+    }
+
+    return hasRequestedPermissionBefore && !shouldShowPermissionRationale
 }

@@ -36,7 +36,6 @@ fun OnboardingDialogs(
 
     var step by rememberSaveable { mutableStateOf(OnboardingStep.Privacy) }
     val context = LocalContext.current
-    val permissionDeniedMessage = stringResource(R.string.settings_reminders_permission_denied)
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val exactAlarmDeniedMessage = stringResource(R.string.group_notifications_inexact_warning)
@@ -68,7 +67,7 @@ fun OnboardingDialogs(
             }
         } else {
             viewModel.completeWithRemindersDeclined()
-            Toast.makeText(context, permissionDeniedMessage, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, notificationsUnavailableMessage, Toast.LENGTH_SHORT).show()
         }
     }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(

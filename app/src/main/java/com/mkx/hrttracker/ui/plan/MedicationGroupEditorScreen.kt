@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +78,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -96,6 +98,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -138,17 +141,15 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
-    val notificationPermissionDeniedMessage =
-        stringResource(R.string.group_notifications_permission_denied)
-    val masterReminderPermissionDeniedMessage =
-        stringResource(R.string.settings_reminders_permission_denied)
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
+    var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
@@ -187,7 +188,7 @@ fun MedicationGroupEditorScreen(
             if (shouldEnableMasterReminders(pendingNotificationEnableRequest)) {
                 Toast.makeText(
                     context,
-                    masterReminderPermissionDeniedMessage,
+                    reminderNotificationsUnavailableMessage,
                     Toast.LENGTH_SHORT
                 ).show()
             } else {
@@ -195,7 +196,7 @@ fun MedicationGroupEditorScreen(
                 hasNotificationAccess = false
                 Toast.makeText(
                     context,
-                    notificationPermissionDeniedMessage,
+                    reminderNotificationsUnavailableMessage,
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -210,8 +211,28 @@ fun MedicationGroupEditorScreen(
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            pendingNotificationEnableRequest = MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (
+                shouldShowNotificationPermissionRecoveryToast(
+                    sdkInt = Build.VERSION.SDK_INT,
+                    hasRequestedPermissionBefore = hasRequestedNotificationPermission,
+                    shouldShowPermissionRationale = activity?.let {
+                        ActivityCompat.shouldShowRequestPermissionRationale(
+                            it,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        )
+                    } ?: false
+                )
+            ) {
+                Toast.makeText(
+                    context,
+                    reminderNotificationsUnavailableMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                hasRequestedNotificationPermission = true
+                pendingNotificationEnableRequest = MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             Toast.makeText(
                 context,
@@ -291,8 +312,28 @@ fun MedicationGroupEditorScreen(
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                pendingNotificationEnableRequest = GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (
+                    shouldShowNotificationPermissionRecoveryToast(
+                        sdkInt = Build.VERSION.SDK_INT,
+                        hasRequestedPermissionBefore = hasRequestedNotificationPermission,
+                        shouldShowPermissionRationale = activity?.let {
+                            ActivityCompat.shouldShowRequestPermissionRationale(
+                                it,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            )
+                        } ?: false
+                    )
+                ) {
+                    Toast.makeText(
+                        context,
+                        reminderNotificationsUnavailableMessage,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    hasRequestedNotificationPermission = true
+                    pendingNotificationEnableRequest = GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             } else {
                 viewModel.updateNotificationsEnabled(true)
                 if (canScheduleExactAlarms(context)) {
