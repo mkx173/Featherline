@@ -1,26 +1,27 @@
 package com.mkx.hrttracker.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,8 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -46,6 +49,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Duration
@@ -68,9 +72,8 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val appLocale = rememberAppLocale()
-    val dateTimeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-            .withLocale(appLocale)
+    val panelDateTimeFormatters = remember(appLocale) {
+        calibrationPanelDateTimeFormatters(appLocale)
     }
     val monthFormatter = remember(appLocale) {
         calibrationMonthHeaderFormatter(appLocale)
@@ -78,7 +81,7 @@ fun CalibrationScreen(
 
     CalibrationScreenContent(
         uiState = uiState,
-        dateTimeFormatter = dateTimeFormatter,
+        panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
         onAddClick = onAddClick,
@@ -91,7 +94,7 @@ fun CalibrationScreen(
 @Composable
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
-    dateTimeFormatter: DateTimeFormatter,
+    panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: DateTimeFormatter,
     onNavigateBack: () -> Unit,
     onAddClick: () -> Unit,
@@ -169,13 +172,15 @@ private fun CalibrationScreenContent(
                             CalibrationMonthHeader(monthLabel = monthGroup.monthLabel)
                         }
 
-                        items(
+                        itemsIndexed(
                             items = monthGroup.panels,
-                            key = { panel -> panel.uuid },
-                        ) { panel ->
+                            key = { _, panel -> panel.uuid },
+                        ) { index, panel ->
                             CalibrationPanelRow(
                                 panel = panel,
-                                dateTimeFormatter = dateTimeFormatter,
+                                dateTimeFormatters = panelDateTimeFormatters,
+                                index = index,
+                                count = monthGroup.panels.size,
                                 onClick = { onPanelClick(panel.uuid) },
                             )
                         }
@@ -235,120 +240,213 @@ internal fun calibrationMonthHeaderFormatter(appLocale: Locale): DateTimeFormatt
     }
 }
 
+internal data class CalibrationPanelDateTimeFormatters(
+    val monthFormatter: DateTimeFormatter,
+    val dayFormatter: DateTimeFormatter,
+    val timeFormatter: DateTimeFormatter,
+)
+
+internal data class CalibrationPanelDateTimeLabels(
+    val monthLabel: String,
+    val dayLabel: String,
+    val timeLabel: String,
+)
+
+internal fun calibrationPanelDateTimeFormatters(appLocale: Locale): CalibrationPanelDateTimeFormatters {
+    val monthPattern = if (appLocale.language == Locale.CHINESE.language) {
+        "M月"
+    } else {
+        "MMM"
+    }
+    return CalibrationPanelDateTimeFormatters(
+        monthFormatter = DateTimeFormatter.ofPattern(monthPattern, appLocale),
+        dayFormatter = DateTimeFormatter.ofPattern("d", appLocale),
+        timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale),
+    )
+}
+
+internal fun formatCalibrationPanelDateTimeLabels(
+    panel: BloodTestPanel,
+    dateTimeFormatters: CalibrationPanelDateTimeFormatters,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): CalibrationPanelDateTimeLabels {
+    val collectedAt = panel.collectedAt.atZone(zoneId)
+    return CalibrationPanelDateTimeLabels(
+        monthLabel = collectedAt.format(dateTimeFormatters.monthFormatter),
+        dayLabel = collectedAt.format(dateTimeFormatters.dayFormatter),
+        timeLabel = collectedAt.format(dateTimeFormatters.timeFormatter),
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CalibrationPanelRow(
     panel: BloodTestPanel,
-    dateTimeFormatter: DateTimeFormatter,
+    dateTimeFormatters: CalibrationPanelDateTimeFormatters,
+    index: Int,
+    count: Int,
     onClick: () -> Unit,
 ) {
-    val collectedAtLabel = remember(panel.collectedAt, dateTimeFormatter) {
-        formatCalibrationPanelCollectedAtLabel(panel, dateTimeFormatter)
+    val dateTimeLabels = remember(panel.collectedAt, dateTimeFormatters) {
+        formatCalibrationPanelDateTimeLabels(
+            panel = panel,
+            dateTimeFormatters = dateTimeFormatters,
+        )
     }
     val valueSummary = remember(panel.results) {
         formatCalibrationPanelValueSummary(panel)
     }
 
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        headlineContent = {
-            Text(text = collectedAtLabel)
-        },
-        supportingContent = {
-            androidx.compose.foundation.layout.Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                valueSummary.mainResultSummary?.let { mainResultSummary ->
-                    Text(text = mainResultSummary)
-                }
-                CalibrationPanelSecondarySummary(
-                    testosteroneResultSummary = valueSummary.testosteroneResultSummary,
-                    remainingResultCount = valueSummary.remainingResultCount,
-                )
-                panel.timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
-                    Text(
-                        text = stringResource(
-                            R.string.settings_calibration_last_e2_elapsed,
-                            calibrationElapsedDurationLabel(elapsedMillis)
-                        )
-                    )
-                }
-            }
-        },
-        trailingContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (!panel.notes.isNullOrBlank()) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Notes,
-                        contentDescription = stringResource(R.string.settings_calibration_notes_label),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                )
-            }
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = onClick,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CalibrationPanelDateTimeColumn(labels = dateTimeLabels)
+            CalibrationPanelResultSummaryColumn(
+                panel = panel,
+                valueSummary = valueSummary,
+            )
         }
-    )
-}
-
-internal fun formatCalibrationPanelCollectedAtLabel(
-    panel: BloodTestPanel,
-    dateTimeFormatter: DateTimeFormatter,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): String {
-    return panel.collectedAt.atZone(zoneId).format(dateTimeFormatter)
+    }
 }
 
 @Composable
-private fun CalibrationPanelSecondarySummary(
-    testosteroneResultSummary: String?,
-    remainingResultCount: Int,
+private fun CalibrationPanelDateTimeColumn(
+    labels: CalibrationPanelDateTimeLabels,
+    modifier: Modifier = Modifier,
 ) {
-    val remainingEntriesSummary = if (remainingResultCount > 0) {
-        pluralStringResource(
-            R.plurals.settings_calibration_extra_entries,
-            remainingResultCount,
-            remainingResultCount,
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+        modifier = modifier.widthIn(min = 58.dp),
+    ) {
+        Text(
+            text = labels.monthLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
-    } else {
-        null
+        Text(
+            text = labels.dayLabel,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = labels.timeLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun CalibrationPanelResultSummaryColumn(
+    panel: BloodTestPanel,
+    valueSummary: CalibrationPanelValueSummary,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        valueSummary.mainResultSummary?.let { mainResultSummary ->
+            Text(
+                text = mainResultSummary,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
+            Text(
+                text = testosteroneResultSummary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        CalibrationPanelMetadataRow(
+            timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis,
+            remainingResultCount = valueSummary.remainingResultCount,
+            hasNotes = !panel.notes.isNullOrBlank(),
+        )
+    }
+}
+
+@Composable
+private fun CalibrationPanelMetadataRow(
+    timeSinceLastEstradiolDoseMillis: Long?,
+    remainingResultCount: Int,
+    hasNotes: Boolean,
+) {
+    if (timeSinceLastEstradiolDoseMillis == null && remainingResultCount <= 0 && !hasNotes) {
+        return
     }
 
-    when {
-        testosteroneResultSummary != null && remainingEntriesSummary != null -> {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = testosteroneResultSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = remainingEntriesSummary,
-                    maxLines = 1,
-                    modifier = Modifier.padding(start = 12.dp),
-                )
-            }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
+            CalibrationPanelElapsedEstradiolDoseLabel(elapsedMillis = elapsedMillis)
         }
+        if (remainingResultCount > 0) {
+            Text(
+                text = pluralStringResource(
+                    R.plurals.settings_calibration_extra_entries,
+                    remainingResultCount,
+                    remainingResultCount,
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        if (hasNotes) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.Notes,
+                contentDescription = stringResource(R.string.settings_calibration_notes_label),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
 
-        testosteroneResultSummary != null -> {
-            Text(text = testosteroneResultSummary)
-        }
-
-        remainingEntriesSummary != null -> {
-            Text(text = remainingEntriesSummary)
-        }
+@Composable
+private fun CalibrationPanelElapsedEstradiolDoseLabel(
+    elapsedMillis: Long,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_labs),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = "+${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
@@ -570,7 +668,7 @@ private fun CalibrationScreenPreview() {
             uiState = CalibrationUiState(
                 panels = previewCalibrationPanels()
             ),
-            dateTimeFormatter = previewCalibrationDateTimeFormatter(),
+            panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
             onAddClick = { },
@@ -590,16 +688,17 @@ private fun CalibrationPanelRowPreview() {
         Box(modifier = Modifier.padding(16.dp)) {
             CalibrationPanelRow(
                 panel = previewCalibrationPanels().first(),
-                dateTimeFormatter = previewCalibrationDateTimeFormatter(),
+                dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
+                index = 0,
+                count = 1,
                 onClick = { },
             )
         }
     }
 }
 
-private fun previewCalibrationDateTimeFormatter(): DateTimeFormatter {
-    return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-        .withLocale(Locale.ENGLISH)
+private fun previewCalibrationPanelDateTimeFormatters(): CalibrationPanelDateTimeFormatters {
+    return calibrationPanelDateTimeFormatters(Locale.ENGLISH)
 }
 
 private fun previewCalibrationMonthFormatter(): DateTimeFormatter {

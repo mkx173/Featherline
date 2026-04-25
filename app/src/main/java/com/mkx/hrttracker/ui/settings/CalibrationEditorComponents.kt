@@ -122,32 +122,41 @@ internal fun CalibrationDateTimeCard(
                 )
             }
             timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_labs),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.settings_calibration_last_e2_elapsed,
-                                calibrationElapsedDurationLabel(elapsedMillis)
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    }
-                }
+                CalibrationElapsedEstradiolDosePill(elapsedMillis = elapsedMillis)
             }
+        }
+    }
+}
+
+@Composable
+internal fun CalibrationElapsedEstradiolDosePill(
+    elapsedMillis: Long,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_labs),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = stringResource(
+                    R.string.settings_calibration_last_e2_elapsed,
+                    calibrationElapsedDurationLabel(elapsedMillis)
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
         }
     }
 }

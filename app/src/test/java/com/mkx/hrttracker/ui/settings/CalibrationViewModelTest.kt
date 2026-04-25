@@ -206,20 +206,26 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun formatCalibrationPanelCollectedAtLabel_usesLocalDateTime() {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ENGLISH)
+    fun formatCalibrationPanelDateTimeLabels_usesLocalDateTime() {
+        val formatters = CalibrationPanelDateTimeFormatters(
+            monthFormatter = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH),
+            dayFormatter = DateTimeFormatter.ofPattern("d", Locale.ENGLISH),
+            timeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH),
+        )
         val panel = testBloodTestPanel(
             collectedAt = Instant.parse("2026-04-01T06:30:00Z"),
             collectedAtTimeZoneId = "America/Los_Angeles",
         )
 
-        val label = formatCalibrationPanelCollectedAtLabel(
+        val labels = formatCalibrationPanelDateTimeLabels(
             panel = panel,
-            dateTimeFormatter = formatter,
+            dateTimeFormatters = formatters,
             zoneId = ZoneId.of("UTC"),
         )
 
-        assertEquals("2026-04-01 06:30", label)
+        assertEquals("Apr", labels.monthLabel)
+        assertEquals("1", labels.dayLabel)
+        assertEquals("06:30", labels.timeLabel)
     }
 }
 
