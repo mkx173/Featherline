@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,8 +34,10 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -349,7 +352,7 @@ fun MedicationGroupEditorScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicationGroupEditorScreenContent(
     uiState: MedicationGroupEditorUiState,
@@ -682,41 +685,67 @@ private fun MedicationGroupEditorScreenContent(
             }
 
             item {
-                EditorSectionHeader(
-                    title = stringResource(R.string.group_medications_title),
-                    trailing = {
-                        AddChip(onClick = onAddMedication)
-                    }
-                )
-                if (uiState.medications.isEmpty()) {
-                    EditorSupportMessage(
-                        text = stringResource(R.string.group_medications_empty),
-                        painter = painterResource(R.drawable.ic_info),
+                Column {
+                    EditorSectionHeader(
+                        title = stringResource(R.string.group_medications_title)
                     )
-                } else {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                    if (uiState.medications.isEmpty()) {
+                        EditorSupportMessage(
+                            text = stringResource(R.string.group_medications_empty),
+                            painter = painterResource(R.drawable.ic_info),
+                        )
+                    } else {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                        ) {
+                            uiState.medications.forEachIndexed { index, medication ->
+                                val medicationName = medicationDisplayName(medication.details)
+                                MedicationGroupMedicationCard(
+                                    medication = medication,
+                                    groupColorKey = uiState.groupColorKey,
+                                    appLocale = appLocale,
+                                    onClick = { onMedicationClick(medication.localId) },
+                                    onDecreaseClick = {
+                                        if (shouldConfirmMedicationRemoval(medication.count)) {
+                                            pendingMedicationRemoval = MedicationRemovalRequest(
+                                                localId = medication.localId,
+                                                medicationName = medicationName
+                                            )
+                                        } else {
+                                            onDecreaseMedicationCount(medication.localId)
+                                        }
+                                    },
+                                    onIncreaseClick = { onIncreaseMedicationCount(medication.localId) },
+                                    index = index,
+                                    count = uiState.medications.size
+                                )
+                            }
+                        }
+                    }
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {
-                        uiState.medications.forEachIndexed { index, medication ->
-                            val medicationName = medicationDisplayName(medication.details)
-                            MedicationGroupMedicationCard(
-                                medication = medication,
-                                groupColorKey = uiState.groupColorKey,
-                                appLocale = appLocale,
-                                onClick = { onMedicationClick(medication.localId) },
-                                onDecreaseClick = {
-                                    if (shouldConfirmMedicationRemoval(medication.count)) {
-                                        pendingMedicationRemoval = MedicationRemovalRequest(
-                                            localId = medication.localId,
-                                            medicationName = medicationName
-                                        )
-                                    } else {
-                                        onDecreaseMedicationCount(medication.localId)
-                                    }
-                                },
-                                onIncreaseClick = { onIncreaseMedicationCount(medication.localId) },
-                                index = index,
-                                count = uiState.medications.size
+                        FilledTonalButton(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            onClick = onAddMedication,
+                            contentPadding =
+                                ButtonDefaults.contentPaddingFor(
+                                    ButtonDefaults.MinHeight,
+                                    hasStartIcon = true
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(
+                                    ButtonDefaults.iconSizeFor(
+                                        ButtonDefaults.MinHeight
+                                    )
+                                )
+                            )
+                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
+                            Text(
+                                text = stringResource(R.string.add),
                             )
                         }
                     }
@@ -1144,7 +1173,7 @@ private fun EditorSectionHeader(
             text = title.uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(vertical = trailing?.let { 0.dp } ?: 4.dp)
+            modifier = Modifier.padding(4.dp)
         )
         trailing?.invoke()
     }
