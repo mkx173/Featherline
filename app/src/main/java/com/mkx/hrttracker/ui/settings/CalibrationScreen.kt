@@ -608,8 +608,15 @@ private fun calibrationResultSummaryDisplayName(
     resultSummary: CalibrationPanelResultSummary,
 ): String {
     return when (resultSummary) {
-        is CalibrationPanelResultSummary.Builtin ->
-            stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey))
+        is CalibrationPanelResultSummary.Builtin -> {
+            val name = stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey))
+            val suffix = when (resultSummary.rangeStatus) {
+                CalibrationRangeStatus.ABOVE -> " ↑"
+                CalibrationRangeStatus.BELOW -> " ↓"
+                else -> ""
+            }
+            name + suffix
+        }
         is CalibrationPanelResultSummary.Custom -> resultSummary.name
     }
 }
@@ -693,6 +700,7 @@ internal sealed interface CalibrationPanelResultSummary {
         val analyteKey: BloodAnalyteKey,
         override val value: String,
         override val unit: String,
+        val rangeStatus: CalibrationRangeStatus? = null,
     ) : CalibrationPanelResultSummary
 
     data class Custom(
@@ -802,7 +810,26 @@ internal fun formatCalibrationBuiltinResultSummary(
             formatCalibrationConvertedValue(displayValue)
         },
         unit = calibrationUnitLabel(preferredUnit),
+        rangeStatus = calibrationRangeStatusForCanonical(analyteKey, result.canonicalValue),
     )
+}
+
+internal fun calibrationRangeStatusForCanonical(
+    analyteKey: BloodAnalyteKey,
+    canonicalValue: Double,
+): CalibrationRangeStatus? {
+    val target = calibrationCanonicalTargets[analyteKey] ?: return null
+    return when (target) {
+        is CalibrationCanonicalTarget.Range -> when {
+            canonicalValue < target.low -> CalibrationRangeStatus.BELOW
+            canonicalValue > target.high -> CalibrationRangeStatus.ABOVE
+            else -> CalibrationRangeStatus.IN_RANGE
+        }
+        is CalibrationCanonicalTarget.UpperBound -> when {
+            canonicalValue > target.high -> CalibrationRangeStatus.ABOVE
+            else -> CalibrationRangeStatus.IN_RANGE
+        }
+    }
 }
 
 internal fun calibrationUnitLabelFor(

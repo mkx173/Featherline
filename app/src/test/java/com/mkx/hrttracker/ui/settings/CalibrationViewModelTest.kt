@@ -139,6 +139,7 @@ class CalibrationViewModelTest {
                 analyteKey = BloodAnalyteKey.E2,
                 value = "95",
                 unit = "pg/mL",
+                rangeStatus = CalibrationRangeStatus.BELOW,
             ),
             summary.mainResultSummary,
         )
@@ -147,6 +148,7 @@ class CalibrationViewModelTest {
                 analyteKey = BloodAnalyteKey.T,
                 value = "31.7",
                 unit = "ng/dL",
+                rangeStatus = CalibrationRangeStatus.IN_RANGE,
             ),
             summary.testosteroneResultSummary,
         )
@@ -193,6 +195,7 @@ class CalibrationViewModelTest {
                 analyteKey = BloodAnalyteKey.E2,
                 value = "348.7",
                 unit = "pmol/L",
+                rangeStatus = CalibrationRangeStatus.BELOW,
             ),
             summary.mainResultSummary,
         )
@@ -201,6 +204,7 @@ class CalibrationViewModelTest {
                 analyteKey = BloodAnalyteKey.T,
                 value = "1.1",
                 unit = "nmol/L",
+                rangeStatus = CalibrationRangeStatus.IN_RANGE,
             ),
             summary.testosteroneResultSummary,
         )
@@ -293,6 +297,7 @@ class CalibrationViewModelTest {
                 analyteKey = BloodAnalyteKey.T,
                 value = "31.7",
                 unit = "ng/dL",
+                rangeStatus = CalibrationRangeStatus.IN_RANGE,
             ),
             summary.mainResultSummary,
         )
