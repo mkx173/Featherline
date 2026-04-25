@@ -15,12 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -58,7 +55,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -75,7 +71,6 @@ import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter

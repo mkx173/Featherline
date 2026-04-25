@@ -6,6 +6,8 @@ import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -16,7 +18,6 @@ import androidx.core.view.WindowCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
-import androidx.appcompat.app.AppCompatActivity
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.history.HistoryViewModel
@@ -29,7 +30,6 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import androidx.activity.viewModels
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {

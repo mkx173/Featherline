@@ -19,8 +19,8 @@ import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

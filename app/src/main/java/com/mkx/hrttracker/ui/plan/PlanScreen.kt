@@ -1,11 +1,13 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,15 +22,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
@@ -42,8 +44,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,19 +66,19 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.WeekCalendar
-import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
+import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
-import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
@@ -86,24 +86,24 @@ import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSummary
+import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.UUID
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.launch
-import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 @Composable
 fun PlanScreen(
@@ -186,7 +186,7 @@ private fun PlanScreenContent(
                 actions = {
                     IconButton(onClick = onHistoryClick) {
                         Icon(
-                            imageVector = Icons.Default.BarChart,
+                            imageVector = Icons.Rounded.BarChart,
                             contentDescription = stringResource(R.string.plan_open_history)
                         )
                     }
@@ -322,7 +322,7 @@ private fun PlanScreenContent(
                         .padding(top = 4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Icons.Rounded.Add,
                         contentDescription = null
                     )
                     Text(
@@ -383,7 +383,7 @@ private fun PlanWeekHeader(
                 enabled = canNavigateBackward
             ) {
                 Icon(
-                    imageVector = Icons.Default.ChevronLeft,
+                    imageVector = Icons.Rounded.ChevronLeft,
                     contentDescription = stringResource(R.string.plan_previous_week)
                 )
             }
@@ -404,7 +404,7 @@ private fun PlanWeekHeader(
                 enabled = canNavigateForward
             ) {
                 Icon(
-                    imageVector = Icons.Default.ChevronRight,
+                    imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = stringResource(R.string.plan_next_week)
                 )
             }
@@ -692,7 +692,7 @@ private fun ScheduledDayRowLeading(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Check,
+                    imageVector = Icons.Rounded.Check,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(18.dp)
@@ -711,7 +711,7 @@ private fun ScheduledDayRowLeading(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = null,
                     tint = overdueScheduledIndicatorColor,
                     modifier = Modifier.size(16.dp)
@@ -730,7 +730,7 @@ private fun ScheduledDayRowLeading(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = null,
                     tint = overdueScheduledIndicatorColor,
                     modifier = Modifier.size(16.dp)
@@ -753,7 +753,7 @@ private fun ScheduledDayRowLeading(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Schedule,
+                    imageVector = Icons.Rounded.Schedule,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(14.dp)
@@ -801,7 +801,7 @@ private fun UnplannedDayRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Rounded.Check,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(18.dp)
@@ -993,7 +993,7 @@ private fun RegimenGroupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Schedule,
+                            imageVector = Icons.Rounded.Schedule,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
@@ -1024,9 +1024,9 @@ private fun RegimenGroupCard(
                         val notificationsEnabled = group.notificationsEnabled
                         Icon(
                             imageVector = if (notificationsEnabled) {
-                                Icons.Default.Notifications
+                                Icons.Rounded.Notifications
                             } else {
-                                Icons.Default.NotificationsOff
+                                Icons.Rounded.NotificationsOff
                             },
                             contentDescription = stringResource(
                                 if (notificationsEnabled) {
@@ -1044,7 +1044,7 @@ private fun RegimenGroupCard(
                         )
                     }
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1406,7 +1406,7 @@ private fun DayStatusIndicator(
         }
         PlanCalendarDayStatus.FULFILLED -> {
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Rounded.Check,
                 contentDescription = null,
                 tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else fulfilledIndicatorColor,
                 modifier = Modifier.size(14.dp)

@@ -2,12 +2,12 @@ package com.mkx.hrttracker.data.repository
 
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.core.os.LocaleListCompat
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey

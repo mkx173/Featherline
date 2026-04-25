@@ -42,7 +42,6 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -61,9 +60,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -89,26 +88,28 @@ import com.kizitonwose.calendar.core.CalendarMonth
 import com.kizitonwose.calendar.core.DayPosition
 import com.kizitonwose.calendar.core.OutDateStyle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -121,8 +122,6 @@ import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.launch
 
 @Composable
 fun HistoryScreen(

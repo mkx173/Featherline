@@ -3,17 +3,13 @@ package com.mkx.hrttracker.ui.plan
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButtonColors
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

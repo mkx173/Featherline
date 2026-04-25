@@ -1,14 +1,14 @@
 package com.mkx.hrttracker.ui.main
 
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
-import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
+import com.mkx.hrttracker.model.medication.occurrencesBetween
 import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled

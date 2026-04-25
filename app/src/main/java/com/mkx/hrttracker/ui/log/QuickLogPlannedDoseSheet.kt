@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.log
 
 import android.text.format.DateFormat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.background
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
@@ -41,9 +41,9 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate

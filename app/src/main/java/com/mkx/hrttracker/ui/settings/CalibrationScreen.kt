@@ -3,29 +3,21 @@ package com.mkx.hrttracker.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Water
-import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WaterDrop
@@ -57,7 +49,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -166,7 +157,7 @@ private fun CalibrationScreenContent(
         floatingActionButton = {
             FloatingActionButton(onClick = onAddClick) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Rounded.Add,
                     contentDescription = stringResource(R.string.settings_calibration_add_result),
                 )
             }

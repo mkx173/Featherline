@@ -1,8 +1,8 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,16 +20,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
-import androidx.compose.material.icons.automirrored.filled.TrendingFlat
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Medication
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.ColorScheme
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.automirrored.rounded.TrendingDown
+import androidx.compose.material.icons.automirrored.rounded.TrendingFlat
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -45,19 +45,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
-import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
@@ -66,6 +57,14 @@ import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -165,9 +164,9 @@ private fun MainE2HeroCard(
     val inRange = section.currentValue in section.targetMin..section.targetMax
     val trendDeltaLabel = mainTrendDeltaLabel(section.changeSinceYesterday)
     val trendIcon = when {
-        section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Filled.TrendingUp
-        section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Filled.TrendingDown
-        else -> Icons.AutoMirrored.Filled.TrendingFlat
+        section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
+        section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Rounded.TrendingDown
+        else -> Icons.AutoMirrored.Rounded.TrendingFlat
     }
     val lastDoseSummary = mainE2LastDoseSummary(
         section = section,
@@ -306,7 +305,7 @@ private fun MainE2HeroCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Schedule,
+                            imageVector = Icons.Rounded.Schedule,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
@@ -372,7 +371,7 @@ private fun MainE2ChartCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                        imageVector = Icons.AutoMirrored.Rounded.ShowChart,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -469,7 +468,7 @@ private fun MainAntiandrogenCard(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Default.Medication,
+                        imageVector = Icons.Rounded.Medication,
                         contentDescription = null,
                         tint = groupColorScheme.onSecondaryContainer
                     )
@@ -522,7 +521,7 @@ private fun MainAntiandrogenCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = Icons.Rounded.CheckCircle,
                             contentDescription = null,
                             modifier = Modifier.size(13.dp),
                             tint = FulfilledStatusColor
@@ -752,7 +751,7 @@ private fun MainTodayDoseRow(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         androidx.compose.material3.Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = Icons.Rounded.Check,
                             contentDescription = null,
                             tint = FulfilledStatusColor
                         )

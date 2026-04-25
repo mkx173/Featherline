@@ -8,9 +8,9 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
-import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import kotlinx.coroutines.CoroutineScope

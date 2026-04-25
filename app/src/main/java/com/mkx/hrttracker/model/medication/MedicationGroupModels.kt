@@ -1,9 +1,9 @@
 package com.mkx.hrttracker.model.medication
 
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.DayOfWeek
 import java.util.UUID
 
 data class MedicationGroup(

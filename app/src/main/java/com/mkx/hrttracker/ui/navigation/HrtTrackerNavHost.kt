@@ -1,29 +1,27 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,11 +41,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.log.QuickAddMedicationGroupSheet
 import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -148,10 +146,10 @@ private data class NavigationItemContent(
 )
 
 private val bottomNavItems = listOf(
-    NavigationItemContent(Screen.Main, Icons.Default.Home),
-    NavigationItemContent(Screen.Plan, Icons.Default.CalendarMonth),
-    NavigationItemContent(Screen.History, Icons.Default.History),
-    NavigationItemContent(Screen.Settings, Icons.Default.Settings)
+    NavigationItemContent(Screen.Main, Icons.Rounded.Home),
+    NavigationItemContent(Screen.Plan, Icons.Rounded.CalendarMonth),
+    NavigationItemContent(Screen.History, Icons.Rounded.History),
+    NavigationItemContent(Screen.Settings, Icons.Rounded.Settings)
 )
 
 @Composable
@@ -222,7 +220,7 @@ fun HrtTrackerNavHost(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ViewList,
+                                imageVector = Icons.AutoMirrored.Rounded.ViewList,
                                 contentDescription = stringResource(R.string.fab_add_entry_from_group)
                             )
                         }
@@ -233,7 +231,7 @@ fun HrtTrackerNavHost(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Icons.Rounded.Add,
                                 contentDescription = stringResource(R.string.fab_add_entry)
                             )
                         }
