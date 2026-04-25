@@ -292,6 +292,8 @@
     <string name="settings_calibration_custom_analyte_add_title">Add custom analyte</string>
     <string name="settings_calibration_custom_analyte_edit_title">Edit custom analyte</string>
     <string name="settings_calibration_custom_analyte_name_label">Name</string>
+    <string name="settings_calibration_custom_analyte_abbreviation_label">Abbreviation</string>
+    <string name="settings_calibration_custom_analyte_error_required_abbreviation">Enter an abbreviation.</string>
     <string name="settings_calibration_custom_analyte_error_required_name">Enter a name.</string>
     <string name="settings_calibration_custom_analyte_error_required_unit">Enter a unit.</string>
     <string name="settings_calibration_custom_analyte_error_duplicate">That name and unit already exist.</string>

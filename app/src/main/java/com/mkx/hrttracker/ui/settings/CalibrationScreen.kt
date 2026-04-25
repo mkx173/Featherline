@@ -756,7 +756,7 @@ private fun formatCalibrationResultSummary(
 
         is BloodTestResultAnalyte.Custom -> {
             CalibrationPanelResultSummary.Custom(
-                name = analyte.name ?: "Custom",
+                name = analyte.name,
                 value = formatCalibrationNumericValue(result.value),
                 unit = formatCalibrationUnitLabel(result.unitSnapshot),
             )

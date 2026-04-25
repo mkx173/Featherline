@@ -30,7 +30,8 @@ sealed interface BloodTestResultAnalyte {
 
     data class Custom(
         val uuid: UUID,
-        val name: String?,
+        val abbreviation: String,
+        val name: String,
     ) : BloodTestResultAnalyte
 }
 
@@ -54,6 +55,7 @@ sealed interface BloodTestResultInput {
 
 data class CustomBloodAnalyte(
     val uuid: UUID,
+    val abbreviation: String,
     val name: String,
     val unitLabel: String,
     val createdAt: Instant,

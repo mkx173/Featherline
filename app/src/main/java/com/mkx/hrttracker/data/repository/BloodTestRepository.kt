@@ -118,10 +118,13 @@ class BloodTestRepository @Inject constructor(
 
     suspend fun saveCustomAnalyte(
         uuid: UUID?,
+        abbreviation: String,
         name: String,
         unitLabel: String,
         now: Instant = Instant.now(),
     ): UUID {
+        val trimmedAbbreviation = abbreviation.trim()
+        normalizeCustomField(trimmedAbbreviation, "Custom analyte abbreviation")
         val normalizedName = normalizeCustomField(name, "Custom analyte name")
         val normalizedUnitLabel = normalizeCustomField(unitLabel, "Custom analyte unit")
         val dao = databaseHolder.get().bloodTestDao()
@@ -147,6 +150,7 @@ class BloodTestRepository @Inject constructor(
         val nowEpochMillis = now.toEpochMilli()
         val entity = CustomBloodAnalyteEntity(
             uuid = analyteUuid.toString(),
+            abbreviation = trimmedAbbreviation,
             name = name.trim(),
             normalizedName = normalizedName,
             unitLabel = unitLabel.trim(),
@@ -360,7 +364,8 @@ class BloodTestRepository @Inject constructor(
             )
         } ?: BloodTestResultAnalyte.Custom(
             uuid = UUID.fromString(checkNotNull(customAnalyteUuid)),
-            name = customAnalytesByUuid[customAnalyteUuid]?.name,
+            abbreviation = checkNotNull(customAnalytesByUuid[customAnalyteUuid]?.abbreviation),
+            name = checkNotNull(customAnalytesByUuid[customAnalyteUuid]?.name),
         )
 
         return BloodTestResult(
@@ -377,6 +382,7 @@ class BloodTestRepository @Inject constructor(
     private fun CustomBloodAnalyteEntity.toModel(): CustomBloodAnalyte {
         return CustomBloodAnalyte(
             uuid = UUID.fromString(uuid),
+            abbreviation = abbreviation,
             name = name,
             unitLabel = unitLabel,
             createdAt = Instant.ofEpochMilli(createdAtEpochMillis),

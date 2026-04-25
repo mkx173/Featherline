@@ -144,6 +144,7 @@ class CalibrationEditorViewModelTest {
                     displayOrder = 0,
                     analyte = BloodTestResultAnalyte.Custom(
                         uuid = customAnalyteUuid,
+                        abbreviation = "DHT",
                         name = "DHT",
                     ),
                     value = 18.4,
@@ -166,6 +167,7 @@ class CalibrationEditorViewModelTest {
         val customDraft = viewModel.uiState.value.drafts.single()
         assertNull(customDraft.analyteKey)
         assertEquals(customAnalyteUuid, customDraft.customAnalyteUuid)
+        assertEquals("DHT", customDraft.customAnalyteAbbreviation)
         assertEquals("DHT", customDraft.customAnalyteName)
         assertEquals("ng/dL", customDraft.customUnitLabel)
         assertEquals("18.4", customDraft.valueText)
@@ -297,6 +299,7 @@ class CalibrationEditorViewModelTest {
         viewModel.addCustomAnalyte(
             CustomBloodAnalyte(
                 uuid = customAnalyteUuid,
+                abbreviation = "DHT",
                 name = "DHT",
                 unitLabel = "ng/dL",
                 createdAt = Instant.parse("2026-04-24T00:30:00Z"),
@@ -460,6 +463,7 @@ class CalibrationEditorViewModelTest {
     fun calibrationAddAnalyteOptions_includeRemainingBuiltinsAndCustomAnalytes() {
         val firstCustomAnalyte = CustomBloodAnalyte(
             uuid = UUID.fromString("7e4edcb1-baa1-47ba-b1a9-0548f7f194ba"),
+            abbreviation = "DHT",
             name = "DHT",
             unitLabel = "ng/dL",
             createdAt = Instant.parse("2026-04-24T00:30:00Z"),

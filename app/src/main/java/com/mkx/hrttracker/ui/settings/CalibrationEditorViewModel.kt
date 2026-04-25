@@ -167,6 +167,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 state.copy(
                     drafts = (state.drafts + CalibrationResultDraftUiState(
                         customAnalyteUuid = customAnalyte.uuid,
+                        customAnalyteAbbreviation = customAnalyte.abbreviation,
                         customAnalyteName = customAnalyte.name,
                         customUnitLabel = customAnalyte.unitLabel,
                     )).sortedBy(::calibrationAnalyteSortIndex)
@@ -405,7 +406,8 @@ class CalibrationEditorViewModel @Inject constructor(
 
                 is BloodTestResultAnalyte.Custom -> CalibrationResultDraftUiState(
                     customAnalyteUuid = analyte.uuid,
-                    customAnalyteName = analyte.name ?: "Custom",
+                    customAnalyteAbbreviation = analyte.abbreviation,
+                    customAnalyteName = analyte.name,
                     customUnitLabel = result.unitSnapshot,
                     resultUuid = result.uuid,
                     valueText = formatCalibrationNumericValue(result.value),
@@ -450,6 +452,7 @@ data class CalibrationEditorUiState(
 data class CalibrationResultDraftUiState(
     val analyteKey: BloodAnalyteKey? = null,
     val customAnalyteUuid: UUID? = null,
+    val customAnalyteAbbreviation: String? = null,
     val customAnalyteName: String? = null,
     val customUnitLabel: String? = null,
     val resultUuid: UUID? = null,

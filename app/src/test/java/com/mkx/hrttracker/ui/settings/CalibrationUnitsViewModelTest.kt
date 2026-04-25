@@ -83,6 +83,7 @@ class CalibrationUnitsViewModelTest {
         coEvery {
             bloodTestRepository.saveCustomAnalyte(
                 uuid = null,
+                abbreviation = "SHBG",
                 name = "SHBG",
                 unitLabel = "nmol/L",
                 now = any(),
@@ -98,6 +99,7 @@ class CalibrationUnitsViewModelTest {
 
         val error = viewModel.saveCustomAnalyte(
             uuid = null,
+            abbreviation = "SHBG",
             name = "SHBG",
             unitLabel = "nmol/L",
         )
@@ -108,6 +110,7 @@ class CalibrationUnitsViewModelTest {
         coVerify(exactly = 1) {
             bloodTestRepository.saveCustomAnalyte(
                 uuid = null,
+                abbreviation = "SHBG",
                 name = "SHBG",
                 unitLabel = "nmol/L",
                 now = any(),
@@ -157,9 +160,11 @@ private fun testCustomBloodAnalyte(
     uuid: UUID,
     name: String,
     unitLabel: String,
+    abbreviation: String = name,
 ): CustomBloodAnalyte {
     return CustomBloodAnalyte(
         uuid = uuid,
+        abbreviation = abbreviation,
         name = name,
         unitLabel = unitLabel,
         createdAt = Instant.parse("2026-04-24T00:30:00Z"),

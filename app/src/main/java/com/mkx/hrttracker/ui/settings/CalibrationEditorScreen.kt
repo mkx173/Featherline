@@ -349,6 +349,7 @@ private fun CalibrationEditorScreenContent(
                     } ?: CalibrationCustomAnalyteCard(
                         index = index,
                         count = totalCount,
+                        abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
                         name = checkNotNull(draft.customAnalyteName),
                         unitLabel = checkNotNull(draft.customUnitLabel),
                         valueText = draft.valueText,
@@ -526,7 +527,11 @@ private fun CalibrationAddAnalyteSheetContent(
                     "${calibrationAnalyteLabel(option.analyteKey)} - $unitsLabel"
                 }
 
-                is CalibrationAddAnalyteOption.Custom -> option.customAnalyte.unitLabel
+                is CalibrationAddAnalyteOption.Custom -> buildString {
+                    append(option.customAnalyte.abbreviation)
+                    append(" - ")
+                    append(option.customAnalyte.unitLabel)
+                }
             }
             val leadingIconVector = when (option) {
                 is CalibrationAddAnalyteOption.Builtin -> Icons.Rounded.WaterDrop
@@ -593,6 +598,7 @@ private fun CalibrationEditorScreenPreview() {
                     ),
                     CalibrationResultDraftUiState(
                         customAnalyteUuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+                        customAnalyteAbbreviation = "DHT",
                         customAnalyteName = "DHT",
                         customUnitLabel = "ng/dL",
                         valueText = "18.4",
@@ -645,6 +651,7 @@ private fun CalibrationAddAnalyteSheetPreview() {
                         CalibrationAddAnalyteOption.Custom(
                             CustomBloodAnalyte(
                                 uuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+                                abbreviation = "DHT",
                                 name = "DHT",
                                 unitLabel = "ng/dL",
                                 createdAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),
@@ -673,6 +680,7 @@ private fun previewCalibrationCustomAnalytes(): List<CustomBloodAnalyte> {
     return listOf(
         CustomBloodAnalyte(
             uuid = UUID.fromString("6e7d06a8-f0a9-46b3-9e75-dd5dbe4bc45c"),
+            abbreviation = "DHT",
             name = "DHT",
             unitLabel = "ng/dL",
             createdAt = java.time.Instant.parse("2026-04-24T00:30:00Z"),

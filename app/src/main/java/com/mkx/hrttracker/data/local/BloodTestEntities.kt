@@ -32,6 +32,7 @@ data class BloodTestPanelEntity(
 )
 data class CustomBloodAnalyteEntity(
     @PrimaryKey val uuid: String,
+    val abbreviation: String,
     val name: String,
     val normalizedName: String,
     val unitLabel: String,

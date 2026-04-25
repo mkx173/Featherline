@@ -122,6 +122,7 @@ class CalibrationViewModelTest {
                     displayOrder = 2,
                     analyte = BloodTestResultAnalyte.Custom(
                         uuid = UUID.fromString("387e4ffb-6ddb-4b69-a6d9-95353d2e1f55"),
+                        abbreviation = "Marker",
                         name = "Marker",
                     ),
                     value = 8.5,
@@ -275,6 +276,7 @@ class CalibrationViewModelTest {
                     displayOrder = 1,
                     analyte = BloodTestResultAnalyte.Custom(
                         uuid = UUID.fromString("387e4ffb-6ddb-4b69-a6d9-95353d2e1f55"),
+                        abbreviation = "Marker",
                         name = "Marker",
                     ),
                     value = 8.5,

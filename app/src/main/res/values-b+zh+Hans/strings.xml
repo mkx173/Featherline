@@ -292,6 +292,8 @@
     <string name="settings_calibration_custom_analyte_add_title">添加自定义分析项</string>
     <string name="settings_calibration_custom_analyte_edit_title">编辑自定义分析项</string>
     <string name="settings_calibration_custom_analyte_name_label">名称</string>
+    <string name="settings_calibration_custom_analyte_abbreviation_label">缩写</string>
+    <string name="settings_calibration_custom_analyte_error_required_abbreviation">请输入缩写</string>
     <string name="settings_calibration_custom_analyte_error_required_name">请输入名称</string>
     <string name="settings_calibration_custom_analyte_error_required_unit">请输入单位</string>
     <string name="settings_calibration_custom_analyte_error_duplicate">相同名称和单位的分析项已存在</string>

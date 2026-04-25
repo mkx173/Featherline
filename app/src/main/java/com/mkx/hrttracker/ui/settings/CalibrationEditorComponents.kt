@@ -295,6 +295,7 @@ internal fun CalibrationAnalyteCard(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = stringResource(R.string.remove_time),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -392,6 +393,7 @@ internal fun CalibrationAnalyteCard(
 
 @Composable
 internal fun CalibrationCustomAnalyteCard(
+    abbreviation: String,
     name: String,
     unitLabel: String,
     valueText: String,
@@ -419,15 +421,22 @@ internal fun CalibrationCustomAnalyteCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.WaterDrop,
+                        imageVector = Icons.Rounded.Edit,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp),
                     )
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Column {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = abbreviation,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 CompositionLocalProvider(
@@ -440,6 +449,7 @@ internal fun CalibrationCustomAnalyteCard(
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = stringResource(R.string.remove_time),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -610,6 +620,7 @@ private fun CalibrationAnalyteCardPreview() {
 private fun CalibrationCustomAnalyteCardPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationCustomAnalyteCard(
+            abbreviation = "DHT",
             name = "DHT",
             unitLabel = "ng/dL",
             valueText = "18.4",

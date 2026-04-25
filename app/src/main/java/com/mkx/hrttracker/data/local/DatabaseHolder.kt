@@ -53,6 +53,7 @@ class DatabaseHolder @Inject constructor(
             DATABASE_NAME
         )
             .openHelperFactory(openHelperFactory)
+            .addMigrations(MIGRATION_19_20)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }

@@ -208,7 +208,7 @@ class BloodTestRepositoryTest {
             panel.results.first().analyte
         )
         assertEquals(
-            BloodTestResultAnalyte.Custom(customAnalyteUuid, "DHT"),
+            BloodTestResultAnalyte.Custom(customAnalyteUuid, "DHT", "DHT"),
             panel.results.last().analyte
         )
     }
@@ -232,6 +232,7 @@ class BloodTestRepositoryTest {
 
         repository.saveCustomAnalyte(
             uuid = analyteUuid,
+            abbreviation = "DHT",
             name = "  DHT ",
             unitLabel = " ng/dL ",
             now = Instant.ofEpochMilli(400L)
@@ -259,6 +260,7 @@ class BloodTestRepositoryTest {
 
         repository.saveCustomAnalyte(
             uuid = UUID.randomUUID(),
+            abbreviation = "DHT",
             name = "DHT",
             unitLabel = "ng/dL",
             now = Instant.ofEpochMilli(1L)
@@ -281,6 +283,7 @@ class BloodTestRepositoryTest {
 
         val restoredUuid = repository.saveCustomAnalyte(
             uuid = null,
+            abbreviation = "DHT",
             name = "DHT",
             unitLabel = "ng/dL",
             now = Instant.ofEpochMilli(200L)
@@ -380,12 +383,14 @@ class BloodTestRepositoryTest {
         uuid: UUID,
         name: String,
         unitLabel: String,
+        abbreviation: String = name,
         createdAtEpochMillis: Long = 100L,
         updatedAtEpochMillis: Long = 200L,
         archivedAtEpochMillis: Long? = null,
     ): CustomBloodAnalyteEntity {
         return CustomBloodAnalyteEntity(
             uuid = uuid.toString(),
+            abbreviation = abbreviation,
             name = name,
             normalizedName = name.trim().lowercase(),
             unitLabel = unitLabel,

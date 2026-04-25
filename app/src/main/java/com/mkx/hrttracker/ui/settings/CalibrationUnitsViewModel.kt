@@ -59,12 +59,14 @@ class CalibrationUnitsViewModel @Inject constructor(
 
     suspend fun saveCustomAnalyte(
         uuid: UUID?,
+        abbreviation: String,
         name: String,
         unitLabel: String,
     ): Throwable? {
         return runCatching {
             bloodTestRepository.saveCustomAnalyte(
                 uuid = uuid,
+                abbreviation = abbreviation,
                 name = name,
                 unitLabel = unitLabel,
                 now = Instant.now(),
