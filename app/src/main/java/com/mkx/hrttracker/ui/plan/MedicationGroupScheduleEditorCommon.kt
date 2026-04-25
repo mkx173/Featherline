@@ -91,13 +91,14 @@ internal fun IntervalStepperCard(
             Text(
                 text = value.toString(),
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.alignByBaseline()
             )
             Text(
                 text = unit,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.alignByBaseline()
             )
         }
     }

@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -697,7 +698,7 @@ private fun SettingsScreenContent(
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_github),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     },
                     supportingContent = {
@@ -718,7 +719,7 @@ private fun SettingsScreenContent(
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_x),
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     },
                     supportingContent = {
@@ -834,14 +835,15 @@ private fun SettingsSectionTitle(
 private fun SettingsLeadingIconSlot(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    painter: Painter? = null
+    painter: Painter? = null,
+    tint: Color? = null,
 ) {
     when {
         icon != null -> {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = modifier
             )
         }
@@ -850,7 +852,7 @@ private fun SettingsLeadingIconSlot(
             Icon(
                 painter = painter,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = modifier
             )
         }
@@ -885,7 +887,7 @@ private fun SettingsSupportMessage(
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                SettingsLeadingIconSlot(icon = icon, painter = painter)
+                SettingsLeadingIconSlot(icon = icon, painter = painter, tint = MaterialTheme.colorScheme.tertiary)
             },
             trailingContent = if (showChevron) {
                 {

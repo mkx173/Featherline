@@ -246,31 +246,9 @@ private fun CalibrationInfoCard(
     panelCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_experiment),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = stringResource(R.string.settings_calibration_info_message),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+    EditorSegmentedListItem(
+        onClick = {},
+        trailingContent = {
             Text(
                 text = pluralStringResource(
                     R.plurals.settings_calibration_total_count,
@@ -279,9 +257,23 @@ private fun CalibrationInfoCard(
                 ).uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.End),
             )
-        }
+        },
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_experiment),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        index = 0,
+        count = 1
+    ) {
+        Text(
+            text = stringResource(R.string.settings_calibration_info_message),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

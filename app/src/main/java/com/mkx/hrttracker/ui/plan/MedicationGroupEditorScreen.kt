@@ -1225,7 +1225,7 @@ private fun EditorSupportMessage(
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.tertiary
                         )
                     }
                 }
@@ -1234,7 +1234,7 @@ private fun EditorSupportMessage(
                         Icon(
                             painter = painter,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.tertiary
                         )
                     }
                 }
