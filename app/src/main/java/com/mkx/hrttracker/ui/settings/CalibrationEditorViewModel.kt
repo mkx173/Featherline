@@ -149,11 +149,11 @@ class CalibrationEditorViewModel @Inject constructor(
                 state
             } else {
                 state.copy(
-                    drafts = (state.drafts + CalibrationResultDraftUiState(
+                    drafts = state.drafts + CalibrationResultDraftUiState(
                         analyteKey = analyteKey,
                         unit = defaultCalibrationUnitFor(analyteKey, latestSettingsState),
                         defaultUnit = defaultCalibrationUnitFor(analyteKey, latestSettingsState),
-                    )).sortedBy(::calibrationAnalyteSortIndex)
+                    )
                 )
             }
         }
@@ -165,12 +165,12 @@ class CalibrationEditorViewModel @Inject constructor(
                 state
             } else {
                 state.copy(
-                    drafts = (state.drafts + CalibrationResultDraftUiState(
+                    drafts = state.drafts + CalibrationResultDraftUiState(
                         customAnalyteUuid = customAnalyte.uuid,
                         customAnalyteAbbreviation = customAnalyte.abbreviation,
                         customAnalyteName = customAnalyte.name,
                         customUnitLabel = customAnalyte.unitLabel,
-                    )).sortedBy(::calibrationAnalyteSortIndex)
+                    )
                 )
             }
         }
@@ -415,7 +415,7 @@ class CalibrationEditorViewModel @Inject constructor(
                     valueText = formatCalibrationNumericValue(result.value),
                 )
             }
-        }.sortedBy(::calibrationAnalyteSortIndex)
+        }
 
         return CalibrationEditorUiState(
             panelUuid = uuid.toString(),
@@ -524,15 +524,6 @@ internal fun defaultCalibrationUnitFor(
     settingsState: SettingsState = SettingsState(),
 ): BloodUnitKey {
     return settingsState.calibrationDefaultUnitFor(analyteKey)
-}
-
-private fun calibrationAnalyteSortIndex(
-    draft: CalibrationResultDraftUiState,
-): Int {
-    val analyteKey = draft.analyteKey ?: return Int.MAX_VALUE
-    return calibrationAnalytes.indexOf(analyteKey).takeIf { index ->
-        index >= 0
-    } ?: Int.MAX_VALUE
 }
 
 private fun CalibrationEditorUiState.toCollectedAtInstant(zoneId: ZoneId): Instant {

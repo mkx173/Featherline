@@ -725,24 +725,23 @@ internal fun formatCalibrationPanelValueSummary(
         val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
         analyte?.key == BloodAnalyteKey.E2
     }
-    val mainResult = e2Result ?: orderedResults.firstOrNull()
-    val testosteroneResult = e2Result?.let {
-        orderedResults.firstOrNull { result ->
-            val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
-            analyte?.key == BloodAnalyteKey.T
-        }
+    val testosteroneResult = orderedResults.firstOrNull { result ->
+        val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
+        analyte?.key == BloodAnalyteKey.T
     }
+    val mainResult = e2Result ?: testosteroneResult ?: orderedResults.firstOrNull()
+    val additionalResult = if (e2Result != null) testosteroneResult else null
 
     val displayedResultUuids = listOfNotNull(
         mainResult?.uuid,
-        testosteroneResult?.uuid,
+        additionalResult?.uuid,
     ).toSet()
 
     return CalibrationPanelValueSummary(
         mainResultSummary = mainResult?.let { result ->
             formatCalibrationResultSummary(result, settingsState)
         },
-        testosteroneResultSummary = testosteroneResult?.let { result ->
+        testosteroneResultSummary = additionalResult?.let { result ->
             formatCalibrationResultSummary(result, settingsState)
         },
         remainingResultCount = orderedResults.count { result -> result.uuid !in displayedResultUuids },
