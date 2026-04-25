@@ -158,6 +158,7 @@ internal fun CalibrationNotesCard(
     notes: String,
     onNotesChange: (String) -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     CalibrationEditorCard(
         modifier = Modifier.padding(bottom = 8.dp)
@@ -172,7 +173,10 @@ internal fun CalibrationNotesCard(
             minLines = 3,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
-                onDone = { keyboardController?.hide() }
+                onDone = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }
             ),
         )
     }
