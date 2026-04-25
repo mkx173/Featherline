@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.text.format.DateFormat
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,17 +23,16 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -67,6 +65,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -435,7 +434,7 @@ private fun CalibrationAddAnalyteSheetContent(
                 end = dimensionResource(R.dimen.padding_medium),
                 bottom = dimensionResource(R.dimen.padding_medium),
             ),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -446,27 +445,42 @@ private fun CalibrationAddAnalyteSheetContent(
                 text = stringResource(R.string.settings_calibration_add_analyte),
                 style = MaterialTheme.typography.titleLarge,
             )
-            TextButton(onClick = onDismissRequest) {
+            FilledTonalButton(onClick = onDismissRequest) {
                 Text(text = stringResource(R.string.cancel))
             }
         }
-        availableAnalytes.forEach { analyteKey ->
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onAnalyteClick(analyteKey)
-                    },
-                headlineContent = {
-                    Text(text = calibrationAnalyteLabel(analyteKey))
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        availableAnalytes.forEachIndexed { index, analyteKey ->
+            val unitsLabel = calibrationAllowedUnitsFor(analyteKey).joinToString(
+                separator = " · ",
+            ) { unit -> calibrationUnitLabel(unit) }
+
+            EditorSegmentedListItem(
+                index = index,
+                count = availableAnalytes.size,
+                onClick = { onAnalyteClick(analyteKey) },
+                modifier = Modifier.fillMaxWidth(),
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Rounded.WaterDrop,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
                 },
                 supportingContent = {
-                    Column {
-                        Text(text = stringResource(calibrationAnalyteFullNameRes(analyteKey)))
-                        Text(text = calibrationUnitLabelFor(analyteKey))
-                    }
+                    Text(text = "${calibrationAnalyteLabel(analyteKey)} - $unitsLabel")
                 },
-            )
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            ) {
+                Text(text = stringResource(calibrationAnalyteFullNameRes(analyteKey)))
+            }
         }
     }
 }

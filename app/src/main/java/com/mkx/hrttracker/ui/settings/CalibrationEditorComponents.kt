@@ -23,7 +23,10 @@ import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -321,9 +324,9 @@ internal fun CalibrationAnalyteCard(
 @Composable
 private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
     val icon = when (status) {
-        CalibrationRangeStatus.ABOVE -> Icons.Filled.ArrowDropUp
-        CalibrationRangeStatus.BELOW -> Icons.Filled.ArrowDropDown
-        CalibrationRangeStatus.IN_RANGE -> Icons.Filled.Circle
+        CalibrationRangeStatus.ABOVE -> Icons.Rounded.ArrowDropUp
+        CalibrationRangeStatus.BELOW -> Icons.Rounded.ArrowDropDown
+        CalibrationRangeStatus.IN_RANGE -> Icons.Rounded.Circle
     }
     val labelRes = when (status) {
         CalibrationRangeStatus.ABOVE -> R.string.settings_calibration_range_status_above
