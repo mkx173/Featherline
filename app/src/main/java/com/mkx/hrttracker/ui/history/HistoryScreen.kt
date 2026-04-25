@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -1350,7 +1351,13 @@ private fun HistoryEmptyStateCard(
         shapes = ListItemDefaults.shapes(
             shape = MaterialTheme.shapes.large
         ),
-        modifier = modifier
+        modifier = modifier,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_info),
+                contentDescription = null
+            )
+        }
     ) {
         Text(
             text = text,

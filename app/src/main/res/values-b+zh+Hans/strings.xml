@@ -219,7 +219,7 @@
     <string name="settings_security">安全</string>
     <string name="settings_notifications">通知</string>
     <string name="group_medications_title">药物</string>
-    <string name="group_medications_empty">这个分组里还没有药物。</string>
+    <string name="group_medications_empty">这个分组里还没有药物</string>
     <string name="medication_category_estradiol">雌二醇</string>
     <string name="medication_category_testosterone">睾酮</string>
     <string name="medication_category_antiandrogen">抗雄激素</string>
@@ -271,7 +271,7 @@
     <string name="settings_calibration_settings">校准设置</string>
     <string name="settings_calibration_add_result">添加检查结果</string>
     <string name="settings_calibration_edit_result">编辑检查结果</string>
-    <string name="settings_calibration_empty_state">还没有检查结果</string>
+    <string name="settings_calibration_empty_state">暂无检查结果</string>
     <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s 后采血</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>

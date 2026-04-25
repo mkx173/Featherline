@@ -27,6 +27,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -108,7 +110,7 @@ fun CalibrationScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
@@ -179,15 +181,28 @@ private fun CalibrationScreenContent(
 
             if (uiState.panels.isEmpty() && !uiState.isLoading) {
                 item(key = "calibration-empty") {
-                    Text(
-                        text = stringResource(R.string.settings_calibration_empty_state),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = dimensionResource(R.dimen.padding_medium)),
-                        textAlign = TextAlign.Center,
-                    )
+                    ListItem(
+                        onClick = {},
+                        colors = ListItemDefaults.colors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        shapes = ListItemDefaults.shapes(
+                            shape = MaterialTheme.shapes.large
+                        ),
+                        modifier = modifier,
+                        leadingContent = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_info),
+                                contentDescription = null
+                            )
+                        }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_calibration_empty_state),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             } else {
                 monthGroups.forEachIndexed { index, monthGroup ->
@@ -245,7 +260,7 @@ private fun CalibrationInfoCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_info),
+                    painter = painterResource(R.drawable.ic_experiment),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),

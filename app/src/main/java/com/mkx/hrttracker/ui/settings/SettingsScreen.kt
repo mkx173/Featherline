@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
@@ -353,7 +354,7 @@ private fun SettingsScreenContent(
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        painter = painterResource(R.drawable.ic_info),
+                        icon = Icons.Rounded.ErrorOutline,
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
@@ -362,7 +363,7 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
-                        painter = painterResource(R.drawable.ic_info),
+                        icon = Icons.Rounded.ErrorOutline,
                         onClick = onRequestExactAlarmAccess,
                         showChevron = true,
                         index = 1,
@@ -667,7 +668,7 @@ private fun SettingsScreenContent(
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_github),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     },
                     supportingContent = {
@@ -688,7 +689,7 @@ private fun SettingsScreenContent(
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_x),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     },
                     supportingContent = {
@@ -792,9 +793,9 @@ private fun SettingsSectionTitle(
 
 @Composable
 private fun SettingsLeadingIconSlot(
+    modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    painter: Painter? = null,
-    modifier: Modifier = Modifier
+    painter: Painter? = null
 ) {
     when {
         icon != null -> {
@@ -802,7 +803,7 @@ private fun SettingsLeadingIconSlot(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier.size(20.dp)
+                modifier = modifier
             )
         }
 
@@ -811,7 +812,7 @@ private fun SettingsLeadingIconSlot(
                 painter = painter,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier.size(20.dp)
+                modifier = modifier
             )
         }
     }
@@ -857,7 +858,7 @@ private fun SettingsSupportMessage(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

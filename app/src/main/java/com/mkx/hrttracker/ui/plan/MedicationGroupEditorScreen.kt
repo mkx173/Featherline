@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -681,7 +682,10 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 )
                 if (uiState.medications.isEmpty()) {
-                    EditorSupportMessage(stringResource(R.string.group_medications_empty))
+                    EditorSupportMessage(
+                        text = stringResource(R.string.group_medications_empty),
+                        painter = painterResource(R.drawable.ic_info),
+                    )
                 } else {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
@@ -797,7 +801,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.ACCESS_OFF -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                painter = painterResource(R.drawable.ic_info),
+                                icon = Icons.Rounded.ErrorOutline,
                                 onClick = onRecoverMasterReminders,
                                 showChevron = true,
                                 index = 1,
@@ -808,7 +812,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.MASTER_OFF -> {
                         EditorSupportMessage(
                             text = stringResource(R.string.group_notifications_master_disabled),
-                            painter = painterResource(R.drawable.ic_info),
+                            icon = Icons.Rounded.ErrorOutline,
                             onClick = { isMasterReminderRecoveryDialogVisible = true },
                             showChevron = true,
                             index = 1,
@@ -819,7 +823,7 @@ private fun MedicationGroupEditorScreenContent(
                         NotificationSupportState.INEXACT -> {
                             EditorSupportMessage(
                                 text = stringResource(R.string.group_notifications_inexact_warning),
-                                painter = painterResource(R.drawable.ic_info),
+                                icon = Icons.Rounded.ErrorOutline,
                                 onClick = onRequestExactAlarmAccess,
                                 showChevron = true,
                                 index = 1,
@@ -1193,7 +1197,7 @@ private fun EditorSupportMessage(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
