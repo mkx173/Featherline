@@ -246,6 +246,7 @@
     <string name="medication_name_spironolactone">Spironolactone</string>
     <string name="medication_name_cyproterone_acetate">Cyproterone acetate</string>
     <string name="medication_name_bicalutamide">Bicalutamide</string>
+    <string name="medication_editor_dose_warning">Dose above warning threshold</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/day</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>

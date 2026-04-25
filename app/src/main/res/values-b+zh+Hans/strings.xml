@@ -246,6 +246,7 @@
     <string name="medication_name_spironolactone">螺内酯</string>
     <string name="medication_name_cyproterone_acetate">醋酸环丙孕酮</string>
     <string name="medication_name_bicalutamide">比卡鲁胺</string>
+    <string name="medication_editor_dose_warning">剂量超过警告阈值</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/天</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>

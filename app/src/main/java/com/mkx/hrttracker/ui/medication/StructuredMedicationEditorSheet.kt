@@ -1,6 +1,6 @@
 package com.mkx.hrttracker.ui.medication
-
 import android.text.format.DateFormat
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -52,6 +53,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -122,6 +124,7 @@ fun StructuredMedicationEditorSheet(
         MedicationCatalog.catalogFor(draft.category, draft.applicationType)
     }
     val doseAssistPresets = remember(draft) { draft.activeDoseAssistPresets() }
+    val showsDoseWarning = remember(draft) { draft.exceedsDoseWarningThreshold() }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -276,10 +279,15 @@ fun StructuredMedicationEditorSheet(
                 MedicationDoseKind.MG_AS_MEDICINE -> {
                     DoseTextField(
                         value = draft.doseMg,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind
+                        ),
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_dosage_mg),
                         suffix = stringResource(R.string.unit_mg),
-                        errorMessageRes = fieldErrors.doseMg
+                        errorMessageRes = fieldErrors.doseMg,
+                        showWarningIcon = showsDoseWarning,
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -293,6 +301,10 @@ fun StructuredMedicationEditorSheet(
                 MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
                     DoseTextField(
                         value = draft.doseMg,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind
+                        ),
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_equivalent_estradiol_mg),
                         suffix = stringResource(R.string.unit_mg),
@@ -303,6 +315,11 @@ fun StructuredMedicationEditorSheet(
                 MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
                     DoseTextField(
                         value = draft.gelPercent,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind,
+                            gelField = GelDoseField.PERCENT
+                        ),
                         onValueChange = onGelPercentChange,
                         label = stringResource(R.string.field_gel_percent),
                         suffix = stringResource(R.string.unit_percent),
@@ -319,6 +336,11 @@ fun StructuredMedicationEditorSheet(
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     DoseTextField(
                         value = draft.gelWeightGrams,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind,
+                            gelField = GelDoseField.WEIGHT
+                        ),
                         onValueChange = onGelWeightChange,
                         label = stringResource(R.string.field_gel_weight_grams),
                         suffix = stringResource(R.string.unit_grams),
@@ -337,6 +359,10 @@ fun StructuredMedicationEditorSheet(
                 MedicationDoseKind.PATCH_TOTAL_MG -> {
                     DoseTextField(
                         value = draft.doseMg,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind
+                        ),
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_patch_total_mg),
                         suffix = stringResource(R.string.unit_mg),
@@ -354,6 +380,10 @@ fun StructuredMedicationEditorSheet(
                 MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
                     DoseTextField(
                         value = draft.patchReleaseRateMcgPerDay,
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind
+                        ),
                         onValueChange = onPatchReleaseRateChange,
                         label = stringResource(R.string.field_patch_release_rate_mcg_day),
                         suffix = stringResource(R.string.unit_mcg_day),
@@ -412,7 +442,7 @@ fun StructuredMedicationEditorSheet(
                             }
                         }
                     },
-                    trailingIcon = {
+                    leadingIcon = {
                         Icon(Icons.Rounded.CalendarMonth, contentDescription = stringResource(R.string.select_date))
                     },
                     singleLine = true,
@@ -453,7 +483,7 @@ fun StructuredMedicationEditorSheet(
                                 }
                             }
                         },
-                    trailingIcon = {
+                    leadingIcon = {
                         Icon(Icons.Rounded.AccessTime, contentDescription = stringResource(R.string.select_time))
                     },
                     singleLine = true,
@@ -565,10 +595,12 @@ private fun <T> DropdownField(
 @Composable
 private fun DoseTextField(
     value: String,
+    @DrawableRes painterRes: Int,
     onValueChange: (String) -> Unit,
     label: String,
     suffix: String? = null,
     @StringRes errorMessageRes: Int? = null,
+    showWarningIcon: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
@@ -576,6 +608,23 @@ private fun DoseTextField(
         isError = errorMessageRes != null,
         label = { Text(text = label) },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        trailingIcon = if (showWarningIcon) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = stringResource(R.string.medication_editor_dose_warning),
+                    tint = MaterialTheme.colorScheme.tertiary
+                )
+            }
+        } else {
+            null
+        },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(painterRes),
+                contentDescription = null,
+            )
+        },
         supportingText = errorMessageRes?.let { messageRes ->
             {
                 Text(
@@ -647,6 +696,39 @@ private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
             R.string.medication_editor_dose_assist_mcg_day,
             preset.valueMcgPerDay
         )
+    }
+}
+
+internal enum class GelDoseField {
+    PERCENT,
+    WEIGHT,
+}
+
+@DrawableRes
+internal fun doseFieldPainterRes(
+    applicationType: MedicationApplicationType,
+    doseKind: MedicationDoseKind,
+    gelField: GelDoseField? = null,
+): Int {
+    return when (doseKind) {
+        MedicationDoseKind.MG_AS_MEDICINE -> {
+            if (applicationType == MedicationApplicationType.INJECTION) {
+                R.drawable.ic_vaccines
+            } else {
+                R.drawable.ic_medication
+            }
+        }
+
+        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> R.drawable.ic_total_dissolved_solids
+        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> when (gelField) {
+            GelDoseField.PERCENT -> R.drawable.ic_humidity_percentage
+            GelDoseField.WEIGHT -> R.drawable.ic_weight
+            null -> R.drawable.ic_humidity_percentage
+        }
+
+        MedicationDoseKind.PATCH_TOTAL_MG -> R.drawable.ic_memory_alt
+        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> R.drawable.ic_chronic
+        MedicationDoseKind.NONE -> R.drawable.ic_medication
     }
 }
 

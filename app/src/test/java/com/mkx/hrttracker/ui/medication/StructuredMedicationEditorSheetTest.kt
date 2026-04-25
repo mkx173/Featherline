@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.medication
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -65,5 +66,30 @@ class StructuredMedicationEditorSheetTest {
         assertNull(fieldErrors.gelPercent)
         assertNull(fieldErrors.gelWeight)
         assertNull(fieldErrors.patchReleaseRate)
+    }
+
+    @Test
+    fun doseFieldPainterRes_uses_injection_icon_for_mg_dose_fields() {
+        assertEquals(
+            R.drawable.ic_vaccines,
+            doseFieldPainterRes(
+                applicationType = MedicationApplicationType.INJECTION,
+                doseKind = MedicationDoseKind.MG_AS_MEDICINE
+            )
+        )
+        assertEquals(
+            R.drawable.ic_medication,
+            doseFieldPainterRes(
+                applicationType = MedicationApplicationType.ORAL,
+                doseKind = MedicationDoseKind.MG_AS_MEDICINE
+            )
+        )
+        assertEquals(
+            R.drawable.ic_medication,
+            doseFieldPainterRes(
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseKind = MedicationDoseKind.MG_AS_MEDICINE
+            )
+        )
     }
 }

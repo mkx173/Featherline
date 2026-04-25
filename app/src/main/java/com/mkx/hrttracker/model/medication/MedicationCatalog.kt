@@ -363,7 +363,7 @@ object MedicationCatalog {
                     medicationKey = MedicationKey.CYPROTERONE_ACETATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
-                    doseAssistPresets = mgDoseAssistPresets("6.25", "12.5", "25"),
+                    doseAssistPresets = mgDoseAssistPresets("6.25", "12.5"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.BICALUTAMIDE,

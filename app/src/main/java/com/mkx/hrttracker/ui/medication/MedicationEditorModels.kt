@@ -108,6 +108,26 @@ fun MedicationDraftUiState.activeDoseAssistPresets(): List<MedicationDoseAssistP
     return selectedCatalogEntry().doseAssistPresets[doseKind].orEmpty()
 }
 
+fun MedicationDraftUiState.doseWarningThresholdMg(): Double? {
+    if (doseKind != MedicationDoseKind.MG_AS_MEDICINE ||
+        selectionKind != MedicationSelectionKind.CATALOG
+    ) {
+        return null
+    }
+
+    return when (selectedCatalogEntry().medicationKey) {
+        MedicationKey.SPIRONOLACTONE -> 200.0
+        MedicationKey.CYPROTERONE_ACETATE -> 12.5
+        MedicationKey.BICALUTAMIDE -> 50.0
+        else -> null
+    }
+}
+
+fun MedicationDraftUiState.exceedsDoseWarningThreshold(): Boolean {
+    val thresholdMg = doseWarningThresholdMg() ?: return false
+    return doseMg.toDoubleOrNull()?.let { valueMg -> valueMg > thresholdMg } == true
+}
+
 fun MedicationDraftUiState.changeCategory(category: MedicationCategory): MedicationDraftUiState {
     return firstAvailableMedicationDraft(
         category = category,

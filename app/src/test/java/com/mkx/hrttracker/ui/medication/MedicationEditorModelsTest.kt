@@ -203,7 +203,6 @@ class MedicationEditorModelsTest {
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("6.25"),
                 MedicationDoseAssistPreset.MgAsMedicine("12.5"),
-                MedicationDoseAssistPreset.MgAsMedicine("25"),
             ),
             cpaPresets
         )
@@ -263,5 +262,45 @@ class MedicationEditorModelsTest {
         assertEquals("0.3", withPercent.gelPercent)
         assertEquals("", withPercent.gelWeightGrams)
         assertEquals("2.5", withWeight.gelWeightGrams)
+    }
+
+    @Test
+    fun antiandrogen_dose_warning_thresholds_are_strictly_greater_than_limit() {
+        val spiroAtThreshold = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.SPIRONOLACTONE
+        ).copy(doseMg = "200")
+        val cpaAboveThreshold = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.CYPROTERONE_ACETATE
+        ).copy(doseMg = "12.6")
+        val bicaAboveThreshold = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.BICALUTAMIDE
+        ).copy(doseMg = "50.1")
+
+        assertEquals(false, spiroAtThreshold.exceedsDoseWarningThreshold())
+        assertEquals(true, cpaAboveThreshold.exceedsDoseWarningThreshold())
+        assertEquals(true, bicaAboveThreshold.exceedsDoseWarningThreshold())
+    }
+
+    @Test
+    fun non_matching_medications_do_not_show_dose_warning() {
+        val estradiolDraft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL
+        ).copy(doseMg = "999")
+        val customDraft = defaultMedicationDraft(
+            category = MedicationCategory.CUSTOM,
+        ).copy(doseMg = "999")
+
+        assertEquals(false, estradiolDraft.exceedsDoseWarningThreshold())
+        assertEquals(false, customDraft.exceedsDoseWarningThreshold())
     }
 }
