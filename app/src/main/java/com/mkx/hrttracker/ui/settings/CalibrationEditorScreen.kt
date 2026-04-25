@@ -486,8 +486,8 @@ private fun CalibrationAddAnalyteSheetContent(
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(
-                start = dimensionResource(R.dimen.padding_medium),
-                end = dimensionResource(R.dimen.padding_medium),
+                start = dimensionResource(R.dimen.padding_large),
+                end = dimensionResource(R.dimen.padding_large),
                 bottom = dimensionResource(R.dimen.padding_medium),
             ),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),

@@ -85,7 +85,7 @@ internal fun WeeklyScheduleEditor(
             ) {
                 Text(
                     text = stringResource(R.string.group_schedule_days_of_week).uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ConnectedButtonGroup(

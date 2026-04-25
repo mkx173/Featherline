@@ -141,10 +141,8 @@ fun StructuredMedicationEditorSheet(
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(
-                    start = dimensionResource(R.dimen.padding_large),
-                    end = dimensionResource(R.dimen.padding_large),
+                    horizontal = dimensionResource(R.dimen.padding_large),
                 ),
-//            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

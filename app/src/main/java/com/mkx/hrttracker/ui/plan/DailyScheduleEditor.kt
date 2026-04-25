@@ -137,7 +137,7 @@ private fun DailyTimesCard(
                         R.string.group_schedule_times_with_count,
                         times.size
                     ).uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 AddChip(onClick = onAddTime)
@@ -236,7 +236,7 @@ internal fun ScheduleOccurrencesCard(
         ) {
             Text(
                 text = title.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )

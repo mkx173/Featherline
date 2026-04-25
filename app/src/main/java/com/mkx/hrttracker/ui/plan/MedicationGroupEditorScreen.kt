@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
@@ -647,6 +648,12 @@ private fun MedicationGroupEditorScreenContent(
                         value = uiState.groupName,
                         onValueChange = onGroupNameChange,
                         label = { Text(text = stringResource(R.string.field_medication_group_name)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Label,
+                                contentDescription = null
+                            )
+                        },
                         trailingIcon = if (shouldShowGroupNameClearAction(uiState.groupName)) {
                             {
                                 IconButton(
