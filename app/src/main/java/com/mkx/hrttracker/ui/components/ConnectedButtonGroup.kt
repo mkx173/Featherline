@@ -4,15 +4,19 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonColors
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
 enum class ConnectedButtonGroupLayout {
@@ -27,6 +31,7 @@ fun <T> ConnectedButtonGroup(
     options: List<T>,
     selectedOption: T?,
     optionLabel: @Composable (T) -> String,
+    optionIcon: ((T) -> ImageVector?)? = null,
     onOptionSelected: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -39,6 +44,7 @@ fun <T> ConnectedButtonGroup(
         options = options,
         isOptionSelected = { option -> option == resolvedSelectedOption },
         optionLabel = optionLabel,
+        optionIcon = optionIcon,
         onOptionToggled = { option ->
             if (option != resolvedSelectedOption) {
                 onOptionSelected(option)
@@ -58,6 +64,7 @@ fun <T> ConnectedButtonGroup(
     options: List<T>,
     selectedOptions: Set<T>,
     optionLabel: @Composable (T) -> String,
+    optionIcon: ((T) -> ImageVector?)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -69,6 +76,7 @@ fun <T> ConnectedButtonGroup(
         options = options,
         isOptionSelected = { option -> option in selectedOptions },
         optionLabel = optionLabel,
+        optionIcon = optionIcon,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         colors = colors,
@@ -84,6 +92,7 @@ private fun <T> ConnectedButtonGroup(
     options: List<T>,
     isOptionSelected: (T) -> Boolean,
     optionLabel: @Composable (T) -> String,
+    optionIcon: ((T) -> ImageVector?)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -107,6 +116,7 @@ private fun <T> ConnectedButtonGroup(
                         optionCount = options.size,
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
+                        optionIcon = optionIcon?.invoke(option),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         colors = colors,
@@ -138,6 +148,7 @@ private fun <T> ConnectedButtonGroup(
                         optionCount = options.size,
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
+                        optionIcon = optionIcon?.invoke(option),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         colors = colors,
@@ -157,6 +168,7 @@ private fun <T> ConnectedButtonGroupButton(
     optionCount: Int,
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
+    optionIcon: ImageVector?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
@@ -174,6 +186,14 @@ private fun <T> ConnectedButtonGroupButton(
                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
             },
     ) {
+        optionIcon?.let { icon ->
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+            )
+            Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
+        }
         Text(optionLabel(option))
     }
 }
@@ -187,6 +207,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionCount: Int,
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
+    optionIcon: ImageVector?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
@@ -198,6 +219,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionCount = optionCount,
         selected = selected,
         optionLabel = optionLabel,
+        optionIcon = optionIcon,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         colors = colors,

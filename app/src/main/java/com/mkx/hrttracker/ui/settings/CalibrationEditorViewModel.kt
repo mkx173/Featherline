@@ -133,6 +133,7 @@ class CalibrationEditorViewModel @Inject constructor(
                     drafts = (state.drafts + CalibrationResultDraftUiState(
                         analyteKey = analyteKey,
                         unit = defaultCalibrationUnitFor(analyteKey, latestSettingsState),
+                        defaultUnit = defaultCalibrationUnitFor(analyteKey, latestSettingsState),
                     )).sortedBy(::calibrationAnalyteSortIndex)
                 )
             }
@@ -236,6 +237,14 @@ class CalibrationEditorViewModel @Inject constructor(
             settingsRepository.settingsState.collect { settingsState ->
                 latestSettingsState = settingsState
                 _uiState.update { state ->
+                    val draftsWithUpdatedDefaults = state.drafts.map { draft ->
+                        draft.copy(
+                            defaultUnit = defaultCalibrationUnitFor(
+                                draft.analyteKey,
+                                settingsState,
+                            )
+                        )
+                    }
                     if (
                         state.isEditing ||
                         state.notes.isNotBlank() ||
@@ -243,15 +252,12 @@ class CalibrationEditorViewModel @Inject constructor(
                             draft.resultUuid != null || draft.valueText.isNotBlank()
                         }
                     ) {
-                        state
+                        state.copy(drafts = draftsWithUpdatedDefaults)
                     } else {
                         state.copy(
-                            drafts = state.drafts.map { draft ->
+                            drafts = draftsWithUpdatedDefaults.map { draft ->
                                 draft.copy(
-                                    unit = defaultCalibrationUnitFor(
-                                        draft.analyteKey,
-                                        settingsState,
-                                    )
+                                    unit = draft.defaultUnit,
                                 )
                             }
                         )
@@ -318,12 +324,14 @@ class CalibrationEditorViewModel @Inject constructor(
         val collectedDateTime = collectedAt.atZone(defaultZoneId).toLocalDateTime()
         val drafts = results.mapNotNull { result ->
             val analyte = result.analyte as? BloodTestResultAnalyte.Builtin ?: return@mapNotNull null
+            val storedUnit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
             CalibrationResultDraftUiState(
                 analyteKey = analyte.key,
                 resultUuid = result.uuid,
                 valueText = formatCalibrationNumericValue(result.value),
-                unit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
-                    ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                unit = storedUnit ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                defaultUnit = defaultCalibrationUnitFor(analyte.key, latestSettingsState),
+                originalUnit = storedUnit,
             )
         }.sortedBy(::calibrationAnalyteSortIndex)
 
@@ -365,6 +373,8 @@ data class CalibrationResultDraftUiState(
     val resultUuid: UUID? = null,
     val valueText: String = "",
     val unit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
+    val defaultUnit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
+    val originalUnit: BloodUnitKey? = null,
 )
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {

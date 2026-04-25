@@ -839,7 +839,31 @@ internal fun formatCalibrationNumericValue(value: Double): String {
     }
 }
 
-private fun formatCalibrationConvertedValue(value: Double): String {
+internal fun calibrationValueInPreferredUnitLabel(
+    analyteKey: BloodAnalyteKey,
+    valueText: String,
+    unit: BloodUnitKey,
+    preferredUnit: BloodUnitKey,
+): String? {
+    if (unit == preferredUnit) {
+        return null
+    }
+
+    val parsedValue = parseCalibrationNumericInput(valueText) ?: return null
+    val canonicalValue = BloodTestCatalog.toCanonical(
+        analyteKey = analyteKey,
+        value = parsedValue,
+        unit = unit,
+    )
+    val preferredValue = BloodTestCatalog.fromCanonical(
+        analyteKey = analyteKey,
+        canonicalValue = canonicalValue,
+        unit = preferredUnit,
+    )
+    return "${formatCalibrationConvertedValue(preferredValue)} ${calibrationUnitLabel(preferredUnit)}"
+}
+
+internal fun formatCalibrationConvertedValue(value: Double): String {
     val roundedValue = when {
         value >= 100.0 -> kotlin.math.round(value * 10.0) / 10.0
         value >= 1.0 -> kotlin.math.round(value * 100.0) / 100.0

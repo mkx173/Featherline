@@ -120,9 +120,11 @@ class CalibrationEditorViewModelTest {
         val e2Draft = uiState.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
         assertEquals("559.5", e2Draft.valueText)
         assertEquals(BloodUnitKey.PMOL_L, e2Draft.unit)
+        assertEquals(BloodUnitKey.PMOL_L, e2Draft.originalUnit)
         val tDraft = uiState.drafts.first { it.analyteKey == BloodAnalyteKey.T }
         assertEquals("1.1", tDraft.valueText)
         assertEquals(BloodUnitKey.NMOL_L, tDraft.unit)
+        assertEquals(BloodUnitKey.NMOL_L, tDraft.originalUnit)
         assertNull(uiState.timeSinceLastEstradiolDoseMillis)
     }
 
@@ -301,7 +303,11 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
 
         assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)
+        assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].defaultUnit)
+        assertNull(viewModel.uiState.value.drafts[0].originalUnit)
         assertEquals(BloodUnitKey.NMOL_L, viewModel.uiState.value.drafts[1].unit)
+        assertEquals(BloodUnitKey.NMOL_L, viewModel.uiState.value.drafts[1].defaultUnit)
+        assertNull(viewModel.uiState.value.drafts[1].originalUnit)
     }
 
     @Test

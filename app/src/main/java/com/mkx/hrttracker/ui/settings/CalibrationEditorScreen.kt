@@ -315,6 +315,8 @@ private fun CalibrationEditorScreenContent(
                         analyteKey = draft.analyteKey,
                         valueText = draft.valueText,
                         unit = draft.unit,
+                        defaultUnit = draft.defaultUnit,
+                        originalUnit = draft.originalUnit,
                         onValueChange = { value ->
                             onAnalyteValueChange(draft.analyteKey, value)
                         },

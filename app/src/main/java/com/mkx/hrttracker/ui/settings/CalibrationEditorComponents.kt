@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -57,6 +59,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -208,6 +211,8 @@ internal fun CalibrationAnalyteCard(
     analyteKey: BloodAnalyteKey,
     valueText: String,
     unit: BloodUnitKey,
+    defaultUnit: BloodUnitKey,
+    originalUnit: BloodUnitKey?,
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
     onRemoveClick: () -> Unit,
@@ -329,15 +334,44 @@ internal fun CalibrationAnalyteCard(
             val allowedUnits = remember(analyteKey) {
                 calibrationAllowedUnitsFor(analyteKey)
             }
+            val defaultUnitValueLabel = remember(valueText, analyteKey, unit, defaultUnit) {
+                calibrationValueInPreferredUnitLabel(
+                    analyteKey = analyteKey,
+                    valueText = valueText,
+                    unit = unit,
+                    preferredUnit = defaultUnit,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (defaultUnitValueLabel != null) {
+                    Text(
+                        text = defaultUnitValueLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
                 ConnectedButtonGroup(
                     modifier = Modifier.wrapContentWidth(),
                     options = allowedUnits,
                     selectedOption = unit,
                     optionLabel = { option -> calibrationUnitLabel(option) },
+                    optionIcon = { option ->
+                        if (option == originalUnit) {
+                            Icons.Rounded.Edit
+                        } else {
+                            null
+                        }
+                    },
                     onOptionSelected = onUnitChange,
                     layout = ConnectedButtonGroupLayout.ROW,
                 )
@@ -457,8 +491,10 @@ private fun CalibrationAnalyteCardPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationAnalyteCard(
             analyteKey = BloodAnalyteKey.T,
-            valueText = "31.7",
+            valueText = "1.1",
             unit = BloodUnitKey.NMOL_L,
+            defaultUnit = BloodUnitKey.NG_DL,
+            originalUnit = BloodUnitKey.NG_DL,
             onValueChange = { },
             onUnitChange = { },
             onRemoveClick = { },

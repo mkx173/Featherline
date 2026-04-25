@@ -206,6 +206,37 @@ class CalibrationViewModelTest {
     }
 
     @Test
+    fun calibrationValueInPreferredUnitLabel_convertsWhenUnitsDiffer() {
+        assertEquals(
+            "348.7 pmol/L",
+            calibrationValueInPreferredUnitLabel(
+                analyteKey = BloodAnalyteKey.E2,
+                valueText = "95",
+                unit = BloodUnitKey.PG_ML,
+                preferredUnit = BloodUnitKey.PMOL_L,
+            ),
+        )
+        assertEquals(
+            null,
+            calibrationValueInPreferredUnitLabel(
+                analyteKey = BloodAnalyteKey.E2,
+                valueText = "95",
+                unit = BloodUnitKey.PG_ML,
+                preferredUnit = BloodUnitKey.PG_ML,
+            ),
+        )
+        assertEquals(
+            null,
+            calibrationValueInPreferredUnitLabel(
+                analyteKey = BloodAnalyteKey.E2,
+                valueText = "",
+                unit = BloodUnitKey.PG_ML,
+                preferredUnit = BloodUnitKey.PMOL_L,
+            ),
+        )
+    }
+
+    @Test
     fun formatCalibrationPanelValueSummary_withoutEstradiolShowsFirstResultOnly() {
         val panel = testBloodTestPanel(
             results = listOf(
