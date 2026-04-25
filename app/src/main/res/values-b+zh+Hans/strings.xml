@@ -260,9 +260,9 @@
     <string name="settings_hide_screen_content_summary">在最近任务和截屏中隐藏应用内容</string>
     <string name="settings_personalization">个性化</string>
     <string name="settings_personalization_calibration">校准</string>
-    <string name="settings_calibration_add_result">添加验血结果</string>
-    <string name="settings_calibration_edit_result">编辑验血结果</string>
-    <string name="settings_calibration_empty_state">还没有验血结果。</string>
+    <string name="settings_calibration_add_result">添加检查结果</string>
+    <string name="settings_calibration_edit_result">编辑检查结果</string>
+    <string name="settings_calibration_empty_state">还没有检查结果</string>
     <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s 后采血</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
@@ -272,7 +272,7 @@
     <string name="settings_calibration_time_label">时间</string>
     <string name="settings_calibration_unit_label">单位</string>
     <string name="settings_calibration_notes_label">备注</string>
-    <string name="settings_calibration_results">血液检测结果</string>
+    <string name="settings_calibration_results">检查结果</string>
     <string name="settings_calibration_add_analyte">添加结果</string>
     <string name="settings_calibration_value_label">数值</string>
     <string name="settings_calibration_target_range">目标 %1$s–%2$s %3$s</string>
@@ -288,8 +288,9 @@
         <item quantity="other">+%1$d 项结果</item>
     </plurals>
     <plurals name="settings_calibration_total_count">
-        <item quantity="other">共 %1$d 次校准</item>
+        <item quantity="other">%1$d 项记录</item>
     </plurals>
+    <string name="settings_calibration_info_message">记录血液检查结果以优化血药浓度估算</string>
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>

@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -150,64 +153,108 @@ private fun CalibrationScreenContent(
             }
         }
     ) { innerPadding ->
-        if (uiState.panels.isEmpty() && !uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(dimensionResource(R.dimen.padding_medium)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.settings_calibration_empty_state),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+        ) {
+            item(key = "calibration-info") {
+                CalibrationInfoCard(panelCount = uiState.panels.size)
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
-            ) {
-                if (uiState.panels.isNotEmpty()) {
-                    item(key = "calibration-total") {
-                        Text(
-                            text = pluralStringResource(
-                                R.plurals.settings_calibration_total_count,
-                                uiState.panels.size,
-                                uiState.panels.size,
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (uiState.panels.isEmpty() && !uiState.isLoading) {
+                item(key = "calibration-empty") {
+                    Text(
+                        text = stringResource(R.string.settings_calibration_empty_state),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = dimensionResource(R.dimen.padding_medium)),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else {
+                monthGroups.forEachIndexed { index, monthGroup ->
+                    item(key = "month-${monthGroup.yearMonth}") {
+                        CalibrationMonthHeader(
+                            monthLabel = monthGroup.monthLabel,
+                            panelCount = monthGroup.panels.size,
                         )
                     }
 
-                    monthGroups.forEach { monthGroup ->
-                        item(key = "month-${monthGroup.yearMonth}") {
-                            CalibrationMonthHeader(
-                                monthLabel = monthGroup.monthLabel,
-                                panelCount = monthGroup.panels.size,
-                            )
+                    itemsIndexed(
+                        items = monthGroup.panels,
+                        key = { _, panel -> panel.uuid },
+                    ) { index, panel ->
+                        CalibrationPanelRow(
+                            panel = panel,
+                            dateTimeFormatters = panelDateTimeFormatters,
+                            index = index,
+                            count = monthGroup.panels.size,
+                            onClick = { onPanelClick(panel.uuid) },
+                        )
+                        if (index < monthGroup.panels.size - 1) {
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                         }
+                    }
 
-                        itemsIndexed(
-                            items = monthGroup.panels,
-                            key = { _, panel -> panel.uuid },
-                        ) { index, panel ->
-                            CalibrationPanelRow(
-                                panel = panel,
-                                dateTimeFormatters = panelDateTimeFormatters,
-                                index = index,
-                                count = monthGroup.panels.size,
-                                onClick = { onPanelClick(panel.uuid) },
-                            )
+                    if (index < monthGroups.size - 1) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationInfoCard(
+    panelCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_info),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = stringResource(R.string.settings_calibration_info_message),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = pluralStringResource(
+                    R.plurals.settings_calibration_total_count,
+                    panelCount,
+                    panelCount,
+                ).uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.End),
+            )
         }
     }
 }
@@ -221,14 +268,18 @@ private fun CalibrationMonthHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(bottom = 10.dp, top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = monthLabel,
+            text = monthLabel.uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         )
         Text(
             text = panelCount.toString(),
@@ -330,22 +381,6 @@ private fun CalibrationPanelRow(
         formatCalibrationPanelValueSummary(panel)
     }
 
-//    EditorSegmentedListItem(
-//        index = index,
-//        count = count,
-//        onClick = onClick,
-//        leadingContent = {
-//            CalibrationPanelDateTimeColumn(
-//                labels = dateTimeLabels,
-//            )
-//        }
-//    ) {
-//        CalibrationPanelResultSummaryColumn(
-//            panel = panel,
-//            valueSummary = valueSummary,
-//        )
-//    }
-
     var dateTimeColumnWidth by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
 
@@ -403,7 +438,7 @@ private fun CalibrationPanelRow(
                         )
                 ) {
                     VerticalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
                 }
             }
