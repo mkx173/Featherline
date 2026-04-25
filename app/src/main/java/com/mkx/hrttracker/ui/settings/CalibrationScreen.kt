@@ -441,8 +441,12 @@ private fun CalibrationPanelResultSummaryColumn(
         valueSummary.mainResultSummary?.let { mainResultSummary ->
             CalibrationPanelResultSummaryRow(resultSummary = mainResultSummary)
         }
+        val hasEstradiolResult = panel.results.any { result ->
+            (result.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2
+        }
         CalibrationPanelMetadataRow(
-            timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis,
+            timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis
+                ?.takeIf { hasEstradiolResult },
             remainingResultCount = valueSummary.remainingResultCount,
             hasNotes = !panel.notes.isNullOrBlank(),
         )
