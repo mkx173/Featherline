@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -46,6 +47,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -148,6 +151,7 @@ internal fun CalibrationNotesCard(
     notes: String,
     onNotesChange: (String) -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
     CalibrationEditorCard(
         modifier = Modifier.padding(bottom = 8.dp)
     ) {
@@ -159,6 +163,10 @@ internal fun CalibrationNotesCard(
                 Text(text = stringResource(R.string.settings_calibration_notes_label))
             },
             minLines = 3,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { keyboardController?.hide() }
+            ),
         )
     }
 }
