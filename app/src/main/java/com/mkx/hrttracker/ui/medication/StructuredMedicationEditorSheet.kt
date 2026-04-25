@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -49,12 +50,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -125,6 +128,7 @@ fun StructuredMedicationEditorSheet(
     }
     val doseAssistPresets = remember(draft) { draft.activeDoseAssistPresets() }
     val showsDoseWarning = remember(draft) { draft.exceedsDoseWarningThreshold() }
+    val applicationTypeButtonIcons = rememberMedicationApplicationButtonIcons()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -185,6 +189,9 @@ fun StructuredMedicationEditorSheet(
                 options = MedicationCatalog.applicationTypesFor(draft.category),
                 selectedOption = draft.applicationType,
                 optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
+                optionIcons = { applicationType ->
+                    listOf(applicationTypeButtonIcons.getValue(applicationType))
+                },
                 onOptionSelected = onApplicationTypeChange,
                 enabled = isMedicationIdentityEditable
             )
@@ -242,6 +249,12 @@ fun StructuredMedicationEditorSheet(
                     isError = fieldErrors.customName != null,
                     label = {
                         Text(text = stringResource(R.string.field_medication_name))
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Label,
+                            contentDescription = null
+                        )
                     },
                     supportingText = fieldErrors.customName?.let { errorMessageRes ->
                         {
@@ -400,10 +413,16 @@ fun StructuredMedicationEditorSheet(
                 }
 
                 MedicationDoseKind.NONE -> {
-                    Text(
-                        text = stringResource(R.string.medication_editor_patch_off_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    DoseTextField(
+                        value = "",
+                        painterRes = doseFieldPainterRes(
+                            applicationType = draft.applicationType,
+                            doseKind = draft.doseKind
+                        ),
+                        onValueChange = {},
+                        label = stringResource(R.string.field_dosage_mg),
+                        placeholder = stringResource(R.string.medication_editor_patch_off_hint),
+                        enabled = false
                     )
                 }
             }
@@ -599,15 +618,28 @@ private fun DoseTextField(
     onValueChange: (String) -> Unit,
     label: String,
     suffix: String? = null,
+    placeholder: String? = null,
     @StringRes errorMessageRes: Int? = null,
     showWarningIcon: Boolean = false,
+    enabled: Boolean = true,
 ) {
-    OutlinedTextField(
+    val resolvedValue = resolveDoseTextFieldValue(
         value = value,
+        placeholder = placeholder,
+        enabled = enabled
+    )
+    OutlinedTextField(
+        value = resolvedValue,
         onValueChange = onValueChange,
+        enabled = enabled,
         isError = errorMessageRes != null,
         label = { Text(text = label) },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        placeholder = resolveDoseTextFieldPlaceholder(
+            value = value,
+            placeholder = placeholder,
+            enabled = enabled
+        )?.let { placeholderText -> { Text(text = placeholderText) } },
         trailingIcon = if (showWarningIcon) {
             {
                 Icon(
@@ -637,6 +669,30 @@ private fun DoseTextField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     )
+}
+
+internal fun resolveDoseTextFieldValue(
+    value: String,
+    placeholder: String?,
+    enabled: Boolean,
+): String {
+    return if (!enabled && value.isEmpty() && !placeholder.isNullOrEmpty()) {
+        placeholder
+    } else {
+        value
+    }
+}
+
+internal fun resolveDoseTextFieldPlaceholder(
+    value: String,
+    placeholder: String?,
+    enabled: Boolean,
+): String? {
+    return if (enabled && value.isEmpty()) {
+        placeholder
+    } else {
+        null
+    }
 }
 
 @Composable
@@ -704,6 +760,38 @@ internal enum class GelDoseField {
     WEIGHT,
 }
 
+@Composable
+private fun rememberMedicationApplicationButtonIcons(): Map<MedicationApplicationType, ImageVector> {
+    val pillIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.ORAL))
+    val pillAltIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.SUBLINGUAL))
+    val injectionIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.INJECTION))
+    val gelIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.GEL))
+    val patchOnIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_ON))
+    val patchOffIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_OFF))
+    return remember(pillIcon, pillAltIcon, injectionIcon, gelIcon, patchOnIcon, patchOffIcon) {
+        mapOf(
+            MedicationApplicationType.ORAL to pillIcon,
+            MedicationApplicationType.SUBLINGUAL to pillAltIcon,
+            MedicationApplicationType.INJECTION to injectionIcon,
+            MedicationApplicationType.GEL to gelIcon,
+            MedicationApplicationType.PATCH_ON to patchOnIcon,
+            MedicationApplicationType.PATCH_OFF to patchOffIcon,
+        )
+    }
+}
+
+@DrawableRes
+internal fun medicationApplicationButtonIconRes(applicationType: MedicationApplicationType): Int {
+    return when (applicationType) {
+        MedicationApplicationType.ORAL -> R.drawable.ic_pill
+        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_pill_alt
+        MedicationApplicationType.INJECTION -> R.drawable.ic_syringe
+        MedicationApplicationType.GEL -> R.drawable.ic_water_drops
+        MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add
+        MedicationApplicationType.PATCH_OFF -> R.drawable.ic_tab_close_inactive
+    }
+}
+
 @DrawableRes
 internal fun doseFieldPainterRes(
     applicationType: MedicationApplicationType,
@@ -726,9 +814,9 @@ internal fun doseFieldPainterRes(
             null -> R.drawable.ic_humidity_percentage
         }
 
-        MedicationDoseKind.PATCH_TOTAL_MG -> R.drawable.ic_memory_alt
-        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> R.drawable.ic_chronic
-        MedicationDoseKind.NONE -> R.drawable.ic_medication
+        MedicationDoseKind.PATCH_TOTAL_MG -> R.drawable.ic_chronic
+        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> R.drawable.ic_speed
+        MedicationDoseKind.NONE -> R.drawable.ic_remove_selection
     }
 }
 

@@ -362,11 +362,11 @@ internal fun CalibrationAnalyteCard(
                     options = allowedUnits,
                     selectedOption = unit,
                     optionLabel = { option -> calibrationUnitLabel(option) },
-                    optionIcon = { option ->
+                    optionIcons = { option ->
                         if (option == originalUnit) {
-                            Icons.Rounded.Edit
+                            listOf(Icons.Rounded.Edit)
                         } else {
-                            null
+                            emptyList()
                         }
                     },
                     onOptionSelected = { selectedUnit ->

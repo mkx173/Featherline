@@ -192,7 +192,7 @@
     <string name="dose_type_gel_percent_and_weight">浓度和凝胶重量</string>
     <string name="dose_type_patch_total_mg">贴片总剂量</string>
     <string name="dose_type_patch_release_rate_mcg_day">释放速率</string>
-    <string name="medication_editor_patch_off_hint">移除贴片不需要填写剂量。</string>
+    <string name="medication_editor_patch_off_hint">移除贴片不需要填写剂量</string>
     <string name="validation_name_required">请输入药物名称。</string>
     <string name="validation_dose_required">请输入有效的 mg 剂量。</string>
     <string name="validation_medication_selection_required">请选择药物。</string>

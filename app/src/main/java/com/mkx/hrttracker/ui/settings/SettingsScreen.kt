@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockClock
+import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PrivacyTip
@@ -281,7 +282,7 @@ private fun SettingsScreenContent(
                     onClick = { showWeightDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_weight)
+                            icon = Icons.Rounded.MonitorWeight
                         )
                     },
                     supportingContent = {

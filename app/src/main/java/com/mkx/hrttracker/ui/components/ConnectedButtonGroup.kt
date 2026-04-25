@@ -31,7 +31,7 @@ fun <T> ConnectedButtonGroup(
     options: List<T>,
     selectedOption: T?,
     optionLabel: @Composable (T) -> String,
-    optionIcon: ((T) -> ImageVector?)? = null,
+    optionIcons: ((T) -> List<ImageVector>)? = null,
     onOptionSelected: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -44,7 +44,7 @@ fun <T> ConnectedButtonGroup(
         options = options,
         isOptionSelected = { option -> option == resolvedSelectedOption },
         optionLabel = optionLabel,
-        optionIcon = optionIcon,
+        optionIcons = optionIcons,
         onOptionToggled = { option ->
             if (option != resolvedSelectedOption) {
                 onOptionSelected(option)
@@ -64,7 +64,7 @@ fun <T> ConnectedButtonGroup(
     options: List<T>,
     selectedOptions: Set<T>,
     optionLabel: @Composable (T) -> String,
-    optionIcon: ((T) -> ImageVector?)? = null,
+    optionIcons: ((T) -> List<ImageVector>)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -76,7 +76,7 @@ fun <T> ConnectedButtonGroup(
         options = options,
         isOptionSelected = { option -> option in selectedOptions },
         optionLabel = optionLabel,
-        optionIcon = optionIcon,
+        optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         colors = colors,
@@ -92,7 +92,7 @@ private fun <T> ConnectedButtonGroup(
     options: List<T>,
     isOptionSelected: (T) -> Boolean,
     optionLabel: @Composable (T) -> String,
-    optionIcon: ((T) -> ImageVector?)? = null,
+    optionIcons: ((T) -> List<ImageVector>)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -116,7 +116,7 @@ private fun <T> ConnectedButtonGroup(
                         optionCount = options.size,
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
-                        optionIcon = optionIcon?.invoke(option),
+                        optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         colors = colors,
@@ -148,7 +148,7 @@ private fun <T> ConnectedButtonGroup(
                         optionCount = options.size,
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
-                        optionIcon = optionIcon?.invoke(option),
+                        optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         colors = colors,
@@ -168,7 +168,7 @@ private fun <T> ConnectedButtonGroupButton(
     optionCount: Int,
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
-    optionIcon: ImageVector?,
+    optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
@@ -186,7 +186,7 @@ private fun <T> ConnectedButtonGroupButton(
                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
             },
     ) {
-        optionIcon?.let { icon ->
+        optionIcons.forEach { icon ->
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -207,7 +207,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionCount: Int,
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
-    optionIcon: ImageVector?,
+    optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     colors: ToggleButtonColors,
@@ -219,7 +219,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionCount = optionCount,
         selected = selected,
         optionLabel = optionLabel,
-        optionIcon = optionIcon,
+        optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         colors = colors,

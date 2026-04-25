@@ -91,5 +91,60 @@ class StructuredMedicationEditorSheetTest {
                 doseKind = MedicationDoseKind.MG_AS_MEDICINE
             )
         )
+        assertEquals(
+            R.drawable.ic_remove_selection,
+            doseFieldPainterRes(
+                applicationType = MedicationApplicationType.PATCH_OFF,
+                doseKind = MedicationDoseKind.NONE
+            )
+        )
+    }
+
+    @Test
+    fun medicationApplicationButtonIconRes_uses_requested_icons() {
+        assertEquals(
+            R.drawable.ic_pill,
+            medicationApplicationButtonIconRes(MedicationApplicationType.ORAL)
+        )
+        assertEquals(
+            R.drawable.ic_pill,
+            medicationApplicationButtonIconRes(MedicationApplicationType.SUBLINGUAL)
+        )
+        assertEquals(
+            R.drawable.ic_syringe,
+            medicationApplicationButtonIconRes(MedicationApplicationType.INJECTION)
+        )
+        assertEquals(
+            R.drawable.ic_water_drops,
+            medicationApplicationButtonIconRes(MedicationApplicationType.GEL)
+        )
+        assertEquals(
+            R.drawable.ic_sticker_add,
+            medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_ON)
+        )
+        assertEquals(
+            R.drawable.ic_remove_selection,
+            medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_OFF)
+        )
+    }
+
+    @Test
+    fun resolveDoseTextFieldValue_uses_placeholder_as_display_text_when_disabled() {
+        assertEquals(
+            "Patch removal has no dose fields.",
+            resolveDoseTextFieldValue(
+                value = "",
+                placeholder = "Patch removal has no dose fields.",
+                enabled = false
+            )
+        )
+        assertEquals(
+            null,
+            resolveDoseTextFieldPlaceholder(
+                value = "",
+                placeholder = "Patch removal has no dose fields.",
+                enabled = false
+            )
+        )
     }
 }
