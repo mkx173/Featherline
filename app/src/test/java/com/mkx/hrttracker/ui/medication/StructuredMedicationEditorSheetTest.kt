@@ -107,7 +107,7 @@ class StructuredMedicationEditorSheetTest {
             medicationApplicationButtonIconRes(MedicationApplicationType.ORAL)
         )
         assertEquals(
-            R.drawable.ic_pill,
+            R.drawable.ic_pill_alt,
             medicationApplicationButtonIconRes(MedicationApplicationType.SUBLINGUAL)
         )
         assertEquals(
@@ -123,7 +123,7 @@ class StructuredMedicationEditorSheetTest {
             medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_ON)
         )
         assertEquals(
-            R.drawable.ic_remove_selection,
+            R.drawable.ic_tab_close_inactive,
             medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_OFF)
         )
     }

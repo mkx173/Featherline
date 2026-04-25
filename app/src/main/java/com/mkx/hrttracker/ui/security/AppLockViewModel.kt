@@ -127,7 +127,6 @@ class AppLockViewModel @Inject constructor(
             id = ++nextPromptId,
             titleRes = R.string.unlock_app_prompt_title,
             subtitleRes = R.string.unlock_app_prompt_subtitle,
-            descriptionRes = R.string.unlock_app_prompt_description
         )
     }
 

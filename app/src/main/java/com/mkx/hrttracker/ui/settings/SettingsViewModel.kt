@@ -121,7 +121,6 @@ class SettingsViewModel @Inject constructor(
                 id = ++nextPromptId,
                 titleRes = R.string.enable_screen_lock_prompt_title,
                 subtitleRes = R.string.enable_screen_lock_prompt_subtitle,
-                descriptionRes = R.string.enable_screen_lock_prompt_description
             )
             return
         }

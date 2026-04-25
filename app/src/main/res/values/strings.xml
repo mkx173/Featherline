@@ -354,11 +354,9 @@
     <string name="app_lock_grace_period_15_minutes">15 minutes</string>
     <string name="app_lock_grace_period_30_minutes">30 minutes</string>
     <string name="enable_screen_lock_prompt_title">Enable app lock</string>
-    <string name="enable_screen_lock_prompt_subtitle">Verify your identity to protect local data.</string>
-    <string name="enable_screen_lock_prompt_description">This uses your device biometrics or screen lock credentials.</string>
-    <string name="unlock_app_prompt_title">Unlock HRT Tracker</string>
+    <string name="enable_screen_lock_prompt_subtitle">Verify your identity to enable app lock.</string>
+    <string name="unlock_app_prompt_title">Unlock the app</string>
     <string name="unlock_app_prompt_subtitle">Verify your identity to open the app.</string>
-    <string name="unlock_app_prompt_description">Use biometrics or your device screen lock credentials.</string>
     <string name="app_lock_title">App locked</string>
     <string name="app_lock_body">Unlock the app to access your medication history.</string>
     <string name="app_lock_unlock">Unlock</string>
