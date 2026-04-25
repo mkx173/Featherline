@@ -263,7 +263,6 @@
     <string name="settings_calibration_add_result">Add blood test result</string>
     <string name="settings_calibration_edit_result">Edit blood test result</string>
     <string name="settings_calibration_empty_state">No blood test results yet.</string>
-    <string name="settings_calibration_row_meta">%1$s · %2$s</string>
     <string name="settings_calibration_last_e2_elapsed">Drawn %1$s after last E2 dose.</string>
     <string name="settings_calibration_entry_title">Add result</string>
     <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
@@ -289,6 +288,10 @@
     <plurals name="settings_calibration_extra_entries">
         <item quantity="one">+%1$d entry</item>
         <item quantity="other">+%1$d entries</item>
+    </plurals>
+    <plurals name="settings_calibration_total_count">
+        <item quantity="one">%1$d calibration total</item>
+        <item quantity="other">%1$d calibrations total</item>
     </plurals>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>

@@ -23,6 +23,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -161,6 +165,61 @@ class CalibrationViewModelTest {
         assertEquals("T: 31.7 ng/dL", summary.mainResultSummary)
         assertEquals(null, summary.testosteroneResultSummary)
         assertEquals(1, summary.remainingResultCount)
+    }
+
+    @Test
+    fun groupCalibrationPanelsByMonth_usesLocalDateAndPreservesPanelOrder() {
+        val formatter = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH)
+        val localZoneId = ZoneId.of("UTC")
+        val localAprilPanel = testBloodTestPanel(
+            uuid = UUID.fromString("fdc5a64f-3b29-4676-8d51-37976eb07b1d"),
+            collectedAt = Instant.parse("2026-04-01T06:30:00Z"),
+            collectedAtTimeZoneId = "America/Los_Angeles",
+        )
+        val localMarchPanel = testBloodTestPanel(
+            uuid = UUID.fromString("1bd6b492-7670-4912-b625-7f06006e3797"),
+            collectedAt = Instant.parse("2026-03-31T15:30:00Z"),
+            collectedAtTimeZoneId = "Asia/Tokyo",
+        )
+        val utcMarchPanel = testBloodTestPanel(
+            uuid = UUID.fromString("3981dbac-4620-478e-af2f-60e352ba4319"),
+            collectedAt = Instant.parse("2026-03-15T00:00:00Z"),
+            collectedAtTimeZoneId = "UTC",
+        )
+
+        val groups = groupCalibrationPanelsByMonth(
+            panels = listOf(localAprilPanel, localMarchPanel, utcMarchPanel),
+            monthFormatter = formatter,
+            zoneId = localZoneId,
+        )
+
+        assertEquals(2, groups.size)
+        assertEquals(YearMonth.of(2026, 4), groups[0].yearMonth)
+        assertEquals("April 2026", groups[0].monthLabel)
+        assertEquals(listOf(localAprilPanel.uuid), groups[0].panels.map(BloodTestPanel::uuid))
+        assertEquals(YearMonth.of(2026, 3), groups[1].yearMonth)
+        assertEquals("March 2026", groups[1].monthLabel)
+        assertEquals(
+            listOf(localMarchPanel.uuid, utcMarchPanel.uuid),
+            groups[1].panels.map(BloodTestPanel::uuid),
+        )
+    }
+
+    @Test
+    fun formatCalibrationPanelCollectedAtLabel_usesLocalDateTime() {
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ENGLISH)
+        val panel = testBloodTestPanel(
+            collectedAt = Instant.parse("2026-04-01T06:30:00Z"),
+            collectedAtTimeZoneId = "America/Los_Angeles",
+        )
+
+        val label = formatCalibrationPanelCollectedAtLabel(
+            panel = panel,
+            dateTimeFormatter = formatter,
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals("2026-04-01 06:30", label)
     }
 }
 

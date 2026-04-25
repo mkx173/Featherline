@@ -50,6 +50,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Duration
 import java.time.Instant
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -71,10 +72,14 @@ fun CalibrationScreen(
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
             .withLocale(appLocale)
     }
+    val monthFormatter = remember(appLocale) {
+        calibrationMonthHeaderFormatter(appLocale)
+    }
 
     CalibrationScreenContent(
         uiState = uiState,
         dateTimeFormatter = dateTimeFormatter,
+        monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
         onAddClick = onAddClick,
         onPanelClick = onPanelClick,
@@ -87,11 +92,16 @@ fun CalibrationScreen(
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
     dateTimeFormatter: DateTimeFormatter,
+    monthFormatter: DateTimeFormatter,
     onNavigateBack: () -> Unit,
     onAddClick: () -> Unit,
     onPanelClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val monthGroups = remember(uiState.panels, monthFormatter) {
+        groupCalibrationPanelsByMonth(uiState.panels, monthFormatter)
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -141,18 +151,87 @@ private fun CalibrationScreenContent(
                 contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             ) {
-                items(
-                    items = uiState.panels,
-                    key = { panel -> panel.uuid },
-                ) { panel ->
-                    CalibrationPanelRow(
-                        panel = panel,
-                        dateTimeFormatter = dateTimeFormatter,
-                        onClick = { onPanelClick(panel.uuid) },
-                    )
+                if (uiState.panels.isNotEmpty()) {
+                    item(key = "calibration-total") {
+                        Text(
+                            text = pluralStringResource(
+                                R.plurals.settings_calibration_total_count,
+                                uiState.panels.size,
+                                uiState.panels.size,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    monthGroups.forEach { monthGroup ->
+                        item(key = "month-${monthGroup.yearMonth}") {
+                            CalibrationMonthHeader(monthLabel = monthGroup.monthLabel)
+                        }
+
+                        items(
+                            items = monthGroup.panels,
+                            key = { panel -> panel.uuid },
+                        ) { panel ->
+                            CalibrationPanelRow(
+                                panel = panel,
+                                dateTimeFormatter = dateTimeFormatter,
+                                onClick = { onPanelClick(panel.uuid) },
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CalibrationMonthHeader(
+    monthLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = monthLabel,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    )
+}
+
+internal data class CalibrationPanelMonthGroup(
+    val yearMonth: YearMonth,
+    val monthLabel: String,
+    val panels: List<BloodTestPanel>,
+)
+
+internal fun groupCalibrationPanelsByMonth(
+    panels: List<BloodTestPanel>,
+    monthFormatter: DateTimeFormatter,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): List<CalibrationPanelMonthGroup> {
+    val groups = linkedMapOf<YearMonth, MutableList<BloodTestPanel>>()
+    panels.forEach { panel ->
+        val yearMonth = YearMonth.from(panel.collectedAt.atZone(zoneId).toLocalDate())
+        groups.getOrPut(yearMonth) { mutableListOf() }.add(panel)
+    }
+
+    return groups.map { (yearMonth, groupedPanels) ->
+        CalibrationPanelMonthGroup(
+            yearMonth = yearMonth,
+            monthLabel = yearMonth.atDay(1).format(monthFormatter),
+            panels = groupedPanels,
+        )
+    }
+}
+
+internal fun calibrationMonthHeaderFormatter(appLocale: Locale): DateTimeFormatter {
+    return if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("yyyy年M月", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
     }
 }
 
@@ -162,11 +241,8 @@ private fun CalibrationPanelRow(
     dateTimeFormatter: DateTimeFormatter,
     onClick: () -> Unit,
 ) {
-    val zoneId = remember(panel.collectedAtTimeZoneId) {
-        ZoneId.of(panel.collectedAtTimeZoneId)
-    }
-    val collectedAtLabel = remember(panel.collectedAt, panel.collectedAtTimeZoneId, dateTimeFormatter) {
-        panel.collectedAt.atZone(zoneId).format(dateTimeFormatter)
+    val collectedAtLabel = remember(panel.collectedAt, dateTimeFormatter) {
+        formatCalibrationPanelCollectedAtLabel(panel, dateTimeFormatter)
     }
     val valueSummary = remember(panel.results) {
         formatCalibrationPanelValueSummary(panel)
@@ -184,13 +260,7 @@ private fun CalibrationPanelRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 valueSummary.mainResultSummary?.let { mainResultSummary ->
-                    Text(
-                        text = stringResource(
-                            R.string.settings_calibration_row_meta,
-                            mainResultSummary,
-                            panel.collectedAtTimeZoneId
-                        )
-                    )
+                    Text(text = mainResultSummary)
                 }
                 CalibrationPanelSecondarySummary(
                     testosteroneResultSummary = valueSummary.testosteroneResultSummary,
@@ -226,6 +296,14 @@ private fun CalibrationPanelRow(
             }
         }
     )
+}
+
+internal fun formatCalibrationPanelCollectedAtLabel(
+    panel: BloodTestPanel,
+    dateTimeFormatter: DateTimeFormatter,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String {
+    return panel.collectedAt.atZone(zoneId).format(dateTimeFormatter)
 }
 
 @Composable
@@ -493,6 +571,7 @@ private fun CalibrationScreenPreview() {
                 panels = previewCalibrationPanels()
             ),
             dateTimeFormatter = previewCalibrationDateTimeFormatter(),
+            monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
             onAddClick = { },
             onPanelClick = { },
@@ -503,6 +582,10 @@ private fun CalibrationScreenPreview() {
 private fun previewCalibrationDateTimeFormatter(): DateTimeFormatter {
     return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(Locale.ENGLISH)
+}
+
+private fun previewCalibrationMonthFormatter(): DateTimeFormatter {
+    return calibrationMonthHeaderFormatter(Locale.ENGLISH)
 }
 
 private fun previewCalibrationPanels(): List<BloodTestPanel> {

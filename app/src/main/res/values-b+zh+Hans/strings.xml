@@ -263,7 +263,6 @@
     <string name="settings_calibration_add_result">添加验血结果</string>
     <string name="settings_calibration_edit_result">编辑验血结果</string>
     <string name="settings_calibration_empty_state">还没有验血结果。</string>
-    <string name="settings_calibration_row_meta">%1$s · %2$s</string>
     <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s 后采血</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
@@ -288,6 +287,9 @@
     <string name="settings_calibration_analyte_lh">黄体生成素</string>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>
+    </plurals>
+    <plurals name="settings_calibration_total_count">
+        <item quantity="other">共 %1$d 次校准</item>
     </plurals>
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
