@@ -115,20 +115,6 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
-    fun markAnalyteFocusLost(analyteKey: BloodAnalyteKey) {
-        _uiState.update { state ->
-            state.copy(
-                drafts = state.drafts.map { draft ->
-                    if (draft.analyteKey == analyteKey) {
-                        draft.copy(hasLostFocus = true)
-                    } else {
-                        draft
-                    }
-                }
-            )
-        }
-    }
-
     fun addAnalyte(analyteKey: BloodAnalyteKey) {
         if (analyteKey !in calibrationAnalytes) {
             return
@@ -350,7 +336,6 @@ data class CalibrationResultDraftUiState(
     val resultUuid: UUID? = null,
     val valueText: String = "",
     val unit: BloodUnitKey = defaultCalibrationUnitFor(analyteKey),
-    val hasLostFocus: Boolean = false,
 )
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {
@@ -359,13 +344,6 @@ internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boo
         val trimmed = draft.valueText.trim()
         trimmed.isNotEmpty() && parseCalibrationNumericInput(trimmed) != null
     }
-}
-
-internal fun calibrationAnalyteHasError(draft: CalibrationResultDraftUiState): Boolean {
-    if (!draft.hasLostFocus) return false
-    val trimmed = draft.valueText.trim()
-    if (trimmed.isEmpty()) return false
-    return parseCalibrationNumericInput(trimmed) == null
 }
 
 internal fun calibrationAnalyteOptions(

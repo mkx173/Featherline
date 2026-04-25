@@ -306,25 +306,6 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun calibrationAnalyteHasError_onlyTriggersAfterFocusLossForInvalidInput() {
-        val baseDraft = CalibrationResultDraftUiState(analyteKey = BloodAnalyteKey.E2)
-
-        assertFalse(calibrationAnalyteHasError(baseDraft))
-        assertFalse(calibrationAnalyteHasError(baseDraft.copy(valueText = "abc")))
-        assertFalse(calibrationAnalyteHasError(baseDraft.copy(hasLostFocus = true)))
-        assertFalse(
-            calibrationAnalyteHasError(
-                baseDraft.copy(valueText = "95", hasLostFocus = true)
-            )
-        )
-        assertTrue(
-            calibrationAnalyteHasError(
-                baseDraft.copy(valueText = "abc", hasLostFocus = true)
-            )
-        )
-    }
-
-    @Test
     fun calibrationAnalyteOptions_excludesAlreadyAddedAnalytes() {
         val state = CalibrationEditorUiState(
             drafts = listOf(

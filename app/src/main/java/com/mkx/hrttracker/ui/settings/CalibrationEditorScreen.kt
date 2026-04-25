@@ -176,7 +176,6 @@ fun CalibrationEditorScreen(
         onNotesChange = viewModel::updateNotes,
         onAnalyteValueChange = viewModel::updateAnalyteValue,
         onAnalyteUnitChange = viewModel::updateAnalyteUnit,
-        onAnalyteFocusLost = viewModel::markAnalyteFocusLost,
         onRemoveAnalyteClick = viewModel::removeAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
         onDeleteClick = { isDeleteDialogVisible = true },
@@ -208,7 +207,6 @@ private fun CalibrationEditorScreenContent(
     onNotesChange: (String) -> Unit,
     onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
     onAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
-    onAnalyteFocusLost: (BloodAnalyteKey) -> Unit,
     onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
     onAddAnalyteClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -309,14 +307,12 @@ private fun CalibrationEditorScreenContent(
                         analyteKey = draft.analyteKey,
                         valueText = draft.valueText,
                         unit = draft.unit,
-                        isError = calibrationAnalyteHasError(draft),
                         onValueChange = { value ->
                             onAnalyteValueChange(draft.analyteKey, value)
                         },
                         onUnitChange = { unit ->
                             onAnalyteUnitChange(draft.analyteKey, unit)
                         },
-                        onFocusLost = { onAnalyteFocusLost(draft.analyteKey) },
                         onRemoveClick = { onRemoveAnalyteClick(draft.analyteKey) },
                     )
 
@@ -514,7 +510,6 @@ private fun CalibrationEditorScreenPreview() {
             onNotesChange = { },
             onAnalyteValueChange = { _, _ -> },
             onAnalyteUnitChange = { _, _ -> },
-            onAnalyteFocusLost = { },
             onRemoveAnalyteClick = { },
             onAddAnalyteClick = { },
             onDeleteClick = { },

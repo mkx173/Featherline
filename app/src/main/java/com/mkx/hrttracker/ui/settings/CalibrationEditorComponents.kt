@@ -180,10 +180,8 @@ internal fun CalibrationAnalyteCard(
     analyteKey: BloodAnalyteKey,
     valueText: String,
     unit: BloodUnitKey,
-    isError: Boolean,
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
-    onFocusLost: () -> Unit,
     onRemoveClick: () -> Unit,
     index: Int = 0,
     count: Int = 1,
@@ -194,11 +192,18 @@ internal fun CalibrationAnalyteCard(
     ) {
         var latchedValueText by remember(analyteKey) { mutableStateOf(valueText) }
         var latchedUnit by remember(analyteKey) { mutableStateOf(unit) }
+        var editedSinceLatch by remember(analyteKey) { mutableStateOf(false) }
         val rangeStatus = calibrationRangeStatus(
             analyteKey = analyteKey,
             valueText = latchedValueText,
             unit = latchedUnit,
         )
+        val isError = if (editedSinceLatch) {
+            false
+        } else {
+            val trimmed = latchedValueText.trim()
+            trimmed.isNotEmpty() && parseCalibrationNumericInput(trimmed) == null
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -261,7 +266,10 @@ internal fun CalibrationAnalyteCard(
             val focusManager = LocalFocusManager.current
             OutlinedTextField(
                 value = valueText,
-                onValueChange = onValueChange,
+                onValueChange = { newValue ->
+                    editedSinceLatch = true
+                    onValueChange(newValue)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { focusState ->
@@ -270,7 +278,7 @@ internal fun CalibrationAnalyteCard(
                         } else if (wasFocused) {
                             latchedValueText = valueText
                             latchedUnit = unit
-                            onFocusLost()
+                            editedSinceLatch = false
                         }
                     },
                 isError = isError,
@@ -423,10 +431,8 @@ private fun CalibrationAnalyteCardPreview() {
             analyteKey = BloodAnalyteKey.T,
             valueText = "31.7",
             unit = BloodUnitKey.NMOL_L,
-            isError = false,
             onValueChange = { },
             onUnitChange = { },
-            onFocusLost = { },
             onRemoveClick = { },
         )
     }
