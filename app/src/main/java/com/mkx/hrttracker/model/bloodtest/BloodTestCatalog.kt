@@ -21,6 +21,7 @@ enum class BloodUnitKey(val storageValue: String) {
     NG_DL("ng_dl"),
     PMOL_L("pmol_l"),
     NMOL_L("nmol_l"),
+    MIU_L("miu_l"),
     MIU_ML("miu_ml"),
     IU_L("iu_l");
 
@@ -42,6 +43,7 @@ object BloodTestCatalog {
     private const val T_NMOL_L_PER_NG_DL = 0.0347
     private const val NG_DL_PER_NG_ML = 100.0
     private const val PROG_NMOL_L_PER_NG_ML = 3.18
+    private const val PRL_MIU_L_PER_NG_ML = 21.2
 
     private val definitions: Map<BloodAnalyteKey, BloodAnalyteDefinition> = mapOf(
         BloodAnalyteKey.E2 to BloodAnalyteDefinition(
@@ -58,7 +60,7 @@ object BloodTestCatalog {
         ),
         BloodAnalyteKey.PRL to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_ML,
-            allowedUnits = setOf(BloodUnitKey.NG_ML)
+            allowedUnits = setOf(BloodUnitKey.NG_ML, BloodUnitKey.MIU_L)
         ),
         BloodAnalyteKey.FSH to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.MIU_ML,
@@ -117,6 +119,7 @@ object BloodTestCatalog {
 
             BloodAnalyteKey.PRL -> when (unit) {
                 BloodUnitKey.NG_ML -> value
+                BloodUnitKey.MIU_L -> value / PRL_MIU_L_PER_NG_ML
                 else -> unreachableUnit(analyteKey, unit)
             }
 
@@ -165,6 +168,7 @@ object BloodTestCatalog {
 
             BloodAnalyteKey.PRL -> when (unit) {
                 BloodUnitKey.NG_ML -> canonicalValue
+                BloodUnitKey.MIU_L -> canonicalValue * PRL_MIU_L_PER_NG_ML
                 else -> unreachableUnit(analyteKey, unit)
             }
 

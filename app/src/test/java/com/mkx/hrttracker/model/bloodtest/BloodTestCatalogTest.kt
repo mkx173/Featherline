@@ -49,6 +49,28 @@ class BloodTestCatalogTest {
     }
 
     @Test
+    fun toCanonical_converts_prolactin_miu_l_to_ng_ml() {
+        val canonical = BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.PRL,
+            value = 212.0,
+            unit = BloodUnitKey.MIU_L
+        )
+
+        assertEquals(10.0, canonical, 1e-6)
+    }
+
+    @Test
+    fun fromCanonical_converts_prolactin_ng_ml_to_miu_l() {
+        val value = BloodTestCatalog.fromCanonical(
+            analyteKey = BloodAnalyteKey.PRL,
+            canonicalValue = 10.0,
+            unit = BloodUnitKey.MIU_L
+        )
+
+        assertEquals(212.0, value, 1e-6)
+    }
+
+    @Test
     fun toCanonical_keeps_fsh_iu_l_value_unchanged() {
         val canonical = BloodTestCatalog.toCanonical(
             analyteKey = BloodAnalyteKey.FSH,
@@ -77,6 +99,10 @@ class BloodTestCatalogTest {
         assertEquals(
             setOf(BloodUnitKey.NG_DL, BloodUnitKey.NMOL_L, BloodUnitKey.NG_ML),
             BloodTestCatalog.definitionFor(BloodAnalyteKey.T).allowedUnits
+        )
+        assertEquals(
+            setOf(BloodUnitKey.NG_ML, BloodUnitKey.MIU_L),
+            BloodTestCatalog.definitionFor(BloodAnalyteKey.PRL).allowedUnits
         )
     }
 }

@@ -271,6 +271,7 @@ internal fun formatCalibrationUnitLabel(unitSnapshot: String): String {
         BloodUnitKey.NG_DL -> "ng/dL"
         BloodUnitKey.NMOL_L -> "nmol/L"
         BloodUnitKey.NG_ML -> "ng/mL"
+        BloodUnitKey.MIU_L -> "mIU/L"
         BloodUnitKey.MIU_ML -> "mIU/mL"
         BloodUnitKey.IU_L -> "IU/L"
         null -> unitSnapshot

@@ -460,7 +460,7 @@ private fun CalibrationAddAnalyteSheetContent(
                 count = availableAnalytes.size,
                 onClick = { onAnalyteClick(analyteKey) },
                 modifier = Modifier.fillMaxWidth(),
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 leadingContent = {
                     Icon(
                         imageVector = Icons.Rounded.WaterDrop,
@@ -475,7 +475,7 @@ private fun CalibrationAddAnalyteSheetContent(
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             ) {
