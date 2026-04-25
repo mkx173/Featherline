@@ -131,7 +131,7 @@ class CalibrationEditorViewModel @Inject constructor(
             state.copy(
                 drafts = state.drafts.map { draft ->
                     if (draft.analyteKey == analyteKey) {
-                        draft.copy(unit = unit)
+                        draft.copy(unit = unit, isUnitUserSelected = true)
                     } else {
                         draft
                     }
@@ -304,9 +304,11 @@ class CalibrationEditorViewModel @Inject constructor(
                     } else {
                         state.copy(
                             drafts = draftsWithUpdatedDefaults.map { draft ->
-                                draft.analyteKey?.let {
+                                if (draft.analyteKey != null && !draft.isUnitUserSelected) {
                                     draft.copy(unit = draft.defaultUnit)
-                                } ?: draft
+                                } else {
+                                    draft
+                                }
                             }
                         )
                     }
@@ -460,6 +462,7 @@ data class CalibrationResultDraftUiState(
     val unit: BloodUnitKey? = analyteKey?.let(::defaultCalibrationUnitFor),
     val defaultUnit: BloodUnitKey? = analyteKey?.let(::defaultCalibrationUnitFor),
     val originalUnit: BloodUnitKey? = null,
+    val isUnitUserSelected: Boolean = false,
 ) {
     val draftKey: String
         get() = analyteKey?.storageValue ?: "custom:${checkNotNull(customAnalyteUuid)}"
