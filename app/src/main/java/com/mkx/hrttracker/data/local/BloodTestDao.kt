@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BloodTestDao {
@@ -16,6 +17,15 @@ interface BloodTestDao {
         """
     )
     suspend fun getPanels(): List<BloodTestPanelWithResultsEntity>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM blood_test_panels
+        ORDER BY collectedAtInstantEpochMillis DESC
+        """
+    )
+    fun observePanels(): Flow<List<BloodTestPanelWithResultsEntity>>
 
     @Transaction
     @Query(

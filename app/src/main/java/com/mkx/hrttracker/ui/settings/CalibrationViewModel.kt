@@ -20,20 +20,11 @@ class CalibrationViewModel @Inject constructor(
     val uiState: StateFlow<CalibrationUiState> = _uiState.asStateFlow()
 
     init {
-        refresh()
-    }
-
-    fun refresh() {
         viewModelScope.launch {
-            _uiState.update { state ->
-                state.copy(isLoading = true)
-            }
-            val panels = bloodTestRepository.getPanels()
-            _uiState.update { state ->
-                state.copy(
-                    panels = panels,
-                    isLoading = false
-                )
+            bloodTestRepository.observePanels().collect { panels ->
+                _uiState.update { state ->
+                    state.copy(panels = panels, isLoading = false)
+                }
             }
         }
     }

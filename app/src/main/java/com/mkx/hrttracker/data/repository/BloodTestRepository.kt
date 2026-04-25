@@ -16,6 +16,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodTestTrendPoint
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -32,6 +34,11 @@ class BloodTestRepository @Inject constructor(
         val dao = databaseHolder.get().bloodTestDao()
         val panels = dao.getPanels()
         return mapPanels(panels = panels, dao = dao)
+    }
+
+    fun observePanels(): Flow<List<BloodTestPanel>> {
+        val dao = databaseHolder.get().bloodTestDao()
+        return dao.observePanels().map { panels -> mapPanels(panels = panels, dao = dao) }
     }
 
     suspend fun getPanel(uuid: UUID): BloodTestPanel? {

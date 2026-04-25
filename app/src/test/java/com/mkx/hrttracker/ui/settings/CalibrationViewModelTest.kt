@@ -6,11 +6,12 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
-import io.mockk.coVerify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -52,7 +53,7 @@ class CalibrationViewModelTest {
     @Test
     fun init_loads_panels_from_repository() = runTest {
         val panel = testBloodTestPanel()
-        coEvery { repository.getPanels() } returns listOf(panel)
+        every { repository.observePanels() } returns flowOf(listOf(panel))
 
         val viewModel = CalibrationViewModel(repository)
         advanceUntilIdle()
@@ -62,28 +63,25 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun refresh_reloads_latest_panels() = runTest {
+    fun ui_state_updates_when_repository_emits_new_panels() = runTest {
         val initialPanel = testBloodTestPanel(
             uuid = UUID.fromString("9c95f940-d8c3-4d04-b766-c55f0e014b58")
         )
         val updatedPanel = testBloodTestPanel(
             uuid = UUID.fromString("5d802712-bfc0-4af9-96f9-ae9c050b6af8")
         )
-        coEvery { repository.getPanels() } returnsMany listOf(
-            listOf(initialPanel),
-            listOf(updatedPanel),
-        )
+        val flow = MutableStateFlow(listOf(initialPanel))
+        every { repository.observePanels() } returns flow
 
         val viewModel = CalibrationViewModel(repository)
         advanceUntilIdle()
         assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
 
-        viewModel.refresh()
+        flow.value = listOf(updatedPanel)
         advanceUntilIdle()
 
         assertEquals(listOf(updatedPanel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
-        coVerify(exactly = 2) { repository.getPanels() }
     }
 
     @Test
