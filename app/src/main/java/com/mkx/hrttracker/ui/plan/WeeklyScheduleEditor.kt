@@ -147,9 +147,7 @@ private fun WeeklyScheduleEditorPreview() {
                 LocalDateTime.of(2026, 5, 1, 9, 30)
             ),
             appLocale = previewLocale,
-            dateFormatter = DateTimeFormatter
-                .ofLocalizedDate(FormatStyle.MEDIUM)
-                .withLocale(previewLocale),
+            dateFormatter = medicationGroupScheduleDateFormatter(previewLocale),
             timeFormatter = DateTimeFormatter
                 .ofLocalizedTime(FormatStyle.SHORT)
                 .withLocale(previewLocale),

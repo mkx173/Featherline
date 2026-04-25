@@ -308,9 +308,7 @@ private fun DailyScheduleEditorPreview() {
                 LocalDateTime.of(2026, 4, 28, 9, 0),
                 LocalDateTime.of(2026, 4, 28, 21, 30)
             ),
-            dateFormatter = DateTimeFormatter
-                .ofLocalizedDate(FormatStyle.MEDIUM)
-                .withLocale(previewLocale),
+            dateFormatter = medicationGroupScheduleDateFormatter(previewLocale),
             timeFormatter = DateTimeFormatter
                 .ofLocalizedTime(FormatStyle.SHORT)
                 .withLocale(previewLocale),

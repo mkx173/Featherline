@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
+import java.util.Locale
 
 class MedicationGroupEditorNameTest {
     @Test
@@ -75,5 +77,13 @@ class MedicationGroupEditorNameTest {
     @Test
     fun shouldShowGroupNameClearAction_returns_false_for_blank_name() {
         assertFalse(shouldShowGroupNameClearAction("   "))
+    }
+
+    @Test
+    fun medicationGroupScheduleDateFormatter_appends_weekday_after_date() {
+        assertEquals(
+            "Apr 25, 2026 Sat",
+            LocalDate.of(2026, 4, 25).format(medicationGroupScheduleDateFormatter(Locale.US))
+        )
     }
 }

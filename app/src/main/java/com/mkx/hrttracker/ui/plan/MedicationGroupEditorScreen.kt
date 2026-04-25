@@ -116,8 +116,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.time.temporal.ChronoField
 import java.util.UUID
+import java.util.Locale
 
 @Composable
 fun MedicationGroupEditorScreen(
@@ -394,7 +398,7 @@ private fun MedicationGroupEditorScreenContent(
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
     val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+        medicationGroupScheduleDateFormatter(appLocale)
     }
     val notificationSupportState = resolveNotificationSupportState(
         hasNotificationAccess = hasNotificationAccess,
@@ -930,6 +934,14 @@ internal fun medicationGroupEditorUpcomingOccurrenceLimit(
         MedicationGroupScheduleType.DAILY -> uiState.dailyTimes.size + 1
         MedicationGroupScheduleType.WEEKLY -> uiState.weeklyDaysOfWeek.size + 1
     }
+}
+
+internal fun medicationGroupScheduleDateFormatter(locale: Locale): DateTimeFormatter {
+    return DateTimeFormatterBuilder()
+        .appendLocalized(FormatStyle.MEDIUM, null)
+        .appendLiteral(' ')
+        .appendText(ChronoField.DAY_OF_WEEK, TextStyle.SHORT)
+        .toFormatter(locale)
 }
 
 private data class DailyTimeEditRequest(
