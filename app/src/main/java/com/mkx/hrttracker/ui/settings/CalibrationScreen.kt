@@ -169,7 +169,10 @@ private fun CalibrationScreenContent(
 
                     monthGroups.forEach { monthGroup ->
                         item(key = "month-${monthGroup.yearMonth}") {
-                            CalibrationMonthHeader(monthLabel = monthGroup.monthLabel)
+                            CalibrationMonthHeader(
+                                monthLabel = monthGroup.monthLabel,
+                                panelCount = monthGroup.panels.size,
+                            )
                         }
 
                         itemsIndexed(
@@ -194,16 +197,28 @@ private fun CalibrationScreenContent(
 @Composable
 private fun CalibrationMonthHeader(
     monthLabel: String,
+    panelCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    Text(
-        text = monthLabel,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = 4.dp),
-    )
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = monthLabel,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = panelCount.toString(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
 }
 
 internal data class CalibrationPanelMonthGroup(
@@ -361,26 +376,68 @@ private fun CalibrationPanelResultSummaryColumn(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         valueSummary.mainResultSummary?.let { mainResultSummary ->
-            Text(
-                text = mainResultSummary,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            CalibrationPanelResultSummaryRow(
+                resultSummary = mainResultSummary,
+                isPrimary = true,
             )
         }
         valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
-            Text(
-                text = testosteroneResultSummary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            CalibrationPanelResultSummaryRow(
+                resultSummary = testosteroneResultSummary,
+                isPrimary = false,
             )
         }
         CalibrationPanelMetadataRow(
             timeSinceLastEstradiolDoseMillis = panel.timeSinceLastEstradiolDoseMillis,
             remainingResultCount = valueSummary.remainingResultCount,
             hasNotes = !panel.notes.isNullOrBlank(),
+        )
+    }
+}
+
+@Composable
+private fun CalibrationPanelResultSummaryRow(
+    resultSummary: CalibrationPanelResultSummary,
+    isPrimary: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val valueStyle = if (isPrimary) {
+        MaterialTheme.typography.bodyLarge
+    } else {
+        MaterialTheme.typography.bodyMedium
+    }
+    val valueColor = if (isPrimary) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = resultSummary.abbreviation,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.widthIn(min = 28.dp),
+        )
+        Text(
+            text = resultSummary.value,
+            style = valueStyle,
+            color = valueColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(
+            text = resultSummary.unit,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -450,9 +507,15 @@ private fun CalibrationPanelElapsedEstradiolDoseLabel(
     }
 }
 
+internal data class CalibrationPanelResultSummary(
+    val abbreviation: String,
+    val value: String,
+    val unit: String,
+)
+
 internal data class CalibrationPanelValueSummary(
-    val mainResultSummary: String?,
-    val testosteroneResultSummary: String?,
+    val mainResultSummary: CalibrationPanelResultSummary?,
+    val testosteroneResultSummary: CalibrationPanelResultSummary?,
     val remainingResultCount: Int,
 )
 
@@ -482,7 +545,7 @@ internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): Calibrat
     )
 }
 
-private fun formatCalibrationResultSummary(result: BloodTestResult): String {
+private fun formatCalibrationResultSummary(result: BloodTestResult): CalibrationPanelResultSummary {
     return when (val analyte = result.analyte) {
         is BloodTestResultAnalyte.Builtin -> {
             formatCalibrationBuiltinResultSummary(
@@ -492,7 +555,11 @@ private fun formatCalibrationResultSummary(result: BloodTestResult): String {
         }
 
         is BloodTestResultAnalyte.Custom -> {
-            "${analyte.name ?: "Custom"}: ${formatCalibrationNumericValue(result.value)} ${formatCalibrationUnitLabel(result.unitSnapshot)}"
+            CalibrationPanelResultSummary(
+                abbreviation = analyte.name ?: "Custom",
+                value = formatCalibrationNumericValue(result.value),
+                unit = formatCalibrationUnitLabel(result.unitSnapshot),
+            )
         }
     }
 }
@@ -515,10 +582,12 @@ internal fun calibrationAnalyteFullNameRes(analyteKey: BloodAnalyteKey): Int {
 internal fun formatCalibrationBuiltinResultSummary(
     analyteKey: BloodAnalyteKey,
     canonicalValue: Double,
-): String {
-    return "${calibrationAnalyteLabel(analyteKey)}: ${formatCalibrationNumericValue(canonicalValue)} ${
-        calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey))
-    }"
+): CalibrationPanelResultSummary {
+    return CalibrationPanelResultSummary(
+        abbreviation = calibrationAnalyteLabel(analyteKey),
+        value = formatCalibrationNumericValue(canonicalValue),
+        unit = calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey)),
+    )
 }
 
 internal fun calibrationUnitLabelFor(analyteKey: BloodAnalyteKey): String {

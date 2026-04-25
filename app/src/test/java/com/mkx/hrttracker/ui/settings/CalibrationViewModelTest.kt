@@ -127,8 +127,14 @@ class CalibrationViewModelTest {
 
         val summary = formatCalibrationPanelValueSummary(panel)
 
-        assertEquals("E2: 95 pg/mL", summary.mainResultSummary)
-        assertEquals("T: 31.7 ng/dL", summary.testosteroneResultSummary)
+        assertEquals(
+            CalibrationPanelResultSummary(abbreviation = "E2", value = "95", unit = "pg/mL"),
+            summary.mainResultSummary,
+        )
+        assertEquals(
+            CalibrationPanelResultSummary(abbreviation = "T", value = "31.7", unit = "ng/dL"),
+            summary.testosteroneResultSummary,
+        )
         assertEquals(1, summary.remainingResultCount)
     }
 
@@ -162,7 +168,10 @@ class CalibrationViewModelTest {
 
         val summary = formatCalibrationPanelValueSummary(panel)
 
-        assertEquals("T: 31.7 ng/dL", summary.mainResultSummary)
+        assertEquals(
+            CalibrationPanelResultSummary(abbreviation = "T", value = "31.7", unit = "ng/dL"),
+            summary.mainResultSummary,
+        )
         assertEquals(null, summary.testosteroneResultSummary)
         assertEquals(1, summary.remainingResultCount)
     }
