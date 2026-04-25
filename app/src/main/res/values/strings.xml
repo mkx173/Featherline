@@ -260,6 +260,7 @@
     <string name="settings_hide_screen_content_summary">Hide app content in recents and screenshots.</string>
     <string name="settings_personalization">Personalization</string>
     <string name="settings_personalization_calibration">Calibrations</string>
+    <string name="settings_calibration_default_units">Default units</string>
     <string name="settings_calibration_add_result">Add test result</string>
     <string name="settings_calibration_edit_result">Edit test result</string>
     <string name="settings_calibration_empty_state">No test results yet.</string>

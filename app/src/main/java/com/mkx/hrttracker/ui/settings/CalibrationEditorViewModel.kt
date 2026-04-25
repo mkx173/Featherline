@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -12,10 +13,13 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -26,7 +30,7 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
-private val calibrationAnalytes = listOf(
+internal val calibrationAnalytes = listOf(
     BloodAnalyteKey.E2,
     BloodAnalyteKey.T,
     BloodAnalyteKey.PROG,
@@ -35,7 +39,7 @@ private val calibrationAnalytes = listOf(
     BloodAnalyteKey.LH,
 )
 
-private val defaultCalibrationAnalytes = listOf(
+internal val defaultCalibrationAnalytes = listOf(
     BloodAnalyteKey.E2,
     BloodAnalyteKey.T,
 )
@@ -44,12 +48,14 @@ private val defaultCalibrationAnalytes = listOf(
 class CalibrationEditorViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val editingPanelUuid = savedStateHandle.get<String>(PANEL_ID_ARG)?.let { panelId ->
         runCatching { UUID.fromString(panelId) }.getOrNull()
     }
     private val defaultZoneId = ZoneId.systemDefault()
+    private var latestSettingsState = SettingsState()
     private val _uiState = MutableStateFlow(
         CalibrationEditorUiState(
             panelUuid = editingPanelUuid?.toString(),
@@ -62,6 +68,7 @@ class CalibrationEditorViewModel @Inject constructor(
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
     init {
+        observeCalibrationDefaultUnits()
         refreshTimeSinceLastEstradiolDose()
         editingPanelUuid?.let(::loadPanelForEditing)
     }
@@ -125,7 +132,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 state.copy(
                     drafts = (state.drafts + CalibrationResultDraftUiState(
                         analyteKey = analyteKey,
-                        unit = defaultCalibrationUnitFor(analyteKey),
+                        unit = defaultCalibrationUnitFor(analyteKey, latestSettingsState),
                     )).sortedBy(::calibrationAnalyteSortIndex)
                 )
             }
@@ -224,6 +231,36 @@ class CalibrationEditorViewModel @Inject constructor(
         }
     }
 
+    private fun observeCalibrationDefaultUnits() {
+        viewModelScope.launch {
+            settingsRepository.settingsState.collect { settingsState ->
+                latestSettingsState = settingsState
+                _uiState.update { state ->
+                    if (
+                        state.isEditing ||
+                        state.notes.isNotBlank() ||
+                        state.drafts.any { draft ->
+                            draft.resultUuid != null || draft.valueText.isNotBlank()
+                        }
+                    ) {
+                        state
+                    } else {
+                        state.copy(
+                            drafts = state.drafts.map { draft ->
+                                draft.copy(
+                                    unit = defaultCalibrationUnitFor(
+                                        draft.analyteKey,
+                                        settingsState,
+                                    )
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private fun loadPanelForEditing(panelUuid: UUID) {
         viewModelScope.launch {
             val panel = bloodTestRepository.getPanel(panelUuid)
@@ -286,7 +323,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 resultUuid = result.uuid,
                 valueText = formatCalibrationNumericValue(result.value),
                 unit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
-                    ?: defaultCalibrationUnitFor(analyte.key),
+                    ?: defaultCalibrationUnitFor(analyte.key, latestSettingsState),
             )
         }.sortedBy(::calibrationAnalyteSortIndex)
 
@@ -346,12 +383,16 @@ internal fun calibrationAnalyteOptions(
 }
 
 internal fun calibrationAllowedUnitsFor(analyteKey: BloodAnalyteKey): List<BloodUnitKey> {
+    val canonicalUnit = BloodTestCatalog.canonicalUnitFor(analyteKey)
     return BloodTestCatalog.definitionFor(analyteKey).allowedUnits
-        .sortedBy(BloodUnitKey::ordinal)
+        .sortedWith(compareBy<BloodUnitKey>({ it != canonicalUnit }, BloodUnitKey::ordinal))
 }
 
-internal fun defaultCalibrationUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
-    return calibrationAllowedUnitsFor(analyteKey).first()
+internal fun defaultCalibrationUnitFor(
+    analyteKey: BloodAnalyteKey,
+    settingsState: SettingsState = SettingsState(),
+): BloodUnitKey {
+    return settingsState.calibrationDefaultUnitFor(analyteKey)
 }
 
 private fun calibrationAnalyteSortIndex(

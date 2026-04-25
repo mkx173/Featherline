@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.settings
 import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
@@ -14,12 +15,15 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -44,12 +48,16 @@ import java.util.UUID
 class CalibrationEditorViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        settingsStateFlow = MutableStateFlow(SettingsState())
+        every { settingsRepository.settingsState } returns settingsStateFlow
     }
 
     @After
@@ -89,6 +97,7 @@ class CalibrationEditorViewModelTest {
         val viewModel = CalibrationEditorViewModel(
             repository,
             medicationLogRepository,
+            settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             )
@@ -135,6 +144,7 @@ class CalibrationEditorViewModelTest {
         val viewModel = CalibrationEditorViewModel(
             repository,
             medicationLogRepository,
+            settingsRepository,
             SavedStateHandle()
         )
         advanceUntilIdle()
@@ -197,6 +207,7 @@ class CalibrationEditorViewModelTest {
         val viewModel = CalibrationEditorViewModel(
             repository,
             medicationLogRepository,
+            settingsRepository,
             SavedStateHandle()
         )
         advanceUntilIdle()
@@ -220,6 +231,7 @@ class CalibrationEditorViewModelTest {
         val viewModel = CalibrationEditorViewModel(
             repository,
             medicationLogRepository,
+            settingsRepository,
             SavedStateHandle(
                 mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
             )
@@ -239,6 +251,7 @@ class CalibrationEditorViewModelTest {
         val viewModel = CalibrationEditorViewModel(
             repository,
             medicationLogRepository,
+            settingsRepository,
             SavedStateHandle()
         )
         advanceUntilIdle()
@@ -268,6 +281,27 @@ class CalibrationEditorViewModelTest {
             Duration.ofHours(9).plusMinutes(30).toMillis(),
             viewModel.uiState.value.timeSinceLastEstradiolDoseMillis
         )
+    }
+
+    @Test
+    fun init_appliesStoredDefaultUnitsToNewDrafts() = runTest {
+        settingsStateFlow.value = SettingsState(
+            calibrationDefaultUnits = mapOf(
+                BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+                BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+            )
+        )
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+
+        assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)
+        assertEquals(BloodUnitKey.NMOL_L, viewModel.uiState.value.drafts[1].unit)
     }
 
     @Test

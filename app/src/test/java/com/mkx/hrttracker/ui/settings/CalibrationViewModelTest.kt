@@ -1,11 +1,13 @@
 package com.mkx.hrttracker.ui.settings
 
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +34,15 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalibrationViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
+    private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        settingsStateFlow = MutableStateFlow(SettingsState())
+        every { settingsRepository.settingsState } returns settingsStateFlow
     }
 
     @After
@@ -59,7 +65,7 @@ class CalibrationViewModelTest {
         val panel = testBloodTestPanel()
         every { repository.observePanels() } returns flowOf(listOf(panel))
 
-        val viewModel = CalibrationViewModel(repository)
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
         advanceUntilIdle()
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
@@ -77,7 +83,7 @@ class CalibrationViewModelTest {
         val flow = MutableStateFlow(listOf(initialPanel))
         every { repository.observePanels() } returns flow
 
-        val viewModel = CalibrationViewModel(repository)
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
         advanceUntilIdle()
         assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
 
@@ -144,6 +150,59 @@ class CalibrationViewModelTest {
             summary.testosteroneResultSummary,
         )
         assertEquals(1, summary.remainingResultCount)
+    }
+
+    @Test
+    fun formatCalibrationPanelValueSummary_usesStoredDefaultUnitsForBuiltins() {
+        val panel = testBloodTestPanel(
+            results = listOf(
+                BloodTestResult(
+                    uuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
+                    value = 95.0,
+                    unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                    canonicalValue = 95.0,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("df0d4beb-21a2-4138-a52e-260306d35da5"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 1,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
+                    value = 1.1,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
+                    canonicalValue = 31.7,
+                ),
+            )
+        )
+
+        val summary = formatCalibrationPanelValueSummary(
+            panel = panel,
+            settingsState = SettingsState(
+                calibrationDefaultUnits = mapOf(
+                    BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+                    BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+                )
+            ),
+        )
+
+        assertEquals(
+            CalibrationPanelResultSummary.Builtin(
+                analyteKey = BloodAnalyteKey.E2,
+                value = "348.7",
+                unit = "pmol/L",
+            ),
+            summary.mainResultSummary,
+        )
+        assertEquals(
+            CalibrationPanelResultSummary.Builtin(
+                analyteKey = BloodAnalyteKey.T,
+                value = "1.1",
+                unit = "nmol/L",
+            ),
+            summary.testosteroneResultSummary,
+        )
     }
 
     @Test

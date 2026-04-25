@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.core.os.LocaleListCompat
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -37,6 +40,9 @@ class SettingsRepository @Inject constructor(
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
+    private val calibrationDefaultUnitKeys = BloodAnalyteKey.entries.associateWith { analyteKey ->
+        stringPreferencesKey("calibration_default_unit_${analyteKey.storageValue}")
+    }
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
@@ -75,6 +81,24 @@ class SettingsRepository @Inject constructor(
     suspend fun setAdaptiveColorEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[adaptiveColorKey] = enabled
+        }
+    }
+
+    suspend fun setCalibrationDefaultUnit(
+        analyteKey: BloodAnalyteKey,
+        unit: BloodUnitKey,
+    ) {
+        require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
+            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
+        }
+
+        context.dataStore.edit { preferences ->
+            val key = calibrationDefaultUnitKeys.getValue(analyteKey)
+            if (unit == BloodTestCatalog.canonicalUnitFor(analyteKey)) {
+                preferences.remove(key)
+            } else {
+                preferences[key] = unit.storageValue
+            }
         }
     }
 
@@ -121,6 +145,12 @@ class SettingsRepository @Inject constructor(
         return SettingsState(
             darkModeOption = DarkModeOption.fromStorageValue(preferences[darkModeKey]),
             adaptiveColorEnabled = preferences[adaptiveColorKey] ?: true,
+            calibrationDefaultUnits = BloodAnalyteKey.entries.mapNotNull { analyteKey ->
+                preferences[calibrationDefaultUnitKeys.getValue(analyteKey)]
+                    ?.let(BloodUnitKey::fromStorageValue)
+                    ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
+                    ?.let { unit -> analyteKey to unit }
+            }.toMap(),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
                 preferences[appLockGracePeriodKey]

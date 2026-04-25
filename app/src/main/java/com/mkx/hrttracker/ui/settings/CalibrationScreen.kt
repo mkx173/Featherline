@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Water
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -70,6 +71,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -86,6 +88,7 @@ import java.util.UUID
 @Composable
 fun CalibrationScreen(
     onNavigateBack: () -> Unit,
+    onUnitsClick: () -> Unit,
     onAddClick: () -> Unit,
     onPanelClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
@@ -105,6 +108,7 @@ fun CalibrationScreen(
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
+        onUnitsClick = onUnitsClick,
         onAddClick = onAddClick,
         onPanelClick = onPanelClick,
         modifier = modifier,
@@ -118,6 +122,7 @@ private fun CalibrationScreenContent(
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: DateTimeFormatter,
     onNavigateBack: () -> Unit,
+    onUnitsClick: () -> Unit,
     onAddClick: () -> Unit,
     onPanelClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
@@ -139,6 +144,16 @@ private fun CalibrationScreenContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cancel),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onUnitsClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = stringResource(
+                                R.string.settings_calibration_default_units
+                            ),
                         )
                     }
                 }
@@ -194,6 +209,7 @@ private fun CalibrationScreenContent(
                     ) { index, panel ->
                         CalibrationPanelRow(
                             panel = panel,
+                            settingsState = uiState.settingsState,
                             dateTimeFormatters = panelDateTimeFormatters,
                             index = index,
                             count = monthGroup.panels.size,
@@ -366,6 +382,7 @@ internal fun formatCalibrationPanelDateTimeLabels(
 @Composable
 private fun CalibrationPanelRow(
     panel: BloodTestPanel,
+    settingsState: SettingsState,
     dateTimeFormatters: CalibrationPanelDateTimeFormatters,
     index: Int,
     count: Int,
@@ -377,8 +394,8 @@ private fun CalibrationPanelRow(
             dateTimeFormatters = dateTimeFormatters,
         )
     }
-    val valueSummary = remember(panel.results) {
-        formatCalibrationPanelValueSummary(panel)
+    val valueSummary = remember(panel.results, settingsState.calibrationDefaultUnits) {
+        formatCalibrationPanelValueSummary(panel, settingsState)
     }
 
     var dateTimeColumnWidth by remember { mutableIntStateOf(0) }
@@ -690,7 +707,10 @@ internal data class CalibrationPanelValueSummary(
     val remainingResultCount: Int,
 )
 
-internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): CalibrationPanelValueSummary {
+internal fun formatCalibrationPanelValueSummary(
+    panel: BloodTestPanel,
+    settingsState: SettingsState = SettingsState(),
+): CalibrationPanelValueSummary {
     val orderedResults = panel.results.sortedBy(BloodTestResult::displayOrder)
     val e2Result = orderedResults.firstOrNull { result ->
         val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
@@ -710,18 +730,26 @@ internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): Calibrat
     ).toSet()
 
     return CalibrationPanelValueSummary(
-        mainResultSummary = mainResult?.let(::formatCalibrationResultSummary),
-        testosteroneResultSummary = testosteroneResult?.let(::formatCalibrationResultSummary),
+        mainResultSummary = mainResult?.let { result ->
+            formatCalibrationResultSummary(result, settingsState)
+        },
+        testosteroneResultSummary = testosteroneResult?.let { result ->
+            formatCalibrationResultSummary(result, settingsState)
+        },
         remainingResultCount = orderedResults.count { result -> result.uuid !in displayedResultUuids },
     )
 }
 
-private fun formatCalibrationResultSummary(result: BloodTestResult): CalibrationPanelResultSummary {
+private fun formatCalibrationResultSummary(
+    result: BloodTestResult,
+    settingsState: SettingsState,
+): CalibrationPanelResultSummary {
     return when (val analyte = result.analyte) {
         is BloodTestResultAnalyte.Builtin -> {
             formatCalibrationBuiltinResultSummary(
+                result = result,
                 analyteKey = analyte.key,
-                canonicalValue = result.canonicalValue,
+                preferredUnit = defaultCalibrationUnitFor(analyte.key, settingsState),
             )
         }
 
@@ -751,18 +779,38 @@ internal fun calibrationAnalyteFullNameRes(analyteKey: BloodAnalyteKey): Int {
 }
 
 internal fun formatCalibrationBuiltinResultSummary(
+    result: BloodTestResult,
     analyteKey: BloodAnalyteKey,
-    canonicalValue: Double,
+    preferredUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(analyteKey),
 ): CalibrationPanelResultSummary.Builtin {
+    val storedUnit = BloodUnitKey.fromStorageValue(result.unitSnapshot)
+    val displayValue = if (storedUnit == preferredUnit) {
+        result.value
+    } else {
+        BloodTestCatalog.fromCanonical(
+            analyteKey = analyteKey,
+            canonicalValue = result.canonicalValue,
+            unit = preferredUnit,
+        )
+    }
     return CalibrationPanelResultSummary.Builtin(
         analyteKey = analyteKey,
-        value = formatCalibrationNumericValue(canonicalValue),
-        unit = calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey)),
+        value = if (storedUnit == preferredUnit) {
+            formatCalibrationNumericValue(displayValue)
+        } else {
+            formatCalibrationConvertedValue(displayValue)
+        },
+        unit = calibrationUnitLabel(preferredUnit),
     )
 }
 
-internal fun calibrationUnitLabelFor(analyteKey: BloodAnalyteKey): String {
-    return formatCalibrationUnitLabel(defaultCalibrationUnitFor(analyteKey).storageValue)
+internal fun calibrationUnitLabelFor(
+    analyteKey: BloodAnalyteKey,
+    settingsState: SettingsState = SettingsState(),
+): String {
+    return formatCalibrationUnitLabel(
+        defaultCalibrationUnitFor(analyteKey, settingsState).storageValue
+    )
 }
 
 internal fun calibrationUnitLabel(unit: BloodUnitKey): String {
@@ -789,6 +837,15 @@ internal fun formatCalibrationNumericValue(value: Double): String {
     } else {
         value.toString()
     }
+}
+
+private fun formatCalibrationConvertedValue(value: Double): String {
+    val roundedValue = when {
+        value >= 100.0 -> kotlin.math.round(value * 10.0) / 10.0
+        value >= 1.0 -> kotlin.math.round(value * 100.0) / 100.0
+        else -> kotlin.math.round(value * 1000.0) / 1000.0
+    }
+    return formatCalibrationNumericValue(roundedValue)
 }
 
 private sealed interface CalibrationCanonicalTarget {
@@ -906,11 +963,18 @@ private fun CalibrationScreenPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationScreenContent(
             uiState = CalibrationUiState(
-                panels = previewCalibrationPanels()
+                panels = previewCalibrationPanels(),
+                settingsState = SettingsState(
+                    calibrationDefaultUnits = mapOf(
+                        BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+                        BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+                    )
+                ),
             ),
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
+            onUnitsClick = { },
             onAddClick = { },
             onPanelClick = { },
         )
@@ -927,6 +991,12 @@ private fun CalibrationPanelRowPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         CalibrationPanelRow(
             panel = previewCalibrationPanels().first(),
+            settingsState = SettingsState(
+                calibrationDefaultUnits = mapOf(
+                    BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
+                    BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
+                )
+            ),
             dateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             index = 0,
             count = 1,

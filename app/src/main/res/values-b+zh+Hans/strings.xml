@@ -260,6 +260,7 @@
     <string name="settings_hide_screen_content_summary">在最近任务和截屏中隐藏应用内容</string>
     <string name="settings_personalization">个性化</string>
     <string name="settings_personalization_calibration">校准</string>
+    <string name="settings_calibration_default_units">默认单位</string>
     <string name="settings_calibration_add_result">添加检查结果</string>
     <string name="settings_calibration_edit_result">编辑检查结果</string>
     <string name="settings_calibration_empty_state">还没有检查结果</string>

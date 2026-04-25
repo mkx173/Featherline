@@ -55,6 +55,7 @@ import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.settings.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.settings.CalibrationScreen
+import com.mkx.hrttracker.ui.settings.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.time.LocalDateTime
 import java.util.UUID
@@ -69,6 +70,18 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.settings_personalization_calibration
     ) {
         const val baseRoute = "settings_calibration"
+
+        fun createRoute(
+            topLevelParentRoute: String,
+        ): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+    data object SettingsCalibrationUnits : Screen(
+        "settings_calibration_units?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.settings_calibration_default_units
+    ) {
+        const val baseRoute = "settings_calibration_units"
 
         fun createRoute(
             topLevelParentRoute: String,
@@ -328,6 +341,11 @@ fun HrtTrackerNavHost(
                 CalibrationScreen(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
+                    onUnitsClick = {
+                        navController.navigate(
+                            Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
+                        )
+                    },
                     onAddClick = {
                         navController.navigate(
                             Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
@@ -341,6 +359,20 @@ fun HrtTrackerNavHost(
                             )
                         )
                     }
+                )
+            }
+            composable(
+                route = Screen.SettingsCalibrationUnits.route,
+                arguments = listOf(
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Settings.route
+                    }
+                )
+            ) {
+                CalibrationUnitsScreen(
+                    modifier = modifier.padding(innerPadding),
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(

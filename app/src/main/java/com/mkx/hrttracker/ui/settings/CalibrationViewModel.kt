@@ -3,35 +3,40 @@ package com.mkx.hrttracker.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
+import com.mkx.hrttracker.model.settings.SettingsState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class CalibrationViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(CalibrationUiState(isLoading = true))
-    val uiState: StateFlow<CalibrationUiState> = _uiState.asStateFlow()
-
-    init {
-        viewModelScope.launch {
-            bloodTestRepository.observePanels().collect { panels ->
-                _uiState.update { state ->
-                    state.copy(panels = panels, isLoading = false)
-                }
-            }
-        }
-    }
+    val uiState: StateFlow<CalibrationUiState> = combine(
+        bloodTestRepository.observePanels(),
+        settingsRepository.settingsState,
+    ) { panels, settingsState ->
+        CalibrationUiState(
+            panels = panels,
+            settingsState = settingsState,
+            isLoading = false,
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = CalibrationUiState(isLoading = true),
+    )
 }
 
 data class CalibrationUiState(
     val panels: List<BloodTestPanel> = emptyList(),
+    val settingsState: SettingsState = SettingsState(),
     val isLoading: Boolean = false,
 )
 

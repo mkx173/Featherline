@@ -4,6 +4,9 @@ import android.app.UiModeManager
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import java.util.Locale
 
 enum class DarkModeOption(
@@ -104,9 +107,16 @@ data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val remindersEnabled: Boolean = true,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
         AppLockGracePeriodOption.IMMEDIATELY,
     val hideScreenContentEnabled: Boolean = false,
 )
+
+fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
+    return calibrationDefaultUnits[analyteKey]
+        ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
+        ?: BloodTestCatalog.canonicalUnitFor(analyteKey)
+}
