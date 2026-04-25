@@ -424,17 +424,10 @@ internal fun CalibrationCustomAnalyteCard(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp),
                     )
-                    Column {
-                        Text(
-                            text = name,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = unitLabel,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                 }
 
                 CompositionLocalProvider(
@@ -471,6 +464,21 @@ internal fun CalibrationCustomAnalyteCard(
                     onDone = { focusManager.clearFocus() }
                 ),
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                ConnectedButtonGroup(
+                    modifier = Modifier.wrapContentWidth(),
+                    options = listOf(unitLabel),
+                    selectedOption = unitLabel,
+                    optionLabel = { option -> option },
+                    onOptionSelected = { },
+                    layout = ConnectedButtonGroupLayout.ROW,
+                )
+            }
         }
     }
 }
