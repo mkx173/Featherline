@@ -25,6 +25,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -38,6 +39,7 @@ internal fun WeeklyScheduleEditor(
     intervalWeeks: String,
     selectedDaysOfWeek: Set<DayOfWeek>,
     time: LocalTime,
+    previewOccurrences: List<LocalDateTime>,
     appLocale: Locale,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
@@ -46,6 +48,7 @@ internal fun WeeklyScheduleEditor(
     onDayChange: (DayOfWeek) -> Unit,
     onTimeChange: (LocalTime) -> Unit
 ) {
+    val totalCount = if (previewOccurrences.isNotEmpty()) 5 else 4
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
@@ -55,7 +58,7 @@ internal fun WeeklyScheduleEditor(
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             index = 0,
-            count = 4
+            count = totalCount
         )
 
         IntervalStepperCard(
@@ -69,12 +72,12 @@ internal fun WeeklyScheduleEditor(
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
             index = 1,
-            count = 4
+            count = totalCount
         )
 
         EditorSegmentedListItem(
             index = 2,
-            count = 4,
+            count = totalCount,
             onClick = {},
         ) {
             Column(
@@ -108,8 +111,19 @@ internal fun WeeklyScheduleEditor(
             icon = Icons.Rounded.Schedule,
             onClick = { onTimeChange(time) },
             index = 3,
-            count = 4
+            count = totalCount
         )
+
+        if (previewOccurrences.isNotEmpty()) {
+            ScheduleOccurrencesCard(
+                title = stringResource(R.string.group_schedule_preview),
+                occurrences = previewOccurrences,
+                dateFormatter = dateFormatter,
+                timeFormatter = timeFormatter,
+                index = 4,
+                count = totalCount
+            )
+        }
     }
 }
 
@@ -127,6 +141,11 @@ private fun WeeklyScheduleEditorPreview() {
                 DayOfWeek.FRIDAY
             ),
             time = LocalTime.of(9, 30),
+            previewOccurrences = listOf(
+                LocalDateTime.of(2026, 4, 27, 9, 30),
+                LocalDateTime.of(2026, 4, 29, 9, 30),
+                LocalDateTime.of(2026, 5, 1, 9, 30)
+            ),
             appLocale = previewLocale,
             dateFormatter = DateTimeFormatter
                 .ofLocalizedDate(FormatStyle.MEDIUM)

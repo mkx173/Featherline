@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -33,6 +34,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -43,6 +45,7 @@ internal fun DailyScheduleEditor(
     sinceDate: LocalDate,
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    previewOccurrences: List<LocalDateTime>,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onSinceDateChange: (LocalDate) -> Unit,
@@ -51,6 +54,7 @@ internal fun DailyScheduleEditor(
     onTimeClick: (String, LocalTime) -> Unit,
     onRemoveTime: (String) -> Unit
 ) {
+    val totalCount = if (previewOccurrences.isNotEmpty()) 4 else 3
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
@@ -60,7 +64,7 @@ internal fun DailyScheduleEditor(
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             index = 0,
-            count = 3
+            count = totalCount
         )
 
         IntervalStepperCard(
@@ -74,7 +78,7 @@ internal fun DailyScheduleEditor(
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
             index = 1,
-            count = 3
+            count = totalCount
         )
 
         DailyTimesCard(
@@ -84,8 +88,19 @@ internal fun DailyScheduleEditor(
             onTimeClick = onTimeClick,
             onRemoveTime = onRemoveTime,
             index = 2,
-            count = 3
+            count = totalCount
         )
+
+        if (previewOccurrences.isNotEmpty()) {
+            ScheduleOccurrencesCard(
+                title = stringResource(R.string.group_schedule_preview),
+                occurrences = previewOccurrences,
+                dateFormatter = dateFormatter,
+                timeFormatter = timeFormatter,
+                index = 3,
+                count = totalCount
+            )
+        }
     }
 }
 
@@ -200,6 +215,82 @@ private fun DailyTimeRow(
 
 internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount > 1
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun ScheduleOccurrencesCard(
+    title: String,
+    occurrences: List<LocalDateTime>,
+    dateFormatter: DateTimeFormatter,
+    timeFormatter: DateTimeFormatter,
+    index: Int = 0,
+    count: Int = 1
+) {
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = {},
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            modifier = Modifier.padding(bottom = 6.dp)
+        ) {
+            Text(
+                text = title.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            occurrences.forEachIndexed { occurrenceIndex, occurrence ->
+                ScheduleOccurrenceRow(
+                    formattedTime = occurrence.toLocalTime().format(timeFormatter),
+                    formattedDate = occurrence.toLocalDate().format(dateFormatter),
+                    index = occurrenceIndex,
+                    count = occurrences.size
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun ScheduleOccurrenceRow(
+    formattedTime: String,
+    formattedDate: String,
+    index: Int = 0,
+    count: Int = 1
+) {
+    SegmentedListItem(
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_calendar_clock),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        onClick = {},
+        supportingContent = {
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        shapes = segmentedListItemShapes(
+            index = index,
+            count = count,
+            cornerShape = MaterialTheme.shapes.medium,
+            pressedShape = MaterialTheme.shapes.medium
+        ),
+    ) {
+        Text(
+            text = formattedTime,
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
 @Preview(showBackground = true, widthDp = 420)
 @Composable
 private fun DailyScheduleEditorPreview() {
@@ -211,6 +302,11 @@ private fun DailyScheduleEditorPreview() {
             dailyTimes = listOf(
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)),
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(21, 30))
+            ),
+            previewOccurrences = listOf(
+                LocalDateTime.of(2026, 4, 25, 21, 30),
+                LocalDateTime.of(2026, 4, 28, 9, 0),
+                LocalDateTime.of(2026, 4, 28, 21, 30)
             ),
             dateFormatter = DateTimeFormatter
                 .ofLocalizedDate(FormatStyle.MEDIUM)
@@ -226,4 +322,3 @@ private fun DailyScheduleEditorPreview() {
         )
     }
 }
-

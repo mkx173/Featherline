@@ -149,6 +149,7 @@
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>
     <string name="group_schedule_times_with_count">Times of day · %d</string>
+    <string name="group_schedule_preview">Preview</string>
     <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
     <string name="group_medication_duplicate_merged">That medication is already in the group. Increased its count instead.</string>

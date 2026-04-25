@@ -619,7 +619,7 @@ private fun SettingsScreenContent(
                     onClick = { },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_settings_backup)
+                            painter = painterResource(R.drawable.ic_settings_backup_restore)
                         )
                     },
                     trailingContent = {

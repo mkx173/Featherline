@@ -84,9 +84,11 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.components.AddChip
@@ -111,6 +113,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -373,6 +376,7 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
+    occurrenceReferenceTime: LocalDateTime? = null,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -414,6 +418,24 @@ private fun MedicationGroupEditorScreenContent(
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
         !uiState.isSaving &&
         !uiState.isDeleting
+    val resolvedOccurrenceReferenceTime = remember(occurrenceReferenceTime) {
+        occurrenceReferenceTime ?: LocalDateTime.now().withSecond(0).withNano(0)
+    }
+    val upcomingOccurrences = remember(
+        uiState.scheduleType,
+        uiState.sinceDate,
+        uiState.weeklyIntervalWeeks,
+        uiState.weeklyDaysOfWeek,
+        uiState.weeklyTime,
+        uiState.dailyIntervalDays,
+        uiState.dailyTimes,
+        resolvedOccurrenceReferenceTime
+    ) {
+        buildMedicationGroupEditorUpcomingOccurrences(
+            uiState = uiState,
+            start = resolvedOccurrenceReferenceTime
+        )
+    }
 
     LaunchedEffect(uiState.isMedicationEditorSaved, medicationEditorInfoMessage) {
         if (uiState.isMedicationEditorSaved) {
@@ -719,6 +741,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalWeeks = uiState.weeklyIntervalWeeks,
                             selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
                             time = uiState.weeklyTime,
+                            previewOccurrences = upcomingOccurrences,
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
@@ -732,6 +755,7 @@ private fun MedicationGroupEditorScreenContent(
                             sinceDate = uiState.sinceDate,
                             intervalDays = uiState.dailyIntervalDays,
                             dailyTimes = uiState.dailyTimes,
+                            previewOccurrences = upcomingOccurrences,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
@@ -868,6 +892,43 @@ private fun MedicationGroupEditorScreenContent(
             errorMessageRes = uiState.medicationEditorErrorMessageRes,
             onConfirm = onSaveMedicationClick
         )
+    }
+}
+
+internal fun buildMedicationGroupEditorUpcomingOccurrences(
+    uiState: MedicationGroupEditorUiState,
+    start: LocalDateTime
+): List<LocalDateTime> {
+    val schedule = MedicationGroupSchedule(
+        type = uiState.scheduleType,
+        interval = when (uiState.scheduleType) {
+            MedicationGroupScheduleType.DAILY -> parseScheduleInterval(uiState.dailyIntervalDays)
+            MedicationGroupScheduleType.WEEKLY -> parseScheduleInterval(uiState.weeklyIntervalWeeks)
+        },
+        since = uiState.sinceDate,
+        weeklyDaysOfWeek = if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
+            uiState.weeklyDaysOfWeek
+        } else {
+            emptySet()
+        },
+        times = if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
+            listOf(uiState.weeklyTime)
+        } else {
+            uiState.dailyTimes.map(MedicationGroupScheduleTimeUiState::time)
+        }
+    )
+    return schedule.nextOccurrencesFrom(
+        start = start,
+        limit = medicationGroupEditorUpcomingOccurrenceLimit(uiState)
+    )
+}
+
+internal fun medicationGroupEditorUpcomingOccurrenceLimit(
+    uiState: MedicationGroupEditorUiState
+): Int {
+    return when (uiState.scheduleType) {
+        MedicationGroupScheduleType.DAILY -> uiState.dailyTimes.size + 1
+        MedicationGroupScheduleType.WEEKLY -> uiState.weeklyDaysOfWeek.size + 1
     }
 }
 
@@ -1171,7 +1232,8 @@ private fun MedicationGroupEditorDailyPreview() {
             onSaveClick = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
-            onDeleteConfirm = { }
+            onDeleteConfirm = { },
+            occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
         )
     }
 }
@@ -1222,7 +1284,8 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onSaveClick = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
-            onDeleteConfirm = { }
+            onDeleteConfirm = { },
+            occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
         )
     }
 }
@@ -1233,7 +1296,7 @@ private fun buildMedicationGroupEditorPreviewUiState(
     remindersEnabled: Boolean,
     notificationsEnabled: Boolean
 ): MedicationGroupEditorUiState {
-    val today = LocalDate.now()
+    val today = LocalDate.of(2026, 4, 25)
     return MedicationGroupEditorUiState(
         editingGroupId = editingGroupId,
         groupName = if (scheduleType == MedicationGroupScheduleType.DAILY) {

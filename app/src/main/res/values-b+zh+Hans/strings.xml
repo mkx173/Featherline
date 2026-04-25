@@ -149,6 +149,7 @@
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
+    <string name="group_schedule_preview">预览</string>
     <string name="group_schedule_time_item">%1$s</string>
     <string name="group_schedule_duplicate_time">该时间已存在于计划中。</string>
     <string name="group_medication_duplicate_merged">该药物已存在于分组中，已改为增加数量。</string>
