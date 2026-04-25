@@ -101,6 +101,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -259,35 +260,14 @@ fun MedicationGroupEditorScreen(
     }
 
     if (isExactAlarmDialogVisible) {
-        AlertDialog(
-            onDismissRequest = {
+        ExactAlarmAccessDialog(
+            onConfirm = {
+                isExactAlarmDialogVisible = false
+                maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+            },
+            onDismiss = {
                 isExactAlarmDialogVisible = false
                 showInexactReminderWarning = true
-            },
-            title = {
-                Text(text = stringResource(R.string.group_notifications_exact_alarm_title))
-            },
-            text = {
-                Text(text = stringResource(R.string.group_notifications_exact_alarm_message))
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
-                    }
-                ) {
-                    Text(text = stringResource(R.string.group_notifications_exact_alarm_settings))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        isExactAlarmDialogVisible = false
-                        showInexactReminderWarning = true
-                    }
-                ) {
-                    Text(text = stringResource(R.string.group_notifications_exact_alarm_skip))
-                }
             }
         )
     }
@@ -323,7 +303,7 @@ fun MedicationGroupEditorScreen(
             }
         },
         onRequestExactAlarmAccess = {
-            maybeRequestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
+            isExactAlarmDialogVisible = true
         },
         onRecoverMasterReminders = enableMasterReminders,
         hasNotificationAccess = hasNotificationAccess,

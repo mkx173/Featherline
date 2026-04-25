@@ -89,6 +89,7 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
@@ -232,6 +233,7 @@ private fun SettingsScreenContent(
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showPrivacyPolicyDialog by rememberSaveable { mutableStateOf(false) }
+    var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
@@ -364,7 +366,7 @@ private fun SettingsScreenContent(
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
                         icon = Icons.Rounded.ErrorOutline,
-                        onClick = onRequestExactAlarmAccess,
+                        onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
                         index = 1,
                         count = 2
@@ -736,6 +738,16 @@ private fun SettingsScreenContent(
                     Text(text = stringResource(R.string.confirm))
                 }
             }
+        )
+    }
+
+    if (showExactAlarmRecoveryDialog) {
+        ExactAlarmAccessDialog(
+            onConfirm = {
+                showExactAlarmRecoveryDialog = false
+                onRequestExactAlarmAccess()
+            },
+            onDismiss = { showExactAlarmRecoveryDialog = false }
         )
     }
 
