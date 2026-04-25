@@ -579,6 +579,24 @@ private fun CalibrationScreenPreview() {
     }
 }
 
+@Preview(
+    name = "Calibration Panel Row",
+    showBackground = true,
+    widthDp = 420,
+)
+@Composable
+private fun CalibrationPanelRowPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            CalibrationPanelRow(
+                panel = previewCalibrationPanels().first(),
+                dateTimeFormatter = previewCalibrationDateTimeFormatter(),
+                onClick = { },
+            )
+        }
+    }
+}
+
 private fun previewCalibrationDateTimeFormatter(): DateTimeFormatter {
     return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .withLocale(Locale.ENGLISH)
