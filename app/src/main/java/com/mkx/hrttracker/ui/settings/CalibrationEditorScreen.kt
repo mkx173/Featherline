@@ -334,6 +334,14 @@ private fun CalibrationEditorScreenContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small))
                     ) {
+                        Text(
+                            text = stringResource(
+                                R.string.settings_calibration_remaining_analytes,
+                                remainingAnalyteCount,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         FilledTonalButton(
                             onClick = onAddAnalyteClick,
                             enabled = remainingAnalyteCount > 0,
@@ -350,14 +358,6 @@ private fun CalibrationEditorScreenContent(
                                 text = stringResource(R.string.settings_calibration_add_analyte),
                             )
                         }
-                        Text(
-                            text = stringResource(
-                                R.string.settings_calibration_remaining_analytes,
-                                remainingAnalyteCount,
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
 
                 }

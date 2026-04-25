@@ -467,7 +467,8 @@ private fun CalibrationPanelDateTimeColumn(
         Text(
             text = labels.dayLabel,
             style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             textAlign = TextAlign.Center,
         )
