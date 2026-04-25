@@ -286,6 +286,10 @@
     <string name="settings_calibration_analyte_prl">Prolactin</string>
     <string name="settings_calibration_analyte_fsh">Follicle-stimulating hormone</string>
     <string name="settings_calibration_analyte_lh">Luteinizing hormone</string>
+    <plurals name="settings_calibration_extra_entries">
+        <item quantity="one">+%1$d entry</item>
+        <item quantity="other">+%1$d entries</item>
+    </plurals>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>

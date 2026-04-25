@@ -4,13 +4,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,7 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -178,12 +183,18 @@ private fun CalibrationPanelRow(
             androidx.compose.foundation.layout.Column(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Text(
-                    text = stringResource(
-                        R.string.settings_calibration_row_meta,
-                        valueSummary,
-                        panel.collectedAtTimeZoneId
+                valueSummary.mainResultSummary?.let { mainResultSummary ->
+                    Text(
+                        text = stringResource(
+                            R.string.settings_calibration_row_meta,
+                            mainResultSummary,
+                            panel.collectedAtTimeZoneId
+                        )
                     )
+                }
+                CalibrationPanelSecondarySummary(
+                    testosteroneResultSummary = valueSummary.testosteroneResultSummary,
+                    remainingResultCount = valueSummary.remainingResultCount,
                 )
                 panel.timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
                     Text(
@@ -196,38 +207,116 @@ private fun CalibrationPanelRow(
             }
         },
         trailingContent = {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!panel.notes.isNullOrBlank()) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Notes,
+                        contentDescription = stringResource(R.string.settings_calibration_notes_label),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                )
+            }
         }
     )
 }
 
-internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): String {
-    val e2Result = panel.results.firstOrNull { result ->
+@Composable
+private fun CalibrationPanelSecondarySummary(
+    testosteroneResultSummary: String?,
+    remainingResultCount: Int,
+) {
+    val remainingEntriesSummary = if (remainingResultCount > 0) {
+        pluralStringResource(
+            R.plurals.settings_calibration_extra_entries,
+            remainingResultCount,
+            remainingResultCount,
+        )
+    } else {
+        null
+    }
+
+    when {
+        testosteroneResultSummary != null && remainingEntriesSummary != null -> {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = testosteroneResultSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = remainingEntriesSummary,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+
+        testosteroneResultSummary != null -> {
+            Text(text = testosteroneResultSummary)
+        }
+
+        remainingEntriesSummary != null -> {
+            Text(text = remainingEntriesSummary)
+        }
+    }
+}
+
+internal data class CalibrationPanelValueSummary(
+    val mainResultSummary: String?,
+    val testosteroneResultSummary: String?,
+    val remainingResultCount: Int,
+)
+
+internal fun formatCalibrationPanelValueSummary(panel: BloodTestPanel): CalibrationPanelValueSummary {
+    val orderedResults = panel.results.sortedBy(BloodTestResult::displayOrder)
+    val e2Result = orderedResults.firstOrNull { result ->
         val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
         analyte?.key == BloodAnalyteKey.E2
     }
-    if (e2Result != null) {
-        return formatCalibrationBuiltinResultSummary(
-            analyteKey = BloodAnalyteKey.E2,
-            canonicalValue = e2Result.canonicalValue,
-        )
+    val mainResult = e2Result ?: orderedResults.firstOrNull()
+    val testosteroneResult = e2Result?.let {
+        orderedResults.firstOrNull { result ->
+            val analyte = result.analyte as? BloodTestResultAnalyte.Builtin
+            analyte?.key == BloodAnalyteKey.T
+        }
     }
 
-    return panel.results.joinToString(separator = " · ") { result ->
-        when (val analyte = result.analyte) {
-            is BloodTestResultAnalyte.Builtin -> {
-                formatCalibrationBuiltinResultSummary(
-                    analyteKey = analyte.key,
-                    canonicalValue = result.canonicalValue,
-                )
-            }
+    val displayedResultUuids = listOfNotNull(
+        mainResult?.uuid,
+        testosteroneResult?.uuid,
+    ).toSet()
 
-            is BloodTestResultAnalyte.Custom -> {
-                "${analyte.name ?: "Custom"} ${formatCalibrationNumericValue(result.value)} ${formatCalibrationUnitLabel(result.unitSnapshot)}"
-            }
+    return CalibrationPanelValueSummary(
+        mainResultSummary = mainResult?.let(::formatCalibrationResultSummary),
+        testosteroneResultSummary = testosteroneResult?.let(::formatCalibrationResultSummary),
+        remainingResultCount = orderedResults.count { result -> result.uuid !in displayedResultUuids },
+    )
+}
+
+private fun formatCalibrationResultSummary(result: BloodTestResult): String {
+    return when (val analyte = result.analyte) {
+        is BloodTestResultAnalyte.Builtin -> {
+            formatCalibrationBuiltinResultSummary(
+                analyteKey = analyte.key,
+                canonicalValue = result.canonicalValue,
+            )
+        }
+
+        is BloodTestResultAnalyte.Custom -> {
+            "${analyte.name ?: "Custom"}: ${formatCalibrationNumericValue(result.value)} ${formatCalibrationUnitLabel(result.unitSnapshot)}"
         }
     }
 }
@@ -251,7 +340,7 @@ internal fun formatCalibrationBuiltinResultSummary(
     analyteKey: BloodAnalyteKey,
     canonicalValue: Double,
 ): String {
-    return "${calibrationAnalyteLabel(analyteKey)} ${formatCalibrationNumericValue(canonicalValue)} ${
+    return "${calibrationAnalyteLabel(analyteKey)}: ${formatCalibrationNumericValue(canonicalValue)} ${
         calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey))
     }"
 }
@@ -422,7 +511,7 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
             uuid = UUID.fromString("ccdb13af-4d25-48ef-b94e-bfe61f8fcb32"),
             collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
             collectedAtTimeZoneId = "Asia/Tokyo",
-            notes = null,
+            notes = "Trough draw before morning dose.",
             timeSinceLastEstradiolDoseMillis = Duration.ofHours(9).plusMinutes(30).toMillis(),
             timeSinceLastTestosteroneDoseMillis = null,
             results = listOf(
@@ -444,6 +533,42 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
                     unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
                     canonicalValue = 34.0,
                 ),
+                BloodTestResult(
+                    uuid = UUID.fromString("7848bc50-26c8-4c20-9cec-77f77b01a8a1"),
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 2,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.PROG),
+                    value = 0.7,
+                    unitSnapshot = BloodUnitKey.NG_ML.storageValue,
+                    canonicalValue = 0.7,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("db408c1e-7c90-49bb-9401-5f45710c18de"),
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 3,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.PRL),
+                    value = 12.0,
+                    unitSnapshot = BloodUnitKey.NG_ML.storageValue,
+                    canonicalValue = 12.0,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("69d65c65-f4ef-42c7-b173-5851d8484684"),
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 4,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.FSH),
+                    value = 4.2,
+                    unitSnapshot = BloodUnitKey.MIU_ML.storageValue,
+                    canonicalValue = 4.2,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("323f8f0d-296e-47fb-b190-e32f8d5623d7"),
+                    createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+                    displayOrder = 5,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.LH),
+                    value = 3.1,
+                    unitSnapshot = BloodUnitKey.MIU_ML.storageValue,
+                    canonicalValue = 3.1,
+                ),
             ),
             createdAt = Instant.parse("2026-04-24T00:30:00Z"),
             updatedAt = Instant.parse("2026-04-24T00:30:00Z"),
@@ -460,14 +585,44 @@ private fun previewCalibrationPanels(): List<BloodTestPanel> {
                     uuid = UUID.fromString("2c35207b-c771-4c11-b6f2-f35f485542cd"),
                     createdAt = Instant.parse("2026-04-12T22:15:00Z"),
                     displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
+                    value = 1.18,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
+                    canonicalValue = 34.0,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("589a75db-98d9-4898-b637-45d378e2a2a8"),
+                    createdAt = Instant.parse("2026-04-12T22:15:00Z"),
+                    displayOrder = 1,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.PRL),
+                    value = 10.4,
+                    unitSnapshot = BloodUnitKey.NG_ML.storageValue,
+                    canonicalValue = 10.4,
+                ),
+            ),
+            createdAt = Instant.parse("2026-04-12T22:15:00Z"),
+            updatedAt = Instant.parse("2026-04-12T22:15:00Z"),
+        ),
+        BloodTestPanel(
+            uuid = UUID.fromString("47cdd45f-bf48-480b-a22b-6daee6ce271e"),
+            collectedAt = Instant.parse("2026-03-26T01:45:00Z"),
+            collectedAtTimeZoneId = "Europe/London",
+            notes = null,
+            timeSinceLastEstradiolDoseMillis = null,
+            timeSinceLastTestosteroneDoseMillis = null,
+            results = listOf(
+                BloodTestResult(
+                    uuid = UUID.fromString("6a251f0f-46ce-4cb1-8b0a-c04d7a392d76"),
+                    createdAt = Instant.parse("2026-03-26T01:45:00Z"),
+                    displayOrder = 0,
                     analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
                     value = 95.0,
                     unitSnapshot = BloodUnitKey.PG_ML.storageValue,
                     canonicalValue = 95.0,
-                )
+                ),
             ),
-            createdAt = Instant.parse("2026-04-12T22:15:00Z"),
-            updatedAt = Instant.parse("2026-04-12T22:15:00Z"),
+            createdAt = Instant.parse("2026-03-26T01:45:00Z"),
+            updatedAt = Instant.parse("2026-03-26T01:45:00Z"),
         )
     )
 }

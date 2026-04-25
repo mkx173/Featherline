@@ -85,7 +85,51 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun formatCalibrationPanelValueSummary_usesCanonicalUnitsForBuiltinResults() {
+    fun formatCalibrationPanelValueSummary_showsEstradiolTestosteroneAndRemainingEntries() {
+        val panel = testBloodTestPanel(
+            results = listOf(
+                BloodTestResult(
+                    uuid = UUID.fromString("5bce6841-c2d5-4192-ba59-ab18e95fdb4a"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 1,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
+                    value = 95.0,
+                    unitSnapshot = BloodUnitKey.PG_ML.storageValue,
+                    canonicalValue = 95.0,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("df0d4beb-21a2-4138-a52e-260306d35da5"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 0,
+                    analyte = BloodTestResultAnalyte.Builtin(BloodAnalyteKey.T),
+                    value = 1.1,
+                    unitSnapshot = BloodUnitKey.NMOL_L.storageValue,
+                    canonicalValue = 31.7,
+                ),
+                BloodTestResult(
+                    uuid = UUID.fromString("2c35207b-c771-4c11-b6f2-f35f485542cd"),
+                    createdAt = Instant.ofEpochMilli(1_700_000_000_000L),
+                    displayOrder = 2,
+                    analyte = BloodTestResultAnalyte.Custom(
+                        uuid = UUID.fromString("387e4ffb-6ddb-4b69-a6d9-95353d2e1f55"),
+                        name = "Marker",
+                    ),
+                    value = 8.5,
+                    unitSnapshot = "ratio",
+                    canonicalValue = 8.5,
+                ),
+            )
+        )
+
+        val summary = formatCalibrationPanelValueSummary(panel)
+
+        assertEquals("E2: 95 pg/mL", summary.mainResultSummary)
+        assertEquals("T: 31.7 ng/dL", summary.testosteroneResultSummary)
+        assertEquals(1, summary.remainingResultCount)
+    }
+
+    @Test
+    fun formatCalibrationPanelValueSummary_withoutEstradiolShowsFirstResultOnly() {
         val panel = testBloodTestPanel(
             results = listOf(
                 BloodTestResult(
@@ -112,10 +156,11 @@ class CalibrationViewModelTest {
             )
         )
 
-        assertEquals(
-            "T 31.7 ng/dL · Marker 8.5 ratio",
-            formatCalibrationPanelValueSummary(panel)
-        )
+        val summary = formatCalibrationPanelValueSummary(panel)
+
+        assertEquals("T: 31.7 ng/dL", summary.mainResultSummary)
+        assertEquals(null, summary.testosteroneResultSummary)
+        assertEquals(1, summary.remainingResultCount)
     }
 }
 
