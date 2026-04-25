@@ -36,6 +36,24 @@ class MedicationCatalogTest {
     }
 
     @Test
+    fun estradiol_injection_catalog_uses_requested_order() {
+        val catalog = catalogFor(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.INJECTION,
+        )
+
+        assertEquals(
+            listOf(
+                MedicationKey.ESTRADIOL_VALERATE,
+                MedicationKey.ESTRADIOL_CYPIONATE,
+                MedicationKey.ESTRADIOL_ENANTHATE,
+                MedicationKey.ESTRADIOL_BENZOATE,
+            ),
+            catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
+        )
+    }
+
+    @Test
     fun antiandrogen_only_exposes_oral_route_with_required_medications() {
         val applicationTypes = MedicationCatalog.applicationTypesFor(MedicationCategory.ANTIANDROGEN)
         val catalog = MedicationCatalog.catalogFor(
@@ -48,6 +66,7 @@ class MedicationCatalogTest {
             listOf(
                 MedicationKey.SPIRONOLACTONE,
                 MedicationKey.CYPROTERONE_ACETATE,
+                MedicationKey.BICALUTAMIDE,
             ),
             catalog.entries.mapNotNull(MedicationCatalogEntry::medicationKey),
         )

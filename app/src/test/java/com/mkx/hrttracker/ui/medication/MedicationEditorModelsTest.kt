@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.medication
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
@@ -149,5 +150,118 @@ class MedicationEditorModelsTest {
 
         assertEquals("0.06", draft.gelPercent)
         assertEquals("6.25", draft.gelWeightGrams)
+    }
+
+    @Test
+    fun estradiol_oral_catalog_exposes_quick_dose_presets() {
+        val presets = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.ESTRADIOL
+        ).activeDoseAssistPresets()
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1"),
+                MedicationDoseAssistPreset.MgAsMedicine("2"),
+                MedicationDoseAssistPreset.MgAsMedicine("3"),
+            ),
+            presets
+        )
+    }
+
+    @Test
+    fun antiandrogen_catalog_exposes_requested_quick_dose_presets() {
+        val spiroPresets = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.SPIRONOLACTONE
+        ).activeDoseAssistPresets()
+        val cpaPresets = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.CYPROTERONE_ACETATE
+        ).activeDoseAssistPresets()
+        val bicaPresets = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.BICALUTAMIDE
+        ).activeDoseAssistPresets()
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("100"),
+                MedicationDoseAssistPreset.MgAsMedicine("200"),
+            ),
+            spiroPresets
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("6.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("12.5"),
+                MedicationDoseAssistPreset.MgAsMedicine("25"),
+            ),
+            cpaPresets
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("25"),
+                MedicationDoseAssistPreset.MgAsMedicine("50"),
+            ),
+            bicaPresets
+        )
+    }
+
+    @Test
+    fun patch_catalog_exposes_presets_for_each_patch_dose_kind() {
+        val releaseRatePresets = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON
+        ).activeDoseAssistPresets()
+        val totalMgPresets = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON
+        ).changeDoseKind(
+            MedicationDoseKind.PATCH_TOTAL_MG
+        ).activeDoseAssistPresets()
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("50"),
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("75"),
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("100"),
+            ),
+            releaseRatePresets
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.PatchTotalMg("0.36"),
+                MedicationDoseAssistPreset.PatchTotalMg("0.72"),
+            ),
+            totalMgPresets
+        )
+    }
+
+    @Test
+    fun applying_gel_quick_dose_presets_updates_individual_fields() {
+        val base = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).changeDoseKind(MedicationDoseKind.GEL_PERCENT_AND_WEIGHT)
+
+        val withPercent = base.applyDoseAssistPreset(
+            MedicationDoseAssistPreset.GelPercent("0.3")
+        )
+        val withWeight = withPercent.applyDoseAssistPreset(
+            MedicationDoseAssistPreset.GelWeightGrams("2.5")
+        )
+
+        assertEquals("0.3", withPercent.gelPercent)
+        assertEquals("", withPercent.gelWeightGrams)
+        assertEquals("2.5", withWeight.gelWeightGrams)
     }
 }

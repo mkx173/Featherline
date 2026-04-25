@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCatalogEntry
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
@@ -103,6 +104,10 @@ fun MedicationDraftUiState.availableDoseKinds(): List<MedicationDoseKind> {
     return selectedCatalogEntry().doseKinds.toList()
 }
 
+fun MedicationDraftUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPreset> {
+    return selectedCatalogEntry().doseAssistPresets[doseKind].orEmpty()
+}
+
 fun MedicationDraftUiState.changeCategory(category: MedicationCategory): MedicationDraftUiState {
     return firstAvailableMedicationDraft(
         category = category,
@@ -160,6 +165,37 @@ fun MedicationDraftUiState.changeDoseKind(
     doseKind: MedicationDoseKind,
 ): MedicationDraftUiState {
     return copy(doseKind = doseKind)
+}
+
+fun MedicationDraftUiState.applyDoseAssistPreset(
+    preset: MedicationDoseAssistPreset,
+): MedicationDraftUiState {
+    return when (preset) {
+        is MedicationDoseAssistPreset.MgAsMedicine -> copy(
+            doseKind = MedicationDoseKind.MG_AS_MEDICINE,
+            doseMg = preset.valueMg
+        )
+
+        is MedicationDoseAssistPreset.GelPercent -> copy(
+            doseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
+            gelPercent = preset.percent
+        )
+
+        is MedicationDoseAssistPreset.GelWeightGrams -> copy(
+            doseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
+            gelWeightGrams = preset.weightGrams
+        )
+
+        is MedicationDoseAssistPreset.PatchTotalMg -> copy(
+            doseKind = MedicationDoseKind.PATCH_TOTAL_MG,
+            doseMg = preset.valueMg
+        )
+
+        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> copy(
+            doseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+            patchReleaseRateMcgPerDay = preset.valueMcgPerDay
+        )
+    }
 }
 
 fun MedicationDraftUiState.validationErrorRes(): Int? {

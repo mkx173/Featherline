@@ -69,6 +69,10 @@ enum class MedicationKey(
         category = MedicationCategory.ANTIANDROGEN,
         labelRes = R.string.medication_name_cyproterone_acetate,
     ),
+    BICALUTAMIDE(
+        category = MedicationCategory.ANTIANDROGEN,
+        labelRes = R.string.medication_name_bicalutamide,
+    ),
     ESTRADIOL(
         category = MedicationCategory.ESTRADIOL,
         labelRes = R.string.medication_name_estradiol,
@@ -159,7 +163,42 @@ data class MedicationCatalogEntry(
     val medicationKey: MedicationKey?,
     val doseKinds: Set<MedicationDoseKind>,
     val defaultDoseKind: MedicationDoseKind,
+    val doseAssistPresets: Map<MedicationDoseKind, List<MedicationDoseAssistPreset>> = emptyMap(),
 )
+
+sealed interface MedicationDoseAssistPreset {
+    val doseKind: MedicationDoseKind
+
+    data class MgAsMedicine(
+        val valueMg: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.MG_AS_MEDICINE
+    }
+
+    data class GelPercent(
+        val percent: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+    }
+
+    data class GelWeightGrams(
+        val weightGrams: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+    }
+
+    data class PatchTotalMg(
+        val valueMg: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.PATCH_TOTAL_MG
+    }
+
+    data class PatchReleaseRateMcgPerDay(
+        val valueMcgPerDay: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY
+    }
+}
 
 data class MedicationApplicationCatalog(
     val category: MedicationCategory,
@@ -178,11 +217,13 @@ object MedicationCatalog {
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("1", "2", "3"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("1", "2", "3"),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -195,11 +236,13 @@ object MedicationCatalog {
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("1", "2"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("1", "2"),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -209,24 +252,28 @@ object MedicationCatalog {
             applicationType = MedicationApplicationType.INJECTION,
             entries = listOf(
                 MedicationCatalogEntry(
-                    medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
-                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
-                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
-                ),
-                MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("5", "10"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("5", "10"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("5", "10"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("5", "10"),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -242,6 +289,21 @@ object MedicationCatalog {
                         MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
                     ),
                     defaultDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+                    doseAssistPresets = mapOf(
+                        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT to listOf(
+                            MedicationDoseAssistPreset.GelPercent(
+                                percent = "0.06",
+                            ),
+                            MedicationDoseAssistPreset.GelPercent(
+                                percent = "0.3",
+                            ),
+                            MedicationDoseAssistPreset.GelPercent(
+                                percent = "0.6",
+                            ),
+                            MedicationDoseAssistPreset.GelWeightGrams("1.25"),
+                            MedicationDoseAssistPreset.GelWeightGrams("2.5"),
+                        )
+                    ),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -257,6 +319,17 @@ object MedicationCatalog {
                         MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
                     ),
                     defaultDoseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
+                    doseAssistPresets = mapOf(
+                        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY to listOf(
+                            MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("50"),
+                            MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("75"),
+                            MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("100"),
+                        ),
+                        MedicationDoseKind.PATCH_TOTAL_MG to listOf(
+                            MedicationDoseAssistPreset.PatchTotalMg("0.36"),
+                            MedicationDoseAssistPreset.PatchTotalMg("0.72"),
+                        ),
+                    ),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -284,11 +357,19 @@ object MedicationCatalog {
                     medicationKey = MedicationKey.SPIRONOLACTONE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("100", "200"),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.CYPROTERONE_ACETATE,
                     doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
                     defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("6.25", "12.5", "25"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.BICALUTAMIDE,
+                    doseKinds = setOf(MedicationDoseKind.MG_AS_MEDICINE),
+                    defaultDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
+                    doseAssistPresets = mgDoseAssistPresets("25", "50"),
                 ),
             ),
             allowCustomMedicationName = false,
@@ -382,4 +463,12 @@ object MedicationCatalog {
             )
         }
     }
+}
+
+private fun mgDoseAssistPresets(vararg valuesMg: String): Map<MedicationDoseKind, List<MedicationDoseAssistPreset>> {
+    return mapOf(
+        MedicationDoseKind.MG_AS_MEDICINE to valuesMg.map { valueMg ->
+            MedicationDoseAssistPreset.MgAsMedicine(valueMg)
+        }
+    )
 }

@@ -6,9 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +31,9 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +41,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,11 +55,13 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
@@ -114,6 +121,7 @@ fun StructuredMedicationEditorSheet(
     val catalog = remember(draft.category, draft.applicationType) {
         MedicationCatalog.catalogFor(draft.category, draft.applicationType)
     }
+    val doseAssistPresets = remember(draft) { draft.activeDoseAssistPresets() }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -273,6 +281,13 @@ fun StructuredMedicationEditorSheet(
                         suffix = stringResource(R.string.unit_mg),
                         errorMessageRes = fieldErrors.doseMg
                     )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets,
+                        onPresetClick = { preset ->
+                            val resolvedPreset = preset as MedicationDoseAssistPreset.MgAsMedicine
+                            onDoseMgChange(resolvedPreset.valueMg)
+                        }
+                    )
                 }
 
                 MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
@@ -293,12 +308,29 @@ fun StructuredMedicationEditorSheet(
                         suffix = stringResource(R.string.unit_percent),
                         errorMessageRes = fieldErrors.gelPercent
                     )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                        onPresetClick = { preset ->
+                            val resolvedPreset =
+                                preset as MedicationDoseAssistPreset.GelPercent
+                            onGelPercentChange(resolvedPreset.percent)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     DoseTextField(
                         value = draft.gelWeightGrams,
                         onValueChange = onGelWeightChange,
                         label = stringResource(R.string.field_gel_weight_grams),
                         suffix = stringResource(R.string.unit_grams),
                         errorMessageRes = fieldErrors.gelWeight
+                    )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
+                        onPresetClick = { preset ->
+                            val resolvedPreset =
+                                preset as MedicationDoseAssistPreset.GelWeightGrams
+                            onGelWeightChange(resolvedPreset.weightGrams)
+                        }
                     )
                 }
 
@@ -310,6 +342,13 @@ fun StructuredMedicationEditorSheet(
                         suffix = stringResource(R.string.unit_mg),
                         errorMessageRes = fieldErrors.doseMg
                     )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets,
+                        onPresetClick = { preset ->
+                            val resolvedPreset = preset as MedicationDoseAssistPreset.PatchTotalMg
+                            onDoseMgChange(resolvedPreset.valueMg)
+                        }
+                    )
                 }
 
                 MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
@@ -319,6 +358,14 @@ fun StructuredMedicationEditorSheet(
                         label = stringResource(R.string.field_patch_release_rate_mcg_day),
                         suffix = stringResource(R.string.unit_mcg_day),
                         errorMessageRes = fieldErrors.patchReleaseRate
+                    )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets,
+                        onPresetClick = { preset ->
+                            val resolvedPreset =
+                                preset as MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay
+                            onPatchReleaseRateChange(resolvedPreset.valueMcgPerDay)
+                        }
                     )
                 }
 
@@ -541,6 +588,66 @@ private fun DoseTextField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     )
+}
+
+@Composable
+private fun DoseAssistPresetRow(
+    presets: List<MedicationDoseAssistPreset>,
+    onPresetClick: (MedicationDoseAssistPreset) -> Unit,
+) {
+    if (presets.isEmpty()) {
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+        ) {
+            presets.forEach { preset ->
+                AssistChip(
+                    onClick = { onPresetClick(preset) },
+                    label = { Text(text = doseAssistPresetLabel(preset)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
+    return when (preset) {
+        is MedicationDoseAssistPreset.MgAsMedicine -> stringResource(
+            R.string.medication_editor_dose_assist_mg,
+            preset.valueMg
+        )
+
+        is MedicationDoseAssistPreset.GelPercent -> stringResource(
+            R.string.medication_editor_dose_assist_percent,
+            preset.percent,
+        )
+
+        is MedicationDoseAssistPreset.GelWeightGrams -> stringResource(
+            R.string.medication_editor_dose_assist_grams,
+            preset.weightGrams
+        )
+
+        is MedicationDoseAssistPreset.PatchTotalMg -> stringResource(
+            R.string.medication_editor_dose_assist_mg,
+            preset.valueMg
+        )
+
+        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> stringResource(
+            R.string.medication_editor_dose_assist_mcg_day,
+            preset.valueMcgPerDay
+        )
+    }
 }
 
 @Composable
