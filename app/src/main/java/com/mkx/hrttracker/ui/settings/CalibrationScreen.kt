@@ -354,39 +354,58 @@ private fun CalibrationPanelRow(
         count = count,
         onClick = onClick,
     ) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CalibrationPanelDateTimeColumn(
-                    labels = dateTimeLabels,
-                    modifier = Modifier.onSizeChanged {
-                        dateTimeColumnWidth = it.width
-                    }
-                )
-
-                CalibrationPanelResultSummaryColumn(
-                    modifier = Modifier.weight(1f),
-                    panel = panel,
-                    valueSummary = valueSummary,
-                )
-
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
-                CalibrationPanelResultAdditionalSummaryRow(
-                    resultSummary = testosteroneResultSummary,
-                    modifier = Modifier.padding(
-                        start = with(density) {
-                            dateTimeColumnWidth.toDp() + 12.dp
+        Box {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(28.dp)
+                ) {
+                    CalibrationPanelDateTimeColumn(
+                        labels = dateTimeLabels,
+                        modifier = Modifier.onSizeChanged {
+                            dateTimeColumnWidth = it.width
                         }
                     )
-                )
+
+                    CalibrationPanelResultSummaryColumn(
+                        modifier = Modifier.weight(1f),
+                        panel = panel,
+                        valueSummary = valueSummary,
+                    )
+
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
+                    CalibrationPanelResultAdditionalSummaryRow(
+                        resultSummary = testosteroneResultSummary,
+                        modifier = Modifier.padding(
+                            start = with(density) {
+                                dateTimeColumnWidth.toDp() + 28.dp
+                            }
+                        )
+                    )
+                }
+            }
+            if (dateTimeColumnWidth > 0) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(
+                            start = with(density) {
+                                dateTimeColumnWidth.toDp() + 14.dp
+                            },
+                            top = 2.dp,
+                            bottom = valueSummary.testosteroneResultSummary?.let { 6.dp } ?: 2.dp,
+                        )
+                ) {
+                    VerticalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
             }
         }
     }
