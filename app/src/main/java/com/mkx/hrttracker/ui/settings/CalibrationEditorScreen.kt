@@ -172,13 +172,16 @@ fun CalibrationEditorScreen(
         onNavigateBack = onNavigateBack,
         onDateClick = { isDatePickerVisible = true },
         onTimeClick = { isTimePickerVisible = true },
-        onNotesChange = viewModel::updateNotes,
+        onNotesCommit = viewModel::updateNotes,
         onAnalyteValueChange = viewModel::updateAnalyteValue,
         onAnalyteUnitChange = viewModel::updateAnalyteUnit,
         onRemoveAnalyteClick = viewModel::removeAnalyte,
         onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
         onDeleteClick = { isDeleteDialogVisible = true },
-        onSaveClick = viewModel::save,
+        onSaveClick = { notes ->
+            viewModel.updateNotes(notes)
+            viewModel.save()
+        },
         modifier = modifier,
     )
 
@@ -203,13 +206,13 @@ private fun CalibrationEditorScreenContent(
     onNavigateBack: () -> Unit,
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
-    onNotesChange: (String) -> Unit,
+    onNotesCommit: (String) -> Unit,
     onAnalyteValueChange: (BloodAnalyteKey, String) -> Unit,
     onAnalyteUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
     onRemoveAnalyteClick: (BloodAnalyteKey) -> Unit,
     onAddAnalyteClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onSaveClick: () -> Unit,
+    onSaveClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val canSave = canSaveCalibrationEditorState(uiState) &&
@@ -217,6 +220,13 @@ private fun CalibrationEditorScreenContent(
         !uiState.isSaving &&
         !uiState.isDeleting
     val remainingAnalyteCount = calibrationAnalyteOptions(uiState).size
+    var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
+
+    LaunchedEffect(uiState.panelUuid, uiState.isLoading) {
+        if (!uiState.isLoading) {
+            notesDraft = uiState.notes
+        }
+    }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -247,7 +257,7 @@ private fun CalibrationEditorScreenContent(
                 },
                 actions = {
                     Button(
-                        onClick = onSaveClick,
+                        onClick = { onSaveClick(notesDraft) },
                         enabled = canSave,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
@@ -361,8 +371,9 @@ private fun CalibrationEditorScreenContent(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
                     )
                     CalibrationNotesCard(
-                        notes = uiState.notes,
-                        onNotesChange = onNotesChange,
+                        notes = notesDraft,
+                        onNotesChange = { notesDraft = it },
+                        onNotesCommit = { onNotesCommit(notesDraft) },
                     )
                 }
                 if (uiState.isEditing) {
@@ -521,13 +532,13 @@ private fun CalibrationEditorScreenPreview() {
             onNavigateBack = { },
             onDateClick = { },
             onTimeClick = { },
-            onNotesChange = { },
+            onNotesCommit = { _ -> },
             onAnalyteValueChange = { _, _ -> },
             onAnalyteUnitChange = { _, _ -> },
             onRemoveAnalyteClick = { },
             onAddAnalyteClick = { },
             onDeleteClick = { },
-            onSaveClick = { },
+            onSaveClick = { _ -> },
         )
     }
 }

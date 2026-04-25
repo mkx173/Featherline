@@ -157,16 +157,27 @@ internal fun CalibrationDateTimeCard(
 internal fun CalibrationNotesCard(
     notes: String,
     onNotesChange: (String) -> Unit,
+    onNotesCommit: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    var wasFocused by remember { mutableStateOf(false) }
     CalibrationEditorCard(
         modifier = Modifier.padding(bottom = 8.dp)
     ) {
         OutlinedTextField(
             value = notes,
             onValueChange = onNotesChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        wasFocused = true
+                    } else if (wasFocused) {
+                        wasFocused = false
+                        onNotesCommit()
+                    }
+                },
             label = {
                 Text(text = stringResource(R.string.settings_calibration_notes_label))
             },
@@ -174,6 +185,8 @@ internal fun CalibrationNotesCard(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
                 onDone = {
+                    wasFocused = false
+                    onNotesCommit()
                     focusManager.clearFocus()
                     keyboardController?.hide()
                 }
