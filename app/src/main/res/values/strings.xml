@@ -279,6 +279,9 @@
     <string name="settings_calibration_value_label">Value</string>
     <string name="settings_calibration_target_range">Target %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">Target &lt;%1$s %2$s</string>
+    <string name="settings_calibration_range_status_above">Above</string>
+    <string name="settings_calibration_range_status_below">Below</string>
+    <string name="settings_calibration_range_status_in_range">In range</string>
     <string name="settings_calibration_analyte_prog">Progesterone</string>
     <string name="settings_calibration_analyte_prl">Prolactin</string>
     <string name="settings_calibration_analyte_fsh">Follicle-stimulating hormone</string>

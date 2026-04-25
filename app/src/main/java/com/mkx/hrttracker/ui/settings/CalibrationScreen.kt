@@ -317,6 +317,37 @@ internal fun calibrationTargetLabel(
     }
 }
 
+internal enum class CalibrationRangeStatus {
+    BELOW,
+    IN_RANGE,
+    ABOVE,
+}
+
+internal fun calibrationRangeStatus(
+    analyteKey: BloodAnalyteKey,
+    valueText: String,
+    unit: BloodUnitKey,
+): CalibrationRangeStatus? {
+    val target = calibrationCanonicalTargets[analyteKey] ?: return null
+    val parsed = parseCalibrationNumericInput(valueText) ?: return null
+    val canonical = BloodTestCatalog.toCanonical(
+        analyteKey = analyteKey,
+        value = parsed,
+        unit = unit,
+    )
+    return when (target) {
+        is CalibrationCanonicalTarget.Range -> when {
+            canonical < target.low -> CalibrationRangeStatus.BELOW
+            canonical > target.high -> CalibrationRangeStatus.ABOVE
+            else -> CalibrationRangeStatus.IN_RANGE
+        }
+        is CalibrationCanonicalTarget.UpperBound -> when {
+            canonical > target.high -> CalibrationRangeStatus.ABOVE
+            else -> CalibrationRangeStatus.IN_RANGE
+        }
+    }
+}
+
 private fun formatCalibrationTargetValue(value: Double): String {
     val rounded = if (value >= 10.0) {
         Math.round(value).toDouble()

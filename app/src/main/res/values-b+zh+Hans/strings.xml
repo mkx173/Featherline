@@ -279,6 +279,9 @@
     <string name="settings_calibration_value_label">数值</string>
     <string name="settings_calibration_target_range">目标 %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">目标 &lt;%1$s %2$s</string>
+    <string name="settings_calibration_range_status_above">偏高</string>
+    <string name="settings_calibration_range_status_below">偏低</string>
+    <string name="settings_calibration_range_status_in_range">范围内</string>
     <string name="settings_calibration_analyte_prog">孕酮</string>
     <string name="settings_calibration_analyte_prl">催乳素</string>
     <string name="settings_calibration_analyte_fsh">促卵泡激素</string>

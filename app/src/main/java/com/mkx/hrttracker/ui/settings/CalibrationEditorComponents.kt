@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -47,6 +50,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -188,6 +192,14 @@ internal fun CalibrationAnalyteCard(
         index = index,
         count = count
     ) {
+        var latchedValueText by remember(analyteKey) { mutableStateOf(valueText) }
+        var latchedUnit by remember(analyteKey) { mutableStateOf(unit) }
+        val rangeStatus = calibrationRangeStatus(
+            analyteKey = analyteKey,
+            valueText = latchedValueText,
+            unit = latchedUnit,
+        )
+
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
@@ -222,22 +234,31 @@ internal fun CalibrationAnalyteCard(
                     }
                 }
 
-                CompositionLocalProvider(
-                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(
-                        onClick = onRemoveClick,
-                        modifier = Modifier.size(24.dp)
+                    rangeStatus?.let { status ->
+                        CalibrationRangeStatusChip(status = status)
+                    }
+                    CompositionLocalProvider(
+                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.remove_time),
-                        )
+                        IconButton(
+                            onClick = onRemoveClick,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.remove_time),
+                            )
+                        }
                     }
                 }
             }
 
             var wasFocused by remember { mutableStateOf(false) }
+            val focusManager = LocalFocusManager.current
             OutlinedTextField(
                 value = valueText,
                 onValueChange = onValueChange,
@@ -247,6 +268,8 @@ internal fun CalibrationAnalyteCard(
                         if (focusState.isFocused) {
                             wasFocused = true
                         } else if (wasFocused) {
+                            latchedValueText = valueText
+                            latchedUnit = unit
                             onFocusLost()
                         }
                     },
@@ -258,7 +281,13 @@ internal fun CalibrationAnalyteCard(
                     Text(text = calibrationUnitLabel(unit))
                 },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
             )
 
             val allowedUnits = remember(analyteKey) {
@@ -277,6 +306,48 @@ internal fun CalibrationAnalyteCard(
                     layout = ConnectedButtonGroupLayout.ROW,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
+    val icon = when (status) {
+        CalibrationRangeStatus.ABOVE -> Icons.Filled.ArrowDropUp
+        CalibrationRangeStatus.BELOW -> Icons.Filled.ArrowDropDown
+        CalibrationRangeStatus.IN_RANGE -> Icons.Filled.Circle
+    }
+    val labelRes = when (status) {
+        CalibrationRangeStatus.ABOVE -> R.string.settings_calibration_range_status_above
+        CalibrationRangeStatus.BELOW -> R.string.settings_calibration_range_status_below
+        CalibrationRangeStatus.IN_RANGE -> R.string.settings_calibration_range_status_in_range
+    }
+    val iconSize = if (status == CalibrationRangeStatus.IN_RANGE) 8.dp else 18.dp
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            Box(
+                modifier = Modifier.size(18.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
+            Text(
+                text = stringResource(labelRes),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
         }
     }
 }
