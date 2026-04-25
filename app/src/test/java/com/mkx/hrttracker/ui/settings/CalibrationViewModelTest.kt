@@ -128,11 +128,19 @@ class CalibrationViewModelTest {
         val summary = formatCalibrationPanelValueSummary(panel)
 
         assertEquals(
-            CalibrationPanelResultSummary(abbreviation = "E2", value = "95", unit = "pg/mL"),
+            CalibrationPanelResultSummary.Builtin(
+                analyteKey = BloodAnalyteKey.E2,
+                value = "95",
+                unit = "pg/mL",
+            ),
             summary.mainResultSummary,
         )
         assertEquals(
-            CalibrationPanelResultSummary(abbreviation = "T", value = "31.7", unit = "ng/dL"),
+            CalibrationPanelResultSummary.Builtin(
+                analyteKey = BloodAnalyteKey.T,
+                value = "31.7",
+                unit = "ng/dL",
+            ),
             summary.testosteroneResultSummary,
         )
         assertEquals(1, summary.remainingResultCount)
@@ -169,7 +177,11 @@ class CalibrationViewModelTest {
         val summary = formatCalibrationPanelValueSummary(panel)
 
         assertEquals(
-            CalibrationPanelResultSummary(abbreviation = "T", value = "31.7", unit = "ng/dL"),
+            CalibrationPanelResultSummary.Builtin(
+                analyteKey = BloodAnalyteKey.T,
+                value = "31.7",
+                unit = "ng/dL",
+            ),
             summary.mainResultSummary,
         )
         assertEquals(null, summary.testosteroneResultSummary)

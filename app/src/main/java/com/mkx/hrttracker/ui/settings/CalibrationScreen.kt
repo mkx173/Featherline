@@ -533,7 +533,7 @@ private fun CalibrationPanelResultSummaryRow(
             modifier = Modifier.alignByBaseline(),
         )
         Text(
-            text = resultSummary.abbreviation,
+            text = calibrationResultSummaryDisplayName(resultSummary),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.alignByBaseline(),
@@ -575,12 +575,23 @@ private fun CalibrationPanelResultAdditionalSummaryRow(
                 modifier = Modifier.alignByBaseline(),
             )
             Text(
-                text = resultSummary.abbreviation,
+                text = calibrationResultSummaryDisplayName(resultSummary),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alignByBaseline(),
             )
         }
+    }
+}
+
+@Composable
+private fun calibrationResultSummaryDisplayName(
+    resultSummary: CalibrationPanelResultSummary,
+): String {
+    return when (resultSummary) {
+        is CalibrationPanelResultSummary.Builtin ->
+            stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey))
+        is CalibrationPanelResultSummary.Custom -> resultSummary.name
     }
 }
 
@@ -655,11 +666,22 @@ private fun CalibrationPanelPill(
     }
 }
 
-internal data class CalibrationPanelResultSummary(
-    val abbreviation: String,
-    val value: String,
-    val unit: String,
-)
+internal sealed interface CalibrationPanelResultSummary {
+    val value: String
+    val unit: String
+
+    data class Builtin(
+        val analyteKey: BloodAnalyteKey,
+        override val value: String,
+        override val unit: String,
+    ) : CalibrationPanelResultSummary
+
+    data class Custom(
+        val name: String,
+        override val value: String,
+        override val unit: String,
+    ) : CalibrationPanelResultSummary
+}
 
 internal data class CalibrationPanelValueSummary(
     val mainResultSummary: CalibrationPanelResultSummary?,
@@ -703,8 +725,8 @@ private fun formatCalibrationResultSummary(result: BloodTestResult): Calibration
         }
 
         is BloodTestResultAnalyte.Custom -> {
-            CalibrationPanelResultSummary(
-                abbreviation = analyte.name ?: "Custom",
+            CalibrationPanelResultSummary.Custom(
+                name = analyte.name ?: "Custom",
                 value = formatCalibrationNumericValue(result.value),
                 unit = formatCalibrationUnitLabel(result.unitSnapshot),
             )
@@ -730,9 +752,9 @@ internal fun calibrationAnalyteFullNameRes(analyteKey: BloodAnalyteKey): Int {
 internal fun formatCalibrationBuiltinResultSummary(
     analyteKey: BloodAnalyteKey,
     canonicalValue: Double,
-): CalibrationPanelResultSummary {
-    return CalibrationPanelResultSummary(
-        abbreviation = calibrationAnalyteLabel(analyteKey),
+): CalibrationPanelResultSummary.Builtin {
+    return CalibrationPanelResultSummary.Builtin(
+        analyteKey = analyteKey,
         value = formatCalibrationNumericValue(canonicalValue),
         unit = calibrationUnitLabel(BloodTestCatalog.canonicalUnitFor(analyteKey)),
     )
