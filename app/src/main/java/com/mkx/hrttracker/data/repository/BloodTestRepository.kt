@@ -192,6 +192,11 @@ class BloodTestRepository @Inject constructor(
         dao.deleteCustomAnalyte(uuid.toString())
     }
 
+    suspend fun hasResultsForCustomAnalyte(uuid: UUID): Boolean {
+        return databaseHolder.get().bloodTestDao()
+            .countResultsForCustomAnalyte(uuid.toString()) > 0
+    }
+
     suspend fun getBuiltinTrendPoints(analyteKey: BloodAnalyteKey): List<BloodTestTrendPoint> {
         return databaseHolder.get().bloodTestDao()
             .getBuiltinTrendPoints(analyteKey.storageValue)

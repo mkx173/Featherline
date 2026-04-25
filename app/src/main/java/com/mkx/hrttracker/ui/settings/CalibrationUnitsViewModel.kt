@@ -85,6 +85,12 @@ class CalibrationUnitsViewModel @Inject constructor(
         }.exceptionOrNull()
     }
 
+    suspend fun hasResultsForCustomAnalyte(uuid: UUID): Boolean {
+        return runCatching {
+            bloodTestRepository.hasResultsForCustomAnalyte(uuid)
+        }.getOrDefault(false)
+    }
+
     private fun refreshCustomAnalytes() {
         viewModelScope.launch {
             isLoadingCustomAnalytes.value = true

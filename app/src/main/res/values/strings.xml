@@ -301,6 +301,7 @@
     <string name="settings_calibration_custom_analyte_error_archive">Unable to archive this custom analyte.</string>
     <string name="settings_calibration_custom_analyte_archive_title">Archive custom analyte</string>
     <string name="settings_calibration_custom_analyte_archive_message">Archive %1$s? Existing test results will be kept.</string>
+    <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can\'t be changed once test results have been recorded for this analyte.</string>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="one">+%1$d entry</item>
         <item quantity="other">+%1$d entries</item>

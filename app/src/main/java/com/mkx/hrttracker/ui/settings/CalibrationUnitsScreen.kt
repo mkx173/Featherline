@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +41,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
@@ -84,6 +89,7 @@ fun CalibrationUnitsScreen(
         onUnitChange = viewModel::setCalibrationDefaultUnit,
         onSaveCustomAnalyte = viewModel::saveCustomAnalyte,
         onArchiveCustomAnalyte = viewModel::archiveCustomAnalyte,
+        onCheckHasResultsForCustomAnalyte = viewModel::hasResultsForCustomAnalyte,
         modifier = modifier,
     )
 }
@@ -96,6 +102,7 @@ private fun CalibrationUnitsScreenContent(
     onUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
     onSaveCustomAnalyte: suspend (UUID?, String, String, String) -> Throwable?,
     onArchiveCustomAnalyte: suspend (UUID) -> Throwable?,
+    onCheckHasResultsForCustomAnalyte: suspend (UUID) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     val listSegmentGap = dimensionResource(R.dimen.list_segment_gap)
@@ -262,6 +269,7 @@ private fun CalibrationUnitsScreenContent(
                 customAnalyte = editingCustomAnalyte,
                 onSave = onSaveCustomAnalyte,
                 onArchive = onArchiveCustomAnalyte,
+                onCheckHasResults = onCheckHasResultsForCustomAnalyte,
                 onDismiss = ::dismissCustomAnalyteDialog,
             )
         }
@@ -369,16 +377,20 @@ private fun CalibrationCustomAnalyteDialog(
     customAnalyte: CustomBloodAnalyte?,
     onSave: suspend (UUID?, String, String, String) -> Throwable?,
     onArchive: suspend (UUID) -> Throwable?,
+    onCheckHasResults: suspend (UUID) -> Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     val duplicateErrorMessage =
         stringResource(R.string.settings_calibration_custom_analyte_error_duplicate)
     val genericSaveErrorMessage =
         stringResource(R.string.settings_calibration_custom_analyte_error_save)
     val archiveErrorMessage =
         stringResource(R.string.settings_calibration_custom_analyte_error_archive)
+    val unitLockedToastMessage =
+        stringResource(R.string.settings_calibration_custom_analyte_unit_locked_toast)
     var abbreviationText by rememberSaveable { mutableStateOf(customAnalyte?.abbreviation.orEmpty()) }
     var nameText by rememberSaveable { mutableStateOf(customAnalyte?.name.orEmpty()) }
     var unitText by rememberSaveable { mutableStateOf(customAnalyte?.unitLabel.orEmpty()) }
@@ -388,6 +400,11 @@ private fun CalibrationCustomAnalyteDialog(
     var actionErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var isWorking by rememberSaveable { mutableStateOf(false) }
     var isArchiveConfirmationVisible by rememberSaveable { mutableStateOf(false) }
+    var isUnitLocked by rememberSaveable { mutableStateOf(customAnalyte != null) }
+
+    LaunchedEffect(customAnalyte?.uuid) {
+        isUnitLocked = customAnalyte?.uuid?.let { onCheckHasResults(it) } ?: false
+    }
 
     AlertDialog(
         modifier = modifier,
@@ -471,31 +488,50 @@ private fun CalibrationCustomAnalyteDialog(
                         null
                     },
                 )
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = unitText,
-                    onValueChange = { value ->
-                        unitText = value
-                        isUnitErrorVisible = false
-                        actionErrorMessage = null
-                    },
-                    label = {
-                        Text(text = stringResource(R.string.settings_calibration_unit_label))
-                    },
-                    singleLine = true,
-                    isError = isUnitErrorVisible,
-                    supportingText = if (isUnitErrorVisible) {
-                        {
-                            Text(
-                                text = stringResource(
-                                    R.string.settings_calibration_custom_analyte_error_required_unit
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = unitText,
+                        onValueChange = { value ->
+                            unitText = value
+                            isUnitErrorVisible = false
+                            actionErrorMessage = null
+                        },
+                        enabled = !isUnitLocked,
+                        label = {
+                            Text(text = stringResource(R.string.settings_calibration_unit_label))
+                        },
+                        singleLine = true,
+                        isError = isUnitErrorVisible,
+                        supportingText = if (isUnitErrorVisible) {
+                            {
+                                Text(
+                                    text = stringResource(
+                                        R.string.settings_calibration_custom_analyte_error_required_unit
+                                    )
                                 )
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                    if (isUnitLocked) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) {
+                                    Toast.makeText(
+                                        context,
+                                        unitLockedToastMessage,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                        )
+                    }
+                }
                 actionErrorMessage?.let { errorMessage ->
                     Text(
                         text = errorMessage,
@@ -662,6 +698,7 @@ private fun CalibrationUnitsScreenPreview() {
             onUnitChange = { _, _ -> },
             onSaveCustomAnalyte = { _, _, _, _ -> null },
             onArchiveCustomAnalyte = { null },
+            onCheckHasResultsForCustomAnalyte = { false },
         )
     }
 }
@@ -679,6 +716,7 @@ private fun CalibrationCustomAnalyteDialogPreview() {
             customAnalyte = previewCustomAnalytes().first(),
             onSave = { _, _, _, _ -> null },
             onArchive = { null },
+            onCheckHasResults = { false },
             onDismiss = {},
         )
     }
