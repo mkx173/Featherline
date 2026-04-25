@@ -383,6 +383,7 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
                 text = stringResource(labelRes),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(end = 4.dp)
             )
         }
     }

@@ -433,8 +433,8 @@ private fun CalibrationPanelRow(
                             start = with(density) {
                                 dateTimeColumnWidth.toDp() + 14.dp
                             },
-                            top = 2.dp,
-                            bottom = valueSummary.testosteroneResultSummary?.let { 6.dp } ?: 2.dp,
+                            top = 4.dp,
+                            bottom = valueSummary.testosteroneResultSummary?.let { 6.dp } ?: 4.dp,
                         )
                 ) {
                     VerticalDivider(
