@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -33,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -43,6 +45,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +61,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -377,21 +381,32 @@ private fun CalibrationEditorScreenContent(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        FilledTonalButton(
-                            onClick = onAddAnalyteClick,
-                            enabled = remainingAnalyteCount > 0,
-                            contentPadding =
-                                ButtonDefaults.contentPaddingFor(ButtonDefaults.MinHeight, hasStartIcon = true)
+                        CompositionLocalProvider(
+                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight))
-                            )
-                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
-                            Text(
-                                text = stringResource(R.string.settings_calibration_add_analyte),
-                            )
+                            FilledTonalButton(
+                                onClick = onAddAnalyteClick,
+                                enabled = remainingAnalyteCount > 0,
+                                contentPadding =
+                                    ButtonDefaults.contentPaddingFor(
+                                        ButtonDefaults.MinHeight,
+                                        hasStartIcon = true
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(
+                                        ButtonDefaults.iconSizeFor(
+                                            ButtonDefaults.MinHeight
+                                        )
+                                    )
+                                )
+                                Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
+                                Text(
+                                    text = stringResource(R.string.settings_calibration_add_analyte),
+                                )
+                            }
                         }
                     }
 
@@ -513,9 +528,9 @@ private fun CalibrationAddAnalyteSheetContent(
 
                 is CalibrationAddAnalyteOption.Custom -> option.customAnalyte.unitLabel
             }
-            val overlineText = when (option) {
-                is CalibrationAddAnalyteOption.Builtin -> null
-                is CalibrationAddAnalyteOption.Custom -> stringResource(R.string.medication_category_custom)
+            val leadingIconVector = when (option) {
+                is CalibrationAddAnalyteOption.Builtin -> Icons.Rounded.WaterDrop
+                is CalibrationAddAnalyteOption.Custom -> Icons.Rounded.Edit
             }
 
             EditorSegmentedListItem(
@@ -526,15 +541,10 @@ private fun CalibrationAddAnalyteSheetContent(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 leadingContent = {
                     Icon(
-                        imageVector = Icons.Rounded.WaterDrop,
+                        imageVector = leadingIconVector,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                },
-                overlineContent = overlineText?.let { text ->
-                    {
-                        Text(text = text)
-                    }
                 },
                 supportingContent = {
                     Text(text = supportingText)
