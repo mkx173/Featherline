@@ -40,6 +40,9 @@ interface MedicationGroupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGroup(group: MedicationGroupEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroups(groups: List<MedicationGroupEntity>)
+
     @Query(
         """
         DELETE FROM medication_group_items
@@ -80,6 +83,13 @@ interface MedicationGroupDao {
         """
     )
     suspend fun deleteGroup(uuid: String)
+
+    @Query(
+        """
+        DELETE FROM medication_groups
+        """
+    )
+    suspend fun deleteAllGroups()
 
     @Transaction
     suspend fun upsertGroupWithItems(

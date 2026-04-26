@@ -9,7 +9,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.LocalActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -96,6 +98,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
 
@@ -110,6 +113,9 @@ fun SettingsScreen(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     val activity = LocalActivity.current
+    val appLockViewModel = (activity as? ComponentActivity)?.let { activityOwner ->
+        hiltViewModel<AppLockViewModel>(viewModelStoreOwner = activityOwner)
+    }
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
@@ -117,9 +123,20 @@ fun SettingsScreen(
     var showInexactReminderWarning by remember { mutableStateOf(false) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
+    var isBackupRestoreInProgress by rememberSaveable { mutableStateOf(false) }
+    var pendingRestoreUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingRestoreDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
+    val pendingRestoreRequest = pendingRestoreUriString?.let { restoreUriString ->
+        PendingBackupRestoreRequest(
+            uri = Uri.parse(restoreUriString),
+            displayName = pendingRestoreDisplayName,
+        )
+    }
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
+    val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
+    val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -147,7 +164,8 @@ fun SettingsScreen(
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
-        if (directoryUri == null || isBackupExportInProgress) {
+        appLockViewModel?.onExternalActivityResult(keepUnlocked = directoryUri != null)
+        if (directoryUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
             return@rememberLauncherForActivityResult
         }
 
@@ -173,6 +191,16 @@ fun SettingsScreen(
                 isBackupExportInProgress = false
             }
         }
+    }
+    val restoreBackupFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { fileUri ->
+        appLockViewModel?.onExternalActivityResult(keepUnlocked = fileUri != null)
+        if (fileUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
+            return@rememberLauncherForActivityResult
+        }
+        pendingRestoreUriString = fileUri.toString()
+        pendingRestoreDisplayName = resolveDocumentDisplayName(context, fileUri)
     }
 
     LaunchedEffect(configuration) {
@@ -269,14 +297,83 @@ fun SettingsScreen(
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onBackupToFileClick = {
-            if (!isBackupExportInProgress) {
+            if (!isBackupExportInProgress && !isBackupRestoreInProgress) {
+                appLockViewModel?.allowNextExternalActivityBypass()
                 backupDirectoryLauncher.launch(null)
             }
         },
+        onRestoreFromFileClick = {
+            if (!isBackupExportInProgress && !isBackupRestoreInProgress) {
+                appLockViewModel?.allowNextExternalActivityBypass()
+                restoreBackupFileLauncher.launch(arrayOf("application/json"))
+            }
+        },
         isBackupExportInProgress = isBackupExportInProgress,
+        isBackupRestoreInProgress = isBackupRestoreInProgress,
         onCalibrationClick = onCalibrationClick,
         modifier = modifier
     )
+
+    pendingRestoreRequest?.let { restoreRequest ->
+        AlertDialog(
+            onDismissRequest = {
+                pendingRestoreUriString = null
+                pendingRestoreDisplayName = null
+            },
+            title = { Text(text = stringResource(R.string.settings_backup_restore_confirm_title)) },
+            text = {
+                Text(
+                    text = restoreRequest.displayName?.let { displayName ->
+                        context.getString(
+                            R.string.settings_backup_restore_confirm_message_with_name,
+                            displayName,
+                        )
+                    } ?: stringResource(R.string.settings_backup_restore_confirm_message)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBackupRestoreInProgress,
+                    onClick = {
+                        coroutineScope.launch {
+                            isBackupRestoreInProgress = true
+                            try {
+                                viewModel.restorePlaintextBackup(restoreRequest.uri)
+                                Toast.makeText(
+                                    context,
+                                    backupRestoreSuccessMessage,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    backupRestoreFailedMessage,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } finally {
+                                isBackupRestoreInProgress = false
+                                pendingRestoreUriString = null
+                                pendingRestoreDisplayName = null
+                            }
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(R.string.settings_backup_restore_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBackupRestoreInProgress,
+                    onClick = {
+                        pendingRestoreUriString = null
+                        pendingRestoreDisplayName = null
+                    }
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -296,7 +393,9 @@ private fun SettingsScreenContent(
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onBackupToFileClick: () -> Unit,
+    onRestoreFromFileClick: () -> Unit,
     isBackupExportInProgress: Boolean,
+    isBackupRestoreInProgress: Boolean,
     onCalibrationClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -673,7 +772,7 @@ private fun SettingsScreenContent(
                 EditorSegmentedListItem(
                     index = 0,
                     count = 2,
-                    enabled = !isBackupExportInProgress,
+                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onBackupToFileClick,
                     leadingContent = {
@@ -691,8 +790,9 @@ private fun SettingsScreenContent(
                 EditorSegmentedListItem(
                     index = 1,
                     count = 2,
+                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { },
+                    onClick = onRestoreFromFileClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_settings_backup_restore)
@@ -1057,8 +1157,35 @@ private fun SettingsScreenPreview() {
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
             onBackupToFileClick = { },
+            onRestoreFromFileClick = { },
             isBackupExportInProgress = false,
+            isBackupRestoreInProgress = false,
             onCalibrationClick = { },
         )
+    }
+}
+
+private data class PendingBackupRestoreRequest(
+    val uri: Uri,
+    val displayName: String?,
+)
+
+private fun resolveDocumentDisplayName(
+    context: Context,
+    uri: Uri,
+): String? {
+    return context.contentResolver.query(
+        uri,
+        arrayOf(OpenableColumns.DISPLAY_NAME),
+        null,
+        null,
+        null,
+    )?.use { cursor ->
+        val nameColumnIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (nameColumnIndex >= 0 && cursor.moveToFirst()) {
+            cursor.getString(nameColumnIndex)
+        } else {
+            null
+        }
     }
 }

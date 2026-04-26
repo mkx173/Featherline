@@ -2,6 +2,7 @@ package com.mkx.hrttracker.data.local
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,21 @@ class DatabaseHolder @Inject constructor(
                 database.openHelper.writableDatabase
             }
         }
+    }
+
+    suspend fun <T> withTransaction(
+        block: suspend (HrtTrackerDatabase) -> T,
+    ): T {
+        val database = get()
+        return database.withTransaction {
+            block(database)
+        }
+    }
+
+    suspend fun runTransaction(
+        block: suspend (HrtTrackerDatabase) -> Unit,
+    ) {
+        withTransaction(block)
     }
 
     private fun buildDatabase(): HrtTrackerDatabase {

@@ -62,6 +62,13 @@ interface MedicationLogDao {
 
     @Query(
         """
+        DELETE FROM medication_log_entries
+        """
+    )
+    suspend fun deleteAllEntries()
+
+    @Query(
+        """
         UPDATE medication_log_entries
         SET sourceType = :manualSourceType,
             sourceGroupUuid = NULL,

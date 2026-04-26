@@ -41,6 +41,9 @@ interface BloodTestDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPanel(panel: BloodTestPanelEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPanels(panels: List<BloodTestPanelEntity>)
+
     @Query(
         """
         DELETE FROM blood_test_results
@@ -59,6 +62,20 @@ interface BloodTestDao {
         """
     )
     suspend fun deletePanel(uuid: String)
+
+    @Query(
+        """
+        DELETE FROM blood_test_results
+        """
+    )
+    suspend fun deleteAllResults()
+
+    @Query(
+        """
+        DELETE FROM blood_test_panels
+        """
+    )
+    suspend fun deleteAllPanels()
 
     @Transaction
     suspend fun upsertPanelWithResults(
@@ -123,6 +140,9 @@ interface BloodTestDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCustomAnalyte(analyte: CustomBloodAnalyteEntity)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertCustomAnalytes(analytes: List<CustomBloodAnalyteEntity>)
+
     @Update
     suspend fun updateCustomAnalyte(analyte: CustomBloodAnalyteEntity)
 
@@ -133,6 +153,13 @@ interface BloodTestDao {
         """
     )
     suspend fun deleteCustomAnalyte(uuid: String)
+
+    @Query(
+        """
+        DELETE FROM custom_blood_analytes
+        """
+    )
+    suspend fun deleteAllCustomAnalytes()
 
     @Query(
         """

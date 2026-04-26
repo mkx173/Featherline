@@ -132,6 +132,41 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun restoreSettings(
+        darkModeOption: DarkModeOption,
+        adaptiveColorEnabled: Boolean,
+        remindersEnabled: Boolean,
+        appLockGracePeriodOption: AppLockGracePeriodOption,
+        hideScreenContentEnabled: Boolean,
+        onboardingCompleted: Boolean,
+        appLanguageOption: AppLanguageOption,
+        calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
+    ) {
+        calibrationDefaultUnits.forEach { (analyteKey, unit) ->
+            require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
+                "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
+            }
+        }
+
+        context.dataStore.edit { preferences ->
+            preferences[darkModeKey] = darkModeOption.name
+            preferences[adaptiveColorKey] = adaptiveColorEnabled
+            preferences[remindersEnabledKey] = remindersEnabled
+            preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
+            preferences[hideScreenContentKey] = hideScreenContentEnabled
+            preferences[onboardingCompletedKey] = onboardingCompleted
+
+            calibrationDefaultUnitKeys.values.forEach(preferences::remove)
+            calibrationDefaultUnits.forEach { (analyteKey, unit) ->
+                if (unit != BloodTestCatalog.canonicalUnitFor(analyteKey)) {
+                    preferences[calibrationDefaultUnitKeys.getValue(analyteKey)] = unit.storageValue
+                }
+            }
+        }
+
+        setAppLanguageOption(appLanguageOption)
+    }
+
     fun setAppLanguageOption(option: AppLanguageOption) {
         appLanguageOption.value = option
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
