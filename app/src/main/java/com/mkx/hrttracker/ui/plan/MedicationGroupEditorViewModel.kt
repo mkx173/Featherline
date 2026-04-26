@@ -13,6 +13,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -32,6 +33,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -55,7 +59,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val pendingGroupUuid = editingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
     } ?: UUID.randomUUID()
-    private var latestMedicationLogEntries = emptyList<com.mkx.hrttracker.model.medication.MedicationLogEntry>()
 
     init {
         viewModelScope.launch {
@@ -100,17 +103,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            medicationLogRepository.observeEntries().collect { entriesOrNull ->
-                latestMedicationLogEntries = entriesOrNull.orEmpty()
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        relatedEntryCount = relatedEntryCountForGroup(
-                            entries = latestMedicationLogEntries,
-                            groupId = currentState.editingGroupId,
-                        )
+            medicationLogRepository.observeEntries()
+                .combine(
+                    _uiState.map { it.editingGroupId }.distinctUntilChanged(),
+                ) { entriesOrNull, currentEditingGroupId ->
+                    relatedEntryCountForGroup(
+                        entries = entriesOrNull.orEmpty(),
+                        groupId = currentEditingGroupId,
                     )
                 }
-            }
+                .collect { count ->
+                    _uiState.update { it.copy(relatedEntryCount = count) }
+                }
         }
 
         if (editingGroupId != null) {
@@ -508,6 +512,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 it.copy(
                     isDeletingRelatedEntries = false,
                     deleteRelatedEntriesResult = result,
+                    relatedEntryCount = if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                        0
+                    } else {
+                        it.relatedEntryCount
+                    },
                 )
             }
         }
@@ -568,10 +577,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 hasResolvedNotificationDefault = true,
                 groupColorKey = group.colorKey,
                 hasAssignedGroupColor = true,
-                relatedEntryCount = relatedEntryCountForGroup(
-                    entries = latestMedicationLogEntries,
-                    groupId = group.uuid.toString(),
-                ),
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -830,7 +835,7 @@ internal fun resolveMedicationGroupColorKey(
 }
 
 internal fun relatedEntryCountForGroup(
-    entries: List<com.mkx.hrttracker.model.medication.MedicationLogEntry>,
+    entries: List<MedicationLogEntry>,
     groupId: String?,
 ): Int {
     if (groupId == null) {

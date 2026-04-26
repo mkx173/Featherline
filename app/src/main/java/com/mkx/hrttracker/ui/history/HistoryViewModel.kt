@@ -164,13 +164,14 @@ class HistoryViewModel @Inject constructor(
             return
         }
 
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
+
         viewModelScope.launch {
             isDeletingAllEntries.value = true
             val result = runCatching {
                 medicationLogRepository.deleteAllEntries()
                 medicationReminderScheduler.rescheduleAll()
-                selectedEntryIds.value = emptySet()
-                isDeleteConfirmationVisible.value = false
             }.fold(
                 onSuccess = { HistoryDeleteAllEntriesResult.SUCCESS },
                 onFailure = { HistoryDeleteAllEntriesResult.FAILURE },
