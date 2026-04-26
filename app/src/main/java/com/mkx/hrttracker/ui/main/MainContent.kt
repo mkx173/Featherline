@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
@@ -78,6 +79,7 @@ private val FulfilledStatusColor = Color(0xFF2E7D32)
 @Composable
 fun MainContent(
     uiState: MainUiState,
+    scrollToTopSignal: Int = 0,
     onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -88,6 +90,7 @@ fun MainContent(
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
+    val listState = rememberLazyListState()
 
     if (uiState.isLoading) {
         Box(
@@ -99,7 +102,14 @@ fun MainContent(
         return
     }
 
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = dimensionResource(R.dimen.padding_medium),

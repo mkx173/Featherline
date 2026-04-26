@@ -65,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -104,12 +105,14 @@ import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -364,6 +367,7 @@ fun SettingsScreen(
         isBackupExportInProgress = isBackupExportInProgress || isBackupFlowPending,
         isBackupRestoreInProgress = isBackupRestoreInProgress,
         onCalibrationClick = onCalibrationClick,
+        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 
@@ -484,6 +488,7 @@ private fun SettingsScreenContent(
     isBackupExportInProgress: Boolean,
     isBackupRestoreInProgress: Boolean,
     onCalibrationClick: () -> Unit,
+    scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val settingsState = uiState.settingsState
@@ -509,11 +514,26 @@ private fun SettingsScreenContent(
         appVersionInfo.versionName,
         appVersionInfo.versionCode.toString()
     )
+    val scrollState = rememberScrollState()
 
     val appLocale = rememberAppLocale()
     val isChinese = appLocale.language == "zh"
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) {
+            scrollState.animateScrollTo(0)
+        }
+    }
+
+    LaunchedEffect(scrollState, scrollBehavior) {
+        snapshotFlow { scrollState.value > 0 }.collect { isScrolled ->
+            scrollBehavior.state.contentOffset = if (isScrolled) 1f else 0f
+            scrollBehavior.state.heightOffset = 0f
+        }
+    }
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -525,7 +545,7 @@ private fun SettingsScreenContent(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(innerPadding)
                 .padding(dimensionResource(R.dimen.padding_medium)),
         ) {

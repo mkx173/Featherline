@@ -23,6 +23,7 @@ import java.util.UUID
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
+    scrollToTopSignal: Int = 0,
     onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit = { _, _, _, _ -> },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -40,6 +41,7 @@ fun MainScreen(
     ) { innerPadding ->
         MainContent(
             uiState = uiState,
+            scrollToTopSignal = scrollToTopSignal,
             onQuickLogDoseClick = onQuickLogDoseClick,
             modifier = Modifier
                 .fillMaxSize()

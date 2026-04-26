@@ -22,6 +22,7 @@ import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -147,6 +148,31 @@ private val bottomNavItems = listOf(
     NavigationItemContent(Screen.Settings, Icons.Rounded.Settings)
 )
 
+internal enum class TopLevelNavigationTapAction {
+    NAVIGATE,
+    POP_TO_TOP_LEVEL,
+    SCROLL_TO_TOP,
+    NONE,
+}
+
+internal fun topLevelNavigationTapAction(
+    tappedScreen: Screen,
+    selectedBottomScreen: Screen?,
+    currentRoute: String?,
+): TopLevelNavigationTapAction {
+    val isOnChildOfSelectedTopLevel =
+        selectedBottomScreen == tappedScreen &&
+            currentRoute != null &&
+            currentRoute != tappedScreen.route
+
+    return when {
+        isOnChildOfSelectedTopLevel -> TopLevelNavigationTapAction.POP_TO_TOP_LEVEL
+        currentRoute == tappedScreen.route -> TopLevelNavigationTapAction.SCROLL_TO_TOP
+        currentRoute != tappedScreen.route -> TopLevelNavigationTapAction.NAVIGATE
+        else -> TopLevelNavigationTapAction.NONE
+    }
+}
+
 @Composable
 fun HrtTrackerNavHost(
     navController: NavHostController,
@@ -154,6 +180,10 @@ fun HrtTrackerNavHost(
 ) {
     var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
     var quickLogPlannedDoseRequest by remember { mutableStateOf<QuickLogPlannedDoseRequest?>(null) }
+    var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
+    var planScrollToTopSignal by remember { mutableIntStateOf(0) }
+    var historyScrollToTopSignal by remember { mutableIntStateOf(0) }
+    var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
@@ -173,20 +203,38 @@ fun HrtTrackerNavHost(
                     NavigationBarItem(
                         selected = selectedBottomScreen == navItem.screen,
                         onClick = {
-                            val isOnChildOfSelectedTopLevel =
-                                selectedBottomScreen == navItem.screen &&
-                                    currentRoute != navItem.screen.route
-
-                            if (isOnChildOfSelectedTopLevel) {
-                                navController.popBackStack(navItem.screen.route, false)
-                            } else if (currentDestination?.route != navItem.screen.route) {
-                                navController.navigate(navItem.screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+                            when (
+                                topLevelNavigationTapAction(
+                                    tappedScreen = navItem.screen,
+                                    selectedBottomScreen = selectedBottomScreen,
+                                    currentRoute = currentRoute,
+                                )
+                            ) {
+                                TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+                                    navController.popBackStack(navItem.screen.route, false)
                                 }
+
+                                TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
+                                    when (navItem.screen) {
+                                        Screen.Main -> mainScrollToTopSignal++
+                                        Screen.Plan -> planScrollToTopSignal++
+                                        Screen.History -> historyScrollToTopSignal++
+                                        Screen.Settings -> settingsScrollToTopSignal++
+                                        else -> Unit
+                                    }
+                                }
+
+                                TopLevelNavigationTapAction.NAVIGATE -> {
+                                    navController.navigate(navItem.screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+
+                                TopLevelNavigationTapAction.NONE -> Unit
                             }
                         },
                         icon = {
@@ -230,6 +278,7 @@ fun HrtTrackerNavHost(
             composable(Screen.Main.route) {
                 MainScreen(
                     modifier.padding(innerPadding),
+                    scrollToTopSignal = mainScrollToTopSignal,
                     onQuickLogDoseClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         if (medicationCount > 0) {
                             quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
@@ -245,6 +294,7 @@ fun HrtTrackerNavHost(
             composable(Screen.Plan.route) {
                 PlanScreen(
                     modifier = modifier.padding(innerPadding),
+                    scrollToTopSignal = planScrollToTopSignal,
                     onGroupClick = { groupId ->
                         navController.navigate(
                             Screen.EditMedicationGroup.createRoute(
@@ -289,6 +339,7 @@ fun HrtTrackerNavHost(
             composable(Screen.History.route) {
                 HistoryScreen(
                     modifier = modifier.padding(innerPadding),
+                    scrollToTopSignal = historyScrollToTopSignal,
                     onEntryClick = { entryIds ->
                         addEntrySheetRequest = AddEntrySheetRequest(
                             entryIds = entryIds.map(UUID::toString)
@@ -299,6 +350,7 @@ fun HrtTrackerNavHost(
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     modifier = modifier.padding(innerPadding),
+                    scrollToTopSignal = settingsScrollToTopSignal,
                     onCalibrationClick = {
                         navController.navigate(
                             Screen.SettingsCalibration.createRoute(Screen.Settings.route)

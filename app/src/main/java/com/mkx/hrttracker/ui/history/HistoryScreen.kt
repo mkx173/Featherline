@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -108,6 +109,7 @@ import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -126,6 +128,7 @@ import java.util.UUID
 @Composable
 fun HistoryScreen(
     onEntryClick: (Set<UUID>) -> Unit,
+    scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -153,6 +156,7 @@ fun HistoryScreen(
         onDisplayedMonthChange = { month, clearSelection ->
             viewModel.setDisplayedMonth(month, clearSelection)
         },
+        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 }
@@ -168,6 +172,7 @@ private fun HistoryScreenContent(
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
+    scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -181,6 +186,7 @@ private fun HistoryScreenContent(
     val monthLabelFormatter = remember(appLocale) {
         historyMonthLabelFormatter(appLocale)
     }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val calendarState = key(
         uiState.calendarStartMonth,
         uiState.calendarEndMonth,
@@ -209,6 +215,7 @@ private fun HistoryScreenContent(
             selectedDate = uiState.selectedDate
         )
     }
+    val listState = rememberLazyListState()
     val displayedSelectedDate = remember(
         displayedMonth.yearMonth,
         pendingSelectedDate.value,
@@ -245,6 +252,24 @@ private fun HistoryScreenContent(
         val pendingDate = pendingSelectedDate.value ?: return@LaunchedEffect
         if (uiState.selectedDate == pendingDate) {
             pendingSelectedDate.value = null
+        }
+    }
+
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(listState, scrollBehavior) {
+        snapshotFlow {
+            historyHasScrolled(
+                firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+            )
+        }.collect { isScrolled ->
+            scrollBehavior.state.contentOffset = scrolledTopAppBarContentOffset(isScrolled)
+            scrollBehavior.state.heightOffset = 0f
         }
     }
 
@@ -330,7 +355,6 @@ private fun HistoryScreenContent(
         )
     }
 
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
@@ -363,6 +387,7 @@ private fun HistoryScreenContent(
         }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -500,6 +525,17 @@ private fun HistoryScreenContent(
             }
         }
     }
+}
+
+internal fun historyHasScrolled(
+    firstVisibleItemIndex: Int,
+    firstVisibleItemScrollOffset: Int,
+): Boolean {
+    return firstVisibleItemIndex > 0 || firstVisibleItemScrollOffset > 0
+}
+
+internal fun scrolledTopAppBarContentOffset(isScrolled: Boolean): Float {
+    return if (isScrolled) 1f else 0f
 }
 
 @Composable

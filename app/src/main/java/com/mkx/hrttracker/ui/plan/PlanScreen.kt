@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -112,6 +113,7 @@ fun PlanScreen(
     onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -127,6 +129,7 @@ fun PlanScreen(
         onAddGroupClick = onAddGroupClick,
         onHistoryClick = onHistoryClick,
         onDateSelected = viewModel::setSelectedDate,
+        scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
 }
@@ -141,6 +144,7 @@ private fun PlanScreenContent(
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
+    scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -159,6 +163,7 @@ private fun PlanScreenContent(
     val selection = uiState.selectedDate
     val daySchedule = uiState.daySchedule
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
@@ -172,6 +177,12 @@ private fun PlanScreenContent(
     LaunchedEffect(selection) {
         if (visibleWeek.days.none { it.date == selection }) {
             state.animateScrollToWeek(selection)
+        }
+    }
+
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) {
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -206,6 +217,7 @@ private fun PlanScreenContent(
             return@Scaffold
         }
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
