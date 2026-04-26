@@ -119,6 +119,7 @@
     <string name="field_medication_source">Selection</string>
     <string name="field_medication_name">Medication name</string>
     <string name="field_dosage_mg">Dosage</string>
+    <string name="field_count">Count</string>
     <string name="field_dose_type">Dose type</string>
     <string name="field_equivalent_estradiol_mg">Equivalent E2 dosage</string>
     <string name="field_gel_percent">E2 concentration</string>
@@ -207,6 +208,7 @@
     <string name="validation_gel_percent_required">Enter a valid percentage.</string>
     <string name="validation_gel_weight_required">Enter a valid weight in grams.</string>
     <string name="validation_patch_release_rate_required">Enter a valid release rate.</string>
+    <string name="validation_count_required">Enter a valid count.</string>
     <string name="default_group_name_format">Group %1$d</string>
     <string name="validation_group_medication_name_required">Each medication needs a name.</string>
     <string name="validation_group_medication_dose_required">Each medication needs a valid dosage.</string>

@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -11,46 +12,43 @@ import org.junit.Test
 
 class MedicationGroupEditorCountTest {
     @Test
-    fun incrementMedicationCount_increases_only_target_row() {
+    fun removeMedicationItem_removes_only_target_row() {
         val unchanged = medication(localId = "keep", count = 3)
         val updated = medication(localId = "change", count = 1)
 
-        val result = incrementMedicationCount(
+        val result = removeMedicationItem(
             medications = listOf(unchanged, updated),
             localId = "change"
         )
 
-        assertEquals(listOf(3, 2), result.map { medication -> medication.count })
+        assertEquals(listOf(3), result.map { medication -> medication.count })
     }
 
     @Test
-    fun decrementMedicationCountOrRemove_decrements_when_count_above_one() {
-        val result = decrementMedicationCountOrRemove(
-            medications = listOf(medication(localId = "change", count = 2)),
-            localId = "change"
+    fun medicationItem_toEditorUiState_coerces_unsupported_routes_to_count_one() {
+        val editorState = MedicationGroupMedicationItemUiState(
+            localId = "injection",
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_VALERATE,
+                applicationType = MedicationApplicationType.INJECTION,
+                dose = MedicationDose.MgAsMedicine(5.0)
+            ),
+            count = 3
+        ).toEditorUiState()
+
+        assertEquals(1, editorState.count)
+    }
+
+    @Test
+    fun normalizeMedicationCount_preserves_patch_on_counts() {
+        assertEquals(
+            2,
+            normalizeMedicationCount(MedicationApplicationType.PATCH_ON, 2)
         )
-
-        assertEquals(listOf(1), result.map { medication -> medication.count })
-    }
-
-    @Test
-    fun decrementMedicationCountOrRemove_removes_when_count_is_one() {
-        val result = decrementMedicationCountOrRemove(
-            medications = listOf(medication(localId = "change", count = 1)),
-            localId = "change"
+        assertEquals(
+            1,
+            normalizeMedicationCount(MedicationApplicationType.GEL, 2)
         )
-
-        assertEquals(emptyList<MedicationGroupMedicationItemUiState>(), result)
-    }
-
-    @Test
-    fun shouldConfirmMedicationRemoval_returns_true_for_last_item() {
-        assertTrue(shouldConfirmMedicationRemoval(1))
-    }
-
-    @Test
-    fun shouldConfirmMedicationRemoval_returns_false_when_count_above_one() {
-        assertFalse(shouldConfirmMedicationRemoval(2))
     }
 
     @Test

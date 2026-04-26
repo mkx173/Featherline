@@ -52,6 +52,7 @@ class StructuredMedicationEditorSheetTest {
         assertNull(fieldErrors.gelPercent)
         assertNull(fieldErrors.gelWeight)
         assertNull(fieldErrors.patchReleaseRate)
+        assertNull(fieldErrors.count)
     }
 
     @Test
@@ -62,6 +63,22 @@ class StructuredMedicationEditorSheetTest {
             errorMessageRes = null
         )
 
+        assertNull(fieldErrors.customName)
+        assertNull(fieldErrors.doseMg)
+        assertNull(fieldErrors.gelPercent)
+        assertNull(fieldErrors.gelWeight)
+        assertNull(fieldErrors.patchReleaseRate)
+        assertNull(fieldErrors.count)
+    }
+
+    @Test
+    fun resolve_medication_editor_field_errors_maps_count_validation() {
+        val fieldErrors = resolveMedicationEditorFieldErrors(
+            draft = defaultMedicationDraft().copy(doseMg = "2"),
+            errorMessageRes = R.string.validation_count_required
+        )
+
+        assertEquals(R.string.validation_count_required, fieldErrors.count)
         assertNull(fieldErrors.customName)
         assertNull(fieldErrors.doseMg)
         assertNull(fieldErrors.gelPercent)

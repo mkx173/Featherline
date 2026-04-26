@@ -167,6 +167,27 @@ class AddEntryViewModelTest {
     }
 
     @Test
+    fun buildEditingUiState_coerces_unsupported_routes_to_count_one() {
+        val entry = testMedicationLogEntry(
+            uuid = UUID.fromString("62f549eb-3870-4ce8-b476-6dd44759d78d"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL_VALERATE,
+                applicationType = MedicationApplicationType.INJECTION,
+                dose = MedicationDose.MgAsMedicine(5.0)
+            ),
+            dosageMgAsEstradiol = 5.0,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            count = 3
+        )
+
+        val uiState = buildEditingUiState(listOf(entry))
+
+        requireNotNull(uiState)
+        assertEquals(1, uiState.count)
+    }
+
+    @Test
     fun addEntryUiState_allows_delete_only_while_editing() {
         assertFalse(AddEntryUiState().canDelete)
         assertTrue(

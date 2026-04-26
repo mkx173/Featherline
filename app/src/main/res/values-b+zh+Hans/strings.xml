@@ -118,6 +118,7 @@
     <string name="field_medication_source">选择方式</string>
     <string name="field_medication_name">药物名称</string>
     <string name="field_dosage_mg">剂量</string>
+    <string name="field_count">数量</string>
     <string name="field_dose_type">剂量类型</string>
     <string name="field_equivalent_estradiol_mg">等效雌二醇剂量</string>
     <string name="field_gel_percent">雌二醇浓度</string>
@@ -205,6 +206,7 @@
     <string name="validation_gel_percent_required">请输入有效的浓度</string>
     <string name="validation_gel_weight_required">请输入有效的重量</string>
     <string name="validation_patch_release_rate_required">请输入有效的释放速率</string>
+    <string name="validation_count_required">请输入有效数量</string>
     <string name="default_group_name_format">分组 %1$d</string>
     <string name="validation_group_medication_name_required">每种药物都需要名称</string>
     <string name="validation_group_medication_dose_required">每种药物都需要有效的剂量</string>

@@ -22,8 +22,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Label
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
@@ -33,6 +36,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -48,8 +52,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -59,8 +65,10 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -86,6 +94,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +117,10 @@ fun StructuredMedicationEditorSheet(
     onGelPercentChange: (String) -> Unit,
     onGelWeightChange: (String) -> Unit,
     onPatchReleaseRateChange: (String) -> Unit,
+    countText: String = "1",
+    onCountTextChange: ((String) -> Unit)? = null,
+    onDecreaseCountClick: (() -> Unit)? = null,
+    onIncreaseCountClick: (() -> Unit)? = null,
     isMedicationIdentityEditable: Boolean = true,
     appliedDate: LocalDate? = null,
     appliedTime: LocalTime? = null,
@@ -135,7 +148,21 @@ fun StructuredMedicationEditorSheet(
         MedicationCatalog.catalogFor(draft.category, draft.applicationType)
     }
     val doseAssistPresets = remember(draft) { draft.activeDoseAssistPresets() }
-    val showsDoseWarning = remember(draft) { draft.exceedsDoseWarningThreshold() }
+    val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
+    val showsDoseWarning = remember(draft, resolvedCount) {
+        draft.exceedsDoseWarningThreshold(resolvedCount)
+    }
+    val showsCountEditor = remember(
+        draft,
+        onCountTextChange,
+        onDecreaseCountClick,
+        onIncreaseCountClick
+    ) {
+        draft.showsMedicationCountEditor() &&
+            onCountTextChange != null &&
+            onDecreaseCountClick != null &&
+            onIncreaseCountClick != null
+    }
     val applicationTypeButtonIcons = rememberMedicationApplicationButtonIcons()
     val customNameFocusRequester = remember { FocusRequester() }
     val doseMgFocusRequester = remember { FocusRequester() }
@@ -347,6 +374,7 @@ fun StructuredMedicationEditorSheet(
                     selectedOption = MedicationGelApplicationArea.DEFAULT,
                     optionLabel = { area -> stringResource(area.labelRes) },
                     onOptionSelected = {},
+                    enabled = isMedicationIdentityEditable
                 )
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -363,7 +391,8 @@ fun StructuredMedicationEditorSheet(
                     options = draft.availableDoseKinds(),
                     selectedOption = draft.doseKind,
                     optionLabel = { doseKind -> stringResource(doseKindLabelRes(doseKind)) },
-                    onOptionSelected = onDoseKindChange
+                    onOptionSelected = onDoseKindChange,
+                    enabled = isMedicationIdentityEditable
                 )
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -392,6 +421,7 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = field
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -399,6 +429,7 @@ fun StructuredMedicationEditorSheet(
                             val resolvedPreset = preset as MedicationDoseAssistPreset.MgAsMedicine
                             onDoseMgChange(resolvedPreset.valueMg)
                         },
+                        enabled = isMedicationIdentityEditable
                     )
                     if (draft.showsCustomDoseUnitSelector()) {
                         Row(
@@ -421,7 +452,8 @@ fun StructuredMedicationEditorSheet(
                                     optionLabel = { unit -> stringResource(unit.shortLabelRes) },
                                     onOptionSelected = onCustomDoseUnitChange,
                                     layout = ConnectedButtonGroupLayout.ROW,
-                                    applyChineseTextOffset = false
+                                    applyChineseTextOffset = false,
+                                    enabled = isMedicationIdentityEditable
                                 )
                             }
                         }
@@ -449,6 +481,7 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = field
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -457,6 +490,7 @@ fun StructuredMedicationEditorSheet(
                                 preset as MedicationDoseAssistPreset.GelEquivalentEstradiolMg
                             onDoseMgChange(resolvedPreset.valueMg)
                         },
+                        enabled = isMedicationIdentityEditable
                     )
                 }
 
@@ -482,6 +516,7 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = percentField
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
@@ -489,7 +524,8 @@ fun StructuredMedicationEditorSheet(
                             val resolvedPreset =
                                 preset as MedicationDoseAssistPreset.GelPercent
                             onGelPercentChange(resolvedPreset.percent)
-                        }
+                        },
+                        enabled = isMedicationIdentityEditable
                     )
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     val weightField = StructuredMedicationEditorTextField.GEL_WEIGHT
@@ -513,6 +549,7 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = weightField
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
@@ -520,7 +557,8 @@ fun StructuredMedicationEditorSheet(
                             val resolvedPreset =
                                 preset as MedicationDoseAssistPreset.GelWeightGrams
                             onGelWeightChange(resolvedPreset.weightGrams)
-                        }
+                        },
+                        enabled = isMedicationIdentityEditable
                     )
                 }
 
@@ -545,13 +583,15 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = field
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
                         onPresetClick = { preset ->
                             val resolvedPreset = preset as MedicationDoseAssistPreset.PatchTotalMg
                             onDoseMgChange(resolvedPreset.valueMg)
-                        }
+                        },
+                        enabled = isMedicationIdentityEditable
                     )
                 }
 
@@ -576,6 +616,7 @@ fun StructuredMedicationEditorSheet(
                             editableFields = editableTextFields,
                             field = field
                         ),
+                        enabled = isMedicationIdentityEditable
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -583,7 +624,9 @@ fun StructuredMedicationEditorSheet(
                             val resolvedPreset =
                                 preset as MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay
                             onPatchReleaseRateChange(resolvedPreset.valueMcgPerDay)
-                        }
+                        },
+                        enabled = isMedicationIdentityEditable,
+                        appLocale = appLocale
                     )
                 }
 
@@ -600,6 +643,18 @@ fun StructuredMedicationEditorSheet(
                         enabled = false
                     )
                 }
+            }
+
+            if (showsCountEditor) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                MedicationCountTextField(
+                    value = countText,
+                    onValueChange = checkNotNull(onCountTextChange),
+                    onDecreaseClick = checkNotNull(onDecreaseCountClick),
+                    onIncreaseClick = checkNotNull(onIncreaseCountClick),
+                    enabled = !isSaving && isMedicationIdentityEditable,
+                    errorMessageRes = fieldErrors.count,
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -868,6 +923,101 @@ private fun DoseTextField(
     )
 }
 
+@Composable
+private fun MedicationCountTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onDecreaseClick: () -> Unit,
+    onIncreaseClick: () -> Unit,
+    enabled: Boolean,
+    @StringRes errorMessageRes: Int? = null,
+) {
+    val focusManager = LocalFocusManager.current
+    val stepBaseCount = countStepBase(value)
+    var textFieldValue by remember(value) {
+        mutableStateOf(
+            TextFieldValue(
+                text = value,
+                selection = TextRange(value.length)
+            )
+        )
+    }
+    OutlinedTextField(
+        value = textFieldValue,
+        onValueChange = { updatedValue ->
+            val sanitizedValue = sanitizeMedicationCountText(updatedValue.text)
+            val selection = TextRange(
+                start = updatedValue.selection.start.coerceIn(0, sanitizedValue.length),
+                end = updatedValue.selection.end.coerceIn(0, sanitizedValue.length),
+            )
+            textFieldValue = updatedValue.copy(
+                text = sanitizedValue,
+                selection = selection
+            )
+            onValueChange(sanitizedValue)
+        },
+        label = { Text(text = stringResource(R.string.field_count)) },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Rounded.Tag,
+                contentDescription = null
+            )
+        },
+        isError = errorMessageRes != null,
+        trailingIcon = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(end = 4.dp)
+            ) {
+                IconButton(
+                    onClick = onDecreaseClick,
+                    enabled = enabled && stepBaseCount > 1,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Remove,
+                        contentDescription = stringResource(R.string.decrease_medication_count),
+                    )
+                }
+                IconButton(
+                    onClick = onIncreaseClick,
+                    enabled = enabled,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(R.string.increase_medication_count),
+                    )
+                }
+            }
+        },
+        supportingText = errorMessageRes?.let { messageRes ->
+            {
+                Text(
+                    text = stringResource(messageRes),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    textFieldValue = textFieldValue.copy(
+                        selection = TextRange(0, textFieldValue.text.length)
+                    )
+                }
+            },
+        singleLine = true,
+        enabled = enabled,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { focusManager.clearFocus() }
+        )
+    )
+}
+
 internal enum class StructuredMedicationEditorTextField {
     CUSTOM_NAME,
     DOSE_MG,
@@ -954,10 +1104,13 @@ internal fun resolveDoseTextFieldPlaceholder(
 private fun DoseAssistPresetRow(
     presets: List<MedicationDoseAssistPreset>,
     onPresetClick: (MedicationDoseAssistPreset) -> Unit,
+    enabled: Boolean,
+    appLocale: Locale? = null
 ) {
-    if (presets.isEmpty()) {
+    if (presets.isEmpty() or !enabled) {
         return
     }
+    val isChinese = appLocale?. let {appLocale.language == "zh"} ?: false
 
     Row(
         modifier = Modifier
@@ -973,7 +1126,14 @@ private fun DoseAssistPresetRow(
             presets.forEach { preset ->
                 AssistChip(
                     onClick = { onPresetClick(preset) },
-                    label = { Text(text = doseAssistPresetLabel(preset)) }
+                    label = {
+                        Text(
+                            text = doseAssistPresetLabel(preset),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese) (-1).dp.toPx() else 0f
+                            }
+                        )
+                    }
                 )
             }
         }
@@ -1123,6 +1283,7 @@ internal data class MedicationEditorFieldErrors(
     @param:StringRes val gelPercent: Int? = null,
     @param:StringRes val gelWeight: Int? = null,
     @param:StringRes val patchReleaseRate: Int? = null,
+    @param:StringRes val count: Int? = null,
 )
 
 internal fun resolveMedicationEditorFieldErrors(
@@ -1145,6 +1306,11 @@ internal fun resolveMedicationEditorFieldErrors(
         },
         patchReleaseRate = validationErrors.firstOrNull {
             it == R.string.validation_patch_release_rate_required
+        },
+        count = if (errorMessageRes == R.string.validation_count_required) {
+            errorMessageRes
+        } else {
+            null
         },
     )
 }
@@ -1185,6 +1351,10 @@ private fun StructuredMedicationEditorSheetPreview() {
             onGelPercentChange = { },
             onGelWeightChange = { },
             onPatchReleaseRateChange = { },
+            countText = "2",
+            onCountTextChange = { },
+            onDecreaseCountClick = { },
+            onIncreaseCountClick = { },
             appliedDate = LocalDate.of(2026, 4, 22),
             appliedTime = LocalTime.of(20, 30),
             onAppliedDateChange = { },

@@ -8,6 +8,13 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
+import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
+import com.mkx.hrttracker.ui.medication.parseMedicationCountText
+import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
+import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
+import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,9 +53,50 @@ class AddEntryViewModel @Inject constructor(
     fun updateMedicationDraft(
         transform: (MedicationDraftUiState) -> MedicationDraftUiState
     ) {
-        _uiState.update {
-            it.copy(
-                medicationDraft = transform(it.medicationDraft),
+        _uiState.update { currentState ->
+            val updatedDraft = transform(currentState.medicationDraft)
+            currentState.copy(
+                medicationDraft = updatedDraft,
+                countText = resolveMedicationCountTextAfterDraftChange(
+                    previousDraft = currentState.medicationDraft,
+                    updatedDraft = updatedDraft,
+                    currentCountText = currentState.countText
+                ),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun updateCountText(countText: String) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                countText = sanitizeMedicationCountText(countText),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun decreaseCount() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                countText = stepMedicationCount(
+                    applicationType = currentState.medicationDraft.applicationType,
+                    countText = currentState.countText,
+                    delta = -1
+                ).toString(),
+                errorMessageRes = null
+            )
+        }
+    }
+
+    fun increaseCount() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                countText = stepMedicationCount(
+                    applicationType = currentState.medicationDraft.applicationType,
+                    countText = currentState.countText,
+                    delta = 1
+                ).toString(),
                 errorMessageRes = null
             )
         }
@@ -79,6 +127,10 @@ class AddEntryViewModel @Inject constructor(
             currentState.appliedTime
         ).atZone(ZoneId.systemDefault()).toInstant()
         val errorRes = currentState.medicationDraft.validationErrorRes()
+            ?: medicationCountValidationErrorRes(
+                applicationType = currentState.medicationDraft.applicationType,
+                countText = currentState.countText
+            )
 
         if (errorRes != null) {
             _uiState.update {
@@ -91,6 +143,10 @@ class AddEntryViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
 
             val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
+            val resolvedCount = resolvedMedicationCountForSave(
+                applicationType = currentState.medicationDraft.applicationType,
+                countText = currentState.countText,
+            )
             if (editingEntryUuids.size > 1) {
                 medicationLogRepository.saveEntries(
                     uuids = editingEntryUuids,
@@ -98,7 +154,7 @@ class AddEntryViewModel @Inject constructor(
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
                     scheduledFor = currentState.scheduledFor,
-                    count = currentState.count
+                    count = resolvedCount
                 )
             } else {
                 medicationLogRepository.saveEntry(
@@ -107,7 +163,7 @@ class AddEntryViewModel @Inject constructor(
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
                     scheduledFor = currentState.scheduledFor,
-                    count = currentState.count
+                    count = resolvedCount
                 )
             }
             medicationReminderScheduler.rescheduleAll()
@@ -162,13 +218,16 @@ data class AddEntryUiState(
     val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
     val sourceGroupUuid: UUID? = null,
     val scheduledFor: LocalDateTime? = null,
-    val count: Int = 1,
+    val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val errorMessageRes: Int? = null,
 ) {
+    val count: Int
+        get() = parseMedicationCountText(countText)
+
     val isEditing: Boolean
         get() = editingEntryIds.isNotEmpty()
 
@@ -198,7 +257,10 @@ internal fun buildEditingUiState(entries: List<MedicationLogEntry>): AddEntryUiS
         medicationDraft = medicationDraftFromDetails(representativeEntry.details),
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
         scheduledFor = representativeEntry.scheduledFor,
-        count = representativeEntry.count,
+        countText = normalizeMedicationCount(
+            representativeEntry.details.applicationType,
+            representativeEntry.count
+        ).toString(),
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
     )

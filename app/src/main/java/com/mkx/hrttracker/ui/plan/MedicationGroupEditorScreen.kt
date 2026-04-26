@@ -121,6 +121,7 @@ import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
 import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.changeSelectionKind
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -365,11 +366,13 @@ fun MedicationGroupEditorScreen(
         onRemoveDailyTime = viewModel::removeDailyTime,
         onAddMedication = viewModel::showAddMedicationEditor,
         onMedicationClick = viewModel::showMedicationEditor,
-        onDecreaseMedicationCount = viewModel::removeMedication,
-        onIncreaseMedicationCount = viewModel::increaseMedicationCount,
+        onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
         onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
+        onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
+        onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
+        onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
         onSaveMedicationClick = viewModel::saveEditingMedication,
         onSaveClick = viewModel::saveGroup,
         onDeleteRelatedEntriesClick = viewModel::showDeleteRelatedEntriesConfirmation,
@@ -406,11 +409,13 @@ private fun MedicationGroupEditorScreenContent(
     onRemoveDailyTime: (String) -> Unit,
     onAddMedication: () -> Unit,
     onMedicationClick: (String) -> Unit,
-    onDecreaseMedicationCount: (String) -> Unit,
-    onIncreaseMedicationCount: (String) -> Unit,
+    onRemoveMedication: (String) -> Unit,
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
     onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
+    onEditingMedicationCountTextChange: (String) -> Unit,
+    onDecreaseEditingMedicationCount: () -> Unit,
+    onIncreaseEditingMedicationCount: () -> Unit,
     onSaveMedicationClick: () -> Unit,
     onSaveClick: () -> Unit,
     onDeleteRelatedEntriesClick: () -> Unit,
@@ -686,7 +691,7 @@ private fun MedicationGroupEditorScreenContent(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onDecreaseMedicationCount(removalRequest.localId)
+                        onRemoveMedication(removalRequest.localId)
                         pendingMedicationRemoval = null
                     }
                 ) {
@@ -813,17 +818,12 @@ private fun MedicationGroupEditorScreenContent(
                                     medication = medication,
                                     groupColorKey = uiState.groupColorKey,
                                     onClick = { onMedicationClick(medication.localId) },
-                                    onDecreaseClick = {
-                                        if (shouldConfirmMedicationRemoval(medication.count)) {
-                                            pendingMedicationRemoval = MedicationRemovalRequest(
-                                                localId = medication.localId,
-                                                medicationName = medicationName
-                                            )
-                                        } else {
-                                            onDecreaseMedicationCount(medication.localId)
-                                        }
+                                    onDeleteClick = {
+                                        pendingMedicationRemoval = MedicationRemovalRequest(
+                                            localId = medication.localId,
+                                            medicationName = medicationName
+                                        )
                                     },
-                                    onIncreaseClick = { onIncreaseMedicationCount(medication.localId) },
                                     index = index,
                                     count = uiState.medications.size
                                 )
@@ -1043,6 +1043,10 @@ private fun MedicationGroupEditorScreenContent(
                     draft.copy(patchReleaseRateMcgPerDay = releaseRate)
                 }
             },
+            countText = medication.countText,
+            onCountTextChange = onEditingMedicationCountTextChange,
+            onDecreaseCountClick = onDecreaseEditingMedicationCount,
+            onIncreaseCountClick = onIncreaseEditingMedicationCount,
             errorMessageRes = uiState.medicationEditorErrorMessageRes,
             onConfirm = onSaveMedicationClick
         )
@@ -1104,8 +1108,6 @@ private data class MedicationRemovalRequest(
     val medicationName: String,
 )
 
-internal fun shouldConfirmMedicationRemoval(count: Int): Boolean = count <= 1
-
 internal enum class NotificationSupportState {
     NONE,
     ACCESS_OFF,
@@ -1159,12 +1161,16 @@ private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
     groupColorKey: MedicationGroupColorKey,
     onClick: () -> Unit,
-    onDecreaseClick: () -> Unit,
-    onIncreaseClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     index: Int = 0,
     count: Int = 1
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
+    val supportingParts = listOfNotNull(
+        medicationDoseText(medication.details)
+            ?: stringResource(medication.details.applicationType.labelRes),
+        medicationCountIndicatorText(medication.count).takeIf { medication.count > 1 }
+    )
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -1185,86 +1191,29 @@ private fun MedicationGroupMedicationCard(
         },
         supportingContent = {
             Text(
-                text = medicationDoseText(medication.details)
-                    ?: stringResource(medication.details.applicationType.labelRes),
+                text = supportingParts.joinToString(separator = " · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         trailingContent = {
-            MedicationCountEditor(
-                count = medication.count,
-                onDecreaseClick = onDecreaseClick,
-                onIncreaseClick = onIncreaseClick
-            )
+            IconButton(
+                onClick = onDeleteClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = stringResource(R.string.remove_medication_from_group)
+                )
+            }
         }
     ) {
         Text(
             text = medicationDisplayName(medication.details),
             style = MaterialTheme.typography.titleMedium
         )
-    }
-}
-
-@Composable
-private fun MedicationCountEditor(
-    count: Int,
-    onDecreaseClick: () -> Unit,
-    onIncreaseClick: () -> Unit
-) {
-    val isRemoveStep = count == 1
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(
-            modifier = Modifier.padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onDecreaseClick,
-                modifier = Modifier.size(32.dp),
-                colors = if (isRemoveStep) {
-                    IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                } else {
-                    IconButtonDefaults.iconButtonColors()
-                }
-            ) {
-                Icon(
-                    imageVector = if (isRemoveStep) {
-                        Icons.Rounded.Delete
-                    } else {
-                        Icons.Rounded.Remove
-                    },
-                    contentDescription = stringResource(
-                        if (isRemoveStep) {
-                            R.string.remove_medication_from_group
-                        } else {
-                            R.string.decrease_medication_count
-                        }
-                    )
-                )
-            }
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-            IconButton(
-                onClick = onIncreaseClick,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.increase_medication_count)
-                )
-            }
-        }
     }
 }
 
@@ -1392,11 +1341,13 @@ private fun MedicationGroupEditorDailyPreview() {
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
-            onDecreaseMedicationCount = { },
-            onIncreaseMedicationCount = { },
+            onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onMedicationDraftChange = { },
+            onEditingMedicationCountTextChange = { },
+            onDecreaseEditingMedicationCount = { },
+            onIncreaseEditingMedicationCount = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
             onDeleteRelatedEntriesClick = { },
@@ -1448,11 +1399,13 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onRemoveDailyTime = { },
             onAddMedication = { },
             onMedicationClick = { },
-            onDecreaseMedicationCount = { },
-            onIncreaseMedicationCount = { },
+            onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onMedicationDraftChange = { },
+            onEditingMedicationCountTextChange = { },
+            onDecreaseEditingMedicationCount = { },
+            onIncreaseEditingMedicationCount = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
             onDeleteRelatedEntriesClick = { },

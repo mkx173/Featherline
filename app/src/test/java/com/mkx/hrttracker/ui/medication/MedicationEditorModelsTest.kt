@@ -53,6 +53,164 @@ class MedicationEditorModelsTest {
     }
 
     @Test
+    fun medication_count_editor_is_only_available_for_supported_routes() {
+        assertEquals(
+            true,
+            defaultMedicationDraft(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL
+            ).showsMedicationCountEditor()
+        )
+        assertEquals(
+            true,
+            defaultMedicationDraft(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL
+            ).showsMedicationCountEditor()
+        )
+        assertEquals(
+            true,
+            defaultMedicationDraft(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.PATCH_ON
+            ).showsMedicationCountEditor()
+        )
+        assertEquals(
+            false,
+            defaultMedicationDraft(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.GEL
+            ).showsMedicationCountEditor()
+        )
+    }
+
+    @Test
+    fun resolving_medication_count_resets_when_category_changes() {
+        val previousDraft = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        )
+        val updatedDraft = previousDraft.changeCategory(MedicationCategory.ESTRADIOL)
+
+        assertEquals(
+            1,
+            resolveMedicationCountAfterDraftChange(
+                previousDraft = previousDraft,
+                updatedDraft = updatedDraft,
+                currentCount = 2
+            )
+        )
+    }
+
+    @Test
+    fun resolving_medication_count_resets_when_application_type_changes() {
+        val previousDraft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL
+        )
+        val updatedDraft = previousDraft.changeApplicationType(MedicationApplicationType.SUBLINGUAL)
+
+        assertEquals(
+            1,
+            resolveMedicationCountAfterDraftChange(
+                previousDraft = previousDraft,
+                updatedDraft = updatedDraft,
+                currentCount = 3
+            )
+        )
+    }
+
+    @Test
+    fun resolving_medication_count_preserves_when_medication_changes_with_same_context() {
+        val previousDraft = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        )
+        val updatedDraft = previousDraft.changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+
+        assertEquals(
+            2,
+            resolveMedicationCountAfterDraftChange(
+                previousDraft = previousDraft,
+                updatedDraft = updatedDraft,
+                currentCount = 2
+            )
+        )
+    }
+
+    @Test
+    fun resolving_medication_count_text_preserves_user_input_when_context_is_unchanged() {
+        val previousDraft = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        )
+        val updatedDraft = previousDraft.changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+
+        assertEquals(
+            "0",
+            resolveMedicationCountTextAfterDraftChange(
+                previousDraft = previousDraft,
+                updatedDraft = updatedDraft,
+                currentCountText = "0"
+            )
+        )
+    }
+
+    @Test
+    fun stepping_medication_count_treats_typed_zero_as_zero_before_increment() {
+        assertEquals(
+            1,
+            stepMedicationCount(
+                applicationType = MedicationApplicationType.ORAL,
+                countText = "0",
+                delta = 1
+            )
+        )
+    }
+
+    @Test
+    fun medication_count_validation_requires_positive_count_for_supported_routes() {
+        assertEquals(
+            R.string.validation_count_required,
+            medicationCountValidationErrorRes(
+                applicationType = MedicationApplicationType.ORAL,
+                countText = "0"
+            )
+        )
+        assertEquals(
+            R.string.validation_count_required,
+            medicationCountValidationErrorRes(
+                applicationType = MedicationApplicationType.PATCH_ON,
+                countText = ""
+            )
+        )
+        assertNull(
+            medicationCountValidationErrorRes(
+                applicationType = MedicationApplicationType.ORAL,
+                countText = "2"
+            )
+        )
+        assertNull(
+            medicationCountValidationErrorRes(
+                applicationType = MedicationApplicationType.GEL,
+                countText = "0"
+            )
+        )
+    }
+
+    @Test
+    fun stepping_medication_count_still_normalizes_unsupported_routes_to_one() {
+        assertEquals(
+            1,
+            stepMedicationCount(
+                applicationType = MedicationApplicationType.GEL,
+                countText = "3",
+                delta = 1
+            )
+        )
+    }
+
+    @Test
     fun gel_percent_and_weight_validates_both_fields() {
         val draft = defaultMedicationDraft(
             category = MedicationCategory.ESTRADIOL,
@@ -226,7 +384,6 @@ class MedicationEditorModelsTest {
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("1"),
                 MedicationDoseAssistPreset.MgAsMedicine("2"),
-                MedicationDoseAssistPreset.MgAsMedicine("3"),
             ),
             presets
         )
@@ -383,7 +540,7 @@ class MedicationEditorModelsTest {
             applicationType = MedicationApplicationType.ORAL
         ).changeMedicationKey(
             MedicationKey.CYPROTERONE_ACETATE
-        ).copy(doseMg = "12.6")
+        ).copy(doseMg = "12.5")
         val bicaAboveThreshold = defaultMedicationDraft(
             category = MedicationCategory.ANTIANDROGEN,
             applicationType = MedicationApplicationType.ORAL
@@ -392,7 +549,9 @@ class MedicationEditorModelsTest {
         ).copy(doseMg = "50.1")
 
         assertEquals(false, spiroAtThreshold.exceedsDoseWarningThreshold())
-        assertEquals(true, cpaAboveThreshold.exceedsDoseWarningThreshold())
+        assertEquals(true, spiroAtThreshold.exceedsDoseWarningThreshold(count = 2))
+        assertEquals(false, cpaAboveThreshold.exceedsDoseWarningThreshold())
+        assertEquals(true, cpaAboveThreshold.exceedsDoseWarningThreshold(count = 2))
         assertEquals(true, bicaAboveThreshold.exceedsDoseWarningThreshold())
     }
 

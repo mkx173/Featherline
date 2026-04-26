@@ -117,6 +117,119 @@ fun MedicationDraftUiState.showsCustomDoseUnitSelector(): Boolean {
         doseKind == MedicationDoseKind.MG_AS_MEDICINE
 }
 
+fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
+    return when (this) {
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL,
+        MedicationApplicationType.PATCH_ON -> true
+
+        MedicationApplicationType.INJECTION,
+        MedicationApplicationType.GEL,
+        MedicationApplicationType.PATCH_OFF -> false
+    }
+}
+
+fun MedicationDraftUiState.showsMedicationCountEditor(): Boolean {
+    return applicationType.supportsMedicationCountEditor()
+}
+
+fun normalizeMedicationCount(
+    applicationType: MedicationApplicationType,
+    count: Int,
+): Int {
+    return if (applicationType.supportsMedicationCountEditor()) {
+        count.coerceAtLeast(1)
+    } else {
+        1
+    }
+}
+
+fun parseMedicationCountText(countText: String): Int {
+    return countText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+}
+
+fun parsePositiveMedicationCountOrNull(countText: String): Int? {
+    return countText.toIntOrNull()?.takeIf { it > 0 }
+}
+
+fun countStepBase(countText: String): Int {
+    return countText.toIntOrNull()?.coerceAtLeast(0) ?: 0
+}
+
+fun sanitizeMedicationCountText(input: String): String {
+    return input.filter(Char::isDigit)
+}
+
+fun stepMedicationCount(
+    applicationType: MedicationApplicationType,
+    countText: String,
+    delta: Int,
+): Int {
+    return normalizeMedicationCount(
+        applicationType = applicationType,
+        count = countStepBase(countText) + delta
+    )
+}
+
+fun resolveMedicationCountTextAfterDraftChange(
+    previousDraft: MedicationDraftUiState,
+    updatedDraft: MedicationDraftUiState,
+    currentCountText: String,
+): String {
+    return if (
+        previousDraft.category != updatedDraft.category ||
+        previousDraft.applicationType != updatedDraft.applicationType
+    ) {
+        "1"
+    } else if (updatedDraft.applicationType.supportsMedicationCountEditor()) {
+        currentCountText
+    } else {
+        "1"
+    }
+}
+
+fun resolveMedicationCountAfterDraftChange(
+    previousDraft: MedicationDraftUiState,
+    updatedDraft: MedicationDraftUiState,
+    currentCount: Int,
+): Int {
+    val nextCount = if (
+        previousDraft.category != updatedDraft.category ||
+        previousDraft.applicationType != updatedDraft.applicationType
+    ) {
+        1
+    } else {
+        currentCount
+    }
+    return normalizeMedicationCount(updatedDraft.applicationType, nextCount)
+}
+
+fun medicationCountValidationErrorRes(
+    applicationType: MedicationApplicationType,
+    countText: String,
+): Int? {
+    if (!applicationType.supportsMedicationCountEditor()) {
+        return null
+    }
+
+    return if (parsePositiveMedicationCountOrNull(countText) == null) {
+        R.string.validation_count_required
+    } else {
+        null
+    }
+}
+
+fun resolvedMedicationCountForSave(
+    applicationType: MedicationApplicationType,
+    countText: String,
+): Int {
+    return if (applicationType.supportsMedicationCountEditor()) {
+        checkNotNull(parsePositiveMedicationCountOrNull(countText))
+    } else {
+        1
+    }
+}
+
 fun MedicationDraftUiState.displayDoseUnit(): MedicationDoseUnit {
     return if (showsCustomDoseUnitSelector()) {
         customDoseUnit
@@ -140,9 +253,11 @@ fun MedicationDraftUiState.doseWarningThresholdMg(): Double? {
     }
 }
 
-fun MedicationDraftUiState.exceedsDoseWarningThreshold(): Boolean {
+fun MedicationDraftUiState.exceedsDoseWarningThreshold(count: Int = 1): Boolean {
     val thresholdMg = doseWarningThresholdMg() ?: return false
-    return doseMg.toDoubleOrNull()?.let { valueMg -> valueMg > thresholdMg } == true
+    val resolvedCount = count.coerceAtLeast(1)
+    return doseMg.toDoubleOrNull()
+        ?.let { valueMg -> (valueMg * resolvedCount) > thresholdMg } == true
 }
 
 fun MedicationDraftUiState.changeCategory(category: MedicationCategory): MedicationDraftUiState {

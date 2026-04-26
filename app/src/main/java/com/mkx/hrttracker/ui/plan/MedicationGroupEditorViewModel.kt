@@ -17,7 +17,14 @@ import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
+import com.mkx.hrttracker.ui.medication.parseMedicationCountText
+import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
+import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
+import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -219,7 +226,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun removeMedication(localId: String) {
         _uiState.update {
             it.copy(
-                medications = decrementMedicationCountOrRemove(
+                medications = removeMedicationItem(
                     medications = it.medications,
                     localId = localId
                 )
@@ -227,13 +234,34 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun increaseMedicationCount(localId: String) {
-        _uiState.update {
-            it.copy(
-                medications = incrementMedicationCount(
-                    medications = it.medications,
-                    localId = localId
-                )
+    fun decreaseEditingMedicationCount() {
+        updateEditingMedication { medication ->
+            medication.copy(
+                countText = stepMedicationCount(
+                    applicationType = medication.draft.applicationType,
+                    countText = medication.countText,
+                    delta = -1
+                ).toString()
+            )
+        }
+    }
+
+    fun increaseEditingMedicationCount() {
+        updateEditingMedication { medication ->
+            medication.copy(
+                countText = stepMedicationCount(
+                    applicationType = medication.draft.applicationType,
+                    countText = medication.countText,
+                    delta = 1
+                ).toString()
+            )
+        }
+    }
+
+    fun updateEditingMedicationCountText(countText: String) {
+        updateEditingMedication { medication ->
+            medication.copy(
+                countText = sanitizeMedicationCountText(countText)
             )
         }
     }
@@ -275,7 +303,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
         transform: (MedicationDraftUiState) -> MedicationDraftUiState
     ) {
         updateEditingMedication { medication ->
-            medication.copy(draft = transform(medication.draft))
+            val updatedDraft = transform(medication.draft)
+            medication.copy(
+                draft = updatedDraft,
+                countText = resolveMedicationCountTextAfterDraftChange(
+                    previousDraft = medication.draft,
+                    updatedDraft = updatedDraft,
+                    currentCountText = medication.countText
+                )
+            )
         }
     }
 
@@ -283,6 +319,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val currentState = _uiState.value
         val editingMedication = currentState.editingMedication ?: return
         val errorRes = editingMedication.draft.validationErrorRes()
+            ?: medicationCountValidationErrorRes(
+                applicationType = editingMedication.draft.applicationType,
+                countText = editingMedication.countText
+            )
 
         if (errorRes != null) {
             _uiState.update {
@@ -298,7 +338,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             localId = editingMedication.localId,
             persistedMedicationId = editingMedication.persistedMedicationId,
             details = editingMedication.draft.toMedicationDetails(),
-            count = editingMedication.count
+            count = resolvedMedicationCountForSave(
+                applicationType = editingMedication.draft.applicationType,
+                countText = editingMedication.countText
+            )
         )
 
         _uiState.update {
@@ -534,7 +577,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         localId = medication.uuid.toString(),
                         persistedMedicationId = medication.uuid.toString(),
                         details = medication.details,
-                        count = medication.count
+                        count = normalizeMedicationCount(
+                            medication.details.applicationType,
+                            medication.count
+                        )
                     )
                 }
             )
@@ -584,32 +630,11 @@ internal fun hasSaveableMedicationGroupContent(
         hasWeeklyDays
 }
 
-internal fun incrementMedicationCount(
+internal fun removeMedicationItem(
     medications: List<MedicationGroupMedicationItemUiState>,
     localId: String
 ): List<MedicationGroupMedicationItemUiState> {
-    return medications.map { medication ->
-        if (medication.localId == localId) {
-            medication.copy(count = medication.count + 1)
-        } else {
-            medication
-        }
-    }
-}
-
-internal fun decrementMedicationCountOrRemove(
-    medications: List<MedicationGroupMedicationItemUiState>,
-    localId: String
-): List<MedicationGroupMedicationItemUiState> {
-    return medications.flatMap { medication ->
-        if (medication.localId != localId) {
-            listOf(medication)
-        } else if (medication.count <= 1) {
-            emptyList()
-        } else {
-            listOf(medication.copy(count = medication.count - 1))
-        }
-    }
+    return medications.filterNot { medication -> medication.localId == localId }
 }
 
 internal fun appendDailyTime(
@@ -827,7 +852,7 @@ data class MedicationGroupMedicationItemUiState(
             localId = localId,
             persistedMedicationId = persistedMedicationId,
             draft = medicationDraftFromDetails(details),
-            count = count
+            countText = normalizeMedicationCount(details.applicationType, count).toString()
         )
     }
 }
@@ -836,8 +861,11 @@ data class MedicationGroupMedicationEditorUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
     val draft: MedicationDraftUiState = defaultMedicationDraft(),
-    val count: Int = 1,
-)
+    val countText: String = "1",
+) {
+    val count: Int
+        get() = parseMedicationCountText(countText)
+}
 
 data class MedicationGroupScheduleTimeUiState(
     val localId: String = UUID.randomUUID().toString(),
