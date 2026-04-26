@@ -304,6 +304,13 @@
     <string name="settings_calibration_custom_analyte_archive_title">归档自定义分析项</string>
     <string name="settings_calibration_custom_analyte_archive_message">要归档 %1$s 吗？现有检查结果会保留</string>
     <string name="settings_calibration_custom_analyte_unit_locked_toast">已记录该分析项的检查结果，无法更改单位</string>
+    <string name="settings_calibration_delete_all_entries">删除全部校准记录</string>
+    <string name="settings_calibration_delete_all_entries_title">删除全部校准记录</string>
+    <string name="settings_calibration_delete_all_entries_success">已删除全部校准记录</string>
+    <string name="settings_calibration_delete_all_entries_failure">无法删除校准记录</string>
+    <plurals name="settings_calibration_delete_all_entries_message">
+        <item quantity="other">要删除 %1$d 条已保存的校准记录吗？自定义分析项和默认单位会保留</item>
+    </plurals>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>
     </plurals>

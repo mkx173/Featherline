@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -106,6 +107,25 @@ class BloodTestRepositoryTest {
         assertEquals("e2", second.builtinAnalyteKey)
         assertEquals("pmol_l", second.unitSnapshot)
         assertEquals(100.0, second.canonicalValue, 1e-6)
+    }
+
+    @Test
+    fun deleteAllPanels_clears_results_and_panels_in_single_transaction() = runTest {
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { dao.deleteAllResults() } returns Unit
+        coEvery { dao.deleteAllPanels() } returns Unit
+
+        repository.deleteAllPanels()
+
+        coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
+        coVerifyOrder {
+            dao.deleteAllResults()
+            dao.deleteAllPanels()
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)

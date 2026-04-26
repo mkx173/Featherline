@@ -98,6 +98,14 @@ class BloodTestRepository @Inject constructor(
         databaseHolder.get().bloodTestDao().deletePanel(uuid.toString())
     }
 
+    suspend fun deleteAllPanels() {
+        databaseHolder.withTransaction { database ->
+            val dao = database.bloodTestDao()
+            dao.deleteAllResults()
+            dao.deleteAllPanels()
+        }
+    }
+
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {
         return databaseHolder.get().bloodTestDao()
             .getActiveCustomAnalytes()

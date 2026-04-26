@@ -154,6 +154,7 @@ class CalibrationUnitsViewModelTest {
             )
         }
     }
+
 }
 
 private fun testCustomBloodAnalyte(

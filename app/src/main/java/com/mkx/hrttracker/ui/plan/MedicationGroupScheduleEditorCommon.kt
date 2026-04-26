@@ -17,8 +17,6 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -32,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.util.Locale
@@ -252,37 +251,11 @@ internal fun DeleteMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    ListItem(
-        leadingContent = {
-            Icon(
-                imageVector = Icons.Rounded.Delete,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(24.dp)
-            )
-        },
-        trailingContent = {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer
-            )
-        },
+    DangerZoneListItem(
+        label = stringResource(R.string.delete_medication_group),
         enabled = enabled,
         onClick = onClick,
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        ),
-        shapes = ListItemDefaults.shapes(
-            shape = MaterialTheme.shapes.large
-        )
-    ) {
-        Text(
-            text = stringResource(R.string.delete_medication_group).uppercase(),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onErrorContainer
-        )
-    }
+    )
 }
 
 @Preview(showBackground = true)

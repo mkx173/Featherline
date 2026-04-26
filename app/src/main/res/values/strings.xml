@@ -304,6 +304,14 @@
     <string name="settings_calibration_custom_analyte_archive_title">Archive custom analyte</string>
     <string name="settings_calibration_custom_analyte_archive_message">Archive %1$s? Existing test results will be kept.</string>
     <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can\'t be changed once test results have been recorded for this analyte.</string>
+    <string name="settings_calibration_delete_all_entries">Delete all calibration entries</string>
+    <string name="settings_calibration_delete_all_entries_title">Delete all calibration entries</string>
+    <string name="settings_calibration_delete_all_entries_success">Deleted all calibration entries.</string>
+    <string name="settings_calibration_delete_all_entries_failure">Unable to delete calibration entries.</string>
+    <plurals name="settings_calibration_delete_all_entries_message">
+        <item quantity="one">Delete %1$d saved calibration entry? Custom analytes and default units will be kept.</item>
+        <item quantity="other">Delete %1$d saved calibration entries? Custom analytes and default units will be kept.</item>
+    </plurals>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="one">+%1$d entry</item>
         <item quantity="other">+%1$d entries</item>

@@ -19,8 +19,12 @@ import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -33,14 +37,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +57,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -80,6 +89,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
+import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,6 +115,8 @@ fun CalibrationScreen(
         panelDateTimeFormatters = panelDateTimeFormatters,
         monthFormatter = monthFormatter,
         onNavigateBack = onNavigateBack,
+        onDeleteAllCalibrationEntries = viewModel::deleteAllCalibrationEntries,
+        onDeleteAllCalibrationEntriesResultConsumed = viewModel::consumeDeleteAllEntriesResult,
         onUnitsClick = onUnitsClick,
         onAddClick = onAddClick,
         onPanelClick = onPanelClick,
@@ -119,6 +131,8 @@ private fun CalibrationScreenContent(
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
     monthFormatter: DateTimeFormatter,
     onNavigateBack: () -> Unit,
+    onDeleteAllCalibrationEntries: () -> Unit,
+    onDeleteAllCalibrationEntriesResultConsumed: () -> Unit,
     onUnitsClick: () -> Unit,
     onAddClick: () -> Unit,
     onPanelClick: (UUID) -> Unit,
@@ -130,6 +144,37 @@ private fun CalibrationScreenContent(
 
     val appLocale = rememberAppLocale()
     val isChinese = appLocale.language == "zh"
+    val context = LocalContext.current
+    var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
+    val deleteAllEntriesSuccessMessage =
+        stringResource(R.string.settings_calibration_delete_all_entries_success)
+    val deleteAllEntriesFailureMessage =
+        stringResource(R.string.settings_calibration_delete_all_entries_failure)
+
+    LaunchedEffect(uiState.deleteAllEntriesResult) {
+        when (uiState.deleteAllEntriesResult) {
+            CalibrationDeleteAllEntriesResult.SUCCESS -> {
+                Toast.makeText(
+                    context,
+                    deleteAllEntriesSuccessMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteAllCalibrationEntriesResultConsumed()
+            }
+
+            CalibrationDeleteAllEntriesResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    deleteAllEntriesFailureMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteAllCalibrationEntriesResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -156,6 +201,29 @@ private fun CalibrationScreenContent(
                                 R.string.settings_calibration_settings
                             ),
                         )
+                    }
+                    Box {
+                        IconButton(onClick = { isActionMenuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.plan_more_options),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = isActionMenuExpanded,
+                            onDismissRequest = { isActionMenuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(text = stringResource(R.string.settings_calibration_delete_all_entries))
+                                },
+                                enabled = uiState.panels.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                onClick = {
+                                    isActionMenuExpanded = false
+                                    isDeleteAllEntriesConfirmationVisible = true
+                                },
+                            )
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -247,6 +315,47 @@ private fun CalibrationScreenContent(
                 }
             }
         }
+    }
+
+    if (isDeleteAllEntriesConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingAllEntries) {
+                    isDeleteAllEntriesConfirmationVisible = false
+                }
+            },
+            title = {
+                Text(text = stringResource(R.string.settings_calibration_delete_all_entries_title))
+            },
+            text = {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.settings_calibration_delete_all_entries_message,
+                        uiState.panels.size,
+                        uiState.panels.size,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAllEntries,
+                    onClick = {
+                        isDeleteAllEntriesConfirmationVisible = false
+                        onDeleteAllCalibrationEntries()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAllEntries,
+                    onClick = { isDeleteAllEntriesConfirmationVisible = false }
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -1055,6 +1164,8 @@ private fun CalibrationScreenPreview() {
             panelDateTimeFormatters = previewCalibrationPanelDateTimeFormatters(),
             monthFormatter = previewCalibrationMonthFormatter(),
             onNavigateBack = { },
+            onDeleteAllCalibrationEntries = { },
+            onDeleteAllCalibrationEntriesResultConsumed = { },
             onUnitsClick = { },
             onAddClick = { },
             onPanelClick = { },

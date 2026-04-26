@@ -8,6 +8,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +24,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -92,6 +95,30 @@ class CalibrationViewModelTest {
 
         assertEquals(listOf(updatedPanel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun deleteAllCalibrationEntries_updatesUiStateWithSuccessResult() = runTest {
+        every { repository.observePanels() } returns flowOf(emptyList())
+        coEvery { repository.deleteAllPanels() } returns Unit
+
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
+        advanceUntilIdle()
+
+        viewModel.deleteAllCalibrationEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingAllEntries)
+        assertEquals(
+            CalibrationDeleteAllEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteAllEntriesResult,
+        )
+
+        viewModel.consumeDeleteAllEntriesResult()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.deleteAllEntriesResult)
+        coVerify(exactly = 1) { repository.deleteAllPanels() }
     }
 
     @Test
