@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -807,6 +810,7 @@ private fun MedicationGroupEditorScreenContent(
                         EditorSupportMessage(
                             text = stringResource(R.string.group_medications_empty),
                             painter = painterResource(R.drawable.ic_info),
+                            appLocale = appLocale
                         )
                     } else {
                         Column(
@@ -825,7 +829,8 @@ private fun MedicationGroupEditorScreenContent(
                                         )
                                     },
                                     index = index,
-                                    count = uiState.medications.size
+                                    count = uiState.medications.size,
+                                    appLocale = appLocale
                                 )
                             }
                         }
@@ -938,7 +943,8 @@ private fun MedicationGroupEditorScreenContent(
                                 onClick = onRecoverMasterReminders,
                                 showChevron = true,
                                 index = 1,
-                                count = 2
+                                count = 2,
+                                appLocale = appLocale
                             )
                         }
 
@@ -949,7 +955,8 @@ private fun MedicationGroupEditorScreenContent(
                             onClick = { isMasterReminderRecoveryDialogVisible = true },
                             showChevron = true,
                             index = 1,
-                            count = 2
+                            count = 2,
+                            appLocale = appLocale
                         )
                         }
 
@@ -960,7 +967,8 @@ private fun MedicationGroupEditorScreenContent(
                                 onClick = onRequestExactAlarmAccess,
                                 showChevron = true,
                                 index = 1,
-                                count = 2
+                                count = 2,
+                                appLocale = appLocale
                             )
                         }
 
@@ -1160,60 +1168,74 @@ private fun maybeRequestExactAlarmAccess(
 private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
     groupColorKey: MedicationGroupColorKey,
+    appLocale: Locale,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
     index: Int = 0,
     count: Int = 1
 ) {
+    val isChinese = appLocale.language == "zh"
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingParts = listOfNotNull(
         medicationDoseText(medication.details)
             ?: stringResource(medication.details.applicationType.labelRes),
         medicationCountIndicatorText(medication.count).takeIf { medication.count > 1 }
     )
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
-        onClick = onClick,
-        leadingContent = {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = groupColorScheme.primaryContainer,
-                contentColor = groupColorScheme.onPrimaryContainer
+    Column {
+        EditorSegmentedListItem(
+            onClick = onClick,
+            index = index,
+            count = count,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = applicationTypeBadgeLabel(medication.details.applicationType),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-        },
-        supportingContent = {
-            Text(
-                text = supportingParts.joinToString(separator = " · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        },
-        trailingContent = {
-            IconButton(
-                onClick = onDeleteClick,
-                colors = IconButtonDefaults.iconButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Delete,
-                    contentDescription = stringResource(R.string.remove_medication_from_group)
-                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = groupColorScheme.primaryContainer,
+                    contentColor = groupColorScheme.onPrimaryContainer
+                ) {
+                    Text(
+                        text = applicationTypeBadgeLabel(medication.details.applicationType),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = medicationDisplayName(medication.details),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
+                    Text(
+                        text = supportingParts.joinToString(separator = " · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                CompositionLocalProvider(
+                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                ) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = stringResource(R.string.remove_medication_from_group)
+                        )
+                    }
+                }
             }
         }
-    ) {
-        Text(
-            text = medicationDisplayName(medication.details),
-            style = MaterialTheme.typography.titleMedium
-        )
     }
 }
 
@@ -1241,14 +1263,14 @@ private fun EditorSectionHeader(
 @Composable
 private fun EditorSupportMessage(
     text: String,
+    appLocale: Locale,
     icon: ImageVector? = null,
     painter: Painter? = null,
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = false,
     index: Int = 0,
-    count: Int = 1
+    count: Int = 1,
 ) {
-    val appLocale = rememberAppLocale()
     val isChinese = appLocale.language == "zh"
 
     CompositionLocalProvider(
