@@ -209,7 +209,8 @@ private fun CalibrationUnitsScreenContent(
                                 Icon(
                                     painter = painterResource(R.drawable.ic_info),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             },
                             index = 0,
@@ -217,7 +218,7 @@ private fun CalibrationUnitsScreenContent(
                         ) {
                             Text(
                                 text = stringResource(R.string.settings_calibration_custom_analytes_empty),
-                                style = MaterialTheme.typography.labelLarge,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

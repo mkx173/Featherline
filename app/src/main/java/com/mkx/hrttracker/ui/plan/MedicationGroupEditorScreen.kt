@@ -1228,7 +1228,7 @@ private fun EditorSupportMessage(
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary
+                            tint = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                 }
@@ -1237,7 +1237,8 @@ private fun EditorSupportMessage(
                         Icon(
                             painter = painter,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -1248,6 +1249,7 @@ private fun EditorSupportMessage(
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = null,
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1257,7 +1259,7 @@ private fun EditorSupportMessage(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

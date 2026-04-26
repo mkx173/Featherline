@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -193,14 +194,15 @@ private fun CalibrationScreenContent(
                         leadingContent = {
                             Icon(
                                 painter = painterResource(R.drawable.ic_info),
-                                contentDescription = null
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     ) {
                         Text(
                             text = stringResource(R.string.settings_calibration_empty_state),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelLarge
+                            style = MaterialTheme.typography.labelMedium
                         )
                     }
                 }
@@ -248,7 +250,25 @@ private fun CalibrationInfoCard(
 ) {
     EditorSegmentedListItem(
         onClick = {},
-        trailingContent = {
+        index = 0,
+        count = 1
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_experiment),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = stringResource(R.string.settings_calibration_info_message),
+                style = MaterialTheme.typography.labelMediumEmphasized,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
             Text(
                 text = pluralStringResource(
                     R.plurals.settings_calibration_total_count,
@@ -258,22 +278,7 @@ private fun CalibrationInfoCard(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        },
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_experiment),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        index = 0,
-        count = 1
-    ) {
-        Text(
-            text = stringResource(R.string.settings_calibration_info_message),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        }
     }
 }
 

@@ -1345,14 +1345,15 @@ private fun HistoryEmptyStateCard(
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_info),
-                contentDescription = null
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
             )
         }
     ) {
         Text(
             text = text,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge
+            style = MaterialTheme.typography.labelMedium
         )
     }
 }
