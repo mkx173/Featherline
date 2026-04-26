@@ -104,6 +104,13 @@
     <string name="delete_entry_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
     <string name="delete_entries_confirm">删除</string>
+    <string name="history_delete_all_entries">删除全部记录</string>
+    <string name="history_delete_all_entries_title">删除全部记录</string>
+    <string name="history_delete_all_entries_success">已删除全部记录</string>
+    <string name="history_delete_all_entries_failure">无法删除记录</string>
+    <plurals name="history_delete_all_entries_confirmation">
+        <item quantity="other">要删除全部 %1$d 条记录吗？</item>
+    </plurals>
     <string name="delete_editing_entry_confirmation">删除这条记录？</string>
     <string name="field_medication_category">类别</string>
     <string name="field_medication_application">应用类型</string>
@@ -309,7 +316,7 @@
     <string name="settings_calibration_delete_all_entries_success">已删除全部校准记录</string>
     <string name="settings_calibration_delete_all_entries_failure">无法删除校准记录</string>
     <plurals name="settings_calibration_delete_all_entries_message">
-        <item quantity="other">要删除 %1$d 条已保存的校准记录吗？自定义分析项和默认单位会保留</item>
+        <item quantity="other">要删除全部 %1$d 条校准记录吗？自定义分析项和默认单位会保留</item>
     </plurals>
     <plurals name="settings_calibration_extra_entries">
         <item quantity="other">+%1$d 项结果</item>

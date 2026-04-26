@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.history
 
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
@@ -31,17 +32,21 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -59,6 +64,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -153,6 +161,8 @@ fun HistoryScreen(
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteSelectedEntries,
+        onDeleteAllClick = viewModel::deleteAllEntries,
+        onDeleteAllResultConsumed = viewModel::consumeDeleteAllEntriesResult,
         onDisplayedMonthChange = { month, clearSelection ->
             viewModel.setDisplayedMonth(month, clearSelection)
         },
@@ -171,11 +181,14 @@ private fun HistoryScreenContent(
     onDeleteSelectedClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
+    onDeleteAllClick: () -> Unit,
+    onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
+    val context = LocalContext.current
     val today = remember { LocalDate.now() }
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
@@ -216,6 +229,8 @@ private fun HistoryScreenContent(
         )
     }
     val listState = rememberLazyListState()
+    var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var isDeleteAllConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     val displayedSelectedDate = remember(
         displayedMonth.yearMonth,
         pendingSelectedDate.value,
@@ -329,6 +344,34 @@ private fun HistoryScreenContent(
             displayedMonth.yearMonth.atDay(1).format(monthLabelFormatter)
         )
     }
+    val deleteAllEntriesSuccessMessage =
+        stringResource(R.string.history_delete_all_entries_success)
+    val deleteAllEntriesFailureMessage =
+        stringResource(R.string.history_delete_all_entries_failure)
+
+    LaunchedEffect(uiState.deleteAllEntriesResult) {
+        when (uiState.deleteAllEntriesResult) {
+            HistoryDeleteAllEntriesResult.SUCCESS -> {
+                Toast.makeText(
+                    context,
+                    deleteAllEntriesSuccessMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteAllResultConsumed()
+            }
+
+            HistoryDeleteAllEntriesResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    deleteAllEntriesFailureMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteAllResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
 
     if (uiState.isDeleteConfirmationVisible) {
         AlertDialog(
@@ -355,6 +398,47 @@ private fun HistoryScreenContent(
         )
     }
 
+    if (isDeleteAllConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingAllEntries) {
+                    isDeleteAllConfirmationVisible = false
+                }
+            },
+            title = {
+                Text(text = stringResource(R.string.history_delete_all_entries_title))
+            },
+            text = {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.history_delete_all_entries_confirmation,
+                        uiState.entries.size,
+                        uiState.entries.size,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAllEntries,
+                    onClick = {
+                        isDeleteAllConfirmationVisible = false
+                        onDeleteAllClick()
+                    }
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAllEntries,
+                    onClick = { isDeleteAllConfirmationVisible = false }
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
@@ -370,6 +454,31 @@ private fun HistoryScreenContent(
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(R.string.tab_history)) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { isActionMenuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.plan_more_options),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = isActionMenuExpanded,
+                            onDismissRequest = { isActionMenuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(text = stringResource(R.string.history_delete_all_entries))
+                                },
+                                enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                onClick = {
+                                    isActionMenuExpanded = false
+                                    isDeleteAllConfirmationVisible = true
+                                },
+                            )
+                        }
+                    }
+                },
                 scrollBehavior = scrollBehavior
             )
         }
@@ -1463,6 +1572,8 @@ private fun HistoryScreenMonthPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
+            onDeleteAllClick = { },
+            onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }
@@ -1488,6 +1599,8 @@ private fun HistoryScreenSelectedDayPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
+            onDeleteAllClick = { },
+            onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }
@@ -1512,6 +1625,8 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onDeleteSelectedClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
+            onDeleteAllClick = { },
+            onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }

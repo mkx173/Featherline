@@ -30,6 +30,8 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
+    private val isDeletingAllEntries = MutableStateFlow(false)
+    private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
     private val displayedMonth = MutableStateFlow(YearMonth.now())
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
 
@@ -39,11 +41,23 @@ class HistoryViewModel @Inject constructor(
             medicationGroupRepository.observeGroups(),
             ::Pair
         ),
-        selectedEntryIds,
-        isDeleteConfirmationVisible,
-        displayedMonth,
-        selectedDate
-    ) { (entriesOrNull, groupsOrNull), currentSelection, deleteConfirmationVisible, month, selectedDay ->
+        combine(
+            selectedEntryIds,
+            isDeleteConfirmationVisible,
+            isDeletingAllEntries,
+            deleteAllEntriesResult,
+            ::HistoryDeletionUiState
+        ),
+        combine(
+            displayedMonth,
+            selectedDate,
+            ::Pair
+        ),
+    ) { entriesAndGroups,
+        deletionUiState,
+        displayState ->
+        val (entriesOrNull, groupsOrNull) = entriesAndGroups
+        val (month, selectedDay) = displayState
         val isLoading = entriesOrNull == null || groupsOrNull == null
         val entries = entriesOrNull.orEmpty()
         val groups = groupsOrNull.orEmpty()
@@ -60,7 +74,8 @@ class HistoryViewModel @Inject constructor(
             ?: currentMonth
         val calendarEndMonth = currentMonth
         val visibleMonth = month.coerceIn(calendarStartMonth, calendarEndMonth)
-        val visibleSelection = currentSelection.intersect(entries.mapTo(mutableSetOf()) { it.uuid })
+        val visibleSelection = deletionUiState.selectedEntryIds
+            .intersect(entries.mapTo(mutableSetOf()) { it.uuid })
         HistoryUiState(
             isLoading = isLoading,
             entries = entries,
@@ -71,7 +86,10 @@ class HistoryViewModel @Inject constructor(
             displayedMonth = visibleMonth,
             selectedDate = selectedDay,
             selectedEntryIds = visibleSelection,
-            isDeleteConfirmationVisible = deleteConfirmationVisible && visibleSelection.isNotEmpty()
+            isDeleteConfirmationVisible = deletionUiState.isDeleteConfirmationVisible &&
+                visibleSelection.isNotEmpty(),
+            isDeletingAllEntries = deletionUiState.isDeletingAllEntries,
+            deleteAllEntriesResult = deletionUiState.deleteAllEntriesResult,
         )
     }.stateIn(
             scope = viewModelScope,
@@ -140,6 +158,31 @@ class HistoryViewModel @Inject constructor(
             isDeleteConfirmationVisible.value = false
         }
     }
+
+    fun deleteAllEntries() {
+        if (isDeletingAllEntries.value || uiState.value.entries.isEmpty()) {
+            return
+        }
+
+        viewModelScope.launch {
+            isDeletingAllEntries.value = true
+            val result = runCatching {
+                medicationLogRepository.deleteAllEntries()
+                medicationReminderScheduler.rescheduleAll()
+                selectedEntryIds.value = emptySet()
+                isDeleteConfirmationVisible.value = false
+            }.fold(
+                onSuccess = { HistoryDeleteAllEntriesResult.SUCCESS },
+                onFailure = { HistoryDeleteAllEntriesResult.FAILURE },
+            )
+            isDeletingAllEntries.value = false
+            deleteAllEntriesResult.value = result
+        }
+    }
+
+    fun consumeDeleteAllEntriesResult() {
+        deleteAllEntriesResult.value = null
+    }
 }
 
 data class HistoryUiState(
@@ -153,7 +196,21 @@ data class HistoryUiState(
     val selectedDate: LocalDate? = null,
     val selectedEntryIds: Set<UUID> = emptySet(),
     val isDeleteConfirmationVisible: Boolean = false,
+    val isDeletingAllEntries: Boolean = false,
+    val deleteAllEntriesResult: HistoryDeleteAllEntriesResult? = null,
 ) {
     val isSelectionMode: Boolean
         get() = selectedEntryIds.isNotEmpty()
 }
+
+enum class HistoryDeleteAllEntriesResult {
+    SUCCESS,
+    FAILURE,
+}
+
+private data class HistoryDeletionUiState(
+    val selectedEntryIds: Set<UUID>,
+    val isDeleteConfirmationVisible: Boolean,
+    val isDeletingAllEntries: Boolean,
+    val deleteAllEntriesResult: HistoryDeleteAllEntriesResult?,
+)

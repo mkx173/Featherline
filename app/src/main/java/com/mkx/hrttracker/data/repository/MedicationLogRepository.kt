@@ -95,6 +95,12 @@ class MedicationLogRepository @Inject constructor(
         databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
     }
 
+    suspend fun deleteAllEntries() {
+        databaseHolder.withTransaction { database ->
+            database.medicationLogDao().deleteAllEntries()
+        }
+    }
+
     suspend fun saveEntry(
         uuid: UUID?,
         medication: MedicationDetails,
