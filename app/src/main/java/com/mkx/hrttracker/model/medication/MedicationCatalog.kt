@@ -31,6 +31,16 @@ enum class MedicationApplicationType(@get:StringRes val labelRes: Int) {
     }
 }
 
+enum class MedicationGelApplicationArea(@get:StringRes val labelRes: Int) {
+    DEFAULT(R.string.medication_gel_application_area_default);
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationGelApplicationArea {
+            return entries.firstOrNull { it.name == value } ?: DEFAULT
+        }
+    }
+}
+
 enum class MedicationSelectionKind {
     CATALOG,
     CUSTOM;
@@ -157,6 +167,7 @@ data class MedicationDetails(
     val applicationType: MedicationApplicationType,
     val selection: MedicationSelection,
     val dose: MedicationDose,
+    val gelApplicationArea: MedicationGelApplicationArea = MedicationGelApplicationArea.DEFAULT,
 )
 
 data class MedicationCatalogEntry(

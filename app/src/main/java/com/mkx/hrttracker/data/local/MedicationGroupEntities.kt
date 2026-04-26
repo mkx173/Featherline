@@ -18,6 +18,7 @@ data class MedicationGroupEntity(
     val scheduleSinceEpochDay: Long,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val archivedAtEpochMillis: Long? = null,
 )
 
 @Entity(
@@ -47,6 +48,7 @@ data class MedicationGroupItemEntity(
     val doseValuePercent: Double?,
     val doseWeightGrams: Double?,
     val doseReleaseRateMcgPerDay: Double?,
+    val gelApplicationArea: String = "DEFAULT",
 )
 
 @Entity(

@@ -227,6 +227,8 @@
     <string name="medication_application_sublingual">Sublingual</string>
     <string name="medication_application_injection">Injection</string>
     <string name="medication_application_gel">Gel</string>
+    <string name="field_gel_application_area">Application area</string>
+    <string name="medication_gel_application_area_default">Default</string>
     <string name="medication_application_patch_on">Patch on</string>
     <string name="medication_application_patch_off">Patch off</string>
     <string name="medication_application_badge_oral">PO</string>

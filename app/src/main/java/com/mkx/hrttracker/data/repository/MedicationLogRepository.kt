@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
@@ -213,7 +214,8 @@ class MedicationLogRepository @Inject constructor(
             category = MedicationCategory.fromStorageValue(category),
             applicationType = MedicationApplicationType.fromStorageValue(applicationType),
             selection = selection,
-            dose = dose
+            dose = dose,
+            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea)
         )
     }
 
@@ -267,7 +269,8 @@ class MedicationLogRepository @Inject constructor(
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),
-            count = count.coerceAtLeast(1)
+            count = count.coerceAtLeast(1),
+            gelApplicationArea = medication.gelApplicationArea.name,
         )
     }
 }

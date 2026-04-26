@@ -68,6 +68,7 @@ import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
@@ -221,7 +222,9 @@ fun StructuredMedicationEditorSheet(
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             }
 
-            if (draft.supportsCatalogSelection() && draft.selectionKind == MedicationSelectionKind.CATALOG) {
+            if (draft.supportsCatalogSelection()
+                && draft.selectionKind == MedicationSelectionKind.CATALOG
+                && catalog.entries.mapNotNull { it.medicationKey }.size > 1) {
                 Text(
                     text = stringResource(R.string.field_medication),
                     style = MaterialTheme.typography.titleSmall,
@@ -264,6 +267,23 @@ fun StructuredMedicationEditorSheet(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+            }
+
+            if (draft.applicationType == MedicationApplicationType.GEL) {
+                Text(
+                    text = stringResource(R.string.field_gel_application_area),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+                ConnectedButtonGroup(
+                    options = MedicationGelApplicationArea.entries,
+                    selectedOption = MedicationGelApplicationArea.DEFAULT,
+                    optionLabel = { area -> stringResource(area.labelRes) },
+                    onOptionSelected = {},
                 )
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))

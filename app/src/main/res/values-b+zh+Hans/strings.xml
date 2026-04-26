@@ -227,6 +227,8 @@
     <string name="medication_application_sublingual">舌下</string>
     <string name="medication_application_injection">注射</string>
     <string name="medication_application_gel">凝胶</string>
+    <string name="field_gel_application_area">涂抹部位</string>
+    <string name="medication_gel_application_area_default">默认</string>
     <string name="medication_application_patch_on">贴片贴上</string>
     <string name="medication_application_patch_off">贴片取下</string>
     <string name="medication_application_badge_oral">口服</string>

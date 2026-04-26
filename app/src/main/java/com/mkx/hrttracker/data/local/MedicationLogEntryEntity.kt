@@ -24,4 +24,5 @@ data class MedicationLogEntryEntity(
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     val scheduledForIso: String? = null,
     val count: Int = 1,
+    val gelApplicationArea: String = "DEFAULT",
 )

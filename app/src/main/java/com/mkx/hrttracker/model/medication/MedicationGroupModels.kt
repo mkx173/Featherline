@@ -15,6 +15,7 @@ data class MedicationGroup(
     val notificationsEnabled: Boolean = false,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val archivedAt: Instant? = null,
 )
 
 data class MedicationGroupMedication(

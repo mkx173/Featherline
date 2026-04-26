@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -113,7 +114,8 @@ class MedicationGroupRepository @Inject constructor(
                 scheduleInterval = schedule.interval,
                 scheduleSinceEpochDay = schedule.since.toEpochDay(),
                 createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = nowEpochMillis
+                updatedAtEpochMillis = nowEpochMillis,
+                archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
             ),
             items = medications.mapIndexed { index, medication ->
                 MedicationGroupItemEntity(
@@ -151,6 +153,7 @@ class MedicationGroupRepository @Inject constructor(
                         is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
                         else -> null
                     },
+                    gelApplicationArea = medication.details.gelApplicationArea.name,
                 )
             },
             scheduleTimes = schedule.times.mapIndexed { index, time ->
@@ -199,7 +202,8 @@ class MedicationGroupRepository @Inject constructor(
             },
             notificationsEnabled = group.notificationsEnabled,
             createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
-            updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis)
+            updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
+            archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli)
         )
     }
 
@@ -243,7 +247,8 @@ class MedicationGroupRepository @Inject constructor(
             category = MedicationCategory.fromStorageValue(category),
             applicationType = MedicationApplicationType.fromStorageValue(applicationType),
             selection = selection,
-            dose = dose
+            dose = dose,
+            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea)
         )
     }
 }
