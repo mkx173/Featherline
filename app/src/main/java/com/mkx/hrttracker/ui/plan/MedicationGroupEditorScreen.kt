@@ -8,8 +8,8 @@ import android.os.Build
 import android.provider.Settings
 import android.text.format.DateFormat
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -77,8 +77,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -99,7 +99,6 @@ import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
-import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
@@ -130,8 +129,8 @@ import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.ChronoField
-import java.util.UUID
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun MedicationGroupEditorScreen(

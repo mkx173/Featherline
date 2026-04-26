@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Circle
@@ -99,7 +98,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
@@ -1255,8 +1253,8 @@ private fun HistoryEntryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val sourceVisual = remember(entry.sourceType, entry.scheduledFor != null) {
-        historySourceVisual(entry.sourceType, entry.scheduledFor != null)
+    val sourceVisual = remember(entry.scheduledFor != null) {
+        historySourceVisual(entry.scheduledFor != null)
     }
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
@@ -1475,24 +1473,16 @@ private data class HistorySourceVisual(
     val contentDescriptionRes: Int
 )
 
-private fun historySourceVisual(
-    sourceType: MedicationLogEntrySourceType,
-    fulfillsSchedule: Boolean
-): HistorySourceVisual {
-    if (fulfillsSchedule) {
-        return HistorySourceVisual(
+private fun historySourceVisual(fulfillsSchedule: Boolean): HistorySourceVisual {
+    return if (fulfillsSchedule) {
+        HistorySourceVisual(
             icon = Icons.Rounded.CalendarMonth,
             contentDescriptionRes = R.string.history_entry_source_group_schedule
         )
-    }
-    return when (sourceType) {
-        MedicationLogEntrySourceType.MANUAL -> HistorySourceVisual(
+    } else {
+        HistorySourceVisual(
             icon = Icons.Rounded.Edit,
             contentDescriptionRes = R.string.history_entry_source_manual
-        )
-        MedicationLogEntrySourceType.GROUP_MANUAL -> HistorySourceVisual(
-            icon = Icons.AutoMirrored.Rounded.ViewList,
-            contentDescriptionRes = R.string.history_entry_source_group_manual
         )
     }
 }
@@ -1527,7 +1517,6 @@ private fun buildHistoryPreviewUiState(
                 dose = MedicationDose.MgAsMedicine(5.0)
             ),
             dosageMgAsEstradiol = 3.82,
-            sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
             appliedAt = previewInstant(today, LocalTime.of(8, 30), zoneId)
         ),
@@ -1539,7 +1528,6 @@ private fun buildHistoryPreviewUiState(
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = oralGroupId,
             appliedAt = previewInstant(today.minusDays(1), LocalTime.of(22, 0), zoneId)
         ),
@@ -1551,7 +1539,6 @@ private fun buildHistoryPreviewUiState(
                 dose = MedicationDose.MgAsMedicine(1.0)
             ),
             dosageMgAsEstradiol = 1.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = nightlyGroupId,
             appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
@@ -1564,7 +1551,6 @@ private fun buildHistoryPreviewUiState(
                 dose = MedicationDose.MgAsMedicine(1.0)
             ),
             dosageMgAsEstradiol = 1.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = nightlyGroupId,
             appliedAt = previewInstant(today, LocalTime.of(19, 0), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(19, 0))
@@ -1577,7 +1563,6 @@ private fun buildHistoryPreviewUiState(
                 dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
             ),
             dosageMgAsEstradiol = 1.5,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = oralGroupId,
             appliedAt = previewInstant(today.minusDays(3), LocalTime.of(7, 45), zoneId),
             scheduledFor = LocalDateTime.of(today.minusDays(3), LocalTime.of(7, 30))

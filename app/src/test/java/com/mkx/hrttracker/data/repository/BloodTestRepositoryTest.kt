@@ -13,7 +13,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import io.mockk.coEvery
@@ -57,7 +56,6 @@ class BloodTestRepositoryTest {
                     applicationType = MedicationApplicationType.ORAL,
                     dose = MedicationDose.MgAsMedicine(2.0)
                 ),
-                sourceType = MedicationLogEntrySourceType.MANUAL,
                 sourceGroupUuid = null,
                 appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
             )

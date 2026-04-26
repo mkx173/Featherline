@@ -3,6 +3,86 @@ package com.mkx.hrttracker.data.local
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+val MIGRATION_22_23: Migration = object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("PRAGMA foreign_keys=OFF")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS medication_log_entries_new (
+                uuid TEXT NOT NULL PRIMARY KEY,
+                category TEXT NOT NULL,
+                applicationType TEXT NOT NULL,
+                selectionKind TEXT NOT NULL,
+                medicationKey TEXT,
+                customMedicationName TEXT,
+                doseKind TEXT NOT NULL,
+                doseValueMg REAL,
+                customDoseUnit TEXT NOT NULL DEFAULT 'MG',
+                doseValuePercent REAL,
+                doseWeightGrams REAL,
+                doseReleaseRateMcgPerDay REAL,
+                dosageMgAsEstradiol REAL,
+                sourceGroupUuid TEXT,
+                appliedAtEpochMillis INTEGER NOT NULL,
+                appliedAtTimeZoneId TEXT NOT NULL,
+                scheduledForIso TEXT,
+                count INTEGER NOT NULL DEFAULT 1,
+                gelApplicationArea TEXT NOT NULL DEFAULT 'DEFAULT'
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO medication_log_entries_new (
+                uuid,
+                category,
+                applicationType,
+                selectionKind,
+                medicationKey,
+                customMedicationName,
+                doseKind,
+                doseValueMg,
+                customDoseUnit,
+                doseValuePercent,
+                doseWeightGrams,
+                doseReleaseRateMcgPerDay,
+                dosageMgAsEstradiol,
+                sourceGroupUuid,
+                appliedAtEpochMillis,
+                appliedAtTimeZoneId,
+                scheduledForIso,
+                count,
+                gelApplicationArea
+            )
+            SELECT
+                uuid,
+                category,
+                applicationType,
+                selectionKind,
+                medicationKey,
+                customMedicationName,
+                doseKind,
+                doseValueMg,
+                customDoseUnit,
+                doseValuePercent,
+                doseWeightGrams,
+                doseReleaseRateMcgPerDay,
+                dosageMgAsEstradiol,
+                sourceGroupUuid,
+                appliedAtEpochMillis,
+                appliedAtTimeZoneId,
+                scheduledForIso,
+                count,
+                gelApplicationArea
+            FROM medication_log_entries
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE medication_log_entries")
+        db.execSQL("ALTER TABLE medication_log_entries_new RENAME TO medication_log_entries")
+        db.execSQL("PRAGMA foreign_keys=ON")
+    }
+}
+
 val MIGRATION_21_22: Migration = object : Migration(21, 22) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(

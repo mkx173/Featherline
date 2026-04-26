@@ -1,14 +1,13 @@
 package com.mkx.hrttracker.ui.history
 
 import com.kizitonwose.calendar.core.DayPosition
-import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
-import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import org.junit.Assert.assertEquals
@@ -238,7 +237,6 @@ class HistoryUiModelsTest {
                         dose = MedicationDose.MgAsMedicine(2.0)
                     ),
                     dosageMgAsEstradiol = 2.0,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
                     scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0),
@@ -478,7 +476,6 @@ class HistoryUiModelsTest {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(dateTime)
         )

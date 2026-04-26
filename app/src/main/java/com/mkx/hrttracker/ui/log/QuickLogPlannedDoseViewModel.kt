@@ -6,7 +6,6 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -111,7 +110,6 @@ class QuickLogPlannedDoseViewModel @Inject constructor(
                 medicationLogRepository.saveEntry(
                     uuid = null,
                     medication = entry.details,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = group.uuid,
                     appliedAt = appliedAt,
                     scheduledFor = scheduledFor,

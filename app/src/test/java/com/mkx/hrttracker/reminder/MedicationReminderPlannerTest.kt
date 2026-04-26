@@ -1,13 +1,12 @@
 package com.mkx.hrttracker.reminder
 
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -18,7 +17,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
 import java.util.UUID
 
 class MedicationReminderPlannerTest {
@@ -204,7 +202,6 @@ class MedicationReminderPlannerTest {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor

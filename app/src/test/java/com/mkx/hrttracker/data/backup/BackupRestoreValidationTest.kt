@@ -98,7 +98,6 @@ class BackupRestoreValidationTest {
                     doseReleaseRateMcgPerDay = null,
                     gelApplicationArea = "DEFAULT",
                     dosageMgAsEstradiol = 0.2,
-                    sourceType = "GROUP_MANUAL",
                     sourceGroupUuid = groupUuid.toString(),
                     appliedAtEpochMillis = 300L,
                     appliedAtTimeZoneId = "Asia/Tokyo",
@@ -185,7 +184,6 @@ class BackupRestoreValidationTest {
         val restoredLog = validatedSnapshot.medicationLogs.single()
         assertEquals(logUuid.toString(), restoredLog.uuid)
         assertEquals(groupUuid.toString(), restoredLog.sourceGroupUuid)
-        assertEquals("GROUP_MANUAL", restoredLog.sourceType)
         assertEquals("MCG", restoredLog.customDoseUnit)
 
         val restoredAnalyte = validatedSnapshot.customBloodAnalytes.single()

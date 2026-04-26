@@ -1,12 +1,12 @@
 package com.mkx.hrttracker.ui.plan
 
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import org.junit.Assert.assertEquals
@@ -61,7 +61,6 @@ class PlanDayOccurrenceTest {
         val fulfilledEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
             details = group.medications.single().details,
             dosageMgAsEstradiol = 2.0,
-            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = group.uuid,
             appliedAt = scheduledFor.plusMinutes(3).toLocalDate().atTime(9, 3)
                 .atZone(java.time.ZoneId.systemDefault())
@@ -160,7 +159,6 @@ class PlanDayOccurrenceTest {
                     uuid = countedEntryId,
                     details = group.medications.single().details,
                     dosageMgAsEstradiol = 2.0,
-                    sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = group.uuid,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 9, 3)
                         .atZone(java.time.ZoneId.systemDefault())

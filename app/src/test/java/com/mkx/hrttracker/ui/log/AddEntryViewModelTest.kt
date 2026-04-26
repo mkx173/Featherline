@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.log
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -54,7 +53,6 @@ class AddEntryViewModelTest {
                     dose = MedicationDose.MgAsMedicine(2.0)
                 ),
                 dosageMgAsEstradiol = 2.0,
-                sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(appliedAt),
                 scheduledFor = scheduledFor
@@ -67,7 +65,6 @@ class AddEntryViewModelTest {
                     dose = MedicationDose.MgAsMedicine(2.0)
                 ),
                 dosageMgAsEstradiol = 2.0,
-                sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(appliedAt),
                 scheduledFor = scheduledFor
@@ -99,7 +96,6 @@ class AddEntryViewModelTest {
                     dose = MedicationDose.MgAsMedicine(2.0)
                 ),
                 dosageMgAsEstradiol = 2.0,
-                sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
                 scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
@@ -112,7 +108,6 @@ class AddEntryViewModelTest {
                     dose = MedicationDose.MgAsMedicine(2.0)
                 ),
                 dosageMgAsEstradiol = 2.0,
-                sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 22, 0)),
                 scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
@@ -137,7 +132,6 @@ class AddEntryViewModelTest {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -158,7 +152,6 @@ class AddEntryViewModelTest {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),

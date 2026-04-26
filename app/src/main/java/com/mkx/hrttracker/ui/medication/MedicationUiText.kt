@@ -8,8 +8,8 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.customDoseDisplayUnit
-import com.mkx.hrttracker.model.medication.formatDoseFromCanonicalMg
 import com.mkx.hrttracker.model.medication.formatDose
+import com.mkx.hrttracker.model.medication.formatDoseFromCanonicalMg
 import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable

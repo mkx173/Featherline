@@ -101,7 +101,6 @@ data class BackupMedicationLogSnapshot(
     val doseReleaseRateMcgPerDay: Double?,
     val gelApplicationArea: String,
     val dosageMgAsEstradiol: Double?,
-    val sourceType: String,
     val sourceGroupUuid: String?,
     val appliedAtEpochMillis: Long,
     val appliedAtTimeZoneId: String,

@@ -46,7 +46,6 @@
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_body">该用药了</string>
     <string name="fab_add_entry">添加用药记录</string>
-    <string name="fab_add_entry_from_group">从用药分组添加</string>
     <string name="fab_add_medication_group">添加用药分组</string>
     <string name="plan_empty_state">暂无用药分组</string>
     <string name="plan_selected_day_records_title">%1$s 的记录</string>
@@ -100,7 +99,6 @@
     <string name="history_legend_unplanned">计划外</string>
     <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
     <string name="history_entry_source_manual">手动记录</string>
-    <string name="history_entry_source_group_manual">来自用药分组的记录</string>
     <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
     <string name="delete_entry_title">删除记录</string>
@@ -171,13 +169,7 @@
     <string name="decrease_medication_count">减少药物数量</string>
     <string name="remove_medication_from_group">移除药物</string>
     <string name="remove_time">移除时间</string>
-    <string name="quick_add_group_title">从分组快速添加</string>
-    <string name="quick_add_group_pick_group">选择一个要记录的用药分组。</string>
-    <string name="quick_add_group_empty_state">请先在计划页创建用药分组。</string>
-    <string name="quick_add_group_change_group">选择其他分组</string>
     <string name="quick_add_group_save_entries">保存分组记录</string>
-    <string name="quick_add_group_planned_slot_label">对应计划</string>
-    <string name="quick_add_group_planned_slot_unplanned">未计划</string>
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="quick_add_group_planned_slot_yesterday">昨天</string>
     <string name="quick_add_group_planned_slot_tomorrow">明天</string>

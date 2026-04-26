@@ -46,7 +46,6 @@
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_body">It\'s time for your dose.</string>
     <string name="fab_add_entry">Add medication log entry</string>
-    <string name="fab_add_entry_from_group">Add from medication group</string>
     <string name="fab_add_medication_group">Add medication group</string>
     <string name="plan_empty_state">No medication groups yet.</string>
     <string name="plan_selected_day_records_title">Records on %1$s</string>
@@ -100,7 +99,6 @@
     <string name="history_legend_unplanned">Off plan</string>
     <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
     <string name="history_entry_source_manual">Manual entry</string>
-    <string name="history_entry_source_group_manual">Entry from medication group</string>
     <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
     <string name="delete_entry_title">Delete entry</string>
@@ -171,13 +169,7 @@
     <string name="decrease_medication_count">Decrease medication count</string>
     <string name="remove_medication_from_group">Remove medication</string>
     <string name="remove_time">Remove time</string>
-    <string name="quick_add_group_title">Quick add from group</string>
-    <string name="quick_add_group_pick_group">Select a medication group to log.</string>
-    <string name="quick_add_group_empty_state">Create a medication group in Plan first.</string>
-    <string name="quick_add_group_change_group">Choose another group</string>
     <string name="quick_add_group_save_entries">Save group entries</string>
-    <string name="quick_add_group_planned_slot_label">Planned dose</string>
-    <string name="quick_add_group_planned_slot_unplanned">Unplanned</string>
     <string name="quick_add_group_planned_slot_today">Today</string>
     <string name="quick_add_group_planned_slot_yesterday">Yesterday</string>
     <string name="quick_add_group_planned_slot_tomorrow">Tomorrow</string>

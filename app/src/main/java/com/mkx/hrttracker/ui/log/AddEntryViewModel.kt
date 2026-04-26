@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
@@ -96,7 +95,6 @@ class AddEntryViewModel @Inject constructor(
                 medicationLogRepository.saveEntries(
                     uuids = editingEntryUuids,
                     medication = currentState.medicationDraft.toMedicationDetails(),
-                    sourceType = currentState.sourceType,
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
                     scheduledFor = currentState.scheduledFor,
@@ -106,7 +104,6 @@ class AddEntryViewModel @Inject constructor(
                 medicationLogRepository.saveEntry(
                     uuid = editingEntryUuids.firstOrNull(),
                     medication = currentState.medicationDraft.toMedicationDetails(),
-                    sourceType = currentState.sourceType,
                     sourceGroupUuid = currentState.sourceGroupUuid,
                     appliedAt = appliedAt,
                     scheduledFor = currentState.scheduledFor,
@@ -163,7 +160,6 @@ class AddEntryViewModel @Inject constructor(
 data class AddEntryUiState(
     val editingEntryIds: List<String> = emptyList(),
     val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
-    val sourceType: MedicationLogEntrySourceType = MedicationLogEntrySourceType.MANUAL,
     val sourceGroupUuid: UUID? = null,
     val scheduledFor: LocalDateTime? = null,
     val count: Int = 1,
@@ -200,7 +196,6 @@ internal fun buildEditingUiState(entries: List<MedicationLogEntry>): AddEntryUiS
     return AddEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
         medicationDraft = medicationDraftFromDetails(representativeEntry.details),
-        sourceType = representativeEntry.sourceType,
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
         scheduledFor = representativeEntry.scheduledFor,
         count = representativeEntry.count,
@@ -217,7 +212,6 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
     val firstEntry = entries.first()
     return entries.all { entry ->
         entry.details == firstEntry.details &&
-            entry.sourceType == firstEntry.sourceType &&
             entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
             entry.appliedAt == firstEntry.appliedAt &&
             entry.scheduledFor == firstEntry.scheduledFor &&

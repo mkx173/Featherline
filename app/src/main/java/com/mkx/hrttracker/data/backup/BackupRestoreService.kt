@@ -25,7 +25,6 @@ import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -282,17 +281,9 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             "Medication log ${log.uuid} must have a positive count."
         }
         requireZoneId(log.appliedAtTimeZoneId, "medication log time zone")
-        val sourceType = requireEnumName<MedicationLogEntrySourceType>(
-            log.sourceType,
-            "medication log source type",
-        )
         val sourceGroupUuid = log.sourceGroupUuid?.parseUuid("medication log source group UUID")?.toString()
-        when (sourceType) {
-            MedicationLogEntrySourceType.MANUAL -> require(sourceGroupUuid == null) {
-                "Manual medication logs must not reference a source group."
-            }
-
-            MedicationLogEntrySourceType.GROUP_MANUAL -> require(sourceGroupUuid in validGroupUuids) {
+        if (sourceGroupUuid != null) {
+            require(sourceGroupUuid in validGroupUuids) {
                 "Grouped medication logs must reference a restored medication group."
             }
         }
@@ -318,7 +309,6 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             doseWeightGrams = validatedMedication.doseWeightGrams,
             doseReleaseRateMcgPerDay = validatedMedication.doseReleaseRateMcgPerDay,
             dosageMgAsEstradiol = log.dosageMgAsEstradiol,
-            sourceType = sourceType.name,
             sourceGroupUuid = sourceGroupUuid,
             appliedAtEpochMillis = log.appliedAtEpochMillis,
             appliedAtTimeZoneId = log.appliedAtTimeZoneId,

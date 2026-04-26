@@ -12,7 +12,6 @@ import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import kotlinx.coroutines.CoroutineScope
@@ -99,7 +98,6 @@ class MedicationLogRepository @Inject constructor(
     suspend fun saveEntry(
         uuid: UUID?,
         medication: MedicationDetails,
-        sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
         scheduledFor: LocalDateTime? = null,
@@ -110,7 +108,6 @@ class MedicationLogRepository @Inject constructor(
             buildEntryEntity(
                 uuid = uuid ?: UUID.randomUUID(),
                 medication = medication,
-                sourceType = sourceType,
                 sourceGroupUuid = sourceGroupUuid,
                 appliedAt = appliedAt,
                 scheduledFor = scheduledFor,
@@ -123,7 +120,6 @@ class MedicationLogRepository @Inject constructor(
     suspend fun saveEntries(
         uuids: Collection<UUID>,
         medication: MedicationDetails,
-        sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
         scheduledFor: LocalDateTime? = null,
@@ -135,7 +131,6 @@ class MedicationLogRepository @Inject constructor(
             saveEntry(
                 uuid = null,
                 medication = medication,
-                sourceType = sourceType,
                 sourceGroupUuid = sourceGroupUuid,
                 appliedAt = appliedAt,
                 scheduledFor = scheduledFor,
@@ -150,7 +145,6 @@ class MedicationLogRepository @Inject constructor(
                 buildEntryEntity(
                     uuid = uuid,
                     medication = medication,
-                    sourceType = sourceType,
                     sourceGroupUuid = sourceGroupUuid,
                     appliedAt = appliedAt,
                     scheduledFor = scheduledFor,
@@ -166,7 +160,6 @@ class MedicationLogRepository @Inject constructor(
             uuid = UUID.fromString(uuid),
             details = toMedicationDetails(),
             dosageMgAsEstradiol = dosageMgAsEstradiol,
-            sourceType = MedicationLogEntrySourceType.fromStorageValue(sourceType),
             sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
             appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
             appliedAtTimeZoneId = appliedAtTimeZoneId,
@@ -224,7 +217,6 @@ class MedicationLogRepository @Inject constructor(
     private fun buildEntryEntity(
         uuid: UUID,
         medication: MedicationDetails,
-        sourceType: MedicationLogEntrySourceType,
         sourceGroupUuid: UUID?,
         appliedAt: Instant,
         scheduledFor: LocalDateTime?,
@@ -273,7 +265,6 @@ class MedicationLogRepository @Inject constructor(
             dosageMgAsEstradiol = EstradiolEquivalentCalculator.calculate(
                 medication = medication
             ),
-            sourceType = sourceType.name,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = appliedAtTimeZoneId,

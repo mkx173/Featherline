@@ -19,7 +19,6 @@ data class MedicationLogEntryEntity(
     val doseWeightGrams: Double?,
     val doseReleaseRateMcgPerDay: Double?,
     val dosageMgAsEstradiol: Double?,
-    val sourceType: String,
     val sourceGroupUuid: String?,
     val appliedAtEpochMillis: Long,
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,

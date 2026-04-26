@@ -1604,7 +1604,6 @@ private fun buildPlanPreviewUiState(): PlanUiState {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = morningGroupId,
             appliedAt = previewInstant(today, LocalTime.of(8, 2), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
@@ -1617,7 +1616,6 @@ private fun buildPlanPreviewUiState(): PlanUiState {
                 dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
             ),
             dosageMgAsEstradiol = 1.5,
-            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
             appliedAt = previewInstant(today, LocalTime.of(13, 30), zoneId)
         ),
@@ -1629,7 +1627,6 @@ private fun buildPlanPreviewUiState(): PlanUiState {
                 dose = MedicationDose.MgAsMedicine(5.0)
             ),
             dosageMgAsEstradiol = 3.82,
-            sourceType = com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = weeklyGroupId,
             appliedAt = previewInstant(
                 today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),

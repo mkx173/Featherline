@@ -1,8 +1,8 @@
 package com.mkx.hrttracker.ui.plan
 
-import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import org.junit.Assert.assertEquals

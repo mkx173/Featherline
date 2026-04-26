@@ -1,15 +1,14 @@
 package com.mkx.hrttracker.ui.main
 
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -46,7 +45,6 @@ class MainUiModelsTest {
                         dose = MedicationDose.MgAsMedicine(100.0)
                     ),
                     dosageMgAsEstradiol = null,
-                    sourceType = MedicationLogEntrySourceType.MANUAL,
                     sourceGroupUuid = null,
                     appliedAt = testInstant(LocalDateTime.of(2026, 4, 18, 8, 0))
                 ),
@@ -54,7 +52,6 @@ class MainUiModelsTest {
                     uuid = UUID.randomUUID(),
                     details = latestEstradiolDoseDetails,
                     dosageMgAsEstradiol = 3.82,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = UUID.randomUUID(),
                     appliedAt = testInstant(latestEstradiolDoseTime)
                 )
@@ -126,7 +123,6 @@ class MainUiModelsTest {
                     uuid = UUID.randomUUID(),
                     details = spiroActualDose,
                     dosageMgAsEstradiol = null,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = antiandrogenGroup.uuid,
                     appliedAt = testInstant(spiroLastDoseTime),
                     scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0)
@@ -139,7 +135,6 @@ class MainUiModelsTest {
                         dose = MedicationDose.MgAsMedicine(12.5)
                     ),
                     dosageMgAsEstradiol = null,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = antiandrogenGroup.uuid,
                     appliedAt = testInstant(cyproLastDoseTime),
                     scheduledFor = LocalDateTime.of(2026, 4, 17, 20, 0)
@@ -434,7 +429,6 @@ class MainUiModelsTest {
                 dose = MedicationDose.MgAsMedicine(2.0)
             ),
             dosageMgAsEstradiol = 2.0,
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor

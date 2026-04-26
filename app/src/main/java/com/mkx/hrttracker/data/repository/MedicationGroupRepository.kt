@@ -21,7 +21,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import kotlinx.coroutines.CoroutineScope
@@ -82,8 +81,7 @@ class MedicationGroupRepository @Inject constructor(
         val groupUuid = uuid.toString()
         database.withTransaction {
             database.medicationLogDao().reclassifyEntriesForDeletedGroup(
-                groupUuid = groupUuid,
-                manualSourceType = MedicationLogEntrySourceType.MANUAL.name
+                groupUuid = groupUuid
             )
             database.medicationGroupDao().deleteGroup(groupUuid)
         }

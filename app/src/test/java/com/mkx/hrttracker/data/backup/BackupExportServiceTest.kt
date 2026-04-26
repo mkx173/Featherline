@@ -24,7 +24,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -162,7 +161,6 @@ class BackupExportServiceTest {
                     customDoseUnit = MedicationDoseUnit.MCG,
                 ),
                 dosageMgAsEstradiol = 0.2,
-                sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                 sourceGroupUuid = groupUuid,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
@@ -304,7 +302,6 @@ class BackupExportServiceTest {
         assertEquals(null, log.doseReleaseRateMcgPerDay)
         assertEquals("DEFAULT", log.gelApplicationArea)
         assertEquals(0.2, log.dosageMgAsEstradiol!!, 1e-9)
-        assertEquals("GROUP_MANUAL", log.sourceType)
         assertEquals(groupUuid.toString(), log.sourceGroupUuid)
         assertEquals(Instant.parse("2026-04-26T01:00:00Z").toEpochMilli(), log.appliedAtEpochMillis)
         assertEquals("Asia/Tokyo", log.appliedAtTimeZoneId)

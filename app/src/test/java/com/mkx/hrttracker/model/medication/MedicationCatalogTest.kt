@@ -3,7 +3,6 @@ package com.mkx.hrttracker.model.medication
 import com.mkx.hrttracker.model.medication.MedicationCatalog.catalogFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MedicationCatalogTest {

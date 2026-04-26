@@ -1,17 +1,13 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.History
@@ -23,7 +19,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -46,7 +40,6 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
-import com.mkx.hrttracker.ui.log.QuickAddMedicationGroupSheet
 import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
@@ -160,7 +153,6 @@ fun HrtTrackerNavHost(
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
-    var quickAddGroupSheetVisible by remember { mutableStateOf(false) }
     var quickLogPlannedDoseRequest by remember { mutableStateOf<QuickLogPlannedDoseRequest?>(null) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -213,30 +205,15 @@ fun HrtTrackerNavHost(
         floatingActionButton = {
             when (currentRoute) {
                 Screen.Main.route -> {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+                    FloatingActionButton(
+                        onClick = {
+                            addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
+                        }
                     ) {
-                        SmallFloatingActionButton(
-                            onClick = {
-                                quickAddGroupSheetVisible = true
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ViewList,
-                                contentDescription = stringResource(R.string.fab_add_entry_from_group)
-                            )
-                        }
-
-                        FloatingActionButton(
-                            onClick = {
-                                addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = stringResource(R.string.fab_add_entry)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.fab_add_entry)
+                        )
                     }
                 }
 
@@ -424,13 +401,6 @@ fun HrtTrackerNavHost(
             entryIds = request.entryIds,
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
-        )
-    }
-
-    if (quickAddGroupSheetVisible) {
-        QuickAddMedicationGroupSheet(
-            onDismissRequest = { quickAddGroupSheetVisible = false },
-            onEntriesSaved = { quickAddGroupSheetVisible = false }
         )
     }
 

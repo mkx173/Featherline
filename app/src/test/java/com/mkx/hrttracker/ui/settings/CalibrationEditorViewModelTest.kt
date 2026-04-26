@@ -13,7 +13,6 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -37,8 +36,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.Instant
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -365,7 +364,6 @@ class CalibrationEditorViewModelTest {
                     applicationType = MedicationApplicationType.ORAL,
                     dose = MedicationDose.MgAsMedicine(2.0),
                 ),
-                sourceType = MedicationLogEntrySourceType.MANUAL,
                 sourceGroupUuid = null,
                 appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),
             )

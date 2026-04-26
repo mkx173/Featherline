@@ -6,9 +6,9 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCatalogEntry
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationKey

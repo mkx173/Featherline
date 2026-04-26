@@ -5,22 +5,10 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 
-enum class MedicationLogEntrySourceType {
-    MANUAL,
-    GROUP_MANUAL;
-
-    companion object {
-        fun fromStorageValue(value: String?): MedicationLogEntrySourceType {
-            return entries.firstOrNull { it.name == value } ?: MANUAL
-        }
-    }
-}
-
 data class MedicationLogEntry(
     val uuid: UUID,
     val details: MedicationDetails,
     val dosageMgAsEstradiol: Double?,
-    val sourceType: MedicationLogEntrySourceType,
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,

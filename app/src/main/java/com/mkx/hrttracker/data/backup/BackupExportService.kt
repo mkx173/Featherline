@@ -265,7 +265,6 @@ class BackupExportService @Inject constructor(
             doseReleaseRateMcgPerDay = fields.doseReleaseRateMcgPerDay,
             gelApplicationArea = fields.gelApplicationArea,
             dosageMgAsEstradiol = dosageMgAsEstradiol,
-            sourceType = sourceType.name,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = appliedAtTimeZoneId,

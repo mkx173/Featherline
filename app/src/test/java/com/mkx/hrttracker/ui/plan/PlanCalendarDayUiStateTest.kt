@@ -2,15 +2,14 @@ package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationLogEntrySourceType
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
@@ -363,7 +362,6 @@ class PlanCalendarDayUiStateTest {
                         dose = MedicationDose.None
                     ),
                     dosageMgAsEstradiol = null,
-                    sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
                     sourceGroupUuid = group.uuid,
                     appliedAt = LocalDateTime.of(2026, 4, 16, 9, 0)
                         .atZone(ZoneId.systemDefault())
@@ -526,7 +524,6 @@ class PlanCalendarDayUiStateTest {
             uuid = UUID.randomUUID(),
             details = details,
             dosageMgAsEstradiol = estradiolEquivalent(details),
-            sourceType = MedicationLogEntrySourceType.GROUP_MANUAL,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,
@@ -543,7 +540,6 @@ class PlanCalendarDayUiStateTest {
             uuid = UUID.randomUUID(),
             details = details,
             dosageMgAsEstradiol = estradiolEquivalent(details),
-            sourceType = MedicationLogEntrySourceType.MANUAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
             count = count

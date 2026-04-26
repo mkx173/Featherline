@@ -70,16 +70,12 @@ interface MedicationLogDao {
     @Query(
         """
         UPDATE medication_log_entries
-        SET sourceType = :manualSourceType,
-            sourceGroupUuid = NULL,
+        SET sourceGroupUuid = NULL,
             scheduledForIso = NULL
         WHERE sourceGroupUuid = :groupUuid
         """
     )
-    suspend fun reclassifyEntriesForDeletedGroup(
-        groupUuid: String,
-        manualSourceType: String
-    )
+    suspend fun reclassifyEntriesForDeletedGroup(groupUuid: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
