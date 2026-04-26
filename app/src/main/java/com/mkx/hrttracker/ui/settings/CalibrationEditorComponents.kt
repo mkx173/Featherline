@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -107,6 +108,7 @@ internal fun CalibrationDateTimeCard(
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 CalibrationMetadataChip(
                     label = stringResource(R.string.settings_calibration_date_label).uppercase(),
@@ -120,7 +122,6 @@ internal fun CalibrationDateTimeCard(
                     value = timeLabel,
                     icon = Icons.Rounded.AccessTime,
                     onClick = onTimeClick,
-                    modifier = Modifier.weight(1f),
                 )
             }
             timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
@@ -578,32 +579,66 @@ private fun CalibrationMetadataChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ListItem(
-        overlineContent = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        leadingContent = {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+        modifier = modifier
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(vertical = 10.dp, horizontal = 16.dp)
+                .clip(MaterialTheme.shapes.small)
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        },
-        onClick = onClick,
-        modifier = modifier,
-        shapes = ListItemDefaults.shapes(
-            shape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        )
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-        )
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
     }
+//    Row{
+//        ListItem(
+//            overlineContent = {
+//                Text(
+//                    text = label,
+//                    style = MaterialTheme.typography.labelMedium,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                )
+//            },
+//            leadingContent = {
+//                Icon(
+//                    imageVector = icon,
+//                    contentDescription = null,
+//                )
+//            },
+//            onClick = onClick,
+//            modifier = modifier,
+//            shapes = ListItemDefaults.shapes(
+//                shape = MaterialTheme.shapes.medium,
+//                pressedShape = MaterialTheme.shapes.medium
+//            )
+//        ) {
+//            Text(
+//                text = value,
+//                style = MaterialTheme.typography.bodyLarge,
+//            )
+//        }
+//    }
+
 }
 
 @OptIn(ExperimentalFoundationApi::class)
