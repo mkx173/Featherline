@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
@@ -418,6 +420,7 @@ fun HrtTrackerNavHost(
 
     addEntrySheetRequest?.let { request ->
         AddEntryScreen(
+            modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
             entryIds = request.entryIds,
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
