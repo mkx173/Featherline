@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
@@ -227,13 +227,12 @@ private fun QuickLogPlannedDoseSheetContent(
                 )
             }
 
-            Button(
+            HrtButton(
+                text = stringResource(R.string.quick_add_group_save_entries),
                 onClick = onSaveClick,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = uiState.draftEntries.isNotEmpty() && !uiState.isSaving
-            ) {
-                Text(text = stringResource(R.string.quick_add_group_save_entries))
-            }
+                enabled = uiState.draftEntries.isNotEmpty() && !uiState.isSaving,
+            )
         }
     }
 }

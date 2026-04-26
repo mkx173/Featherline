@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -14,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.HrtButton
 
 @Composable
 fun AppLockScreen(
@@ -49,12 +49,11 @@ fun AppLockScreen(
                 )
             }
 
-            Button(
+            HrtButton(
+                text = stringResource(R.string.app_lock_unlock),
                 onClick = onUnlockClick,
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_medium))
-            ) {
-                Text(text = stringResource(R.string.app_lock_unlock))
-            }
+                modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_medium)),
+            )
         }
     }
 }

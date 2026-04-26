@@ -34,11 +34,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -104,6 +102,8 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -645,13 +645,12 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 },
                 actions = {
-                    Button(
+                    HrtButton(
+                        text = stringResource(R.string.save),
                         onClick = onSaveClick,
                         enabled = canSave,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text(text = stringResource(R.string.save))
-                    }
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
                 },
                 scrollBehavior = scrollBehavior
             )
@@ -743,33 +742,21 @@ private fun MedicationGroupEditorScreenContent(
                             }
                         }
                     }
-                    CompositionLocalProvider(
-                        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                    ) {
-                        FilledTonalButton(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            onClick = onAddMedication,
-                            contentPadding =
-                                ButtonDefaults.contentPaddingFor(
-                                    ButtonDefaults.MinHeight,
-                                    hasStartIcon = true
-                                )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(
-                                    ButtonDefaults.iconSizeFor(
-                                        ButtonDefaults.MinHeight
-                                    )
-                                )
-                            )
-                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
-                            Text(
-                                text = stringResource(R.string.add),
-                            )
-                        }
-                    }
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.add),
+                        onClick = onAddMedication,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        icon = Icons.Rounded.Add,
+                        iconModifier = Modifier.size(
+                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                        ),
+                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                        compact = true,
+                        contentPadding = ButtonDefaults.contentPaddingFor(
+                            ButtonDefaults.MinHeight,
+                            hasStartIcon = true
+                        ),
+                    )
                 }
             }
 

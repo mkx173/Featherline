@@ -25,14 +25,12 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +72,8 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -159,9 +159,10 @@ fun StructuredMedicationEditorSheet(
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(bottom = 10.dp, top = 4.dp)
                 )
-                FilledTonalButton(onClick = onCloseClick) {
-                    Text(text = stringResource(R.string.cancel))
-                }
+                HrtFilledTonalButton(
+                    text = stringResource(R.string.cancel),
+                    onClick = onCloseClick,
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -570,35 +571,32 @@ fun StructuredMedicationEditorSheet(
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
                     horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
                 ) {
-                    Button(
+                    HrtButton(
+                        text = destructiveButtonText,
                         onClick = destructiveAction,
                         modifier = Modifier.weight(1f),
                         enabled = !isSaving,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text(text = destructiveButtonText)
-                    }
-                    Button(
+                        ),
+                    )
+                    HrtButton(
+                        text = confirmButtonText,
                         onClick = onConfirm,
                         modifier = Modifier.weight(1f),
-                        enabled = !isSaving
-                    ) {
-                        Text(text = confirmButtonText)
-                    }
+                        enabled = !isSaving,
+                    )
                 }
             } else {
-                Button(
+                HrtButton(
+                    text = confirmButtonText,
                     onClick = onConfirm,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
-                    enabled = !isSaving
-                ) {
-                    Text(text = confirmButtonText)
-                }
+                    enabled = !isSaving,
+                )
             }
         }
     }

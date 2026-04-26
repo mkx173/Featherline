@@ -1,0 +1,132 @@
+package com.mkx.hrttracker.ui.components
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.mkx.hrttracker.util.rememberAppLocale
+
+@Composable
+fun HrtButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    iconModifier: Modifier = Modifier,
+    iconSpacing: Dp = 8.dp,
+    iconContentDescription: String? = null,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+    compact: Boolean = false,
+    contentPadding: PaddingValues? = null,
+) {
+    val resolvedContentPadding = contentPadding
+        ?: ButtonDefaults.contentPaddingFor(
+            buttonHeight = ButtonDefaults.MinHeight,
+            hasStartIcon = icon != null,
+        )
+
+    ButtonContainer(compact = compact) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            colors = colors,
+            contentPadding = resolvedContentPadding,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = iconContentDescription,
+                    modifier = iconModifier,
+                )
+                Spacer(modifier = Modifier.size(iconSpacing))
+            }
+            ButtonLabelText(text = text)
+        }
+    }
+}
+
+@Composable
+fun HrtFilledTonalButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    iconModifier: Modifier = Modifier,
+    iconSpacing: Dp = 8.dp,
+    iconContentDescription: String? = null,
+    colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+    compact: Boolean = false,
+    contentPadding: PaddingValues? = null,
+) {
+    val resolvedContentPadding = contentPadding
+        ?: ButtonDefaults.contentPaddingFor(
+            buttonHeight = ButtonDefaults.MinHeight,
+            hasStartIcon = icon != null,
+        )
+
+    ButtonContainer(compact = compact) {
+        FilledTonalButton(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            colors = colors,
+            contentPadding = resolvedContentPadding,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = iconContentDescription,
+                    modifier = iconModifier,
+                )
+                Spacer(modifier = Modifier.size(iconSpacing))
+            }
+            ButtonLabelText(text = text)
+        }
+    }
+}
+
+@Composable
+private fun ButtonContainer(
+    compact: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (compact) {
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+            content = content,
+        )
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun ButtonLabelText(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+    Text(
+        text = text,
+        modifier = modifier.graphicsLayer {
+            translationY = if (isChinese) (-1).dp.toPx() else 0f
+        },
+    )
+}

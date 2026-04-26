@@ -25,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.rememberAppLocale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -47,8 +45,6 @@ internal fun IntervalStepperCard(
     index: Int = 0,
     count: Int = 1
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
 
     EditorSegmentedListItem(
         index = index,
@@ -102,9 +98,7 @@ internal fun IntervalStepperCard(
                 text = unit,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline().graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                }
+                modifier = Modifier.alignByBaseline()
             )
         }
     }

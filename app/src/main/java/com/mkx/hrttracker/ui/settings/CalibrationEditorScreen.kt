@@ -23,15 +23,12 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -42,7 +39,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,6 +62,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -271,13 +268,12 @@ private fun CalibrationEditorScreenContent(
                     }
                 },
                 actions = {
-                    Button(
+                    HrtButton(
+                        text = stringResource(R.string.save),
                         onClick = { onSaveClick(notesDraft) },
                         enabled = canSave,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Text(text = stringResource(R.string.save))
-                    }
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
                 },
                 scrollBehavior = scrollBehavior
             )
@@ -377,33 +373,21 @@ private fun CalibrationEditorScreenContent(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        CompositionLocalProvider(
-                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                        ) {
-                            FilledTonalButton(
-                                onClick = onAddAnalyteClick,
-                                enabled = remainingAnalyteCount > 0,
-                                contentPadding =
-                                    ButtonDefaults.contentPaddingFor(
-                                        ButtonDefaults.MinHeight,
-                                        hasStartIcon = true
-                                    )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(
-                                        ButtonDefaults.iconSizeFor(
-                                            ButtonDefaults.MinHeight
-                                        )
-                                    )
-                                )
-                                Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
-                                Text(
-                                    text = stringResource(R.string.settings_calibration_add_analyte),
-                                )
-                            }
-                        }
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.settings_calibration_add_analyte),
+                            onClick = onAddAnalyteClick,
+                            enabled = remainingAnalyteCount > 0,
+                            icon = Icons.Rounded.Add,
+                            iconModifier = Modifier.size(
+                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                            ),
+                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                            compact = true,
+                            contentPadding = ButtonDefaults.contentPaddingFor(
+                                ButtonDefaults.MinHeight,
+                                hasStartIcon = true
+                            ),
+                        )
                     }
 
                 }
@@ -424,23 +408,21 @@ private fun CalibrationEditorScreenContent(
                 if (uiState.isEditing) {
                     item {
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                        Button(
+                        HrtButton(
+                            text = stringResource(R.string.delete_entries_confirm),
                             onClick = onDeleteClick,
                             enabled = !uiState.isSaving && !uiState.isDeleting,
                             modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Rounded.Delete,
+                            iconModifier = Modifier.size(
+                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                            ),
+                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
                             ),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Delete,
-                                contentDescription = null,
-                                modifier = Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)),
-                            )
-                            Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight)))
-                            Text(text = stringResource(R.string.delete_entries_confirm))
-                        }
+                        )
                     }
                 }
             }
@@ -501,9 +483,10 @@ private fun CalibrationAddAnalyteSheetContent(
                 text = stringResource(R.string.settings_calibration_add_analyte),
                 style = MaterialTheme.typography.titleLarge,
             )
-            FilledTonalButton(onClick = onDismissRequest) {
-                Text(text = stringResource(R.string.cancel))
-            }
+            HrtFilledTonalButton(
+                text = stringResource(R.string.cancel),
+                onClick = onDismissRequest,
+            )
         }
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         availableAnalytes.forEachIndexed { index, option ->

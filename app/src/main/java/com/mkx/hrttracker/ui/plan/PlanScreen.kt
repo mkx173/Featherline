@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,6 +77,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.formatSummary
@@ -315,21 +315,14 @@ private fun PlanScreenContent(
             }
 
             item(key = "add-group-button") {
-                Button(
+                HrtButton(
+                    text = stringResource(R.string.fab_add_medication_group),
                     onClick = onAddGroupClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null
-                    )
-                    Text(
-                        text = stringResource(R.string.fab_add_medication_group),
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
+                        .padding(top = 4.dp),
+                    icon = Icons.Rounded.Add,
+                )
             }
         }
     }

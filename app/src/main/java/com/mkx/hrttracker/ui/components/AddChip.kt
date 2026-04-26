@@ -15,17 +15,21 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
 fun AddChip(
     onClick: () -> Unit,
     label: String = stringResource(R.string.add),
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
@@ -48,7 +52,9 @@ fun AddChip(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
+                    modifier = Modifier.graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    },
                 )
             }
         }
