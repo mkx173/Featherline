@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.mkx.hrttracker"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.mkx.hrttracker"

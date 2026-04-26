@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.relocation.BringIntoViewResponder
 import androidx.compose.foundation.relocation.bringIntoViewResponder
@@ -18,11 +19,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.ArrowDropDownCircle
 import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandCircleDown
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -57,6 +60,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -285,9 +289,6 @@ internal fun CalibrationAnalyteCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    rangeStatus?.let { status ->
-                        CalibrationRangeStatusChip(status = status)
-                    }
                     CompositionLocalProvider(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {
@@ -357,25 +358,55 @@ internal fun CalibrationAnalyteCard(
                 )
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
             ) {
                 if (defaultUnitValueLabel != null) {
-                    Text(
-                        text = defaultUnitValueLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp),
-                    )
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier.size(18.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_conversion_path),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                            Text(
+                                text = defaultUnitValueLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(end = 4.dp),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
                 }
+                rangeStatus?.let { status ->
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CalibrationRangeStatusChip(status = status)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
                 ConnectedButtonGroup(
-                    modifier = Modifier.wrapContentWidth(),
                     options = allowedUnits,
                     selectedOption = unit,
                     optionLabel = { option -> calibrationUnitLabel(option) },
@@ -530,16 +561,15 @@ internal fun CalibrationCustomAnalyteCard(
 @Composable
 private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
     val icon = when (status) {
-        CalibrationRangeStatus.ABOVE -> Icons.Rounded.ArrowDropUp
-        CalibrationRangeStatus.BELOW -> Icons.Rounded.ArrowDropDown
-        CalibrationRangeStatus.IN_RANGE -> Icons.Rounded.Circle
+        CalibrationRangeStatus.ABOVE -> painterResource(R.drawable.ic_expand_circle_up)
+        CalibrationRangeStatus.BELOW -> painterResource(R.drawable.ic_expand_circle_down)
+        CalibrationRangeStatus.IN_RANGE -> painterResource(R.drawable.ic_check_circle)
     }
     val labelRes = when (status) {
         CalibrationRangeStatus.ABOVE -> R.string.settings_calibration_range_status_above
         CalibrationRangeStatus.BELOW -> R.string.settings_calibration_range_status_below
         CalibrationRangeStatus.IN_RANGE -> R.string.settings_calibration_range_status_in_range
     }
-    val iconSize = if (status == CalibrationRangeStatus.IN_RANGE) 8.dp else 18.dp
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -554,10 +584,10 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = icon,
+                    painter = icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(iconSize),
+                    modifier = Modifier.size(14.dp),
                 )
             }
             Text(
