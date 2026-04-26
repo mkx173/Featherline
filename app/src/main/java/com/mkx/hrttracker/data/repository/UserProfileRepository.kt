@@ -46,6 +46,13 @@ class UserProfileRepository @Inject constructor(
 
     fun observeProfile(): Flow<UserProfile?> = profileFlow
 
+    suspend fun getCurrentProfile(): UserProfile {
+        return databaseHolder.get().userProfileDao()
+            .getProfile()
+            ?.toModel()
+            ?: UserProfile()
+    }
+
     suspend fun setWeight(
         originalValue: Double,
         originalUnit: WeightUnit,

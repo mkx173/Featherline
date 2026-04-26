@@ -323,6 +323,8 @@
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
+    <string name="settings_backup_export_success">Backup saved as %1$s</string>
+    <string name="settings_backup_export_failed">Unable to save backup</string>
     <string name="settings_about">About</string>
     <string name="settings_about_privacy_policy">Privacy policy</string>
     <string name="settings_about_model">About the model</string>

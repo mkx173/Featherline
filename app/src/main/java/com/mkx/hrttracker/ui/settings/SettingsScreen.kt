@@ -59,6 +59,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -96,6 +97,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,11 +112,14 @@ fun SettingsScreen(
     val activity = LocalActivity.current
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     var showInexactReminderWarning by remember { mutableStateOf(false) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
+    val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -138,6 +143,36 @@ fun SettingsScreen(
             hasNotificationAccess &&
                 settingsState.remindersEnabled &&
                 !canScheduleExactAlarms(context)
+    }
+    val backupDirectoryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { directoryUri ->
+        if (directoryUri == null || isBackupExportInProgress) {
+            return@rememberLauncherForActivityResult
+        }
+
+        coroutineScope.launch {
+            isBackupExportInProgress = true
+            try {
+                val exportedFile = viewModel.exportPlaintextBackup(directoryUri)
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.settings_backup_export_success,
+                        exportedFile.displayName,
+                    ),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } catch (_: Exception) {
+                Toast.makeText(
+                    context,
+                    backupExportFailedMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                isBackupExportInProgress = false
+            }
+        }
     }
 
     LaunchedEffect(configuration) {
@@ -233,6 +268,12 @@ fun SettingsScreen(
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onBackupToFileClick = {
+            if (!isBackupExportInProgress) {
+                backupDirectoryLauncher.launch(null)
+            }
+        },
+        isBackupExportInProgress = isBackupExportInProgress,
         onCalibrationClick = onCalibrationClick,
         modifier = modifier
     )
@@ -254,6 +295,8 @@ private fun SettingsScreenContent(
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onBackupToFileClick: () -> Unit,
+    isBackupExportInProgress: Boolean,
     onCalibrationClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -630,8 +673,9 @@ private fun SettingsScreenContent(
                 EditorSegmentedListItem(
                     index = 0,
                     count = 2,
+                    enabled = !isBackupExportInProgress,
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { },
+                    onClick = onBackupToFileClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_file_export)
@@ -1012,6 +1056,8 @@ private fun SettingsScreenPreview() {
             onAppLanguageOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onBackupToFileClick = { },
+            isBackupExportInProgress = false,
             onCalibrationClick = { },
         )
     }

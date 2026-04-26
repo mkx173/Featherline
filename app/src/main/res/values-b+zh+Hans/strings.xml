@@ -321,6 +321,8 @@
     <string name="settings_backup_restore">备份与恢复</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>
+    <string name="settings_backup_export_success">备份已保存为 %1$s</string>
+    <string name="settings_backup_export_failed">无法保存备份</string>
     <string name="settings_about">关于</string>
     <string name="settings_about_privacy_policy">隐私政策</string>
     <string name="settings_about_model">关于模型</string>

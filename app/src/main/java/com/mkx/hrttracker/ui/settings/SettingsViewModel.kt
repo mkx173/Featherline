@@ -1,8 +1,11 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.backup.BackupExportService
+import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -29,6 +32,7 @@ class SettingsViewModel @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val backupExportService: BackupExportService,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
@@ -143,6 +147,10 @@ class SettingsViewModel @Inject constructor(
     fun onScreenLockProtectionPromptError(errorCode: Int) {
         pendingPrompt.value = null
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
+    }
+
+    suspend fun exportPlaintextBackup(directoryUri: Uri): BackupExportedFile {
+        return backupExportService.exportPlaintextBackup(directoryUri)
     }
 }
 

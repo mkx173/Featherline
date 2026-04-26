@@ -86,4 +86,33 @@ class UserProfileRepositoryTest {
         assertEquals(42L, captured.captured.updatedAtEpochMillis)
         coVerify(exactly = 1) { dao.upsertProfile(any()) }
     }
+
+    @Test
+    fun getCurrentProfile_returns_default_when_no_row_exists() = runTest {
+        coEvery { dao.getProfile() } returns null
+
+        val profile = repository.getCurrentProfile()
+
+        assertEquals(null, profile.weightKg)
+        assertEquals(null, profile.weightOriginalValue)
+        assertEquals(WeightUnit.KILOGRAMS, profile.weightOriginalUnit)
+        assertEquals(null, profile.updatedAt)
+    }
+
+    @Test
+    fun getCurrentProfile_maps_stored_profile() = runTest {
+        coEvery { dao.getProfile() } returns UserProfileEntity(
+            weightKg = 52.2,
+            weightOriginalValue = 115.0,
+            weightOriginalUnit = WeightUnit.POUNDS.name,
+            updatedAtEpochMillis = 1_700_000_000_000L,
+        )
+
+        val profile = repository.getCurrentProfile()
+
+        assertEquals(52.2, profile.weightKg!!, 1e-9)
+        assertEquals(115.0, profile.weightOriginalValue!!, 1e-9)
+        assertEquals(WeightUnit.POUNDS, profile.weightOriginalUnit)
+        assertEquals(Instant.ofEpochMilli(1_700_000_000_000L), profile.updatedAt)
+    }
 }

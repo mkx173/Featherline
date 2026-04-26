@@ -69,9 +69,11 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.hilt.android)
+    implementation(libs.moshi)
     implementation(libs.sqlcipher.android)
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)
+    ksp(libs.moshi.kotlin.codegen)
 
     implementation(libs.kizitonwose.calendar)
     implementation(libs.vico.compose.m3)

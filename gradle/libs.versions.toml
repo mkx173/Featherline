@@ -20,6 +20,7 @@ navigationCompose = "2.9.8"
 room = "2.8.4"
 sqlcipherAndroid = "4.14.1"
 kizitonwose-calendar = "2.10.1"
+moshi = "1.15.2"
 mockk = "1.14.9"
 coroutinesTest = "1.10.2"
 vico = "3.1.0"
@@ -52,6 +53,8 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+moshi = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
+moshi-kotlin-codegen = { module = "com.squareup.moshi:moshi-kotlin-codegen", version.ref = "moshi" }
 material = { module = "com.google.android.material:material", version.ref = "material" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }

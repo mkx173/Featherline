@@ -15,6 +15,15 @@ interface UserProfileDao {
         LIMIT 1
         """
     )
+    suspend fun getProfile(id: String = UserProfileEntity.SINGLETON_ID): UserProfileEntity?
+
+    @Query(
+        """
+        SELECT * FROM user_profile
+        WHERE id = :id
+        LIMIT 1
+        """
+    )
     fun observeProfile(id: String = UserProfileEntity.SINGLETON_ID): Flow<UserProfileEntity?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
