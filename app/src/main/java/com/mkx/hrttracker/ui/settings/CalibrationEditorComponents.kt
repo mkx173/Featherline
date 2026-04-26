@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.relocation.BringIntoViewResponder
+import androidx.compose.foundation.relocation.bringIntoViewResponder
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,8 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
@@ -52,7 +59,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -171,6 +180,7 @@ internal fun CalibrationNotesCard(
             onValueChange = onNotesChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .bringWholeFieldIntoView()
                 .onFocusChanged { focusState ->
                     if (focusState.isFocused) {
                         wasFocused = true
@@ -304,6 +314,7 @@ internal fun CalibrationAnalyteCard(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .bringWholeFieldIntoView()
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
                             wasFocused = true
@@ -470,6 +481,7 @@ internal fun CalibrationCustomAnalyteCard(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .bringWholeFieldIntoView()
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
                             wasFocused = true
@@ -592,6 +604,25 @@ private fun CalibrationMetadataChip(
             style = MaterialTheme.typography.bodyLarge,
         )
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.bringWholeFieldIntoView(): Modifier = composed {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val responder = remember {
+        object : BringIntoViewResponder {
+            override fun calculateRectForParent(localRect: Rect): Rect =
+                Rect(Offset.Zero, size.toSize())
+
+            override suspend fun bringChildIntoView(localRect: () -> Rect?) {
+                // Let the ancestor scrollable handle the actual scroll using
+                // the rect produced by calculateRectForParent (i.e. the whole
+                // field), so the cursor's smaller request doesn't nudge the
+                // parent past where the focus request already brought us.
+            }
+        }
+    }
+    onSizeChanged { size = it }.bringIntoViewResponder(responder)
 }
 
 @Preview(showBackground = true, widthDp = 420)
