@@ -124,8 +124,10 @@ fun SettingsScreen(
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
     var isBackupRestoreInProgress by rememberSaveable { mutableStateOf(false) }
+    var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     var pendingRestoreUriString by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingRestoreDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingBackupPassword by remember { mutableStateOf<String?>(null) }
     val pendingRestoreRequest = pendingRestoreUriString?.let { restoreUriString ->
         PendingBackupRestoreRequest(
             uri = Uri.parse(restoreUriString),
@@ -165,14 +167,24 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
         appLockViewModel?.onExternalActivityResult(keepUnlocked = directoryUri != null)
-        if (directoryUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
+        val exportPassword = pendingBackupPassword
+        if (
+            directoryUri == null ||
+            exportPassword == null ||
+            isBackupExportInProgress ||
+            isBackupRestoreInProgress
+        ) {
+            pendingBackupPassword = null
             return@rememberLauncherForActivityResult
         }
 
         coroutineScope.launch {
             isBackupExportInProgress = true
             try {
-                val exportedFile = viewModel.exportPlaintextBackup(directoryUri)
+                val exportedFile = viewModel.exportBackup(
+                    directoryUri = directoryUri,
+                    password = exportPassword,
+                )
                 Toast.makeText(
                     context,
                     context.getString(
@@ -189,6 +201,7 @@ fun SettingsScreen(
                 ).show()
             } finally {
                 isBackupExportInProgress = false
+                pendingBackupPassword = null
             }
         }
     }
@@ -298,14 +311,13 @@ fun SettingsScreen(
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onBackupToFileClick = {
             if (!isBackupExportInProgress && !isBackupRestoreInProgress) {
-                appLockViewModel?.allowNextExternalActivityBypass()
-                backupDirectoryLauncher.launch(null)
+                showBackupPasswordDialog = true
             }
         },
         onRestoreFromFileClick = {
             if (!isBackupExportInProgress && !isBackupRestoreInProgress) {
                 appLockViewModel?.allowNextExternalActivityBypass()
-                restoreBackupFileLauncher.launch(arrayOf("application/json"))
+                restoreBackupFileLauncher.launch(arrayOf("*/*"))
             }
         },
         isBackupExportInProgress = isBackupExportInProgress,
@@ -314,64 +326,69 @@ fun SettingsScreen(
         modifier = modifier
     )
 
+    if (showBackupPasswordDialog) {
+        BackupPasswordDialog(
+            title = stringResource(R.string.settings_backup_password_title),
+            message = stringResource(R.string.settings_backup_password_message),
+            warningMessage = stringResource(R.string.settings_backup_password_warning),
+            confirmLabel = stringResource(R.string.settings_backup_password_confirm),
+            passwordLabel = stringResource(R.string.settings_backup_password_label),
+            confirmPasswordLabel = stringResource(R.string.settings_backup_confirm_password_label),
+            isInProgress = isBackupExportInProgress,
+            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
+            onDismiss = { showBackupPasswordDialog = false },
+            onConfirm = { password ->
+                pendingBackupPassword = password
+                showBackupPasswordDialog = false
+                appLockViewModel?.allowNextExternalActivityBypass()
+                backupDirectoryLauncher.launch(null)
+            },
+        )
+    }
+
     pendingRestoreRequest?.let { restoreRequest ->
-        AlertDialog(
-            onDismissRequest = {
+        BackupPasswordDialog(
+            title = stringResource(R.string.settings_backup_restore_confirm_title),
+            message = restoreRequest.displayName?.let { displayName ->
+                context.getString(
+                    R.string.settings_backup_restore_password_message_with_name,
+                    displayName,
+                )
+            } ?: stringResource(R.string.settings_backup_restore_password_message),
+            confirmLabel = stringResource(R.string.settings_backup_restore_confirm),
+            passwordLabel = stringResource(R.string.settings_backup_password_label),
+            isInProgress = isBackupRestoreInProgress,
+            minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
+            onDismiss = {
                 pendingRestoreUriString = null
                 pendingRestoreDisplayName = null
             },
-            title = { Text(text = stringResource(R.string.settings_backup_restore_confirm_title)) },
-            text = {
-                Text(
-                    text = restoreRequest.displayName?.let { displayName ->
-                        context.getString(
-                            R.string.settings_backup_restore_confirm_message_with_name,
-                            displayName,
+            onConfirm = { password ->
+                coroutineScope.launch {
+                    isBackupRestoreInProgress = true
+                    try {
+                        viewModel.restoreBackup(
+                            fileUri = restoreRequest.uri,
+                            password = password,
                         )
-                    } ?: stringResource(R.string.settings_backup_restore_confirm_message)
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !isBackupRestoreInProgress,
-                    onClick = {
-                        coroutineScope.launch {
-                            isBackupRestoreInProgress = true
-                            try {
-                                viewModel.restorePlaintextBackup(restoreRequest.uri)
-                                Toast.makeText(
-                                    context,
-                                    backupRestoreSuccessMessage,
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            } catch (_: Exception) {
-                                Toast.makeText(
-                                    context,
-                                    backupRestoreFailedMessage,
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            } finally {
-                                isBackupRestoreInProgress = false
-                                pendingRestoreUriString = null
-                                pendingRestoreDisplayName = null
-                            }
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(R.string.settings_backup_restore_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !isBackupRestoreInProgress,
-                    onClick = {
+                        Toast.makeText(
+                            context,
+                            backupRestoreSuccessMessage,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } catch (_: Exception) {
+                        Toast.makeText(
+                            context,
+                            backupRestoreFailedMessage,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } finally {
+                        isBackupRestoreInProgress = false
                         pendingRestoreUriString = null
                         pendingRestoreDisplayName = null
                     }
-                ) {
-                    Text(text = stringResource(R.string.cancel))
                 }
-            }
+            },
         )
     }
 }
@@ -1169,6 +1186,8 @@ private data class PendingBackupRestoreRequest(
     val uri: Uri,
     val displayName: String?,
 )
+
+private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6
 
 private fun resolveDocumentDisplayName(
     context: Context,

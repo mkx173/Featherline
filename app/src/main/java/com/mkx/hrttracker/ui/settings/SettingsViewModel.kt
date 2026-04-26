@@ -151,12 +151,24 @@ class SettingsViewModel @Inject constructor(
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
 
-    suspend fun exportPlaintextBackup(directoryUri: Uri): BackupExportedFile {
-        return backupExportService.exportPlaintextBackup(directoryUri)
+    suspend fun exportBackup(
+        directoryUri: Uri,
+        password: String,
+    ): BackupExportedFile {
+        return backupExportService.exportBackup(
+            directoryUri = directoryUri,
+            password = password,
+        )
     }
 
-    suspend fun restorePlaintextBackup(fileUri: Uri) {
-        backupRestoreService.restorePlaintextBackup(fileUri)
+    suspend fun restoreBackup(
+        fileUri: Uri,
+        password: String,
+    ) {
+        backupRestoreService.restoreBackup(
+            fileUri = fileUri,
+            password = password,
+        )
     }
 }
 

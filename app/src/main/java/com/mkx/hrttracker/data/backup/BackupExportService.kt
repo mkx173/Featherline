@@ -38,28 +38,52 @@ class BackupExportService @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
     private val bloodTestRepository: BloodTestRepository,
+    private val backupCrypto: BackupCrypto,
 ) {
-    suspend fun buildPlaintextBackupJson(
+    internal suspend fun buildBackupSnapshotJson(
         exportedAt: Instant = Instant.now(),
     ): String = withContext(Dispatchers.IO) {
         BackupSnapshotJsonCodec.encode(buildSnapshot(exportedAt))
     }
 
-    suspend fun exportPlaintextBackup(
+    internal suspend fun buildEncryptedBackupBytes(
+        password: String,
+        exportedAt: Instant = Instant.now(),
+    ): ByteArray = withContext(Dispatchers.IO) {
+        val passwordChars = password.toCharArray()
+        try {
+            backupCrypto.encryptSnapshotJson(
+                json = buildBackupSnapshotJson(exportedAt),
+                password = passwordChars,
+            )
+        } finally {
+            passwordChars.fill('\u0000')
+        }
+    }
+
+    suspend fun exportBackup(
         directoryUri: Uri,
+        password: String,
         exportedAt: Instant = Instant.now(),
     ): BackupExportedFile = withContext(Dispatchers.IO) {
         persistDirectoryAccess(directoryUri)
-        val displayName = buildPlaintextBackupFileName(exportedAt)
+        val displayName = buildBackupFileName(exportedAt)
         val documentUri = createBackupDocument(
             directoryUri = directoryUri,
             displayName = displayName,
         )
-        val payload = BackupSnapshotJsonCodec.encode(buildSnapshot(exportedAt))
+        val payload = buildEncryptedBackupBytes(
+            password = password,
+            exportedAt = exportedAt,
+        )
 
-        context.contentResolver.openOutputStream(documentUri)?.use { outputStream ->
-            outputStream.write(payload.toByteArray(Charsets.UTF_8))
-        } ?: throw IOException("Unable to open an output stream for backup export.")
+        try {
+            context.contentResolver.openOutputStream(documentUri)?.use { outputStream ->
+                outputStream.write(payload)
+            } ?: throw IOException("Unable to open an output stream for backup export.")
+        } finally {
+            payload.fill(0)
+        }
 
         BackupExportedFile(
             displayName = displayName,
@@ -290,17 +314,17 @@ class BackupExportService @Inject constructor(
     }
 
     companion object {
-        internal fun buildPlaintextBackupFileName(
+        internal fun buildBackupFileName(
             exportedAt: Instant,
             zoneId: ZoneId = ZoneId.systemDefault(),
         ): String {
-            return "hrttracker-backup-${BACKUP_FILE_NAME_FORMATTER.format(exportedAt.atZone(zoneId))}.json"
+            return "hrttracker-backup-${BACKUP_FILE_NAME_FORMATTER.format(exportedAt.atZone(zoneId))}.hrtbackup"
         }
 
         private val BACKUP_FILE_NAME_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
 
-        private const val BACKUP_MIME_TYPE = "application/json"
+        private const val BACKUP_MIME_TYPE = "application/octet-stream"
     }
 }
 

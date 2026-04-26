@@ -53,14 +53,26 @@ class BackupRestoreService @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val backupCrypto: BackupCrypto,
 ) {
-    suspend fun restorePlaintextBackup(
+    suspend fun restoreBackup(
         fileUri: Uri,
+        password: String,
     ) = withContext(Dispatchers.IO) {
         persistReadAccess(fileUri)
-        val json = context.contentResolver.openInputStream(fileUri)?.bufferedReader(Charsets.UTF_8)
-            ?.use { reader -> reader.readText() }
+        val encryptedBytes = context.contentResolver.openInputStream(fileUri)
+            ?.use { inputStream -> inputStream.readBytes() }
             ?: throw IOException("Unable to open the selected backup file.")
+        val passwordChars = password.toCharArray()
+        val json = try {
+            backupCrypto.decryptSnapshotJson(
+                encryptedBytes = encryptedBytes,
+                password = passwordChars,
+            )
+        } finally {
+            passwordChars.fill('\u0000')
+            encryptedBytes.fill(0)
+        }
         val snapshot = BackupSnapshotJsonCodec.decode(json)
             ?: throw IOException("Unable to decode the selected backup file.")
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)

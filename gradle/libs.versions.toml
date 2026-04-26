@@ -25,6 +25,7 @@ mockk = "1.14.9"
 coroutinesTest = "1.10.2"
 vico = "3.1.0"
 material-kolor = "4.1.1"
+argon2kt = "1.6.0"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -62,6 +63,7 @@ sqlcipher-android = { module = "net.zetetic:sqlcipher-android", version.ref = "s
 kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.ref = "kizitonwose-calendar"}
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "material-kolor" }
+argon2kt = { module = "com.lambdapioneer.argon2kt:argon2kt", version.ref = "argon2kt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

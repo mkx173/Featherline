@@ -58,11 +58,13 @@ class BackupExportServiceTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val bloodTestRepository: BloodTestRepository = mockk()
 
+    private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupExportService
 
     @Before
     fun setUp() {
         every { context.packageName } returns "com.mkx.hrttracker"
+        backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
             settingsRepository = settingsRepository,
@@ -70,11 +72,12 @@ class BackupExportServiceTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             bloodTestRepository = bloodTestRepository,
+            backupCrypto = backupCrypto,
         )
     }
 
     @Test
-    fun buildPlaintextBackupJson_includes_current_snapshot_shape_and_new_medication_fields() = runTest {
+    fun buildBackupSnapshotJson_includes_current_snapshot_shape_and_new_medication_fields() = runTest {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z")
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
         val groupMedicationUuid = UUID.fromString("00000000-0000-0000-0000-000000000011")
@@ -203,7 +206,7 @@ class BackupExportServiceTest {
             )
         )
 
-        val json = service.buildPlaintextBackupJson(exportedAt)
+        val json = service.buildBackupSnapshotJson(exportedAt)
         val snapshot = BackupSnapshotJsonCodec.decode(json)
 
         assertNotNull(snapshot)
@@ -354,13 +357,38 @@ class BackupExportServiceTest {
     }
 
     @Test
-    fun buildPlaintextBackupFileName_uses_local_time_for_requested_zone() {
-        val fileName = BackupExportService.buildPlaintextBackupFileName(
+    fun buildEncryptedBackupBytes_wraps_snapshot_json_in_binary_container() = runTest {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val encryptedBytes = service.buildEncryptedBackupBytes(
+            password = "secret",
+            exportedAt = Instant.parse("2026-04-26T03:04:05Z"),
+        )
+        val decryptedJson = backupCrypto.decryptSnapshotJson(
+            encryptedBytes = encryptedBytes,
+            password = "secret".toCharArray(),
+        )
+
+        assertTrue(encryptedBytes.isNotEmpty())
+        assertTrue(encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size).contentEquals(BackupCrypto.MAGIC_BYTES))
+        assertTrue(!encryptedBytes.toString(Charsets.UTF_8).contains("\"packageName\""))
+        assertNotNull(BackupSnapshotJsonCodec.decode(decryptedJson))
+    }
+
+    @Test
+    fun buildBackupFileName_uses_local_time_for_requested_zone() {
+        val fileName = BackupExportService.buildBackupFileName(
             exportedAt = Instant.parse("2026-04-26T03:04:05Z"),
             zoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertEquals("hrttracker-backup-2026-04-26_12-04-05.json", fileName)
+        assertEquals("hrttracker-backup-2026-04-26_12-04-05.hrtbackup", fileName)
     }
 
     private fun assertContains(
