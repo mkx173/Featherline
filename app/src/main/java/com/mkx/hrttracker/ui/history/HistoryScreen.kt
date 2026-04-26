@@ -416,6 +416,7 @@ private fun HistoryScreenContent(
                                 R.string.history_month_empty_state
                             }
                         ),
+                        appLocale = appLocale,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -1345,8 +1346,10 @@ private fun HistoryEntryCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun HistoryEmptyStateCard(
     text: String,
+    appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
+    val isChinese = appLocale.language == "zh"
     ListItem(
         onClick = {},
         colors = ListItemDefaults.colors(
@@ -1367,7 +1370,10 @@ private fun HistoryEmptyStateCard(
         Text(
             text = text,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.graphicsLayer {
+                translationY = if (isChinese) (-1).dp.toPx() else 0f
+            }
         )
     }
 }

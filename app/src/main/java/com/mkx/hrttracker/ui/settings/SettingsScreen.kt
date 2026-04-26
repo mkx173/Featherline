@@ -76,7 +76,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -622,6 +621,7 @@ private fun SettingsScreenContent(
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
+                        appLocale = appLocale,
                         icon = Icons.Rounded.ErrorOutline,
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
@@ -631,6 +631,7 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
+                        appLocale = appLocale,
                         icon = Icons.Rounded.ErrorOutline,
                         onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
@@ -1149,13 +1150,16 @@ private fun SettingsChevronTrailingIcon() {
 @Composable
 private fun SettingsSupportMessage(
     text: String,
+    appLocale: java.util.Locale,
     icon: ImageVector? = null,
     painter: Painter? = null,
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = false,
     index: Int = 0,
-    count: Int = 1
+    count: Int = 1,
 ) {
+    val isChinese = appLocale.language == "zh"
+
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
@@ -1177,8 +1181,11 @@ private fun SettingsSupportMessage(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
         }
     }

@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -127,6 +128,9 @@ private fun CalibrationScreenContent(
         groupCalibrationPanelsByMonth(uiState.panels, monthFormatter)
     }
 
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -202,7 +206,10 @@ private fun CalibrationScreenContent(
                         Text(
                             text = stringResource(R.string.settings_calibration_empty_state),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese) (-1).dp.toPx() else 0f
+                            }
                         )
                     }
                 }

@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -70,6 +71,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
@@ -126,6 +128,9 @@ private fun CalibrationUnitsScreenContent(
         isCustomAnalyteDialogVisible = false
         customAnalyteDialogAnalyteId = null
     }
+
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -217,6 +222,9 @@ private fun CalibrationUnitsScreenContent(
                                 text = stringResource(R.string.settings_calibration_custom_analytes_empty),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
                             )
                         }
                     }

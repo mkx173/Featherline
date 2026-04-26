@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -1201,6 +1202,9 @@ private fun EditorSupportMessage(
     index: Int = 0,
     count: Int = 1
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
@@ -1248,6 +1252,9 @@ private fun EditorSupportMessage(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
         }
     }
