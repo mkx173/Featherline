@@ -68,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -103,6 +104,7 @@ import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -509,6 +511,9 @@ private fun SettingsScreenContent(
         appVersionInfo.versionCode.toString()
     )
 
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -565,7 +570,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_personalization_calibration))
+                    Text(
+                        text = stringResource(R.string.settings_personalization_calibration),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
             }
 
@@ -858,7 +868,12 @@ private fun SettingsScreenContent(
                         )
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_adaptive_color))
+                    Text(
+                        text = stringResource(R.string.settings_adaptive_color),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
             }
 
@@ -888,7 +903,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_backup_to_file))
+                    Text(
+                        text = stringResource(R.string.settings_backup_to_file),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
 
                 EditorSegmentedListItem(
@@ -906,7 +926,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_restore_from_file))
+                    Text(
+                        text = stringResource(R.string.settings_restore_from_file),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
             }
 
@@ -935,7 +960,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_about_privacy_policy))
+                    Text(
+                        text = stringResource(R.string.settings_about_privacy_policy),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
 
                 EditorSegmentedListItem(
