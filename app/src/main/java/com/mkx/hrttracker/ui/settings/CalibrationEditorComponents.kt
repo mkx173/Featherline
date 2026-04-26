@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
@@ -74,6 +75,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
 internal fun CalibrationEditorCard(
@@ -570,6 +572,8 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
         CalibrationRangeStatus.BELOW -> R.string.settings_calibration_range_status_below
         CalibrationRangeStatus.IN_RANGE -> R.string.settings_calibration_range_status_in_range
     }
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -594,7 +598,9 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
                 text = stringResource(labelRes),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(end = 4.dp).graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
         }
     }
@@ -640,35 +646,6 @@ private fun CalibrationMetadataChip(
             }
         }
     }
-//    Row{
-//        ListItem(
-//            overlineContent = {
-//                Text(
-//                    text = label,
-//                    style = MaterialTheme.typography.labelMedium,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                )
-//            },
-//            leadingContent = {
-//                Icon(
-//                    imageVector = icon,
-//                    contentDescription = null,
-//                )
-//            },
-//            onClick = onClick,
-//            modifier = modifier,
-//            shapes = ListItemDefaults.shapes(
-//                shape = MaterialTheme.shapes.medium,
-//                pressedShape = MaterialTheme.shapes.medium
-//            )
-//        ) {
-//            Text(
-//                text = value,
-//                style = MaterialTheme.typography.bodyLarge,
-//            )
-//        }
-//    }
-
 }
 
 @OptIn(ExperimentalFoundationApi::class)

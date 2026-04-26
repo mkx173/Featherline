@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
@@ -700,12 +701,13 @@ private fun HistoryMonthCalendar(
                 }
             )
         }
-        HistoryCalendarLegend()
+        HistoryCalendarLegend(appLocale = appLocale)
     }
 }
 
 @Composable
-private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
+private fun HistoryCalendarLegend(modifier: Modifier = Modifier, appLocale: Locale) {
+    val isChinese = appLocale.language == "zh"
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -717,19 +719,23 @@ private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
     ) {
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.FULFILLED,
-            label = stringResource(R.string.history_summary_on_track)
+            label = stringResource(R.string.history_summary_on_track),
+            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.PARTIAL,
-            label = stringResource(R.string.history_summary_partial)
+            label = stringResource(R.string.history_summary_partial),
+            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.MISSED,
-            label = stringResource(R.string.history_summary_missed)
+            label = stringResource(R.string.history_summary_missed),
+            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.OFFPLAN,
-            label = stringResource(R.string.history_legend_unplanned)
+            label = stringResource(R.string.history_legend_unplanned),
+            isChinese = isChinese
         )
     }
 }
@@ -738,7 +744,8 @@ private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
 private fun HistoryCalendarLegendItem(
     status: PlanCalendarDayStatus,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isChinese: Boolean
 ) {
     val indicatorColors = historyIndicatorColors(
         scheduledMode = HistoryIndicatorColorMode.Emphasized,
@@ -757,7 +764,9 @@ private fun HistoryCalendarLegendItem(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall))
+            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall)).graphicsLayer {
+                translationY = if (isChinese) (-1).dp.toPx() else 0f
+            }
         )
     }
 }
@@ -1069,6 +1078,7 @@ private fun HistoryEntryGroupHeader(
     val dayFormatter = remember(appLocale) {
         historyEntryGroupDayFormatter(appLocale)
     }
+    val isChinese = appLocale.language == "zh"
     val isToday = date == today
     val label = if (isToday) {
         stringResource(R.string.quick_add_group_planned_slot_today)
@@ -1124,7 +1134,9 @@ private fun HistoryEntryGroupHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier.alignByBaseline(),
+                    modifier = Modifier.alignByBaseline().graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    },
                 )
                 Text(
                     text = weekdayLabel.uppercase(),
@@ -1134,7 +1146,9 @@ private fun HistoryEntryGroupHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.alignByBaseline(),
+                    modifier = Modifier.alignByBaseline().graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    },
                 )
             }
         }
