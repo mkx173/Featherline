@@ -101,6 +101,12 @@ class MedicationLogRepository @Inject constructor(
         }
     }
 
+    suspend fun deleteEntriesForGroup(groupUuid: UUID) {
+        databaseHolder.withTransaction { database ->
+            database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
+        }
+    }
+
     suspend fun saveEntry(
         uuid: UUID?,
         medication: MedicationDetails,

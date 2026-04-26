@@ -167,6 +167,14 @@
     <string name="delete_medication_group">Delete Group</string>
     <string name="delete_medication_group_title">Delete group</string>
     <string name="delete_medication_group_confirmation">Delete this medication group? Related history entries will be kept and converted to manual entries.</string>
+    <string name="delete_group_related_records">Delete records</string>
+    <string name="delete_group_related_records_title">Delete related records</string>
+    <string name="delete_group_related_records_success">Deleted related records.</string>
+    <string name="delete_group_related_records_failure">Unable to delete related records.</string>
+    <plurals name="delete_group_related_records_confirmation">
+        <item quantity="one">Delete all %1$d record related to this group? The group will not be deleted.</item>
+        <item quantity="other">Delete all %1$d records related to this group? The group will not be deleted.</item>
+    </plurals>
     <string name="delete_group_medication_title">Delete medication</string>
     <string name="delete_group_medication_confirmation">Remove %1$s from this group?</string>
     <string name="add">Add</string>

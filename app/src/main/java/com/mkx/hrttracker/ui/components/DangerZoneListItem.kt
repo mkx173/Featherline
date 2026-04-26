@@ -9,11 +9,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.mkx.hrttracker.util.rememberAppLocale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -23,13 +26,17 @@ fun DangerZoneListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Rounded.Delete,
+    index: Int = 0,
+    count: Int = 1
 ) {
-    ListItem(
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
+    SegmentedListItem(
         leadingContent = {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(24.dp)
             )
         },
@@ -37,23 +44,24 @@ fun DangerZoneListItem(
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer
             )
         },
         enabled = enabled,
         onClick = onClick,
         modifier = modifier,
         colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.errorContainer,
         ),
-        shapes = ListItemDefaults.shapes(
-            shape = MaterialTheme.shapes.large
-        )
+        shapes = segmentedListItemShapes(index = index, count = count)
     ) {
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onErrorContainer
+            modifier = Modifier.graphicsLayer {
+                translationY = if (isChinese) (-1).dp.toPx() else 0f
+            }
         )
     }
 }

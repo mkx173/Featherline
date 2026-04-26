@@ -10,8 +10,10 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -247,6 +249,22 @@ internal fun NotificationsCard(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+internal fun DeleteMedicationGroupRecordsCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    DangerZoneListItem(
+        label = stringResource(R.string.delete_group_related_records),
+        enabled = enabled,
+        onClick = onClick,
+        icon = Icons.Rounded.PlaylistRemove,
+        index = 0,
+        count = 2
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 internal fun DeleteMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
@@ -255,6 +273,8 @@ internal fun DeleteMedicationGroupCard(
         label = stringResource(R.string.delete_medication_group),
         enabled = enabled,
         onClick = onClick,
+        index = 1,
+        count = 2
     )
 }
 

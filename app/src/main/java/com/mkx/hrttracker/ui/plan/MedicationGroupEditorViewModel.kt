@@ -8,6 +8,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -35,6 +36,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     @ApplicationContext private val context: Context,
@@ -46,6 +48,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val pendingGroupUuid = editingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
     } ?: UUID.randomUUID()
+    private var latestMedicationLogEntries = emptyList<com.mkx.hrttracker.model.medication.MedicationLogEntry>()
 
     init {
         viewModelScope.launch {
@@ -84,6 +87,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     ).copy(
                         groupColorKey = resolvedGroupColorKey,
                         hasAssignedGroupColor = true
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            medicationLogRepository.observeEntries().collect { entriesOrNull ->
+                latestMedicationLogEntries = entriesOrNull.orEmpty()
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        relatedEntryCount = relatedEntryCountForGroup(
+                            entries = latestMedicationLogEntries,
+                            groupId = currentState.editingGroupId,
+                        )
                     )
                 }
             }
@@ -381,6 +398,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun showDeleteRelatedEntriesConfirmation() {
+        val currentState = _uiState.value
+        if (currentState.isEditing && currentState.relatedEntryCount > 0) {
+            _uiState.update {
+                it.copy(isDeleteRelatedEntriesConfirmationVisible = true)
+            }
+        }
+    }
+
+    fun dismissDeleteRelatedEntriesConfirmation() {
+        _uiState.update {
+            it.copy(isDeleteRelatedEntriesConfirmationVisible = false)
+        }
+    }
+
     fun deleteGroup() {
         val groupId = _uiState.value.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
@@ -405,12 +437,49 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun deleteRelatedEntries() {
+        val currentState = _uiState.value
+        val groupId = currentState.editingGroupId ?: return
+        if (currentState.relatedEntryCount <= 0) {
+            return
+        }
+        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDeletingRelatedEntries = true,
+                    isDeleteRelatedEntriesConfirmationVisible = false,
+                )
+            }
+
+            val result = runCatching {
+                medicationLogRepository.deleteEntriesForGroup(uuid)
+                medicationReminderScheduler.rescheduleAll()
+            }.fold(
+                onSuccess = { DeleteRelatedEntriesResult.SUCCESS },
+                onFailure = { DeleteRelatedEntriesResult.FAILURE },
+            )
+
+            _uiState.update {
+                it.copy(
+                    isDeletingRelatedEntries = false,
+                    deleteRelatedEntriesResult = result,
+                )
+            }
+        }
+    }
+
     fun consumeSavedState() {
         _uiState.update { it.copy(isSaved = false) }
     }
 
     fun consumeDeletedState() {
         _uiState.update { it.copy(isDeleted = false) }
+    }
+
+    fun consumeDeleteRelatedEntriesResult() {
+        _uiState.update { it.copy(deleteRelatedEntriesResult = null) }
     }
 
     private fun loadGroupForEditing(groupId: String) {
@@ -456,6 +525,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 hasResolvedNotificationDefault = true,
                 groupColorKey = group.colorKey,
                 hasAssignedGroupColor = true,
+                relatedEntryCount = relatedEntryCountForGroup(
+                    entries = latestMedicationLogEntries,
+                    groupId = group.uuid.toString(),
+                ),
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -637,12 +710,21 @@ data class MedicationGroupEditorUiState(
     val medicationEditorInfoMessageRes: Int? = null,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
+    val isDeletingRelatedEntries: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val relatedEntryCount: Int = 0,
     val isDeleteConfirmationVisible: Boolean = false,
+    val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
+    val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+}
+
+enum class DeleteRelatedEntriesResult {
+    SUCCESS,
+    FAILURE,
 }
 
 internal fun applyDefaultGroupNameToEditorState(
@@ -720,6 +802,18 @@ internal fun resolveMedicationGroupColorKey(
             seed = seed
         )
     }
+}
+
+internal fun relatedEntryCountForGroup(
+    entries: List<com.mkx.hrttracker.model.medication.MedicationLogEntry>,
+    groupId: String?,
+): Int {
+    if (groupId == null) {
+        return 0
+    }
+
+    val groupUuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return 0
+    return entries.count { entry -> entry.sourceGroupUuid == groupUuid }
 }
 
 data class MedicationGroupMedicationItemUiState(

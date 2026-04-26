@@ -63,6 +63,14 @@ interface MedicationLogDao {
     @Query(
         """
         DELETE FROM medication_log_entries
+        WHERE sourceGroupUuid = :groupUuid
+        """
+    )
+    suspend fun deleteEntriesForGroup(groupUuid: String)
+
+    @Query(
+        """
+        DELETE FROM medication_log_entries
         """
     )
     suspend fun deleteAllEntries()
