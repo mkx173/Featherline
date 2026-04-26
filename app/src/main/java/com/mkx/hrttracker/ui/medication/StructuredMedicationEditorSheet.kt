@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,16 +46,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -132,6 +137,32 @@ fun StructuredMedicationEditorSheet(
     val doseAssistPresets = remember(draft) { draft.activeDoseAssistPresets() }
     val showsDoseWarning = remember(draft) { draft.exceedsDoseWarningThreshold() }
     val applicationTypeButtonIcons = rememberMedicationApplicationButtonIcons()
+    val customNameFocusRequester = remember { FocusRequester() }
+    val doseMgFocusRequester = remember { FocusRequester() }
+    val gelPercentFocusRequester = remember { FocusRequester() }
+    val gelWeightFocusRequester = remember { FocusRequester() }
+    val patchReleaseRateFocusRequester = remember { FocusRequester() }
+    val editableTextFields = remember(draft, isMedicationIdentityEditable) {
+        structuredMedicationEditorEditableFields(
+            draft = draft,
+            isMedicationIdentityEditable = isMedicationIdentityEditable
+        )
+    }
+    val textFieldFocusRequesters = remember(
+        customNameFocusRequester,
+        doseMgFocusRequester,
+        gelPercentFocusRequester,
+        gelWeightFocusRequester,
+        patchReleaseRateFocusRequester,
+    ) {
+        mapOf(
+            StructuredMedicationEditorTextField.CUSTOM_NAME to customNameFocusRequester,
+            StructuredMedicationEditorTextField.DOSE_MG to doseMgFocusRequester,
+            StructuredMedicationEditorTextField.GEL_PERCENT to gelPercentFocusRequester,
+            StructuredMedicationEditorTextField.GEL_WEIGHT to gelWeightFocusRequester,
+            StructuredMedicationEditorTextField.PATCH_RELEASE_RATE to patchReleaseRateFocusRequester,
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -251,6 +282,12 @@ fun StructuredMedicationEditorSheet(
             }
 
             if (draft.requiresCustomName()) {
+                val field = StructuredMedicationEditorTextField.CUSTOM_NAME
+                val focusManager = LocalFocusManager.current
+                val nextFocusRequester = structuredMedicationEditorNextField(
+                    editableFields = editableTextFields,
+                    field = field
+                )?.let(textFieldFocusRequesters::getValue)
                 OutlinedTextField(
                     value = draft.customMedicationName,
                     onValueChange = onCustomMedicationNameChange,
@@ -273,8 +310,26 @@ fun StructuredMedicationEditorSheet(
                             )
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(textFieldFocusRequesters.getValue(field)),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = field
+                        )
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = {
+                            if (nextFocusRequester != null) {
+                                nextFocusRequester.requestFocus()
+                            } else {
+                                focusManager.clearFocus()
+                            }
+                        },
+                        onDone = { focusManager.clearFocus() }
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -316,6 +371,7 @@ fun StructuredMedicationEditorSheet(
 
             when (draft.doseKind) {
                 MedicationDoseKind.MG_AS_MEDICINE -> {
+                    val field = StructuredMedicationEditorTextField.DOSE_MG
                     DoseTextField(
                         value = draft.doseMg,
                         painterRes = doseFieldPainterRes(
@@ -327,6 +383,15 @@ fun StructuredMedicationEditorSheet(
                         suffix = stringResource(draft.displayDoseUnit().shortLabelRes),
                         errorMessageRes = fieldErrors.doseMg,
                         showWarningIcon = showsDoseWarning,
+                        focusRequester = textFieldFocusRequesters.getValue(field),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = field
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = field
+                        ),
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -364,6 +429,7 @@ fun StructuredMedicationEditorSheet(
                 }
 
                 MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
+                    val field = StructuredMedicationEditorTextField.DOSE_MG
                     DoseTextField(
                         value = draft.doseMg,
                         painterRes = doseFieldPainterRes(
@@ -373,11 +439,21 @@ fun StructuredMedicationEditorSheet(
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_equivalent_estradiol_mg),
                         suffix = stringResource(R.string.unit_mg),
-                        errorMessageRes = fieldErrors.doseMg
+                        errorMessageRes = fieldErrors.doseMg,
+                        focusRequester = textFieldFocusRequesters.getValue(field),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = field
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = field
+                        ),
                     )
                 }
 
                 MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
+                    val percentField = StructuredMedicationEditorTextField.GEL_PERCENT
                     DoseTextField(
                         value = draft.gelPercent,
                         painterRes = doseFieldPainterRes(
@@ -388,7 +464,16 @@ fun StructuredMedicationEditorSheet(
                         onValueChange = onGelPercentChange,
                         label = stringResource(R.string.field_gel_percent),
                         suffix = stringResource(R.string.unit_percent),
-                        errorMessageRes = fieldErrors.gelPercent
+                        errorMessageRes = fieldErrors.gelPercent,
+                        focusRequester = textFieldFocusRequesters.getValue(percentField),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = percentField
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = percentField
+                        ),
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
@@ -399,6 +484,7 @@ fun StructuredMedicationEditorSheet(
                         }
                     )
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    val weightField = StructuredMedicationEditorTextField.GEL_WEIGHT
                     DoseTextField(
                         value = draft.gelWeightGrams,
                         painterRes = doseFieldPainterRes(
@@ -409,7 +495,16 @@ fun StructuredMedicationEditorSheet(
                         onValueChange = onGelWeightChange,
                         label = stringResource(R.string.field_gel_weight_grams),
                         suffix = stringResource(R.string.unit_grams),
-                        errorMessageRes = fieldErrors.gelWeight
+                        errorMessageRes = fieldErrors.gelWeight,
+                        focusRequester = textFieldFocusRequesters.getValue(weightField),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = weightField
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = weightField
+                        ),
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
@@ -422,6 +517,7 @@ fun StructuredMedicationEditorSheet(
                 }
 
                 MedicationDoseKind.PATCH_TOTAL_MG -> {
+                    val field = StructuredMedicationEditorTextField.DOSE_MG
                     DoseTextField(
                         value = draft.doseMg,
                         painterRes = doseFieldPainterRes(
@@ -431,7 +527,16 @@ fun StructuredMedicationEditorSheet(
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_patch_total_mg),
                         suffix = stringResource(R.string.unit_mg),
-                        errorMessageRes = fieldErrors.doseMg
+                        errorMessageRes = fieldErrors.doseMg,
+                        focusRequester = textFieldFocusRequesters.getValue(field),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = field
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = field
+                        ),
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -443,6 +548,7 @@ fun StructuredMedicationEditorSheet(
                 }
 
                 MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
+                    val field = StructuredMedicationEditorTextField.PATCH_RELEASE_RATE
                     DoseTextField(
                         value = draft.patchReleaseRateMcgPerDay,
                         painterRes = doseFieldPainterRes(
@@ -452,7 +558,16 @@ fun StructuredMedicationEditorSheet(
                         onValueChange = onPatchReleaseRateChange,
                         label = stringResource(R.string.field_patch_release_rate_mcg_day),
                         suffix = stringResource(R.string.unit_mcg_day),
-                        errorMessageRes = fieldErrors.patchReleaseRate
+                        errorMessageRes = fieldErrors.patchReleaseRate,
+                        focusRequester = textFieldFocusRequesters.getValue(field),
+                        nextFocusRequester = structuredMedicationEditorNextField(
+                            editableFields = editableTextFields,
+                            field = field
+                        )?.let(textFieldFocusRequesters::getValue),
+                        imeAction = structuredMedicationEditorImeAction(
+                            editableFields = editableTextFields,
+                            field = field
+                        ),
                     )
                     DoseAssistPresetRow(
                         presets = doseAssistPresets,
@@ -671,7 +786,11 @@ private fun DoseTextField(
     @StringRes errorMessageRes: Int? = null,
     showWarningIcon: Boolean = false,
     enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    nextFocusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Done,
 ) {
+    val focusManager = LocalFocusManager.current
     val resolvedValue = resolveDoseTextFieldValue(
         value = value,
         placeholder = placeholder,
@@ -714,10 +833,89 @@ private fun DoseTextField(
                 )
             }
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (focusRequester != null) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                }
+            ),
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Decimal,
+            imeAction = imeAction
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = {
+                if (nextFocusRequester != null) {
+                    nextFocusRequester.requestFocus()
+                } else {
+                    focusManager.clearFocus()
+                }
+            },
+            onDone = { focusManager.clearFocus() }
+        )
     )
+}
+
+internal enum class StructuredMedicationEditorTextField {
+    CUSTOM_NAME,
+    DOSE_MG,
+    GEL_PERCENT,
+    GEL_WEIGHT,
+    PATCH_RELEASE_RATE,
+}
+
+internal fun structuredMedicationEditorEditableFields(
+    draft: MedicationDraftUiState,
+    isMedicationIdentityEditable: Boolean = true,
+): List<StructuredMedicationEditorTextField> {
+    val fields = mutableListOf<StructuredMedicationEditorTextField>()
+    if (draft.requiresCustomName() && isMedicationIdentityEditable) {
+        fields += StructuredMedicationEditorTextField.CUSTOM_NAME
+    }
+    when (draft.doseKind) {
+        MedicationDoseKind.MG_AS_MEDICINE,
+        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+        MedicationDoseKind.PATCH_TOTAL_MG -> {
+            fields += StructuredMedicationEditorTextField.DOSE_MG
+        }
+
+        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
+            fields += StructuredMedicationEditorTextField.GEL_PERCENT
+            fields += StructuredMedicationEditorTextField.GEL_WEIGHT
+        }
+
+        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
+            fields += StructuredMedicationEditorTextField.PATCH_RELEASE_RATE
+        }
+
+        MedicationDoseKind.NONE -> Unit
+    }
+    return fields
+}
+
+internal fun structuredMedicationEditorImeAction(
+    editableFields: List<StructuredMedicationEditorTextField>,
+    field: StructuredMedicationEditorTextField,
+): ImeAction {
+    return if (structuredMedicationEditorNextField(editableFields, field) == null) {
+        ImeAction.Done
+    } else {
+        ImeAction.Next
+    }
+}
+
+internal fun structuredMedicationEditorNextField(
+    editableFields: List<StructuredMedicationEditorTextField>,
+    field: StructuredMedicationEditorTextField,
+): StructuredMedicationEditorTextField? {
+    return editableFields
+        .indexOf(field)
+        .takeIf { it >= 0 }
+        ?.let { index -> editableFields.getOrNull(index + 1) }
 }
 
 internal fun resolveDoseTextFieldValue(

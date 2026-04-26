@@ -4,6 +4,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import androidx.compose.ui.text.input.ImeAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -144,6 +145,89 @@ class StructuredMedicationEditorSheetTest {
                 value = "",
                 placeholder = "Patch removal has no dose fields.",
                 enabled = false
+            )
+        )
+    }
+
+    @Test
+    fun structuredMedicationEditorEditableFields_singleDoseField_usesDoneImeAction() {
+        val draft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL
+        )
+
+        val fields = structuredMedicationEditorEditableFields(draft)
+
+        assertEquals(
+            listOf(StructuredMedicationEditorTextField.DOSE_MG),
+            fields
+        )
+        assertEquals(
+            ImeAction.Done,
+            structuredMedicationEditorImeAction(
+                editableFields = fields,
+                field = StructuredMedicationEditorTextField.DOSE_MG
+            )
+        )
+    }
+
+    @Test
+    fun structuredMedicationEditorEditableFields_multiDoseField_usesNextThenDoneImeAction() {
+        val draft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).changeDoseKind(MedicationDoseKind.GEL_PERCENT_AND_WEIGHT)
+
+        val fields = structuredMedicationEditorEditableFields(draft)
+
+        assertEquals(
+            listOf(
+                StructuredMedicationEditorTextField.GEL_PERCENT,
+                StructuredMedicationEditorTextField.GEL_WEIGHT,
+            ),
+            fields
+        )
+        assertEquals(
+            ImeAction.Next,
+            structuredMedicationEditorImeAction(
+                editableFields = fields,
+                field = StructuredMedicationEditorTextField.GEL_PERCENT
+            )
+        )
+        assertEquals(
+            ImeAction.Done,
+            structuredMedicationEditorImeAction(
+                editableFields = fields,
+                field = StructuredMedicationEditorTextField.GEL_WEIGHT
+            )
+        )
+    }
+
+    @Test
+    fun structuredMedicationEditorEditableFields_customNameFlowsIntoDoseField() {
+        val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
+
+        val fields = structuredMedicationEditorEditableFields(draft)
+
+        assertEquals(
+            listOf(
+                StructuredMedicationEditorTextField.CUSTOM_NAME,
+                StructuredMedicationEditorTextField.DOSE_MG,
+            ),
+            fields
+        )
+        assertEquals(
+            ImeAction.Next,
+            structuredMedicationEditorImeAction(
+                editableFields = fields,
+                field = StructuredMedicationEditorTextField.CUSTOM_NAME
+            )
+        )
+        assertEquals(
+            ImeAction.Done,
+            structuredMedicationEditorImeAction(
+                editableFields = fields,
+                field = StructuredMedicationEditorTextField.DOSE_MG
             )
         )
     }
