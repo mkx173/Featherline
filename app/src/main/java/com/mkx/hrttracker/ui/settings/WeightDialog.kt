@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -43,6 +45,14 @@ fun WeightDialog(
     }
     var selectedUnit by remember { mutableStateOf(profile.weightOriginalUnit) }
     var showValidationError by remember { mutableStateOf(false) }
+    val submit = {
+        val parsed = valueText.trim().replace(',', '.').toDoubleOrNull()
+        if (parsed == null || parsed <= 0.0) {
+            showValidationError = true
+        } else {
+            onSave(parsed, selectedUnit)
+        }
+    }
 
     AlertDialog(
         modifier = modifier,
@@ -71,7 +81,11 @@ fun WeightDialog(
                         Text(text = stringResource(selectedUnit.shortLabelRes))
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
                     isError = showValidationError,
                     supportingText = if (showValidationError) {
                         {
@@ -100,14 +114,7 @@ fun WeightDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val parsed = valueText.trim().replace(',', '.').toDoubleOrNull()
-                if (parsed == null || parsed <= 0.0) {
-                    showValidationError = true
-                } else {
-                    onSave(parsed, selectedUnit)
-                }
-            }) {
+            TextButton(onClick = { submit() }) {
                 Text(text = stringResource(R.string.personalization_weight_dialog_save))
             }
         },

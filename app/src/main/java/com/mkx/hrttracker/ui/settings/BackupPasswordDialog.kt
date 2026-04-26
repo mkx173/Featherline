@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
@@ -20,8 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.mkx.hrttracker.R
@@ -44,14 +48,22 @@ fun BackupPasswordDialog(
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
-    var hasAttemptedSubmit by remember { mutableStateOf(false) }
+    var showValidationErrors by remember { mutableStateOf(false) }
     val requireConfirmation = confirmPasswordLabel != null
+    val confirmPasswordFocusRequester = remember { FocusRequester() }
     val validationError = validateBackupPasswordInput(
         password = password,
         confirmPassword = confirmPassword.takeIf { requireConfirmation },
         minimumPasswordLength = minimumPasswordLength,
     )
-    val passwordValidationMessage = if (!hasAttemptedSubmit) {
+    val submit = {
+        if (validationError == null) {
+            onConfirm(password)
+        } else {
+            showValidationErrors = true
+        }
+    }
+    val passwordValidationMessage = if (!showValidationErrors) {
         null
     } else {
         when (validationError) {
@@ -70,7 +82,7 @@ fun BackupPasswordDialog(
         }
     }
     val confirmPasswordValidationMessage = if (
-        hasAttemptedSubmit &&
+        showValidationErrors &&
         validationError == BackupPasswordValidationError.MISMATCH
     ) {
         stringResource(R.string.settings_backup_password_mismatch)
@@ -97,7 +109,10 @@ fun BackupPasswordDialog(
                 }
                 BackupPasswordField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = {
+                        password = it
+                        showValidationErrors = false
+                    },
                     label = passwordLabel,
                     passwordVisible = passwordVisible,
                     onToggleVisibility = { passwordVisible = !passwordVisible },
@@ -110,11 +125,22 @@ fun BackupPasswordDialog(
                         }
                     },
                     isError = passwordValidationMessage != null,
+                    imeAction = if (requireConfirmation) ImeAction.Next else ImeAction.Done,
+                    onImeAction = {
+                        if (requireConfirmation) {
+                            confirmPasswordFocusRequester.requestFocus()
+                        } else if (!isInProgress) {
+                            submit()
+                        }
+                    },
                 )
                 confirmPasswordLabel?.let { label ->
                     BackupPasswordField(
                         value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
+                        onValueChange = {
+                            confirmPassword = it
+                            showValidationErrors = false
+                        },
                         label = label,
                         passwordVisible = confirmPasswordVisible,
                         onToggleVisibility = {
@@ -129,6 +155,13 @@ fun BackupPasswordDialog(
                             }
                         },
                         isError = confirmPasswordValidationMessage != null,
+                        imeAction = ImeAction.Done,
+                        onImeAction = {
+                            if (!isInProgress) {
+                                submit()
+                            }
+                        },
+                        modifier = Modifier.focusRequester(confirmPasswordFocusRequester),
                     )
                 }
             }
@@ -136,12 +169,7 @@ fun BackupPasswordDialog(
         confirmButton = {
             TextButton(
                 enabled = !isInProgress,
-                onClick = {
-                    hasAttemptedSubmit = true
-                    if (validationError == null) {
-                        onConfirm(password)
-                    }
-                },
+                onClick = { submit() },
             ) {
                 Text(text = confirmLabel)
             }
@@ -190,6 +218,8 @@ private fun BackupPasswordField(
     modifier: Modifier = Modifier,
     supportingText: (@Composable () -> Unit)? = null,
     isError: Boolean = false,
+    imeAction: ImeAction = ImeAction.Done,
+    onImeAction: () -> Unit = {},
 ) {
     OutlinedTextField(
         modifier = modifier.fillMaxWidth(),
@@ -199,7 +229,14 @@ private fun BackupPasswordField(
         singleLine = true,
         isError = isError,
         supportingText = supportingText,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
+            imeAction = imeAction,
+        ),
+        keyboardActions = KeyboardActions(
+            onNext = { onImeAction() },
+            onDone = { onImeAction() },
+        ),
         visualTransformation = if (passwordVisible) {
             androidx.compose.ui.text.input.VisualTransformation.None
         } else {

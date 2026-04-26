@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -49,11 +51,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -401,9 +406,47 @@ private fun CalibrationCustomAnalyteDialog(
     var isWorking by rememberSaveable { mutableStateOf(false) }
     var isArchiveConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     var isUnitLocked by rememberSaveable { mutableStateOf(customAnalyte != null) }
+    val abbreviationFocusRequester = remember { FocusRequester() }
+    val unitFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(customAnalyte?.uuid) {
         isUnitLocked = customAnalyte?.uuid?.let { onCheckHasResults(it) } ?: false
+    }
+
+    val submit = submit@{
+        val trimmedAbbreviation = abbreviationText.trim()
+        val trimmedName = nameText.trim()
+        val trimmedUnit = unitText.trim()
+        val isAbbreviationBlank = trimmedAbbreviation.isEmpty()
+        val isNameBlank = trimmedName.isEmpty()
+        val isUnitBlank = trimmedUnit.isEmpty()
+        isAbbreviationErrorVisible = isAbbreviationBlank
+        isNameErrorVisible = isNameBlank
+        isUnitErrorVisible = isUnitBlank
+        actionErrorMessage = null
+        if (isAbbreviationBlank || isNameBlank || isUnitBlank) {
+            return@submit
+        }
+
+        coroutineScope.launch {
+            isWorking = true
+            val error = onSave(
+                customAnalyte?.uuid,
+                trimmedAbbreviation,
+                trimmedName,
+                trimmedUnit,
+            )
+            isWorking = false
+            if (error == null) {
+                onDismiss()
+            } else {
+                actionErrorMessage = resolveCustomAnalyteSaveErrorMessage(
+                    error = error,
+                    duplicateErrorMessage = duplicateErrorMessage,
+                    genericErrorMessage = genericSaveErrorMessage,
+                )
+            }
+        }
     }
 
     AlertDialog(
@@ -458,9 +501,15 @@ private fun CalibrationCustomAnalyteDialog(
                     } else {
                         null
                     },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(
+                        onNext = { abbreviationFocusRequester.requestFocus() },
+                    ),
                 )
                 OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(abbreviationFocusRequester),
                     value = abbreviationText,
                     onValueChange = { value ->
                         abbreviationText = value
@@ -487,10 +536,23 @@ private fun CalibrationCustomAnalyteDialog(
                     } else {
                         null
                     },
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = if (isUnitLocked) ImeAction.Done else ImeAction.Next,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { unitFocusRequester.requestFocus() },
+                        onDone = {
+                            if (!isWorking) {
+                                submit()
+                            }
+                        },
+                    ),
                 )
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(unitFocusRequester),
                         value = unitText,
                         onValueChange = { value ->
                             unitText = value
@@ -514,6 +576,14 @@ private fun CalibrationCustomAnalyteDialog(
                         } else {
                             null
                         },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (!isWorking) {
+                                    submit()
+                                }
+                            },
+                        ),
                     )
                     if (isUnitLocked) {
                         Box(
@@ -566,41 +636,7 @@ private fun CalibrationCustomAnalyteDialog(
                 }
                 TextButton(
                     enabled = !isWorking,
-                    onClick = {
-                        val trimmedAbbreviation = abbreviationText.trim()
-                        val trimmedName = nameText.trim()
-                        val trimmedUnit = unitText.trim()
-                        val isAbbreviationBlank = trimmedAbbreviation.isEmpty()
-                        val isNameBlank = trimmedName.isEmpty()
-                        val isUnitBlank = trimmedUnit.isEmpty()
-                        isAbbreviationErrorVisible = isAbbreviationBlank
-                        isNameErrorVisible = isNameBlank
-                        isUnitErrorVisible = isUnitBlank
-                        actionErrorMessage = null
-                        if (isAbbreviationBlank || isNameBlank || isUnitBlank) {
-                            return@TextButton
-                        }
-
-                        coroutineScope.launch {
-                            isWorking = true
-                            val error = onSave(
-                                customAnalyte?.uuid,
-                                trimmedAbbreviation,
-                                trimmedName,
-                                trimmedUnit,
-                            )
-                            isWorking = false
-                            if (error == null) {
-                                onDismiss()
-                            } else {
-                                actionErrorMessage = resolveCustomAnalyteSaveErrorMessage(
-                                    error = error,
-                                    duplicateErrorMessage = duplicateErrorMessage,
-                                    genericErrorMessage = genericSaveErrorMessage,
-                                )
-                            }
-                        }
-                    },
+                    onClick = { submit() },
                 ) {
                     Text(text = stringResource(R.string.save))
                 }
