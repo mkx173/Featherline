@@ -23,12 +23,14 @@ fun testCustomMedicationDetails(
     dose: MedicationDose,
     applicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
     category: MedicationCategory = MedicationCategory.CUSTOM,
+    customDoseUnit: MedicationDoseUnit = MedicationDoseUnit.MG,
 ): MedicationDetails {
     return MedicationDetails(
         category = category,
         applicationType = applicationType,
         selection = MedicationSelection.Custom(medicationName),
-        dose = dose
+        dose = dose,
+        customDoseUnit = customDoseUnit,
     )
 }
 

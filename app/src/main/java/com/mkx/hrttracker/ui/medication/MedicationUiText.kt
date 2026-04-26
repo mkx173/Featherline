@@ -7,6 +7,8 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.customDoseDisplayUnit
+import com.mkx.hrttracker.model.medication.formatDoseFromCanonicalMg
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.util.rememberAppLocale
 
@@ -22,10 +24,14 @@ fun medicationDisplayName(details: MedicationDetails): String {
 fun medicationDoseText(details: MedicationDetails): String? {
     val appLocale = rememberAppLocale()
     return when (val dose = details.dose) {
-        is MedicationDose.MgAsMedicine -> stringResource(
-            R.string.medication_dose_mg,
-            dose.valueMg.formatDose(appLocale)
-        )
+        is MedicationDose.MgAsMedicine -> {
+            val doseUnit = details.customDoseDisplayUnit()
+            stringResource(
+                R.string.medication_dose_with_unit,
+                doseUnit.formatDoseFromCanonicalMg(dose.valueMg, appLocale),
+                stringResource(doseUnit.shortLabelRes)
+            )
+        }
 
         is MedicationDose.GelEquivalentEstradiolMg -> stringResource(
             R.string.medication_dose_mg_e2,

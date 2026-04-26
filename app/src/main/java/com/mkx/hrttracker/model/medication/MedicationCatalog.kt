@@ -67,6 +67,22 @@ enum class MedicationDoseKind {
     }
 }
 
+// Append-only: persisted storage values are enum names.
+enum class MedicationDoseUnit(@get:StringRes val shortLabelRes: Int) {
+    MG(R.string.unit_mg),
+    MCG(R.string.unit_mcg),
+    G(R.string.unit_grams);
+
+    val storageValue: String
+        get() = name
+
+    companion object {
+        fun fromStorageValue(value: String?): MedicationDoseUnit {
+            return entries.firstOrNull { it.storageValue == value } ?: MG
+        }
+    }
+}
+
 enum class MedicationKey(
     val category: MedicationCategory,
     @get:StringRes val labelRes: Int,
@@ -168,6 +184,7 @@ data class MedicationDetails(
     val selection: MedicationSelection,
     val dose: MedicationDose,
     val gelApplicationArea: MedicationGelApplicationArea = MedicationGelApplicationArea.DEFAULT,
+    val customDoseUnit: MedicationDoseUnit = MedicationDoseUnit.MG,
 )
 
 data class MedicationCatalogEntry(

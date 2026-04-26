@@ -45,6 +45,7 @@ data class MedicationGroupItemEntity(
     val customMedicationName: String?,
     val doseKind: String,
     val doseValueMg: Double?,
+    val customDoseUnit: String = "MG",
     val doseValuePercent: Double?,
     val doseWeightGrams: Double?,
     val doseReleaseRateMcgPerDay: Double?,

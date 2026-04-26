@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import org.junit.Assert.assertEquals
@@ -89,6 +90,7 @@ class MedicationEditorModelsTest {
             details.selection
         )
         assertEquals(MedicationDose.MgAsMedicine(5.0), details.dose)
+        assertEquals(MedicationDoseUnit.MG, details.customDoseUnit)
     }
 
     @Test
@@ -150,6 +152,65 @@ class MedicationEditorModelsTest {
 
         assertEquals("0.06", draft.gelPercent)
         assertEquals("6.25", draft.gelWeightGrams)
+    }
+
+    @Test
+    fun custom_mcg_input_is_saved_as_canonical_mg() {
+        val details = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
+            .copy(
+                customMedicationName = "My custom medication",
+                customDoseUnit = MedicationDoseUnit.MCG,
+                doseMg = "200",
+            )
+            .toMedicationDetails()
+
+        assertEquals(MedicationDose.MgAsMedicine(0.2), details.dose)
+        assertEquals(MedicationDoseUnit.MCG, details.customDoseUnit)
+    }
+
+    @Test
+    fun from_details_restores_custom_selected_unit_display_value() {
+        val draft = medicationDraftFromDetails(
+            details = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
+                .copy(
+                    customMedicationName = "My custom medication",
+                    customDoseUnit = MedicationDoseUnit.MCG,
+                    doseMg = "200",
+                )
+                .toMedicationDetails()
+        )
+
+        assertEquals(MedicationDoseUnit.MCG, draft.customDoseUnit)
+        assertEquals("200", draft.doseMg)
+    }
+
+    @Test
+    fun changing_custom_dose_unit_keeps_display_value_unchanged() {
+        val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
+            .copy(
+                customMedicationName = "My custom medication",
+                customDoseUnit = MedicationDoseUnit.MCG,
+                doseMg = "200",
+            )
+            .changeCustomDoseUnit(MedicationDoseUnit.MG)
+
+        assertEquals(MedicationDoseUnit.MG, draft.customDoseUnit)
+        assertEquals("200", draft.doseMg)
+    }
+
+    @Test
+    fun saving_after_switching_custom_dose_unit_uses_selected_unit_for_canonical_mg() {
+        val details = defaultMedicationDraft(category = MedicationCategory.CUSTOM)
+            .copy(
+                customMedicationName = "My custom medication",
+                customDoseUnit = MedicationDoseUnit.MCG,
+                doseMg = "200",
+            )
+            .changeCustomDoseUnit(MedicationDoseUnit.MG)
+            .toMedicationDetails()
+
+        assertEquals(MedicationDose.MgAsMedicine(200.0), details.dose)
+        assertEquals(MedicationDoseUnit.MG, details.customDoseUnit)
     }
 
     @Test

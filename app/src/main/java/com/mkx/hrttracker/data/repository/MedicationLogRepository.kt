@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -215,7 +216,8 @@ class MedicationLogRepository @Inject constructor(
             applicationType = MedicationApplicationType.fromStorageValue(applicationType),
             selection = selection,
             dose = dose,
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea)
+            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
+            customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
         )
     }
 
@@ -248,6 +250,13 @@ class MedicationLogRepository @Inject constructor(
                 is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
                 is MedicationDose.PatchTotalMg -> dose.valueMg
                 else -> null
+            },
+            customDoseUnit = when {
+                medication.selection is MedicationSelection.Custom &&
+                    medication.dose is MedicationDose.MgAsMedicine ->
+                    medication.customDoseUnit.storageValue
+
+                else -> MedicationDoseUnit.MG.storageValue
             },
             doseValuePercent = when (val dose = medication.dose) {
                 is MedicationDose.GelPercentAndWeight -> dose.percent

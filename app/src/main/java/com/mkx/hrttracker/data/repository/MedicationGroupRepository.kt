@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -141,6 +142,13 @@ class MedicationGroupRepository @Inject constructor(
                         is MedicationDose.PatchTotalMg -> dose.valueMg
                         else -> null
                     },
+                    customDoseUnit = when {
+                        medication.details.selection is MedicationSelection.Custom &&
+                            medication.details.dose is MedicationDose.MgAsMedicine ->
+                            medication.details.customDoseUnit.storageValue
+
+                        else -> MedicationDoseUnit.MG.storageValue
+                    },
                     doseValuePercent = when (val dose = medication.details.dose) {
                         is MedicationDose.GelPercentAndWeight -> dose.percent
                         else -> null
@@ -248,7 +256,8 @@ class MedicationGroupRepository @Inject constructor(
             applicationType = MedicationApplicationType.fromStorageValue(applicationType),
             selection = selection,
             dose = dose,
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea)
+            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
+            customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
         )
     }
 }

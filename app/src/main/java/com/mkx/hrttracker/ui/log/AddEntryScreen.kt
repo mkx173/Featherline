@@ -25,6 +25,7 @@ import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
+import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
 import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.changeSelectionKind
@@ -119,6 +120,9 @@ private fun AddEntryScreenContent(
         },
         onDoseKindChange = { doseKind ->
             onMedicationDraftChange { draft -> draft.changeDoseKind(doseKind) }
+        },
+        onCustomDoseUnitChange = { customDoseUnit ->
+            onMedicationDraftChange { draft -> draft.changeCustomDoseUnit(customDoseUnit) }
         },
         onDoseMgChange = { doseMg ->
             onMedicationDraftChange { draft -> draft.copy(doseMg = doseMg) }

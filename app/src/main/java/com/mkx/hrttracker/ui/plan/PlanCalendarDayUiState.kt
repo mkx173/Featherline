@@ -154,6 +154,7 @@ internal data class MedicationSignature(
     val selectionKind: String,
     val medicationKey: String?,
     val normalizedCustomMedicationName: String?,
+    val customDoseUnit: String?,
     val doseKind: String,
     val doseValueMg: Double?,
     val doseValuePercent: Double?,
@@ -186,6 +187,12 @@ internal data class MedicationSignature(
                     is com.mkx.hrttracker.model.medication.MedicationSelection.Catalog -> null
                     is com.mkx.hrttracker.model.medication.MedicationSelection.Custom ->
                         selection.medicationName.trim().lowercase()
+                },
+                customDoseUnit = when {
+                    selection is com.mkx.hrttracker.model.medication.MedicationSelection.Custom &&
+                        dose is MedicationDose.MgAsMedicine -> details.customDoseUnit.storageValue
+
+                    else -> null
                 },
                 doseKind = dose.kind.name,
                 doseValueMg = when (dose) {

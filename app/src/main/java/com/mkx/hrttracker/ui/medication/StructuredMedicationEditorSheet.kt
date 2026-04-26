@@ -68,10 +68,12 @@ import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -97,6 +99,7 @@ fun StructuredMedicationEditorSheet(
     onMedicationKeyChange: (MedicationKey) -> Unit,
     onCustomMedicationNameChange: (String) -> Unit,
     onDoseKindChange: (MedicationDoseKind) -> Unit,
+    onCustomDoseUnitChange: (MedicationDoseUnit) -> Unit,
     onDoseMgChange: (String) -> Unit,
     onGelPercentChange: (String) -> Unit,
     onGelWeightChange: (String) -> Unit,
@@ -225,21 +228,24 @@ fun StructuredMedicationEditorSheet(
             if (draft.supportsCatalogSelection()
                 && draft.selectionKind == MedicationSelectionKind.CATALOG
                 && catalog.entries.mapNotNull { it.medicationKey }.size > 1) {
-                Text(
-                    text = stringResource(R.string.field_medication),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-                ConnectedButtonGroup(
-                    options = catalog.entries.mapNotNull { it.medicationKey },
-                    selectedOption = draft.selectedCatalogEntry().medicationKey,
-                    optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
-                    onOptionSelected = onMedicationKeyChange,
-                    enabled = isMedicationIdentityEditable
-                )
+                val medicationOptions = catalog.entries.mapNotNull { it.medicationKey }
+                if (medicationOptions.size > 1) {
+                    Text(
+                        text = stringResource(R.string.field_medication),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
+                    ConnectedButtonGroup(
+                        options = medicationOptions,
+                        selectedOption = draft.selectedCatalogEntry().medicationKey,
+                        optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
+                        onOptionSelected = onMedicationKeyChange,
+                        enabled = isMedicationIdentityEditable
+                    )
 
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                }
             }
 
             if (draft.requiresCustomName()) {
@@ -316,7 +322,7 @@ fun StructuredMedicationEditorSheet(
                         ),
                         onValueChange = onDoseMgChange,
                         label = stringResource(R.string.field_dosage_mg),
-                        suffix = stringResource(R.string.unit_mg),
+                        suffix = stringResource(draft.displayDoseUnit().shortLabelRes),
                         errorMessageRes = fieldErrors.doseMg,
                         showWarningIcon = showsDoseWarning,
                     )
@@ -325,8 +331,33 @@ fun StructuredMedicationEditorSheet(
                         onPresetClick = { preset ->
                             val resolvedPreset = preset as MedicationDoseAssistPreset.MgAsMedicine
                             onDoseMgChange(resolvedPreset.valueMg)
-                        }
+                        },
                     )
+                    if (draft.showsCustomDoseUnitSelector()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_calibration_unit_label),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 16.dp)
+                            )
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                            ) {
+                                ConnectedButtonGroup(
+                                    options = MedicationDoseUnit.entries,
+                                    selectedOption = draft.customDoseUnit,
+                                    optionLabel = { unit -> stringResource(unit.shortLabelRes) },
+                                    onOptionSelected = onCustomDoseUnitChange,
+                                    layout = ConnectedButtonGroupLayout.ROW,
+                                )
+                            }
+                        }
+                    }
                 }
 
                 MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
@@ -938,6 +969,7 @@ private fun StructuredMedicationEditorSheetPreview() {
             onMedicationKeyChange = { },
             onCustomMedicationNameChange = { },
             onDoseKindChange = { },
+            onCustomDoseUnitChange = { },
             onDoseMgChange = { },
             onGelPercentChange = { },
             onGelWeightChange = { },

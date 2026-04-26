@@ -10,9 +10,12 @@ import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.fromCanonicalMg
+import com.mkx.hrttracker.model.medication.toCanonicalMg
 import java.math.BigDecimal
 
 data class MedicationDraftUiState(
@@ -23,6 +26,7 @@ data class MedicationDraftUiState(
     val customMedicationName: String = "",
     val doseKind: MedicationDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
     val doseMg: String = "",
+    val customDoseUnit: MedicationDoseUnit = MedicationDoseUnit.MG,
     val gelPercent: String = "",
     val gelWeightGrams: String = "",
     val patchReleaseRateMcgPerDay: String = "",
@@ -108,6 +112,19 @@ fun MedicationDraftUiState.activeDoseAssistPresets(): List<MedicationDoseAssistP
     return selectedCatalogEntry().doseAssistPresets[doseKind].orEmpty()
 }
 
+fun MedicationDraftUiState.showsCustomDoseUnitSelector(): Boolean {
+    return selectionKind == MedicationSelectionKind.CUSTOM &&
+        doseKind == MedicationDoseKind.MG_AS_MEDICINE
+}
+
+fun MedicationDraftUiState.displayDoseUnit(): MedicationDoseUnit {
+    return if (showsCustomDoseUnitSelector()) {
+        customDoseUnit
+    } else {
+        MedicationDoseUnit.MG
+    }
+}
+
 fun MedicationDraftUiState.doseWarningThresholdMg(): Double? {
     if (doseKind != MedicationDoseKind.MG_AS_MEDICINE ||
         selectionKind != MedicationSelectionKind.CATALOG
@@ -177,14 +194,32 @@ fun MedicationDraftUiState.changeMedicationKey(
     return copy(
         selectionKind = MedicationSelectionKind.CATALOG,
         medicationKey = medicationKey,
-        doseKind = if (doseKind in entry.doseKinds) doseKind else entry.defaultDoseKind
+        doseKind = if (doseKind in entry.doseKinds) doseKind else entry.defaultDoseKind,
+        customDoseUnit = MedicationDoseUnit.MG,
     )
 }
 
 fun MedicationDraftUiState.changeDoseKind(
     doseKind: MedicationDoseKind,
 ): MedicationDraftUiState {
-    return copy(doseKind = doseKind)
+    val next = copy(doseKind = doseKind)
+    return if (next.showsCustomDoseUnitSelector()) {
+        next
+    } else {
+        next.copy(customDoseUnit = MedicationDoseUnit.MG)
+    }
+}
+
+fun MedicationDraftUiState.changeCustomDoseUnit(
+    customDoseUnit: MedicationDoseUnit,
+): MedicationDraftUiState {
+    if (!showsCustomDoseUnitSelector() || this.customDoseUnit == customDoseUnit) {
+        return this
+    }
+
+    return copy(
+        customDoseUnit = customDoseUnit,
+    )
 }
 
 fun MedicationDraftUiState.applyDoseAssistPreset(
@@ -272,9 +307,23 @@ fun MedicationDraftUiState.toMedicationDetails(): MedicationDetails {
     } else {
         MedicationSelection.Catalog(checkNotNull(selectedCatalogEntry().medicationKey))
     }
+    val resolvedCustomDoseUnit = if (
+        selection is MedicationSelection.Custom &&
+        doseKind == MedicationDoseKind.MG_AS_MEDICINE
+    ) {
+        customDoseUnit
+    } else {
+        MedicationDoseUnit.MG
+    }
 
     val dose = when (doseKind) {
-        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(doseMg.toDouble())
+        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
+            if (selection is MedicationSelection.Custom) {
+                resolvedCustomDoseUnit.toCanonicalMg(doseMg.toDouble())
+            } else {
+                doseMg.toDouble()
+            }
+        )
         MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
             doseMg.toDouble()
         )
@@ -296,7 +345,8 @@ fun MedicationDraftUiState.toMedicationDetails(): MedicationDetails {
         category = category,
         applicationType = applicationType,
         selection = selection,
-        dose = dose
+        dose = dose,
+        customDoseUnit = resolvedCustomDoseUnit,
     )
 }
 
@@ -307,6 +357,14 @@ fun medicationDraftFromDetails(
         category = details.category,
         applicationType = details.applicationType
     )
+    val resolvedCustomDoseUnit = if (
+        details.selection is MedicationSelection.Custom &&
+        details.dose is MedicationDose.MgAsMedicine
+    ) {
+        details.customDoseUnit
+    } else {
+        MedicationDoseUnit.MG
+    }
     return base.copy(
         selectionKind = when (details.selection) {
             is MedicationSelection.Catalog -> MedicationSelectionKind.CATALOG
@@ -316,8 +374,11 @@ fun medicationDraftFromDetails(
             ?: base.medicationKey,
         customMedicationName = (details.selection as? MedicationSelection.Custom)?.medicationName.orEmpty(),
         doseKind = details.dose.kind,
+        customDoseUnit = resolvedCustomDoseUnit,
         doseMg = when (val dose = details.dose) {
-            is MedicationDose.MgAsMedicine -> dose.valueMg.toInputString()
+            is MedicationDose.MgAsMedicine -> resolvedCustomDoseUnit.fromCanonicalMg(
+                dose.valueMg
+            ).toInputString()
             is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg.toInputString()
             is MedicationDose.PatchTotalMg -> dose.valueMg.toInputString()
             else -> ""

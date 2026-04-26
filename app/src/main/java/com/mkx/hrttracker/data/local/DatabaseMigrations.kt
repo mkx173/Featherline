@@ -3,6 +3,17 @@ package com.mkx.hrttracker.data.local
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+val MIGRATION_21_22: Migration = object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE medication_group_items ADD COLUMN customDoseUnit TEXT NOT NULL DEFAULT 'MG'"
+        )
+        db.execSQL(
+            "ALTER TABLE medication_log_entries ADD COLUMN customDoseUnit TEXT NOT NULL DEFAULT 'MG'"
+        )
+    }
+}
+
 val MIGRATION_20_21: Migration = object : Migration(20, 21) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
