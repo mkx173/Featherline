@@ -1107,10 +1107,10 @@ private fun DoseAssistPresetRow(
     enabled: Boolean,
     appLocale: Locale? = null
 ) {
-    if (presets.isEmpty() or !enabled) {
+    if (presets.isEmpty() || !enabled) {
         return
     }
-    val isChinese = appLocale?. let {appLocale.language == "zh"} ?: false
+    val isChinese = appLocale?.language == "zh"
 
     Row(
         modifier = Modifier

@@ -535,7 +535,7 @@ class MedicationEditorModelsTest {
         ).changeMedicationKey(
             MedicationKey.SPIRONOLACTONE
         ).copy(doseMg = "200")
-        val cpaAboveThreshold = defaultMedicationDraft(
+        val cpaAtThreshold = defaultMedicationDraft(
             category = MedicationCategory.ANTIANDROGEN,
             applicationType = MedicationApplicationType.ORAL
         ).changeMedicationKey(
@@ -550,8 +550,8 @@ class MedicationEditorModelsTest {
 
         assertEquals(false, spiroAtThreshold.exceedsDoseWarningThreshold())
         assertEquals(true, spiroAtThreshold.exceedsDoseWarningThreshold(count = 2))
-        assertEquals(false, cpaAboveThreshold.exceedsDoseWarningThreshold())
-        assertEquals(true, cpaAboveThreshold.exceedsDoseWarningThreshold(count = 2))
+        assertEquals(false, cpaAtThreshold.exceedsDoseWarningThreshold())
+        assertEquals(true, cpaAtThreshold.exceedsDoseWarningThreshold(count = 2))
         assertEquals(true, bicaAboveThreshold.exceedsDoseWarningThreshold())
     }
 
@@ -567,5 +567,28 @@ class MedicationEditorModelsTest {
 
         assertEquals(false, estradiolDraft.exceedsDoseWarningThreshold())
         assertEquals(false, customDraft.exceedsDoseWarningThreshold())
+    }
+
+    @Test
+    fun parsed_count_text_propagates_to_dose_warning_threshold_check() {
+        val cpaAtThreshold = defaultMedicationDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL
+        ).changeMedicationKey(
+            MedicationKey.CYPROTERONE_ACETATE
+        ).copy(doseMg = "12.5")
+
+        assertEquals(
+            false,
+            cpaAtThreshold.exceedsDoseWarningThreshold(parseMedicationCountText("1"))
+        )
+        assertEquals(
+            true,
+            cpaAtThreshold.exceedsDoseWarningThreshold(parseMedicationCountText("2"))
+        )
+        assertEquals(
+            false,
+            cpaAtThreshold.exceedsDoseWarningThreshold(parseMedicationCountText(""))
+        )
     }
 }
