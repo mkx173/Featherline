@@ -142,6 +142,9 @@ internal fun CalibrationElapsedEstradiolDosePill(
     elapsedMillis: Long,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     Surface(
         modifier = modifier,
         shape = CircleShape,
@@ -156,15 +159,18 @@ internal fun CalibrationElapsedEstradiolDosePill(
                 painter = painterResource(R.drawable.ic_labs),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(14.dp)
             )
             Text(
                 text = stringResource(
                     R.string.settings_calibration_last_e2_elapsed,
                     calibrationElapsedDurationLabel(elapsedMillis)
                 ),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
         }
     }
@@ -429,6 +435,7 @@ internal fun CalibrationAnalyteCard(
                         onUnitChange(selectedUnit)
                     },
                     layout = ConnectedButtonGroupLayout.ROW,
+                    applyChineseTextOffset = false
                 )
             }
         }

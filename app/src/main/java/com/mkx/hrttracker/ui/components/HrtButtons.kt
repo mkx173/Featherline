@@ -55,7 +55,7 @@ fun HrtButton(
                 )
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
-            ButtonLabelText(text = text)
+            LocalizedButtonLabelText(text = text)
         }
     }
 }
@@ -96,7 +96,7 @@ fun HrtFilledTonalButton(
                 )
                 Spacer(modifier = Modifier.size(iconSpacing))
             }
-            ButtonLabelText(text = text)
+            LocalizedButtonLabelText(text = text)
         }
     }
 }
@@ -117,12 +117,13 @@ private fun ButtonContainer(
 }
 
 @Composable
-private fun ButtonLabelText(
+internal fun LocalizedButtonLabelText(
     text: String,
     modifier: Modifier = Modifier,
+    applyChineseTextOffset: Boolean = true,
 ) {
     val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
+    val isChinese = applyChineseTextOffset && appLocale.language == "zh"
     Text(
         text = text,
         modifier = modifier.graphicsLayer {

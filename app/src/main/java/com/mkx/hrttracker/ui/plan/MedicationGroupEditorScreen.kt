@@ -1224,7 +1224,7 @@ private fun EditorSupportMessage(
                         Icon(
                             painter = painter,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     }

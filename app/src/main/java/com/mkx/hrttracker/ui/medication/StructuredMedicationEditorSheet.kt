@@ -356,6 +356,7 @@ fun StructuredMedicationEditorSheet(
                                     optionLabel = { unit -> stringResource(unit.shortLabelRes) },
                                     onOptionSelected = onCustomDoseUnitChange,
                                     layout = ConnectedButtonGroupLayout.ROW,
+                                    applyChineseTextOffset = false
                                 )
                             }
                         }

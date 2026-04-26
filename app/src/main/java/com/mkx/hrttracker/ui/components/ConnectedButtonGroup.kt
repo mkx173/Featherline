@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonColors
 import androidx.compose.material3.ToggleButtonDefaults
@@ -37,6 +36,7 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
+    applyChineseTextOffset: Boolean = true,
 ) {
     val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
     ConnectedButtonGroup(
@@ -51,6 +51,7 @@ fun <T> ConnectedButtonGroup(
             }
         },
         enabled = enabled,
+        applyChineseTextOffset = applyChineseTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -70,6 +71,7 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
+    applyChineseTextOffset: Boolean = true,
 ) {
     ConnectedButtonGroup(
         modifier = modifier,
@@ -79,6 +81,7 @@ fun <T> ConnectedButtonGroup(
         optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
+        applyChineseTextOffset = applyChineseTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -98,6 +101,7 @@ private fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
+    applyChineseTextOffset: Boolean = true,
 ) {
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -119,6 +123,7 @@ private fun <T> ConnectedButtonGroup(
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
+                        applyChineseTextOffset = applyChineseTextOffset,
                         colors = colors,
                     )
                 }
@@ -151,6 +156,7 @@ private fun <T> ConnectedButtonGroup(
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
+                        applyChineseTextOffset = applyChineseTextOffset,
                         colors = colors,
                     )
                 }
@@ -171,6 +177,7 @@ private fun <T> ConnectedButtonGroupButton(
     optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
+    applyChineseTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     ToggleButton(
@@ -194,7 +201,10 @@ private fun <T> ConnectedButtonGroupButton(
             )
             Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
         }
-        Text(optionLabel(option))
+        LocalizedButtonLabelText(
+            text = optionLabel(option),
+            applyChineseTextOffset = applyChineseTextOffset,
+        )
     }
 }
 
@@ -210,6 +220,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
+    applyChineseTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     ConnectedButtonGroupButton(
@@ -222,6 +233,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
+        applyChineseTextOffset = applyChineseTextOffset,
         colors = colors,
     )
 }

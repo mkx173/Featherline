@@ -323,6 +323,7 @@ private fun CalibrationUnitPreferenceItem(
                 optionLabel = { unit -> calibrationUnitLabel(unit) },
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
+                applyChineseTextOffset = false
             )
         }
     }
