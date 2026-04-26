@@ -549,10 +549,21 @@ private fun SettingsScreenContent(
                         )
                     },
                     supportingContent = {
-                        Text(text = formatWeightSummary(uiState.userProfile))
+                        Text(
+                            text = formatWeightSummary(uiState.userProfile),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese && uiState.userProfile.weightOriginalValue == null) (-1).dp.toPx() else 0f
+                            }
+                        )
                     }
                 ) {
-                    Text(text = stringResource(R.string.personalization_weight))
+                    Text(
+                        text = stringResource(R.string.personalization_weight),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+
+                    )
                 }
 
                 EditorSegmentedListItem(
@@ -605,7 +616,12 @@ private fun SettingsScreenContent(
                         )
                     },
                     supportingContent = {
-                        Text(text = stringResource(R.string.settings_reminders_summary))
+                        Text(
+                            text = stringResource(R.string.settings_reminders_summary),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese) (-1).dp.toPx() else 0f
+                            }
+                        )
                     },
                     trailingContent = {
                         Switch(
@@ -615,7 +631,12 @@ private fun SettingsScreenContent(
                         )
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_reminders))
+                    Text(
+                        text = stringResource(R.string.settings_reminders),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
 
                 if (!hasNotificationAccess) {
@@ -675,12 +696,18 @@ private fun SettingsScreenContent(
                         ) {
                             Text(
                                 text = stringResource(R.string.settings_screen_lock_protection),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
                             )
                             Text(
                                 text = stringResource(R.string.settings_screen_lock_protection_summary),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
                             )
                         }
                         Switch(
@@ -703,10 +730,20 @@ private fun SettingsScreenContent(
                                 )
                             },
                             supportingContent = {
-                                Text(text = stringResource(settingsState.appLockGracePeriodOption.labelRes))
+                                Text(
+                                    text = stringResource(settingsState.appLockGracePeriodOption.labelRes),
+                                    modifier = Modifier.graphicsLayer {
+                                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                    }
+                                )
                             }
                         ) {
-                            Text(text = stringResource(R.string.settings_app_lock_grace_period))
+                            Text(
+                                text = stringResource(R.string.settings_app_lock_grace_period),
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
+                            )
                         }
                         DropdownMenu(
                             expanded = isAppLockGracePeriodMenuExpanded,
@@ -747,12 +784,18 @@ private fun SettingsScreenContent(
                         ) {
                             Text(
                                 text = stringResource(R.string.settings_hide_screen_content),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
                             )
                             Text(
                                 text = stringResource(R.string.settings_hide_screen_content_summary),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
                             )
                         }
                         Switch(
@@ -794,10 +837,20 @@ private fun SettingsScreenContent(
                             )
                         },
                         supportingContent = {
-                            Text(text = stringResource(settingsState.appLanguageOption.labelRes))
+                            Text(
+                                text = stringResource(settingsState.appLanguageOption.labelRes),
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
+                            )
                         }
                     ) {
-                        Text(text = stringResource(R.string.settings_app_language))
+                        Text(
+                            text = stringResource(R.string.settings_app_language),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese) (-1).dp.toPx() else 0f
+                            }
+                        )
                     }
                     DropdownMenu(
                         expanded = isLanguageMenuExpanded,
@@ -828,10 +881,20 @@ private fun SettingsScreenContent(
                             )
                         },
                         supportingContent = {
-                            Text(text = stringResource(settingsState.darkModeOption.labelRes))
+                            Text(
+                                text = stringResource(settingsState.darkModeOption.labelRes),
+                                modifier = Modifier.graphicsLayer {
+                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                                }
+                            )
                         }
                     ) {
-                        Text(text = stringResource(R.string.settings_dark_mode))
+                        Text(
+                            text = stringResource(R.string.settings_dark_mode),
+                            modifier = Modifier.graphicsLayer {
+                                translationY = if (isChinese) (-1).dp.toPx() else 0f
+                            }
+                        )
                     }
                     DropdownMenu(
                         expanded = isDarkModeMenuExpanded,
@@ -975,10 +1038,15 @@ private fun SettingsScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
                     leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_github),
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_github),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     },
                     supportingContent = {
                         Text(text = stringResource(R.string.settings_about_model_summary))
@@ -987,7 +1055,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_about_model))
+                    Text(
+                        text = stringResource(R.string.settings_about_model),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
 
                 EditorSegmentedListItem(
@@ -996,10 +1069,15 @@ private fun SettingsScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { pendingExternalUrl = DEVELOPER_X_URL },
                     leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_x),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_x),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     },
                     supportingContent = {
                         Text(text = stringResource(R.string.settings_about_contact_developer_summary))
@@ -1008,7 +1086,12 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 ) {
-                    Text(text = stringResource(R.string.settings_about_contact_developer))
+                    Text(
+                        text = stringResource(R.string.settings_about_contact_developer),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
 
                 EditorSegmentedListItem(
@@ -1029,7 +1112,12 @@ private fun SettingsScreenContent(
                         Text(text = appInfoSummary)
                     }
                 ) {
-                    Text(text = appName)
+                    Text(
+                        text = appName,
+                        modifier = Modifier.graphicsLayer {
+                            translationY = if (isChinese) (-1).dp.toPx() else 0f
+                        }
+                    )
                 }
             }
         }

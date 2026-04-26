@@ -724,7 +724,6 @@ private fun MedicationGroupEditorScreenContent(
                                 MedicationGroupMedicationCard(
                                     medication = medication,
                                     groupColorKey = uiState.groupColorKey,
-                                    appLocale = appLocale,
                                     onClick = { onMedicationClick(medication.localId) },
                                     onDecreaseClick = {
                                         if (shouldConfirmMedicationRemoval(medication.count)) {
@@ -840,7 +839,8 @@ private fun MedicationGroupEditorScreenContent(
                         toggleEnabled = notificationsToggleEnabled,
                         onToggle = onNotificationsEnabledChange,
                         index = 0,
-                        count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2
+                        count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2,
+                        appLocale = appLocale
                     )
                     when (notificationSupportState) {
                         NotificationSupportState.ACCESS_OFF -> {
@@ -1060,7 +1060,6 @@ private fun maybeRequestExactAlarmAccess(
 private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
     groupColorKey: MedicationGroupColorKey,
-    appLocale: java.util.Locale,
     onClick: () -> Unit,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,

@@ -309,6 +309,9 @@ private fun CalibrationUnitPreferenceItem(
     count: Int,
     onUnitChange: (BloodUnitKey) -> Unit,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -323,7 +326,9 @@ private fun CalibrationUnitPreferenceItem(
                 text = stringResource(calibrationAnalyteFullNameRes(analyteKey)),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
             ConnectedButtonGroup(
                 options = calibrationAllowedUnitsFor(analyteKey),
@@ -344,6 +349,9 @@ private fun CalibrationCustomAnalyteItem(
     count: Int,
     onClick: () -> Unit,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -373,7 +381,12 @@ private fun CalibrationCustomAnalyteItem(
             )
         }
     ) {
-        Text(text = customAnalyte.name)
+        Text(
+            text = customAnalyte.name,
+            modifier = Modifier.graphicsLayer {
+                translationY = if (isChinese) (-1).dp.toPx() else 0f
+            }
+        )
     }
 }
 

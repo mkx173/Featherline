@@ -255,6 +255,9 @@ private fun CalibrationInfoCard(
     panelCount: Int,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     EditorSegmentedListItem(
         onClick = {},
         index = 0,
@@ -268,12 +271,17 @@ private fun CalibrationInfoCard(
                 painter = painterResource(R.drawable.ic_experiment),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 text = stringResource(R.string.settings_calibration_info_message),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    }
             )
             Text(
                 text = pluralStringResource(
@@ -283,6 +291,9 @@ private fun CalibrationInfoCard(
                 ).uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.graphicsLayer {
+                    translationY = if (isChinese) (-1).dp.toPx() else 0f
+                }
             )
         }
     }
