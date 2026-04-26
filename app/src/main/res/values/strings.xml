@@ -278,6 +278,7 @@
     <string name="settings_calibration_results">Test results</string>
     <string name="settings_calibration_add_analyte">Add result</string>
     <string name="settings_calibration_value_label">Value</string>
+    <string name="settings_calibration_error_invalid_number">Enter a valid value.</string>
     <string name="settings_calibration_target_range">Target %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">Target &lt;%1$s %2$s</string>
     <string name="settings_calibration_range_status_above">Above</string>

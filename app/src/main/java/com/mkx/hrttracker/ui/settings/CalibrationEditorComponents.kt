@@ -39,7 +39,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -223,6 +222,7 @@ internal fun CalibrationNotesCard(
 internal fun CalibrationAnalyteCard(
     analyteKey: BloodAnalyteKey,
     valueText: String,
+    isError: Boolean = false,
     unit: BloodUnitKey,
     defaultUnit: BloodUnitKey,
     originalUnit: BloodUnitKey?,
@@ -236,28 +236,11 @@ internal fun CalibrationAnalyteCard(
         index = index,
         count = count
     ) {
-        var draftValueText by remember(analyteKey) { mutableStateOf(valueText) }
-        var latchedValueText by remember(analyteKey) { mutableStateOf(valueText) }
-        var latchedUnit by remember(analyteKey) { mutableStateOf(unit) }
-        var editedSinceLatch by remember(analyteKey) { mutableStateOf(false) }
-        LaunchedEffect(valueText, unit, editedSinceLatch) {
-            if (!editedSinceLatch) {
-                draftValueText = valueText
-                latchedValueText = valueText
-                latchedUnit = unit
-            }
-        }
         val rangeStatus = calibrationRangeStatus(
             analyteKey = analyteKey,
-            valueText = latchedValueText,
-            unit = latchedUnit,
+            valueText = valueText,
+            unit = unit,
         )
-        val isError = if (editedSinceLatch) {
-            false
-        } else {
-            val trimmed = latchedValueText.trim()
-            trimmed.isNotEmpty() && parseCalibrationNumericInput(trimmed) == null
-        }
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -314,32 +297,23 @@ internal fun CalibrationAnalyteCard(
                 }
             }
 
-            var wasFocused by remember { mutableStateOf(false) }
             val focusManager = LocalFocusManager.current
             OutlinedTextField(
-                value = draftValueText,
-                onValueChange = { newValue ->
-                    editedSinceLatch = true
-                    draftValueText = newValue
-                },
+                value = valueText,
+                onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .bringWholeFieldIntoView()
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused) {
-                            wasFocused = true
-                        } else if (wasFocused) {
-                            if (draftValueText != valueText) {
-                                onValueChange(draftValueText)
-                            }
-                            latchedValueText = draftValueText
-                            latchedUnit = unit
-                            editedSinceLatch = false
-                        }
-                    },
+                    .bringWholeFieldIntoView(),
                 isError = isError,
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
+                },
+                supportingText = if (isError) {
+                    {
+                        Text(text = stringResource(R.string.settings_calibration_error_invalid_number))
+                    }
+                } else {
+                    null
                 },
                 suffix = {
                     Text(text = calibrationUnitLabel(unit))
@@ -357,11 +331,11 @@ internal fun CalibrationAnalyteCard(
             val allowedUnits = remember(analyteKey) {
                 calibrationAllowedUnitsFor(analyteKey)
             }
-            val defaultUnitValueLabel = remember(latchedValueText, analyteKey, latchedUnit, defaultUnit) {
+            val defaultUnitValueLabel = remember(valueText, analyteKey, unit, defaultUnit) {
                 calibrationValueInPreferredUnitLabel(
                     analyteKey = analyteKey,
-                    valueText = latchedValueText,
-                    unit = latchedUnit,
+                    valueText = valueText,
+                    unit = unit,
                     preferredUnit = defaultUnit,
                 )
             }
@@ -426,12 +400,6 @@ internal fun CalibrationAnalyteCard(
                         }
                     },
                     onOptionSelected = { selectedUnit ->
-                        if (editedSinceLatch && draftValueText != valueText) {
-                            onValueChange(draftValueText)
-                        }
-                        latchedValueText = draftValueText
-                        latchedUnit = selectedUnit
-                        editedSinceLatch = false
                         onUnitChange(selectedUnit)
                     },
                     layout = ConnectedButtonGroupLayout.ROW,
@@ -448,6 +416,7 @@ internal fun CalibrationCustomAnalyteCard(
     name: String,
     unitLabel: String,
     valueText: String,
+    isError: Boolean = false,
     onValueChange: (String) -> Unit,
     onRemoveClick: () -> Unit,
     index: Int = 0,
@@ -458,14 +427,6 @@ internal fun CalibrationCustomAnalyteCard(
         count = count,
     ) {
         val focusManager = LocalFocusManager.current
-        var draftValueText by remember { mutableStateOf(valueText) }
-        var editedSinceLatch by remember { mutableStateOf(false) }
-        var wasFocused by remember { mutableStateOf(false) }
-        LaunchedEffect(valueText, editedSinceLatch) {
-            if (!editedSinceLatch) {
-                draftValueText = valueText
-            }
-        }
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small)),
@@ -515,26 +476,21 @@ internal fun CalibrationCustomAnalyteCard(
             }
 
             OutlinedTextField(
-                value = draftValueText,
-                onValueChange = { newValue ->
-                    editedSinceLatch = true
-                    draftValueText = newValue
-                },
+                value = valueText,
+                onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .bringWholeFieldIntoView()
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused) {
-                            wasFocused = true
-                        } else if (wasFocused) {
-                            if (draftValueText != valueText) {
-                                onValueChange(draftValueText)
-                            }
-                            editedSinceLatch = false
-                        }
-                    },
+                    .bringWholeFieldIntoView(),
+                isError = isError,
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
+                },
+                supportingText = if (isError) {
+                    {
+                        Text(text = stringResource(R.string.settings_calibration_error_invalid_number))
+                    }
+                } else {
+                    null
                 },
                 suffix = {
                     Text(text = unitLabel)

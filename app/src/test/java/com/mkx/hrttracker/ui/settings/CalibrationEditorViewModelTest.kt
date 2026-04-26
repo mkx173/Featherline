@@ -405,7 +405,7 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun canSaveCalibrationEditorState_requiresAllDraftsValidAndNonEmpty() {
+    fun canSaveCalibrationEditorState_requiresAllDraftsNonEmpty() {
         val emptyState = CalibrationEditorUiState()
         val e2Draft = emptyState.drafts.first { it.analyteKey == BloodAnalyteKey.E2 }
         val tDraft = emptyState.drafts.first { it.analyteKey == BloodAnalyteKey.T }
@@ -431,7 +431,7 @@ class CalibrationEditorViewModelTest {
                 tDraft.copy(valueText = "42"),
             ),
         )
-        assertFalse(canSaveCalibrationEditorState(invalidState))
+        assertTrue(canSaveCalibrationEditorState(invalidState))
 
         val oneRemainingValidState = emptyState.copy(
             drafts = listOf(e2Draft.copy(valueText = "95")),
@@ -440,6 +440,44 @@ class CalibrationEditorViewModelTest {
 
         val noDraftsState = emptyState.copy(drafts = emptyList())
         assertFalse(canSaveCalibrationEditorState(noDraftsState))
+    }
+
+    @Test
+    fun save_withInvalidNumericInput_marksDraftErrorAndClearsItOnNextEdit() = runTest {
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "abc")
+        viewModel.updateAnalyteValue(BloodAnalyteKey.T, "42")
+
+        assertTrue(canSaveCalibrationEditorState(viewModel.uiState.value))
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf(BloodAnalyteKey.E2.storageValue),
+            viewModel.uiState.value.invalidDraftKeys,
+        )
+        coVerify(exactly = 0) {
+            repository.savePanel(
+                uuid = any(),
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any(),
+            )
+        }
+
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+
+        assertTrue(viewModel.uiState.value.invalidDraftKeys.isEmpty())
     }
 
     @Test

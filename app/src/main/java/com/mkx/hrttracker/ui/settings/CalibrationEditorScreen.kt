@@ -327,6 +327,7 @@ private fun CalibrationEditorScreenContent(
                             count = totalCount,
                             analyteKey = analyteKey,
                             valueText = draft.valueText,
+                            isError = draft.draftKey in uiState.invalidDraftKeys,
                             unit = checkNotNull(draft.unit),
                             defaultUnit = checkNotNull(draft.defaultUnit),
                             originalUnit = draft.originalUnit,
@@ -345,6 +346,7 @@ private fun CalibrationEditorScreenContent(
                         name = checkNotNull(draft.customAnalyteName),
                         unitLabel = checkNotNull(draft.customUnitLabel),
                         valueText = draft.valueText,
+                        isError = draft.draftKey in uiState.invalidDraftKeys,
                         onValueChange = { value ->
                             onCustomAnalyteValueChange(
                                 checkNotNull(draft.customAnalyteUuid),

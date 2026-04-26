@@ -278,6 +278,7 @@
     <string name="settings_calibration_results">检查结果</string>
     <string name="settings_calibration_add_analyte">添加结果</string>
     <string name="settings_calibration_value_label">数值</string>
+    <string name="settings_calibration_error_invalid_number">请输入有效的数值</string>
     <string name="settings_calibration_target_range">目标 %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">目标 &lt;%1$s %2$s</string>
     <string name="settings_calibration_range_status_above">偏高</string>

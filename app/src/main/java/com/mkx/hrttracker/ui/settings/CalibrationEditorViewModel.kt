@@ -113,14 +113,20 @@ class CalibrationEditorViewModel @Inject constructor(
         value: String,
     ) {
         _uiState.update { state ->
-            state.copy(
-                drafts = state.drafts.map { draft ->
-                    if (matchesDraft(draft)) {
-                        draft.copy(valueText = value)
-                    } else {
-                        draft
-                    }
+            val updatedDrafts = state.drafts.map { draft ->
+                if (matchesDraft(draft)) {
+                    draft.copy(valueText = value)
+                } else {
+                    draft
                 }
+            }
+            state.copy(
+                drafts = updatedDrafts,
+                invalidDraftKeys = state.invalidDraftKeys.filterNot { invalidDraftKey ->
+                    updatedDrafts.any { draft ->
+                        draft.draftKey == invalidDraftKey && matchesDraft(draft)
+                    }
+                }.toSet(),
             )
         }
     }
@@ -200,9 +206,19 @@ class CalibrationEditorViewModel @Inject constructor(
         if (currentState.isSaving || currentState.isDeleting || !canSaveCalibrationEditorState(currentState)) {
             return
         }
+        val invalidDraftKeys = invalidCalibrationDraftKeys(currentState)
+        if (invalidDraftKeys.isNotEmpty()) {
+            _uiState.update { state ->
+                state.copy(invalidDraftKeys = invalidDraftKeys)
+            }
+            return
+        }
 
         _uiState.update { state ->
-            state.copy(isSaving = true)
+            state.copy(
+                isSaving = true,
+                invalidDraftKeys = emptySet(),
+            )
         }
 
         viewModelScope.launch {
@@ -445,6 +461,7 @@ data class CalibrationEditorUiState(
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
     val customAnalytes: List<CustomBloodAnalyte> = emptyList(),
+    val invalidDraftKeys: Set<String> = emptySet(),
     val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationAnalytes.map { analyteKey ->
         CalibrationResultDraftUiState(analyteKey = analyteKey)
     },
@@ -470,9 +487,18 @@ data class CalibrationResultDraftUiState(
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {
     if (state.drafts.isEmpty()) return false
     return state.drafts.all { draft ->
-        val trimmed = draft.valueText.trim()
-        trimmed.isNotEmpty() && parseCalibrationNumericInput(trimmed) != null
+        draft.valueText.trim().isNotEmpty()
     }
+}
+
+internal fun invalidCalibrationDraftKeys(state: CalibrationEditorUiState): Set<String> {
+    return state.drafts.mapNotNull { draft ->
+        if (parseCalibrationNumericInput(draft.valueText) == null) {
+            draft.draftKey
+        } else {
+            null
+        }
+    }.toSet()
 }
 
 internal fun calibrationAnalyteOptions(
