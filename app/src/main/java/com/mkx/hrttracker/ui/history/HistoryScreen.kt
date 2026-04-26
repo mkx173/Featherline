@@ -681,7 +681,7 @@ private fun HistoryMonthCalendar(
                         today = today,
                         dayStatus = dayStates[day.date]?.status,
                         isSelected = day.date == selectedDate &&
-                            day.position == DayPosition.MonthDate,
+                                day.position == DayPosition.MonthDate,
                         onClick = { date ->
                             val targetMonth = historyCalendarDayClickTargetMonth(
                                 position = day.position,
@@ -750,7 +750,8 @@ private fun HistoryCalendarLegendItem(
     ) {
         HistoryStatusIndicator(
             status = status,
-            colors = indicatorColors
+            colors = indicatorColors,
+            modifier = Modifier.size(12.dp)
         )
         Text(
             text = label,
@@ -1006,7 +1007,8 @@ private fun HistoryCalendarDayIndicator(
             scheduledMode = indicatorMode,
             partialMode = indicatorMode,
             selectedColor = selectedColor
-        )
+        ),
+        modifier = Modifier.size(12.dp)
     )
 }
 
@@ -1021,35 +1023,35 @@ private fun HistoryStatusIndicator(
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.NO_RECORD,
                 color = colors.neutral,
-                modifier = modifier.size(12.dp)
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.OFFPLAN -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.OFFPLAN,
                 color = colors.unplanned,
-                modifier = modifier.size(12.dp)
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.MISSED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.MISSED,
                 color = colors.scheduled,
-                modifier = modifier.size(12.dp)
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.PARTIAL -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.PARTIAL,
                 color = colors.partial,
-                modifier = modifier.size(12.dp)
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.FULFILLED -> {
             HistorySummaryIndicatorGlyph(
                 kind = HistorySummaryInlineStatKind.CHECK,
                 color = colors.fulfilled,
-                modifier = modifier.size(12.dp)
+                modifier = modifier
             )
         }
     }
@@ -1097,10 +1099,21 @@ private fun HistoryEntryGroupHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                HistoryStatusDot(
+                HistoryStatusIndicator(
                     status = dayStatus,
-                    isPastScheduled = dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today),
-                    isToday = isToday
+                    colors = historyIndicatorColors(
+                        scheduledMode = if (dayStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today)) {
+                            HistoryIndicatorColorMode.Emphasized
+                        } else {
+                            HistoryIndicatorColorMode.Neutral
+                        },
+                        partialMode = if (isToday) {
+                            HistoryIndicatorColorMode.Neutral
+                        } else {
+                            HistoryIndicatorColorMode.Emphasized
+                        }
+                    ),
+                    modifier = Modifier.size(14.dp)
                 )
                 Text(
                     text = label,
@@ -1159,31 +1172,6 @@ internal fun historyCalendarMonthTitleFormatter(appLocale: Locale): DateTimeForm
     } else {
         DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
     }
-}
-
-@Composable
-private fun HistoryStatusDot(
-    status: PlanCalendarDayStatus,
-    isPastScheduled: Boolean = false,
-    isToday: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    HistoryStatusIndicator(
-        status = status,
-        colors = historyIndicatorColors(
-            scheduledMode = if (isPastScheduled) {
-                HistoryIndicatorColorMode.Emphasized
-            } else {
-                HistoryIndicatorColorMode.Neutral
-            },
-            partialMode = if (isToday) {
-                HistoryIndicatorColorMode.Neutral
-            } else {
-                HistoryIndicatorColorMode.Emphasized
-            }
-        ),
-        modifier = modifier
-    )
 }
 
 private enum class HistoryIndicatorColorMode {
@@ -1253,9 +1241,7 @@ private fun HistoryEntryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val sourceVisual = remember(entry.scheduledFor != null) {
-        historySourceVisual(entry.scheduledFor != null)
-    }
+
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingText = buildHistoryEntrySupportingText(
         entry = entry,
@@ -1276,10 +1262,16 @@ private fun HistoryEntryCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
         leadingContent = {
-            Icon(
-                imageVector = sourceVisual.icon,
-                contentDescription = stringResource(sourceVisual.contentDescriptionRes),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            entry.scheduledFor?.let {
+                Icon(
+                    painter = painterResource(R.drawable.ic_calendar_clock),
+                    contentDescription = stringResource(R.string.history_entry_source_group_schedule),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } ?: Icon(
+                imageVector = Icons.Rounded.Edit,
+                contentDescription = stringResource(R.string.history_entry_source_manual),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         trailingContent = {
@@ -1464,25 +1456,6 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDisplayedMonthChange = { _, _ -> }
-        )
-    }
-}
-
-private data class HistorySourceVisual(
-    val icon: ImageVector,
-    val contentDescriptionRes: Int
-)
-
-private fun historySourceVisual(fulfillsSchedule: Boolean): HistorySourceVisual {
-    return if (fulfillsSchedule) {
-        HistorySourceVisual(
-            icon = Icons.Rounded.CalendarMonth,
-            contentDescriptionRes = R.string.history_entry_source_group_schedule
-        )
-    } else {
-        HistorySourceVisual(
-            icon = Icons.Rounded.Edit,
-            contentDescriptionRes = R.string.history_entry_source_manual
         )
     }
 }
