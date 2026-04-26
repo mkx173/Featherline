@@ -69,7 +69,7 @@ fun WeightDialog(
                     text = stringResource(R.string.personalization_weight_dialog_description)
                 )
                 OutlinedTextField(
-                    modifier = Modifier.height(68.dp).fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     value = valueText,
                     onValueChange = {
                         valueText = it

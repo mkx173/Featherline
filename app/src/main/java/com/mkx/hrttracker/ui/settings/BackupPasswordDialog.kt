@@ -224,7 +224,7 @@ private fun BackupPasswordField(
     onImeAction: () -> Unit = {},
 ) {
     OutlinedTextField(
-        modifier = modifier.height(68.dp).fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         value = value,
         onValueChange = onValueChange,
         label = { Text(text = label) },
