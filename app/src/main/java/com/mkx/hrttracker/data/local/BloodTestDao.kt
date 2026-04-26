@@ -93,7 +93,7 @@ interface BloodTestDao {
         """
         SELECT * FROM custom_blood_analytes
         WHERE archivedAtEpochMillis IS NULL
-        ORDER BY normalizedName ASC, normalizedUnitLabel ASC
+        ORDER BY createdAtEpochMillis ASC, normalizedName ASC, normalizedUnitLabel ASC
         """
     )
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyteEntity>

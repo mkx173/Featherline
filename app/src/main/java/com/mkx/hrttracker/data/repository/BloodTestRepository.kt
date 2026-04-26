@@ -110,6 +110,10 @@ class BloodTestRepository @Inject constructor(
         return databaseHolder.get().bloodTestDao()
             .getActiveCustomAnalytes()
             .map { analyte -> analyte.toModel() }
+            .sortedWith(
+                compareBy<CustomBloodAnalyte>({ it.createdAt }, { it.name.lowercase(Locale.ROOT) })
+                    .thenBy { it.unitLabel.lowercase(Locale.ROOT) }
+            )
     }
 
     suspend fun getCustomAnalytes(): List<CustomBloodAnalyte> {
@@ -156,6 +160,7 @@ class BloodTestRepository @Inject constructor(
             ?: UUID.randomUUID()
         val existingAnalyte = uuid?.let { dao.getCustomAnalyte(it.toString()) } ?: reusableArchivedDuplicate
         val nowEpochMillis = now.toEpochMilli()
+        val isRevivingArchivedDuplicate = reusableArchivedDuplicate != null && uuid == null
         val entity = CustomBloodAnalyteEntity(
             uuid = analyteUuid.toString(),
             abbreviation = trimmedAbbreviation,
@@ -163,7 +168,11 @@ class BloodTestRepository @Inject constructor(
             normalizedName = normalizedName,
             unitLabel = unitLabel.trim(),
             normalizedUnitLabel = normalizedUnitLabel,
-            createdAtEpochMillis = existingAnalyte?.createdAtEpochMillis ?: nowEpochMillis,
+            createdAtEpochMillis = if (isRevivingArchivedDuplicate) {
+                nowEpochMillis
+            } else {
+                existingAnalyte?.createdAtEpochMillis ?: nowEpochMillis
+            },
             updatedAtEpochMillis = nowEpochMillis,
             archivedAtEpochMillis = null,
         )

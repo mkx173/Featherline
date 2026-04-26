@@ -309,6 +309,8 @@ class BloodTestRepositoryTest {
 
         assertEquals(archivedUuid, restoredUuid)
         assertEquals(archivedUuid.toString(), captured.captured.uuid)
+        assertEquals(200L, captured.captured.createdAtEpochMillis)
+        assertEquals(200L, captured.captured.updatedAtEpochMillis)
         assertNull(captured.captured.archivedAtEpochMillis)
         coVerify(exactly = 1) { dao.updateCustomAnalyte(any()) }
     }
@@ -354,22 +356,34 @@ class BloodTestRepositoryTest {
     }
 
     @Test
-    fun getActiveCustomAnalytes_maps_archive_state() = runTest {
-        val analyteUuid = UUID.randomUUID()
+    fun getActiveCustomAnalytes_orders_oldest_first() = runTest {
+        val newerAnalyteUuid = UUID.randomUUID()
+        val olderAnalyteUuid = UUID.randomUUID()
         coEvery { dao.getActiveCustomAnalytes() } returns listOf(
             customAnalyte(
-                uuid = analyteUuid,
+                uuid = newerAnalyteUuid,
                 name = "DHT",
                 unitLabel = "ng/dL",
+                createdAtEpochMillis = 200L,
+                archivedAtEpochMillis = null
+            ),
+            customAnalyte(
+                uuid = olderAnalyteUuid,
+                name = "Prog",
+                unitLabel = "ng/mL",
+                createdAtEpochMillis = 100L,
                 archivedAtEpochMillis = null
             )
         )
 
         val analytes = repository.getActiveCustomAnalytes()
 
-        assertEquals(1, analytes.size)
-        assertEquals(analyteUuid, analytes.single().uuid)
-        assertNull(analytes.single().archivedAt)
+        assertEquals(
+            listOf(olderAnalyteUuid, newerAnalyteUuid),
+            analytes.map { it.uuid }
+        )
+        assertNull(analytes.first().archivedAt)
+        assertNull(analytes.last().archivedAt)
     }
 
     @Test
