@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
+import com.mkx.hrttracker.data.backup.PreparedBackupExport
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
@@ -151,13 +152,37 @@ class SettingsViewModel @Inject constructor(
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
 
-    suspend fun exportBackup(
-        directoryUri: Uri,
+    suspend fun prepareBackupExport(
         password: String,
-    ): BackupExportedFile {
-        return backupExportService.exportBackup(
-            directoryUri = directoryUri,
+    ): PreparedBackupExport {
+        return backupExportService.prepareBackupExport(
             password = password,
+        )
+    }
+
+    suspend fun exportPreparedBackup(
+        directoryUri: Uri,
+        preparedBackupExport: PreparedBackupExport,
+    ): BackupExportedFile {
+        return backupExportService.exportPreparedBackup(
+            directoryUri = directoryUri,
+            preparedBackupExport = preparedBackupExport,
+        )
+    }
+
+    suspend fun discardPreparedBackup(
+        preparedBackupExport: PreparedBackupExport,
+    ) {
+        backupExportService.discardPreparedBackup(preparedBackupExport)
+    }
+
+    fun restorePreparedBackupExport(
+        displayName: String,
+        tempFilePath: String,
+    ): PreparedBackupExport {
+        return backupExportService.restorePreparedBackupExport(
+            displayName = displayName,
+            tempFilePath = tempFilePath,
         )
     }
 

@@ -154,4 +154,64 @@ class AppLockViewModelTest {
         assertTrue(viewModel.uiState.value.isUnlocked)
         assertNull(viewModel.uiState.value.pendingPrompt)
     }
+
+    @Test
+    fun externalActivityBypass_cancelPending_before_background_does_not_bypass_lock() = runTest {
+        val viewModel = AppLockViewModel(
+            settingsRepository = settingsRepository,
+            appLockSecurityManager = appLockSecurityManager,
+            elapsedRealtimeProvider = elapsedRealtimeProvider,
+        )
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isUnlocked)
+
+        viewModel.allowNextExternalActivityBypass()
+        viewModel.cancelPendingExternalActivityBypass()
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlocked)
+        assertNotNull(viewModel.uiState.value.pendingPrompt)
+    }
+
+    @Test
+    fun externalActivityBypass_stale_pending_background_does_not_bypass_lock() = runTest {
+        every { elapsedRealtimeProvider.now() } returnsMany listOf(
+            1_000L,
+            1_000L + AppLockViewModel.EXTERNAL_ACTIVITY_BYPASS_ARM_TIMEOUT_MILLIS + 1L,
+        )
+
+        val viewModel = AppLockViewModel(
+            settingsRepository = settingsRepository,
+            appLockSecurityManager = appLockSecurityManager,
+            elapsedRealtimeProvider = elapsedRealtimeProvider,
+        )
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isUnlocked)
+
+        viewModel.allowNextExternalActivityBypass()
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlocked)
+        assertNotNull(viewModel.uiState.value.pendingPrompt)
+    }
 }

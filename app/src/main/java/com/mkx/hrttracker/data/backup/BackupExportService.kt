@@ -23,6 +23,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
@@ -61,33 +62,91 @@ class BackupExportService @Inject constructor(
         }
     }
 
-    suspend fun exportBackup(
-        directoryUri: Uri,
+    suspend fun prepareBackupExport(
         password: String,
         exportedAt: Instant = Instant.now(),
-    ): BackupExportedFile = withContext(Dispatchers.IO) {
-        persistDirectoryAccess(directoryUri)
+    ): PreparedBackupExport = withContext(Dispatchers.IO) {
         val displayName = buildBackupFileName(exportedAt)
-        val documentUri = createBackupDocument(
-            directoryUri = directoryUri,
-            displayName = displayName,
-        )
         val payload = buildEncryptedBackupBytes(
             password = password,
             exportedAt = exportedAt,
         )
+        val tempFile = File.createTempFile(
+            PREPARED_BACKUP_FILE_PREFIX,
+            PREPARED_BACKUP_FILE_SUFFIX,
+            context.cacheDir,
+        )
 
         try {
-            context.contentResolver.openOutputStream(documentUri)?.use { outputStream ->
-                outputStream.write(payload)
-            } ?: throw IOException("Unable to open an output stream for backup export.")
+            try {
+                tempFile.outputStream().use { outputStream ->
+                    outputStream.write(payload)
+                }
+            } catch (error: Exception) {
+                tempFile.delete()
+                throw error
+            }
         } finally {
             payload.fill(0)
         }
 
-        BackupExportedFile(
+        PreparedBackupExport(
             displayName = displayName,
-            uri = documentUri,
+            tempFilePath = tempFile.absolutePath,
+        )
+    }
+
+    suspend fun exportPreparedBackup(
+        directoryUri: Uri,
+        preparedBackupExport: PreparedBackupExport,
+    ): BackupExportedFile = withContext(Dispatchers.IO) {
+        persistDirectoryAccess(directoryUri)
+        val tempFile = File(preparedBackupExport.tempFilePath)
+        if (!tempFile.exists()) {
+            throw IOException("Prepared backup payload is no longer available.")
+        }
+
+        var documentUri: Uri? = null
+        try {
+            documentUri = createBackupDocument(
+                directoryUri = directoryUri,
+                displayName = preparedBackupExport.displayName,
+            )
+            context.contentResolver.openOutputStream(documentUri)?.use { outputStream ->
+                tempFile.inputStream().use { inputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            } ?: throw IOException("Unable to open an output stream for backup export.")
+
+            BackupExportedFile(
+                displayName = preparedBackupExport.displayName,
+                uri = documentUri,
+            )
+        } catch (error: Exception) {
+            documentUri?.let { createdDocumentUri ->
+                runCatching {
+                    DocumentsContract.deleteDocument(context.contentResolver, createdDocumentUri)
+                }
+            }
+            throw error
+        } finally {
+            discardPreparedBackup(preparedBackupExport)
+        }
+    }
+
+    suspend fun discardPreparedBackup(
+        preparedBackupExport: PreparedBackupExport,
+    ) = withContext(Dispatchers.IO) {
+        File(preparedBackupExport.tempFilePath).delete()
+    }
+
+    internal fun restorePreparedBackupExport(
+        displayName: String,
+        tempFilePath: String,
+    ): PreparedBackupExport {
+        return PreparedBackupExport(
+            displayName = displayName,
+            tempFilePath = tempFilePath,
         )
     }
 
@@ -325,12 +384,19 @@ class BackupExportService @Inject constructor(
             DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
 
         private const val BACKUP_MIME_TYPE = "application/octet-stream"
+        private const val PREPARED_BACKUP_FILE_PREFIX = "prepared-backup-"
+        private const val PREPARED_BACKUP_FILE_SUFFIX = ".tmp"
     }
 }
 
 data class BackupExportedFile(
     val displayName: String,
     val uri: Uri,
+)
+
+data class PreparedBackupExport(
+    val displayName: String,
+    val tempFilePath: String,
 )
 
 private data class BackupMedicationFields(

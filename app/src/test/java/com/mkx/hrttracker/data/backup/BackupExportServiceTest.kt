@@ -37,11 +37,15 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -60,10 +64,13 @@ class BackupExportServiceTest {
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupExportService
+    private lateinit var cacheDir: File
 
     @Before
     fun setUp() {
         every { context.packageName } returns "com.mkx.hrttracker"
+        cacheDir = Files.createTempDirectory("backup-export-service-test-").toFile()
+        every { context.cacheDir } returns cacheDir
         backupCrypto = BackupCrypto(TestBackupArgon2KeyDeriver())
         service = BackupExportService(
             context = context,
@@ -74,6 +81,11 @@ class BackupExportServiceTest {
             bloodTestRepository = bloodTestRepository,
             backupCrypto = backupCrypto,
         )
+    }
+
+    @After
+    fun tearDown() {
+        cacheDir.deleteRecursively()
     }
 
     @Test
@@ -379,6 +391,27 @@ class BackupExportServiceTest {
         assertTrue(encryptedBytes.copyOfRange(0, BackupCrypto.MAGIC_BYTES.size).contentEquals(BackupCrypto.MAGIC_BYTES))
         assertTrue(!encryptedBytes.toString(Charsets.UTF_8).contains("\"packageName\""))
         assertNotNull(BackupSnapshotJsonCodec.decode(decryptedJson))
+    }
+
+    @Test
+    fun prepareBackupExport_creates_temp_payload_and_discardPreparedBackup_removes_it() = runTest {
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val preparedBackupExport = service.prepareBackupExport(password = "secret123")
+        val tempFile = File(preparedBackupExport.tempFilePath)
+
+        assertTrue(tempFile.exists())
+        assertTrue(tempFile.length() > 0L)
+
+        service.discardPreparedBackup(preparedBackupExport)
+
+        assertFalse(tempFile.exists())
     }
 
     @Test

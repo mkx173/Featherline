@@ -90,4 +90,22 @@ class BackupCryptoTest {
         )
         assertEquals("""{"snapshotVersion":1}""", decryptedBytes.toString(Charsets.UTF_8))
     }
+
+    @Test
+    fun decrypt_rejects_truncated_v2_header_without_buffer_underflow() {
+        val truncatedBytes = ByteArray(BackupCrypto.MAGIC_BYTES.size + 10)
+        BackupCrypto.MAGIC_BYTES.copyInto(truncatedBytes, destinationOffset = 0)
+        truncatedBytes[BackupCrypto.MAGIC_BYTES.size] =
+            BackupCrypto.CURRENT_BACKUP_CONTAINER_VERSION.toByte()
+
+        try {
+            backupCrypto.decrypt(
+                encryptedBytes = truncatedBytes,
+                password = "secret".toCharArray(),
+            )
+            fail("Expected truncated v2 backup headers to be rejected.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
 }

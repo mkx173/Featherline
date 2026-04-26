@@ -277,7 +277,7 @@ class BackupCrypto internal constructor(
     private fun parseContainer(
         encryptedBytes: ByteArray,
     ): ParsedBackupContainer {
-        require(encryptedBytes.size > FIXED_HEADER_LENGTH_V1) {
+        require(encryptedBytes.size > MAGIC_BYTES.size) {
             "Backup file is too small to be valid."
         }
 
@@ -289,15 +289,25 @@ class BackupCrypto internal constructor(
         }
 
         return when (val backupVersion = buffer.get().toInt() and BYTE_MASK) {
-            LEGACY_BACKUP_CONTAINER_VERSION -> parseLegacyPbkdf2Container(
-                encryptedBytes = encryptedBytes,
-                buffer = buffer,
-            )
+            LEGACY_BACKUP_CONTAINER_VERSION -> {
+                require(encryptedBytes.size >= FIXED_HEADER_LENGTH_V1) {
+                    "Backup file header is truncated."
+                }
+                parseLegacyPbkdf2Container(
+                    encryptedBytes = encryptedBytes,
+                    buffer = buffer,
+                )
+            }
 
-            CURRENT_BACKUP_CONTAINER_VERSION -> parseArgon2Container(
-                encryptedBytes = encryptedBytes,
-                buffer = buffer,
-            )
+            CURRENT_BACKUP_CONTAINER_VERSION -> {
+                require(encryptedBytes.size >= FIXED_HEADER_LENGTH_V2) {
+                    "Backup file header is truncated."
+                }
+                parseArgon2Container(
+                    encryptedBytes = encryptedBytes,
+                    buffer = buffer,
+                )
+            }
 
             else -> throw IllegalArgumentException(
                 "Unsupported backup file version: $backupVersion."

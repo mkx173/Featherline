@@ -38,3 +38,9 @@ google-services.json
 
 # Claude design
 hrt-tracker/
+
+# Documents
+docs/
+
+# Backups
+hrttracker-backup*
