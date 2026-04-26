@@ -261,11 +261,10 @@ private fun CalibrationInfoCard(
                 painter = painterResource(R.drawable.ic_experiment),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
             )
             Text(
                 text = stringResource(R.string.settings_calibration_info_message),
-                style = MaterialTheme.typography.labelMediumEmphasized,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )

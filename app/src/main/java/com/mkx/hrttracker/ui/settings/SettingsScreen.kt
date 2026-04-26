@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -73,6 +75,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -641,30 +644,39 @@ private fun SettingsScreenContent(
                 )
             ) {
                 EditorSegmentedListItem(
-                    index = 0,
-                    count = securityItemCount,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         onScreenLockProtectionToggle(
                             !settingsState.screenLockProtectionEnabled
                         )
                     },
-                    leadingContent = {
+                    index = 0,
+                    count = securityItemCount,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.Lock
                         )
-                    },
-                    supportingContent = {
-                        Text(text = stringResource(R.string.settings_screen_lock_protection_summary))
-                    },
-                    trailingContent = {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_screen_lock_protection),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_screen_lock_protection_summary),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
                             checked = settingsState.screenLockProtectionEnabled,
                             onCheckedChange = onScreenLockProtectionToggle
                         )
                     }
-                ) {
-                    Text(text = stringResource(R.string.settings_screen_lock_protection))
                 }
 
                 if (settingsState.screenLockProtectionEnabled) {
@@ -704,30 +716,39 @@ private fun SettingsScreenContent(
                 }
 
                 EditorSegmentedListItem(
-                    index = if (settingsState.screenLockProtectionEnabled) 2 else 1,
-                    count = securityItemCount,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         onHideScreenContentEnabledChange(
                             !settingsState.hideScreenContentEnabled
                         )
                     },
-                    leadingContent = {
+                    index = if (settingsState.screenLockProtectionEnabled) 2 else 1,
+                    count = securityItemCount,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.VisibilityOff
                         )
-                    },
-                    supportingContent = {
-                        Text(text = stringResource(R.string.settings_hide_screen_content_summary))
-                    },
-                    trailingContent = {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_hide_screen_content),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_hide_screen_content_summary),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
                             checked = settingsState.hideScreenContentEnabled,
                             onCheckedChange = onHideScreenContentEnabledChange
                         )
                     }
-                ) {
-                    Text(text = stringResource(R.string.settings_hide_screen_content))
                 }
             }
 
