@@ -450,6 +450,14 @@ fun StructuredMedicationEditorSheet(
                             field = field
                         ),
                     )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets,
+                        onPresetClick = { preset ->
+                            val resolvedPreset =
+                                preset as MedicationDoseAssistPreset.GelEquivalentEstradiolMg
+                            onDoseMgChange(resolvedPreset.valueMg)
+                        },
+                    )
                 }
 
                 MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
@@ -976,6 +984,11 @@ private fun DoseAssistPresetRow(
 private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
     return when (preset) {
         is MedicationDoseAssistPreset.MgAsMedicine -> stringResource(
+            R.string.medication_editor_dose_assist_mg,
+            preset.valueMg
+        )
+
+        is MedicationDoseAssistPreset.GelEquivalentEstradiolMg -> stringResource(
             R.string.medication_editor_dose_assist_mg,
             preset.valueMg
         )

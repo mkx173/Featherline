@@ -231,6 +231,11 @@ fun MedicationDraftUiState.applyDoseAssistPreset(
             doseMg = preset.valueMg
         )
 
+        is MedicationDoseAssistPreset.GelEquivalentEstradiolMg -> copy(
+            doseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
+            doseMg = preset.valueMg
+        )
+
         is MedicationDoseAssistPreset.GelPercent -> copy(
             doseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
             gelPercent = preset.percent

@@ -203,6 +203,12 @@ sealed interface MedicationDoseAssistPreset {
         override val doseKind: MedicationDoseKind = MedicationDoseKind.MG_AS_MEDICINE
     }
 
+    data class GelEquivalentEstradiolMg(
+        val valueMg: String,
+    ) : MedicationDoseAssistPreset {
+        override val doseKind: MedicationDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG
+    }
+
     data class GelPercent(
         val percent: String,
     ) : MedicationDoseAssistPreset {
@@ -318,6 +324,10 @@ object MedicationCatalog {
                     ),
                     defaultDoseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
                     doseAssistPresets = mapOf(
+                        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG to listOf(
+                            MedicationDoseAssistPreset.GelEquivalentEstradiolMg("0.75"),
+                            MedicationDoseAssistPreset.GelEquivalentEstradiolMg("1.5"),
+                        ),
                         MedicationDoseKind.GEL_PERCENT_AND_WEIGHT to listOf(
                             MedicationDoseAssistPreset.GelPercent(
                                 percent = "0.06",

@@ -307,6 +307,38 @@ class MedicationEditorModelsTest {
     }
 
     @Test
+    fun gel_catalog_exposes_presets_for_each_gel_dose_kind() {
+        val equivalentPresets = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).activeDoseAssistPresets()
+        val percentAndWeightPresets = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).changeDoseKind(
+            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT
+        ).activeDoseAssistPresets()
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.GelEquivalentEstradiolMg("0.75"),
+                MedicationDoseAssistPreset.GelEquivalentEstradiolMg("1.5"),
+            ),
+            equivalentPresets
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.GelPercent("0.06"),
+                MedicationDoseAssistPreset.GelPercent("0.3"),
+                MedicationDoseAssistPreset.GelPercent("0.6"),
+                MedicationDoseAssistPreset.GelWeightGrams("1.25"),
+                MedicationDoseAssistPreset.GelWeightGrams("2.5"),
+            ),
+            percentAndWeightPresets
+        )
+    }
+
+    @Test
     fun applying_gel_quick_dose_presets_updates_individual_fields() {
         val base = defaultMedicationDraft(
             category = MedicationCategory.ESTRADIOL,
@@ -323,6 +355,19 @@ class MedicationEditorModelsTest {
         assertEquals("0.3", withPercent.gelPercent)
         assertEquals("", withPercent.gelWeightGrams)
         assertEquals("2.5", withWeight.gelWeightGrams)
+    }
+
+    @Test
+    fun applying_gel_equivalent_quick_dose_preset_updates_dose_mg() {
+        val updated = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL
+        ).applyDoseAssistPreset(
+            MedicationDoseAssistPreset.GelEquivalentEstradiolMg("1.5")
+        )
+
+        assertEquals(MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG, updated.doseKind)
+        assertEquals("1.5", updated.doseMg)
     }
 
     @Test
