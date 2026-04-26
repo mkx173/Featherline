@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -112,22 +113,28 @@ fun WeightDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { submit() }) {
-                Text(text = stringResource(R.string.personalization_weight_dialog_save))
-            }
-        },
-        dismissButton = {
-            Row {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 if (profile.weightOriginalValue != null) {
                     TextButton(onClick = onClear) {
                         Text(text = stringResource(R.string.personalization_weight_dialog_clear))
                     }
                 }
-                TextButton(onClick = onDismiss) {
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = onDismiss,
+                ) {
                     Text(text = stringResource(R.string.cancel))
                 }
+                TextButton(
+                    onClick = { submit() },
+                ) {
+                    Text(text = stringResource(R.string.personalization_weight_dialog_save))
+                }
             }
-        }
+        },
     )
 }
 
