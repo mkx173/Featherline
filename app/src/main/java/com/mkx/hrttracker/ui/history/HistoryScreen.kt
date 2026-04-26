@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,8 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -113,11 +115,9 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
-import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -299,7 +299,7 @@ private fun HistoryScreenContent(
             .coerceAtLeast(uiState.calendarStartMonth)
         val rangeEndMonth = displayedMonth.yearMonth.plusMonths(2)
             .coerceAtMost(uiState.calendarEndMonth)
-        buildPlanCalendarDayUiState(
+        buildHistoryCalendarDayUiState(
             groups = uiState.medicationGroups,
             entries = uiState.entries,
             startDate = rangeStartMonth.atDay(1),
@@ -561,6 +561,7 @@ private fun HistoryScreenContent(
                             date = date,
                             today = today,
                             dayStatus = monthDayStates[date]?.status ?: PlanCalendarDayStatus.NONE,
+                            hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
                             entryCount = dateEntries.size,
                             appLocale = appLocale
                         )
@@ -756,7 +757,7 @@ private fun HistorySummaryIndicatorGlyph(
     modifier: Modifier = Modifier
 ) {
     val imageVector = when (kind) {
-        HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.Check
+        HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.CheckCircleOutline
         HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.Contrast
         HistorySummaryInlineStatKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
         HistorySummaryInlineStatKind.OFFPLAN -> Icons.Rounded.Circle
@@ -776,7 +777,7 @@ private fun HistoryMonthCalendar(
     displayedMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
-    dayStates: Map<LocalDate, com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState>,
+    dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
     appLocale: Locale,
     selectedDate: LocalDate?,
     onDayClick: (LocalDate) -> Unit,
@@ -823,10 +824,12 @@ private fun HistoryMonthCalendar(
                 state = calendarState,
                 monthHeader = { _ -> },
                 dayContent = { day ->
+                    val dayState = dayStates[day.date] ?: HistoryCalendarDayUiState()
                     HistoryCalendarDay(
                         day = day,
                         today = today,
-                        dayStatus = dayStates[day.date]?.status,
+                        dayStatus = dayState.status,
+                        hasOffPlanRecord = dayState.hasOffPlanRecord,
                         isSelected = day.date == selectedDate &&
                                 day.position == DayPosition.MonthDate,
                         onClick = { date ->
@@ -1030,7 +1033,8 @@ private fun HistoryCalendarNavigationButton(
 private fun HistoryCalendarDay(
     day: CalendarDay,
     today: LocalDate,
-    dayStatus: PlanCalendarDayStatus?,
+    dayStatus: PlanCalendarDayStatus,
+    hasOffPlanRecord: Boolean,
     isSelected: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
@@ -1057,6 +1061,15 @@ private fun HistoryCalendarDay(
         isToday -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val indicatorStatus = historyCalendarIndicatorStatus(
+        date = day.date,
+        today = today,
+        dayStatus = dayStatus
+    )
+    val showOffPlanBadge = historyShouldShowOffPlanBadge(
+        status = indicatorStatus,
+        hasOffPlanRecord = !day.date.isAfter(today) && hasOffPlanRecord
+    )
 
     Box(
         modifier = modifier
@@ -1090,11 +1103,8 @@ private fun HistoryCalendarDay(
                 date = day.date,
                 today = today,
                 isSelected = isSelected,
-                dayStatus = historyCalendarIndicatorStatus(
-                    date = day.date,
-                    today = today,
-                    dayStatus = dayStatus ?: PlanCalendarDayStatus.NONE
-                )
+                dayStatus = indicatorStatus,
+                showOffPlanBadge = showOffPlanBadge,
             )
         }
     }
@@ -1143,7 +1153,8 @@ private fun HistoryCalendarDayIndicator(
     date: LocalDate,
     today: LocalDate,
     isSelected: Boolean,
-    dayStatus: PlanCalendarDayStatus
+    dayStatus: PlanCalendarDayStatus,
+    showOffPlanBadge: Boolean,
 ) {
     val indicatorMode = if (date.isBefore(today)) {
         HistoryIndicatorColorMode.Emphasized
@@ -1163,7 +1174,8 @@ private fun HistoryCalendarDayIndicator(
             partialMode = indicatorMode,
             selectedColor = selectedColor
         ),
-        modifier = Modifier.size(12.dp)
+        modifier = Modifier.size(12.dp),
+        showOffPlanBadge = showOffPlanBadge
     )
 }
 
@@ -1171,7 +1183,33 @@ private fun HistoryCalendarDayIndicator(
 private fun HistoryStatusIndicator(
     status: PlanCalendarDayStatus,
     colors: HistoryIndicatorColors,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showOffPlanBadge: Boolean = false,
+) {
+    Box(modifier = modifier) {
+        HistoryPrimaryStatusIndicator(
+            status = status,
+            colors = colors,
+            modifier = modifier
+        )
+
+        if (showOffPlanBadge) {
+            Badge(
+                containerColor = colors.unplanned,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+//                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryPrimaryStatusIndicator(
+    status: PlanCalendarDayStatus,
+    colors: HistoryIndicatorColors,
+    modifier: Modifier = Modifier,
 ) {
     when (status) {
         PlanCalendarDayStatus.NONE -> {
@@ -1217,6 +1255,7 @@ private fun HistoryEntryGroupHeader(
     date: LocalDate,
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasOffPlanRecord: Boolean,
     entryCount: Int,
     appLocale: Locale,
     modifier: Modifier = Modifier
@@ -1234,6 +1273,10 @@ private fun HistoryEntryGroupHeader(
     val weekdayLabel = remember(date, appLocale) {
         date.dayOfWeek.getDisplayName(TextStyle.SHORT, appLocale)
     }
+    val showOffPlanBadge = historyShouldShowOffPlanBadge(
+        status = dayStatus,
+        hasOffPlanRecord = hasOffPlanRecord
+    )
 
     Row(
         modifier = modifier
@@ -1269,7 +1312,8 @@ private fun HistoryEntryGroupHeader(
                             HistoryIndicatorColorMode.Emphasized
                         }
                     ),
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(14.dp),
+                    showOffPlanBadge = showOffPlanBadge
                 )
                 Text(
                     text = label,
@@ -1282,7 +1326,7 @@ private fun HistoryEntryGroupHeader(
                     },
                     modifier = Modifier.alignByBaseline().graphicsLayer {
                         translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    },
+                    }
                 )
                 Text(
                     text = weekdayLabel.uppercase(),
@@ -1577,6 +1621,13 @@ private fun HistoryScreenMonthPreview() {
             onDisplayedMonthChange = { _, _ -> }
         )
     }
+}
+
+private fun historyShouldShowOffPlanBadge(
+    status: PlanCalendarDayStatus,
+    hasOffPlanRecord: Boolean
+): Boolean {
+    return hasOffPlanRecord && status != PlanCalendarDayStatus.OFFPLAN
 }
 
 @Preview(

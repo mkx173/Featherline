@@ -1,12 +1,21 @@
 package com.mkx.hrttracker.ui.history
 
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isScheduledOn
+import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
+import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.UUID
+
+data class HistoryCalendarDayUiState(
+    val status: PlanCalendarDayStatus = PlanCalendarDayStatus.NONE,
+    val hasOffPlanRecord: Boolean = false,
+)
 
 data class HistoryMonthSummary(
     val logged: Int = 0,
@@ -83,7 +92,7 @@ internal fun shouldClearHistorySelectionOnMonthChange(
 internal fun buildHistoryMonthSummary(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,
-    dayStates: Map<LocalDate, PlanCalendarDayUiState>,
+    dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
     today: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): HistoryMonthSummary {
@@ -100,7 +109,8 @@ internal fun buildHistoryMonthSummary(
 
     while (!currentDate.isAfter(endDate)) {
         if (!currentDate.isAfter(today)) {
-            when (dayStates[currentDate]?.status ?: PlanCalendarDayStatus.NONE) {
+            val dayState = dayStates[currentDate] ?: HistoryCalendarDayUiState()
+            when (dayState.status) {
                 PlanCalendarDayStatus.FULFILLED -> onTrack++
                 PlanCalendarDayStatus.PARTIAL -> partial++
                 PlanCalendarDayStatus.MISSED -> {
@@ -108,9 +118,11 @@ internal fun buildHistoryMonthSummary(
                         missed++
                     }
                 }
-                PlanCalendarDayStatus.OFFPLAN -> offPlan++
-                PlanCalendarDayStatus.NONE,
-                -> Unit
+                PlanCalendarDayStatus.OFFPLAN,
+                PlanCalendarDayStatus.NONE -> Unit
+            }
+            if (dayState.hasOffPlanRecord) {
+                offPlan++
             }
         }
         currentDate = currentDate.plusDays(1)
@@ -123,6 +135,46 @@ internal fun buildHistoryMonthSummary(
         missed = missed,
         offPlan = offPlan
     )
+}
+
+internal fun buildHistoryCalendarDayUiState(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    startDate: LocalDate,
+    endDate: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): Map<LocalDate, HistoryCalendarDayUiState> {
+    val planDayStates = buildPlanCalendarDayUiState(
+        groups = groups,
+        entries = entries,
+        startDate = startDate,
+        endDate = endDate
+    )
+    val entriesByDate = entries.groupBy { entry ->
+        entry.appliedAt.atZone(zoneId).toLocalDate()
+    }
+
+    val dayStates = linkedMapOf<LocalDate, HistoryCalendarDayUiState>()
+    var currentDate = startDate
+
+    while (!currentDate.isAfter(endDate)) {
+        val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(currentDate) }
+        val dayEntries = entriesByDate[currentDate].orEmpty()
+        val primaryState = planDayStates[currentDate] ?: PlanCalendarDayUiState()
+        dayStates[currentDate] = HistoryCalendarDayUiState(
+            status = primaryState.status,
+            hasOffPlanRecord = dayEntries.any { entry ->
+                isHistoryOffPlanEntry(
+                    entry = entry,
+                    scheduledGroups = scheduledGroups,
+                    date = currentDate,
+                )
+            }
+        )
+        currentDate = currentDate.plusDays(1)
+    }
+
+    return dayStates
 }
 
 internal fun groupHistoryEntriesByDate(
@@ -155,4 +207,27 @@ internal fun historyEntryTapAction(
     } else {
         HistoryEntryTapAction.TOGGLE_SELECTION
     }
+}
+
+private fun isHistoryOffPlanEntry(
+    entry: MedicationLogEntry,
+    scheduledGroups: List<MedicationGroup>,
+    date: LocalDate,
+): Boolean {
+    val sourceGroupUuid = entry.sourceGroupUuid ?: return true
+    val scheduledFor = entry.scheduledFor ?: return true
+    if (scheduledFor.toLocalDate() != date) {
+        return true
+    }
+
+    val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
+        ?: return true
+    if (scheduledFor.toLocalTime() !in group.schedule.times) {
+        return true
+    }
+
+    val requiredSignatures = group.medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .keys
+    return MedicationSignature.fromLogEntry(entry) !in requiredSignatures
 }

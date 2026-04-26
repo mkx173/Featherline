@@ -2,18 +2,23 @@ package com.mkx.hrttracker.ui.history
 
 import com.kizitonwose.calendar.core.DayPosition
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
-import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
@@ -223,6 +228,81 @@ class HistoryUiModelsTest {
         assertEquals(1, summary.partial)
         assertEquals(1, summary.missed)
         assertEquals(1, summary.offPlan)
+    }
+
+    @Test
+    fun buildHistoryMonthSummary_counts_off_plan_days_even_when_primary_status_is_fulfilled() {
+        val summary = buildHistoryMonthSummary(
+            entries = listOf(entryAt(LocalDateTime.of(2026, 4, 10, 8, 0))),
+            displayedMonth = YearMonth.of(2026, 4),
+            dayStates = mapOf(
+                LocalDate.of(2026, 4, 10) to stateFor(
+                    status = PlanCalendarDayStatus.FULFILLED,
+                    hasOffPlanRecord = true
+                )
+            ),
+            today = LocalDate.of(2026, 4, 20)
+        )
+
+        assertEquals(1, summary.onTrack)
+        assertEquals(1, summary.offPlan)
+    }
+
+    @Test
+    fun buildHistoryCalendarDayUiState_keeps_primary_status_and_tracks_same_day_off_plan_records() {
+        val group = MedicationGroup(
+            uuid = UUID.fromString("9420e8eb-379e-4e28-9ed9-d4e01a845744"),
+            name = "Estradiol",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("88ceb348-79c3-42e8-b7ca-d7db366d51d8"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            ),
+            createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
+            updatedAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0))
+        )
+
+        val dayStates = buildHistoryCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("9c6b8810-0f6a-49ec-b4c1-d6777f5f3d91"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    ),
+                    dosageMgAsEstradiol = 2.0,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 8, 0)),
+                    scheduledFor = LocalDateTime.of(2026, 4, 10, 8, 0)
+                ),
+                entryAt(LocalDateTime.of(2026, 4, 10, 20, 0))
+            ),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10)
+        )
+
+        assertEquals(
+            HistoryCalendarDayUiState(
+                status = PlanCalendarDayStatus.FULFILLED,
+                hasOffPlanRecord = true
+            ),
+            dayStates.getValue(LocalDate.of(2026, 4, 10))
+        )
     }
 
     @Test
@@ -457,13 +537,31 @@ class HistoryUiModelsTest {
         )
     }
 
-    private fun stateFor(status: PlanCalendarDayStatus): PlanCalendarDayUiState {
+    private fun stateFor(
+        status: PlanCalendarDayStatus,
+        hasOffPlanRecord: Boolean = status == PlanCalendarDayStatus.OFFPLAN
+    ): HistoryCalendarDayUiState {
         return when (status) {
-            PlanCalendarDayStatus.NONE -> PlanCalendarDayUiState()
-            PlanCalendarDayStatus.OFFPLAN -> PlanCalendarDayUiState(hasOffPlanRecord = true)
-            PlanCalendarDayStatus.MISSED -> PlanCalendarDayUiState(expectedOccurrenceCount = 1)
-            PlanCalendarDayStatus.PARTIAL -> PlanCalendarDayUiState(expectedOccurrenceCount = 2, matchedOccurrenceCount = 1)
-            PlanCalendarDayStatus.FULFILLED -> PlanCalendarDayUiState(expectedOccurrenceCount = 1, matchedOccurrenceCount = 1)
+            PlanCalendarDayStatus.NONE -> HistoryCalendarDayUiState(
+                status = status,
+                hasOffPlanRecord = hasOffPlanRecord
+            )
+            PlanCalendarDayStatus.OFFPLAN -> HistoryCalendarDayUiState(
+                status = status,
+                hasOffPlanRecord = hasOffPlanRecord
+            )
+            PlanCalendarDayStatus.MISSED -> HistoryCalendarDayUiState(
+                status = status,
+                hasOffPlanRecord = hasOffPlanRecord
+            )
+            PlanCalendarDayStatus.PARTIAL -> HistoryCalendarDayUiState(
+                status = status,
+                hasOffPlanRecord = hasOffPlanRecord
+            )
+            PlanCalendarDayStatus.FULFILLED -> HistoryCalendarDayUiState(
+                status = status,
+                hasOffPlanRecord = hasOffPlanRecord
+            )
         }
     }
 
