@@ -650,6 +650,9 @@ private fun CalibrationPanelMetadataRow(
     remainingResultCount: Int,
     hasNotes: Boolean,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     if (timeSinceLastEstradiolDoseMillis == null && remainingResultCount <= 0 && !hasNotes) {
         return
     }
@@ -668,7 +671,9 @@ private fun CalibrationPanelMetadataRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp).graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    },
                 )
             }
         }
@@ -685,7 +690,9 @@ private fun CalibrationPanelMetadataRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp).graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    },
                 )
             }
         }

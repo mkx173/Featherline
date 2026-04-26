@@ -48,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -463,6 +464,9 @@ private fun CalibrationAddAnalyteSheetContent(
     onAnalyteClick: (CalibrationAddAnalyteOption) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val appLocale = rememberAppLocale()
+    val isChinese = appLocale.language == "zh"
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -540,7 +544,12 @@ private fun CalibrationAddAnalyteSheetContent(
                     )
                 }
             ) {
-                Text(text = title)
+                Text(
+                    text = title,
+                    modifier = Modifier.graphicsLayer {
+                        translationY = if (isChinese) (-1).dp.toPx() else 0f
+                    }
+                )
             }
         }
     }

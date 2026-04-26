@@ -487,7 +487,7 @@ private fun CalibrationCustomAnalyteDialog(
                 )
             ) {
                 OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.height(68.dp).fillMaxWidth(),
                     value = nameText,
                     onValueChange = { value ->
                         nameText = value
@@ -521,6 +521,7 @@ private fun CalibrationCustomAnalyteDialog(
                 )
                 OutlinedTextField(
                     modifier = Modifier
+                        .height(68.dp)
                         .fillMaxWidth()
                         .focusRequester(abbreviationFocusRequester),
                     value = abbreviationText,
@@ -564,6 +565,7 @@ private fun CalibrationCustomAnalyteDialog(
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         modifier = Modifier
+                            .height(68.dp)
                             .fillMaxWidth()
                             .focusRequester(unitFocusRequester),
                         value = unitText,

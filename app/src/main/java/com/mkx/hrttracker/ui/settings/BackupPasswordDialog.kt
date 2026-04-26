@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 
 @Composable
@@ -222,7 +224,7 @@ private fun BackupPasswordField(
     onImeAction: () -> Unit = {},
 ) {
     OutlinedTextField(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.height(68.dp).fillMaxWidth(),
         value = value,
         onValueChange = onValueChange,
         label = { Text(text = label) },
