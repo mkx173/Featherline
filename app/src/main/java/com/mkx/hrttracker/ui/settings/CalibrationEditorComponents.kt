@@ -47,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -226,6 +228,9 @@ internal fun CalibrationAnalyteCard(
     unit: BloodUnitKey,
     defaultUnit: BloodUnitKey,
     originalUnit: BloodUnitKey?,
+    focusRequester: FocusRequester? = null,
+    nextFocusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Done,
     onValueChange: (String) -> Unit,
     onUnitChange: (BloodUnitKey) -> Unit,
     onRemoveClick: () -> Unit,
@@ -303,7 +308,14 @@ internal fun CalibrationAnalyteCard(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .bringWholeFieldIntoView(),
+                    .bringWholeFieldIntoView()
+                    .then(
+                        if (focusRequester != null) {
+                            Modifier.focusRequester(focusRequester)
+                        } else {
+                            Modifier
+                        }
+                    ),
                 isError = isError,
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
@@ -321,9 +333,16 @@ internal fun CalibrationAnalyteCard(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
-                    imeAction = ImeAction.Done,
+                    imeAction = imeAction,
                 ),
                 keyboardActions = KeyboardActions(
+                    onNext = {
+                        if (nextFocusRequester != null) {
+                            nextFocusRequester.requestFocus()
+                        } else {
+                            focusManager.clearFocus()
+                        }
+                    },
                     onDone = { focusManager.clearFocus() }
                 ),
             )
@@ -417,6 +436,9 @@ internal fun CalibrationCustomAnalyteCard(
     unitLabel: String,
     valueText: String,
     isError: Boolean = false,
+    focusRequester: FocusRequester? = null,
+    nextFocusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Done,
     onValueChange: (String) -> Unit,
     onRemoveClick: () -> Unit,
     index: Int = 0,
@@ -480,7 +502,14 @@ internal fun CalibrationCustomAnalyteCard(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .bringWholeFieldIntoView(),
+                    .bringWholeFieldIntoView()
+                    .then(
+                        if (focusRequester != null) {
+                            Modifier.focusRequester(focusRequester)
+                        } else {
+                            Modifier
+                        }
+                    ),
                 isError = isError,
                 label = {
                     Text(text = stringResource(R.string.settings_calibration_value_label))
@@ -498,9 +527,16 @@ internal fun CalibrationCustomAnalyteCard(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
-                    imeAction = ImeAction.Done,
+                    imeAction = imeAction,
                 ),
                 keyboardActions = KeyboardActions(
+                    onNext = {
+                        if (nextFocusRequester != null) {
+                            nextFocusRequester.requestFocus()
+                        } else {
+                            focusManager.clearFocus()
+                        }
+                    },
                     onDone = { focusManager.clearFocus() }
                 ),
             )
@@ -520,6 +556,14 @@ internal fun CalibrationCustomAnalyteCard(
                 )
             }
         }
+    }
+}
+
+internal fun calibrationEditorAnalyteImeAction(index: Int, count: Int): ImeAction {
+    return if (index >= count - 1) {
+        ImeAction.Done
+    } else {
+        ImeAction.Next
     }
 }
 

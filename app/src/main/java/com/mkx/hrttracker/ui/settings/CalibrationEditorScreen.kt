@@ -48,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -234,6 +235,11 @@ private fun CalibrationEditorScreenContent(
         !uiState.isDeleting
     val remainingAnalyteCount = addAnalyteOptions.size
     var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
+    val analyteFocusRequesters = remember(uiState.drafts.map { it.draftKey }) {
+        uiState.drafts.associate { draft ->
+            draft.draftKey to FocusRequester()
+        }
+    }
 
     LaunchedEffect(uiState.panelUuid, uiState.isLoading) {
         if (!uiState.isLoading) {
@@ -322,6 +328,9 @@ private fun CalibrationEditorScreenContent(
                     val totalCount = uiState.drafts.size
 
                     draft.analyteKey?.let { analyteKey ->
+                        val nextFocusRequester = uiState.drafts
+                            .getOrNull(index + 1)
+                            ?.let { nextDraft -> analyteFocusRequesters.getValue(nextDraft.draftKey) }
                         CalibrationAnalyteCard(
                             index = index,
                             count = totalCount,
@@ -331,6 +340,9 @@ private fun CalibrationEditorScreenContent(
                             unit = checkNotNull(draft.unit),
                             defaultUnit = checkNotNull(draft.defaultUnit),
                             originalUnit = draft.originalUnit,
+                            focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
+                            nextFocusRequester = nextFocusRequester,
+                            imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
                             onValueChange = { value ->
                                 onBuiltinAnalyteValueChange(analyteKey, value)
                             },
@@ -340,6 +352,11 @@ private fun CalibrationEditorScreenContent(
                             onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
                         )
                     } ?: CalibrationCustomAnalyteCard(
+                        focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
+                        nextFocusRequester = uiState.drafts
+                            .getOrNull(index + 1)
+                            ?.let { nextDraft -> analyteFocusRequesters.getValue(nextDraft.draftKey) },
+                        imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
                         index = index,
                         count = totalCount,
                         abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
