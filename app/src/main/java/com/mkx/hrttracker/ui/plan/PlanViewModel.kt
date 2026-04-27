@@ -44,7 +44,7 @@ class PlanViewModel @Inject constructor(
         currentDateTime
     ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
-        val groups = groupsOrNull.orEmpty()
+        val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
         val entries = entriesOrNull.orEmpty()
         val today = now.toLocalDate()
         val calendarRange = buildPlanCalendarRange(
@@ -110,6 +110,13 @@ class PlanViewModel @Inject constructor(
         const val UPCOMING_OCCURRENCES_LIMIT = 3
         const val CURRENT_TIME_REFRESH_INTERVAL_MILLIS = 60_000L
     }
+}
+
+internal fun sortPlanMedicationGroups(groups: List<MedicationGroup>): List<MedicationGroup> {
+    return groups.sortedWith(
+        compareBy<MedicationGroup> { it.createdAt }
+            .thenBy { it.uuid }
+    )
 }
 
 internal fun buildNextOccurrencesByGroup(

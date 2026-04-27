@@ -311,7 +311,9 @@ internal fun RegimenGroupCard(
         index = 0,
         count = 1
     ) {
-        Column {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -415,8 +417,6 @@ internal fun RegimenGroupCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -434,14 +434,10 @@ internal fun RegimenGroupCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             HorizontalDivider(
                 modifier = Modifier.padding(top = 2.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
