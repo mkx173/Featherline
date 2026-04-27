@@ -63,9 +63,9 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DatePickerModal
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -536,21 +536,20 @@ private fun CalibrationAddAnalyteSheetContent(
                 is CalibrationAddAnalyteOption.Custom -> Icons.Rounded.Edit
             }
 
-            EditorSegmentedListItem(
+            PreferenceSegmentedListItem(
+                title = title,
+                supportingText = supportingText,
                 index = index,
                 count = availableAnalytes.size,
                 onClick = { onAnalyteClick(option) },
-                modifier = Modifier.fillMaxWidth(),
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                titleColor = MaterialTheme.colorScheme.onSurface,
                 leadingContent = {
                     Icon(
                         imageVector = leadingIconVector,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                },
-                supportingContent = {
-                    Text(text = supportingText)
                 },
                 trailingContent = {
                     Icon(
@@ -559,12 +558,7 @@ private fun CalibrationAddAnalyteSheetContent(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            ) {
-                Text(
-                    text = title,
-                    modifier = Modifier.cjkTextOffset(title)
-                )
-            }
+            )
         }
     }
 }

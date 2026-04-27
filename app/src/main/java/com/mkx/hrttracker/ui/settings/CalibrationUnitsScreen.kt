@@ -70,6 +70,7 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -305,24 +306,15 @@ private fun CalibrationUnitPreferenceItem(
     count: Int,
     onUnitChange: (BloodUnitKey) -> Unit,
 ) {
-    EditorSegmentedListItem(
+    val title = stringResource(calibrationAnalyteFullNameRes(analyteKey))
+    PreferenceSegmentedListItem(
+        title = title,
         index = index,
         count = count,
         onClick = {},
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = stringResource(calibrationAnalyteFullNameRes(analyteKey)),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .weight(1f)
-                    .cjkTextOffset(stringResource(calibrationAnalyteFullNameRes(analyteKey)))
-            )
+        titleTextStyle = MaterialTheme.typography.labelLarge,
+        titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        trailingContent = {
             ConnectedButtonGroup(
                 options = calibrationAllowedUnitsFor(analyteKey),
                 selectedOption = selectedUnit,
@@ -331,8 +323,8 @@ private fun CalibrationUnitPreferenceItem(
                 layout = ConnectedButtonGroupLayout.ROW,
                 applyCjkTextOffset = false
             )
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -342,25 +334,22 @@ private fun CalibrationCustomAnalyteItem(
     count: Int,
     onClick: () -> Unit,
 ) {
-    EditorSegmentedListItem(
+    val supportingText = buildString {
+        append(customAnalyte.abbreviation)
+        append(" - ")
+        append(customAnalyte.unitLabel)
+    }
+    PreferenceSegmentedListItem(
+        title = customAnalyte.name,
+        supportingText = supportingText,
         index = index,
         count = count,
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
         leadingContent = {
             Icon(
                 imageVector = Icons.Rounded.Edit,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-            )
-        },
-        supportingContent = {
-            Text(
-                text = buildString {
-                    append(customAnalyte.abbreviation)
-                    append(" - ")
-                    append(customAnalyte.unitLabel)
-                }
             )
         },
         trailingContent = {
@@ -370,12 +359,7 @@ private fun CalibrationCustomAnalyteItem(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    ) {
-        Text(
-            text = customAnalyte.name,
-            modifier = Modifier.cjkTextOffset(customAnalyte.name)
-        )
-    }
+    )
 }
 
 @Composable
