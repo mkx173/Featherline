@@ -24,7 +24,6 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -38,6 +37,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -47,6 +47,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.formatSummary
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
@@ -178,17 +180,19 @@ internal fun SelectedDaySection(
                 )
             }
         } else {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+            ) {
                 rows.forEachIndexed { index, row ->
-                    if (index > 0) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    }
                     when (row) {
                         is SelectedDayRowModel.Scheduled -> {
                             SelectedDayRow(
                                 date = date,
                                 today = today,
                                 row = row,
+                                index = index,
+                                itemCount = rows.size,
                                 timeFormatter = timeFormatter,
                                 onClick = { onScheduledClick(row.entry) }
                             )
@@ -199,6 +203,8 @@ internal fun SelectedDaySection(
                                 date = date,
                                 today = today,
                                 row = row,
+                                index = index,
+                                itemCount = rows.size,
                                 timeFormatter = timeFormatter,
                                 onClick = { onUnplannedClick(row.entry) }
                             )
@@ -215,6 +221,8 @@ private fun SelectedDayRow(
     date: LocalDate,
     today: LocalDate,
     row: SelectedDayRowModel,
+    index: Int,
+    itemCount: Int,
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
@@ -262,57 +270,64 @@ private fun SelectedDayRow(
     }
     val titleText = medicationDisplayName(row.details)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        SelectedDayRowLeading(
-            state = rowState,
-            colorScheme = rowColorScheme
-        )
-        Box(
-            modifier = Modifier
-                .size(width = 4.dp, height = 40.dp)
-                .background(
-                    color = rowColorScheme.primary,
-                    shape = RoundedCornerShape(3.dp)
+    EditorSegmentedListItem(
+        index = index,
+        count = itemCount,
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        trailingContent = {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = timeLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End
                 )
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = titleText,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = supportingText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                Text(
+                    text = labelText.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = labelColor,
+                    textAlign = TextAlign.End
+                )
+            }
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = timeLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SelectedDayRowLeading(
+                state = rowState,
+                colorScheme = rowColorScheme
             )
-            Text(
-                text = labelText,
-                style = MaterialTheme.typography.labelSmall,
-                color = labelColor
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 40.dp)
+                    .background(
+                        color = rowColorScheme.primary,
+                        shape = RoundedCornerShape(3.dp)
+                    )
             )
+            Column(
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = titleText,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.cjkTextOffset(titleText),
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -807,6 +822,8 @@ private fun SelectedDayRowPreview() {
             date = uiState.selectedDate,
             today = uiState.today,
             row = row,
+            index = 0,
+            itemCount = 1,
             timeFormatter = timeFormatter,
             onClick = { }
         )
@@ -828,6 +845,8 @@ private fun SelectedDayManualRowPreview() {
                 entry = entry,
                 sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
             ),
+            index = 0,
+            itemCount = 1,
             timeFormatter = timeFormatter,
             onClick = { }
         )

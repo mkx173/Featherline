@@ -139,6 +139,7 @@ internal fun MedicationCard(
                 Text(
                     text = supportingText,
                     style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.cjkTextOffset(supportingText),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
