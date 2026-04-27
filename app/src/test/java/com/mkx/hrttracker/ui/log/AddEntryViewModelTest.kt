@@ -304,6 +304,58 @@ class AddEntryViewModelTest {
     }
 
     @Test
+    fun saveEntry_whenSchedulerFails_marksEntrySaved() = runTest {
+        val entryId = UUID.fromString("fa9154d0-af8d-44f8-a565-46d6708ebcf2")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medication = any(),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.saveEntryResult)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medication = any(),
+                sourceGroupUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
     fun deleteEntry_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
         val entryId = UUID.fromString("20de422b-b620-474f-b2d0-0e56389ebf74")
         val entry = testMedicationLogEntry(
@@ -337,5 +389,39 @@ class AddEntryViewModelTest {
         assertNull(viewModel.uiState.value.deleteEntryResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteEntry_whenSchedulerFails_marksEntryDeleted() = runTest {
+        val entryId = UUID.fromString("d800fa8b-71a6-48f7-9424-275d6bb56243")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery { medicationLogRepository.deleteEntries(listOf(entryId)) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.deleteEntry()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.deleteEntryResult)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 }

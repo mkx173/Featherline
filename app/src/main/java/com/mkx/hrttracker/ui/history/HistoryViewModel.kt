@@ -204,13 +204,13 @@ class HistoryViewModel @Inject constructor(
 
             val result = runCatching {
                 medicationLogRepository.deleteEntries(entryIdsToDelete)
-                medicationReminderScheduler.rescheduleAll()
             }.fold(
                 onSuccess = { HistoryDeleteSelectedEntriesResult.SUCCESS },
                 onFailure = { HistoryDeleteSelectedEntriesResult.FAILURE },
             )
 
             if (result == HistoryDeleteSelectedEntriesResult.SUCCESS) {
+                runCatching { medicationReminderScheduler.rescheduleAll() }
                 selectedEntryIds.value = emptySet()
             }
             isDeletingSelectedEntries.value = false
@@ -230,11 +230,13 @@ class HistoryViewModel @Inject constructor(
             isDeletingAllEntries.value = true
             val result = runCatching {
                 medicationLogRepository.deleteAllEntries()
-                medicationReminderScheduler.rescheduleAll()
             }.fold(
                 onSuccess = { HistoryDeleteAllEntriesResult.SUCCESS },
                 onFailure = { HistoryDeleteAllEntriesResult.FAILURE },
             )
+            if (result == HistoryDeleteAllEntriesResult.SUCCESS) {
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
             isDeletingAllEntries.value = false
             deleteAllEntriesResult.value = result
         }

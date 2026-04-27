@@ -179,12 +179,14 @@ class AddEntryViewModel @Inject constructor(
                         count = resolvedCount
                     )
                 }
-                medicationReminderScheduler.rescheduleAll()
             }.fold(
                 onSuccess = { null },
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
+            if (isSaved) {
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
 
             _uiState.update {
                 it.copy(
@@ -218,12 +220,14 @@ class AddEntryViewModel @Inject constructor(
 
             val result = runCatching {
                 medicationLogRepository.deleteEntries(editingEntryUuids)
-                medicationReminderScheduler.rescheduleAll()
             }.fold(
                 onSuccess = { null },
                 onFailure = { DeleteEntryResult.FAILURE },
             )
             val isDeleted = result == null
+            if (isDeleted) {
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
 
             _uiState.update {
                 it.copy(

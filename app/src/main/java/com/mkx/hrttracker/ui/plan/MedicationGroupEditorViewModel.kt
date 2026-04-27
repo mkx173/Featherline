@@ -398,8 +398,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
 
-            val saveResult = runCatching {
-                val savedGroupUuid = medicationGroupRepository.saveGroup(
+            val savedGroupUuidResult = runCatching {
+                medicationGroupRepository.saveGroup(
                     uuid = currentState.editingGroupId?.let(UUID::fromString),
                     name = resolvedGroupName,
                     colorKey = currentState.groupColorKey,
@@ -430,12 +430,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     },
                     notificationsEnabled = currentState.notificationsEnabled
                 )
-                medicationReminderScheduler.rescheduleGroup(savedGroupUuid)
-            }.fold(
+            }
+            val saveResult = savedGroupUuidResult.fold(
                 onSuccess = { null },
                 onFailure = { SaveMedicationGroupResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val savedGroupUuid = savedGroupUuidResult.getOrNull()
+            if (savedGroupUuid != null) {
+                runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+            }
 
             _uiState.update {
                 it.copy(
@@ -444,6 +448,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         it.groupName
                     },
+                    editingGroupId = savedGroupUuid?.toString() ?: it.editingGroupId,
                     isSaving = false,
                     isSaved = isSaved,
                     saveMedicationGroupResult = saveResult,
@@ -507,11 +512,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
             val result = runCatching {
                 medicationLogRepository.deleteEntriesForGroup(uuid)
-                medicationReminderScheduler.rescheduleAll()
             }.fold(
                 onSuccess = { DeleteRelatedEntriesResult.SUCCESS },
                 onFailure = { DeleteRelatedEntriesResult.FAILURE },
             )
+            if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
 
             _uiState.update {
                 it.copy(

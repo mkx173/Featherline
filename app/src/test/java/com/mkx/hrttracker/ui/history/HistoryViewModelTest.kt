@@ -90,6 +90,44 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun deleteAllEntries_whenSchedulerFails_stillReportsSuccess() = runTest {
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0),
+                    ),
+                    sourceGroupUuid = null,
+                    appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+                )
+            )
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteAllEntries() } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        advanceUntilIdle()
+
+        viewModel.deleteAllEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingAllEntries)
+        assertEquals(
+            HistoryDeleteAllEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteAllEntriesResult,
+        )
+        coVerify(exactly = 1) { medicationLogRepository.deleteAllEntries() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
     fun deleteSelectedEntries_updatesUiStateWithSuccessResult() = runTest {
         val entry = testMedicationLogEntry(
             details = testCatalogMedicationDetails(
@@ -128,6 +166,44 @@ class HistoryViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.deleteSelectedEntriesResult)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteSelectedEntries_whenSchedulerFails_stillReportsSuccessAndClearsSelection() = runTest {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteEntries(setOf(entry.uuid)) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleEntrySelection(entry.uuid)
+        viewModel.showDeleteConfirmation()
+        viewModel.deleteSelectedEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingSelectedEntries)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+        assertEquals(
+            HistoryDeleteSelectedEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteSelectedEntriesResult,
+        )
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }

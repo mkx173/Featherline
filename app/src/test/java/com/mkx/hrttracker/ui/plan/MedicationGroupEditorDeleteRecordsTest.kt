@@ -133,6 +133,51 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun deleteRelatedEntries_whenSchedulerFails_stillReportsSuccess() = runTest {
+        val groupUuid = UUID.fromString("1a7b1eb7-79f8-43a6-80ee-86821fc60fa3")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+                )
+            )
+        )
+        coEvery { medicationLogRepository.deleteEntriesForGroup(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } throws RuntimeException("schedule failed")
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.showDeleteRelatedEntriesConfirmation()
+        viewModel.deleteRelatedEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingRelatedEntries)
+        assertEquals(
+            DeleteRelatedEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteRelatedEntriesResult,
+        )
+        assertEquals(0, viewModel.uiState.value.relatedEntryCount)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntriesForGroup(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
     fun deleteGroupAndRelatedEntries_deletesGroupRecordsAndMarksEditorDeleted() = runTest {
         val groupUuid = UUID.fromString("9bd82f30-b6eb-495e-b894-48a1779fd5d7")
         val group = testMedicationGroup(groupUuid)
@@ -271,6 +316,59 @@ class MedicationGroupEditorDeleteRecordsTest {
             )
         }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleGroup(any()) }
+    }
+
+    @Test
+    fun saveNewGroup_whenSchedulerFails_marksSavedAndStoresReturnedGroupId() = runTest {
+        val savedGroupUuid = UUID.fromString("c8ca8614-dce8-4f12-afd8-f75ab4db249c")
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+            )
+        } returns savedGroupUuid
+        coEvery {
+            medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any())
+        } throws RuntimeException("schedule failed")
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+        )
+        advanceUntilIdle()
+        viewModel.showAddMedicationEditor()
+        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.saveEditingMedication()
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertEquals(true, viewModel.uiState.value.isSaved)
+        assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
+        assertNull(viewModel.uiState.value.saveMedicationGroupResult)
+        coVerify(exactly = 1) {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }
 }
 
