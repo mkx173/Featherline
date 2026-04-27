@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 fun SupportMessageListItem(
     text: String,
     modifier: Modifier = Modifier,
+    supportingText: String? = null,
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
     icon: ImageVector? = null,
@@ -29,12 +31,15 @@ fun SupportMessageListItem(
     count: Int = 1,
     trailingContent: (@Composable () -> Unit)? = null,
     textStyle: TextStyle = MaterialTheme.typography.labelMedium,
+    supportingTextStyle: TextStyle? = null,
+    titleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
         PreferenceSegmentedListItem(
             title = text,
+            supportingText = supportingText,
             index = index,
             count = count,
             onClick = onClick ?: {},
@@ -77,7 +82,8 @@ fun SupportMessageListItem(
                 null
             },
             titleTextStyle = textStyle,
-            titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            supportingTextStyle = supportingTextStyle,
+            titleColor = titleColor,
         )
     }
 }

@@ -240,7 +240,14 @@ private fun CalibrationScreenContent(
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
         ) {
             item(key = "calibration-info") {
-                CalibrationInfoCard(panelCount = uiState.panels.size)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.list_segment_gap)
+                    )
+                ) {
+                    CalibrationTargetRangeCard(settingsState = uiState.settingsState)
+                    CalibrationInfoCard(panelCount = uiState.panels.size)
+                }
             }
 
             item {
@@ -340,9 +347,9 @@ private fun CalibrationInfoCard(
 ) {
     SupportMessageListItem(
         text = stringResource(R.string.settings_calibration_info_message),
-        painter = painterResource(R.drawable.ic_experiment),
-        index = 0,
-        count = 1,
+        painter = painterResource(R.drawable.ic_lab_panel),
+        index = 1,
+        count = 2,
         modifier = modifier,
         trailingContent = {
             val totalCountLabel = pluralStringResource(
@@ -358,6 +365,64 @@ private fun CalibrationInfoCard(
             )
         },
     )
+}
+
+@Composable
+private fun CalibrationTargetRangeCard(
+    settingsState: SettingsState,
+    modifier: Modifier = Modifier,
+) {
+    SupportMessageListItem(
+        supportingText = calibrationHistoryTargetRangeSummary(settingsState),
+        text = stringResource(R.string.settings_calibration_target_ranges_title),
+        painter = painterResource(R.drawable.ic_bloodtype),
+        index = 0,
+        count = 2,
+        modifier = modifier,
+        textStyle = MaterialTheme.typography.titleMedium,
+        supportingTextStyle = MaterialTheme.typography.labelMedium.copy(
+            fontWeight = FontWeight.Normal
+        ),
+        titleColor = MaterialTheme.colorScheme.onSurface
+    )
+}
+
+@Composable
+private fun calibrationHistoryTargetRangeSummary(
+    settingsState: SettingsState,
+): String {
+    val estradiolTarget = calibrationHistoryTargetValueLabel(
+        analyteKey = BloodAnalyteKey.E2,
+        unit = defaultCalibrationUnitFor(BloodAnalyteKey.E2, settingsState),
+    )
+    val testosteroneTarget = calibrationHistoryTargetValueLabel(
+        analyteKey = BloodAnalyteKey.T,
+        unit = defaultCalibrationUnitFor(BloodAnalyteKey.T, settingsState),
+    )
+
+    return buildString {
+        estradiolTarget?.let { target ->
+            append(
+                stringResource(
+                    R.string.settings_calibration_target_range_line,
+                    stringResource(R.string.medication_category_estradiol),
+                    target,
+                )
+            )
+        }
+        testosteroneTarget?.let { target ->
+            if (isNotEmpty()) {
+                appendLine()
+            }
+            append(
+                stringResource(
+                    R.string.settings_calibration_target_range_line,
+                    stringResource(R.string.medication_category_testosterone),
+                    target,
+                )
+            )
+        }
+    }
 }
 
 @Composable
@@ -1083,6 +1148,28 @@ internal fun calibrationTargetLabel(
         )
         is CalibrationCanonicalTarget.UpperBound -> stringResource(
             R.string.settings_calibration_target_upper,
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            unitLabel,
+        )
+    }
+}
+
+@Composable
+private fun calibrationHistoryTargetValueLabel(
+    analyteKey: BloodAnalyteKey,
+    unit: BloodUnitKey,
+): String? {
+    val target = calibrationCanonicalTargets[analyteKey] ?: return null
+    val unitLabel = formatCalibrationUnitLabel(unit.storageValue)
+    return when (target) {
+        is CalibrationCanonicalTarget.Range -> stringResource(
+            R.string.settings_calibration_target_range_value,
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.low, unit)),
+            formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
+            unitLabel,
+        )
+        is CalibrationCanonicalTarget.UpperBound -> stringResource(
+            R.string.settings_calibration_target_upper_value,
             formatCalibrationTargetValue(BloodTestCatalog.fromCanonical(analyteKey, target.high, unit)),
             unitLabel,
         )

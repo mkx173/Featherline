@@ -306,6 +306,8 @@
     <string name="settings_calibration_error_invalid_number">Enter a valid value.</string>
     <string name="settings_calibration_target_range">Target %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">Target &lt;%1$s %2$s</string>
+    <string name="settings_calibration_target_range_value">%1$s-%2$s %3$s</string>
+    <string name="settings_calibration_target_upper_value">&lt;%1$s %2$s</string>
     <string name="settings_calibration_range_status_above">Above</string>
     <string name="settings_calibration_range_status_below">Below</string>
     <string name="settings_calibration_range_status_in_range">In range</string>
@@ -346,6 +348,8 @@
         <item quantity="other">%1$d total</item>
     </plurals>
     <string name="settings_calibration_info_message">Log blood test results to refine plasma concentration estimates.</string>
+    <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
+    <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>

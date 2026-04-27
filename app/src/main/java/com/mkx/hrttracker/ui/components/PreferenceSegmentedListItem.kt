@@ -82,7 +82,10 @@ fun PreferenceSegmentedListItem(
                     )
                 }
             }
-            trailingContent?.invoke()
+            if (trailingContent != null) {
+                Spacer(modifier = Modifier.width(12.dp))
+                trailingContent()
+            }
         }
     }
 }
