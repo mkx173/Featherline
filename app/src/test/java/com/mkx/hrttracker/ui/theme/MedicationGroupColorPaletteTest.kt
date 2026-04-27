@@ -28,4 +28,22 @@ class MedicationGroupColorPaletteTest {
             assertEquals(seedColor, medicationGroupSeedColor(colorKey))
         }
     }
+
+    @Test
+    fun manualMedicationColors_returns_light_manual_palette() {
+        val colors = manualMedicationColors(darkTheme = false)
+
+        assertEquals(Color(0xFF555B69), colors.primary)
+        assertEquals(Color(0xFFDFDFE6), colors.secondaryContainer)
+        assertEquals(Color(0xFF616268), colors.onSecondaryContainer)
+    }
+
+    @Test
+    fun manualMedicationColors_returns_dark_manual_palette() {
+        val colors = manualMedicationColors(darkTheme = true)
+
+        assertEquals(Color(0xFFC1C6D6), colors.primary)
+        assertEquals(Color(0xFF47494F), colors.secondaryContainer)
+        assertEquals(Color(0xFFB7B8BF), colors.onSecondaryContainer)
+    }
 }

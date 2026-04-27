@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,11 +57,13 @@ internal fun MedicationCard(
     onDeleteClick: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     extraSupportingText: String? = null,
+    colorScheme: ColorScheme? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     index: Int = 0,
     itemCount: Int = 1
 ) {
-    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
+    val fallbackColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
+    val groupColorScheme = colorScheme ?: fallbackColorScheme
     val applicationTypeIcon = rememberMedicationApplicationIcons()
         .getValue(details.applicationType)
     val applicationTypeLabel = stringResource(details.applicationType.labelRes)
@@ -106,8 +109,8 @@ internal fun MedicationCard(
             Surface(
                 modifier = Modifier.size(36.dp),
                 shape = MaterialTheme.shapes.small,
-                color = groupColorScheme.primaryContainer,
-                contentColor = groupColorScheme.onPrimaryContainer
+                color = groupColorScheme.secondaryContainer,
+                contentColor = groupColorScheme.onSecondaryContainer
             ) {
                 Box(
                     modifier = Modifier.size(36.dp),
@@ -187,7 +190,7 @@ private fun HistoryMedicationCardPreview() {
             onClick = { },
             trailingContent = {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
