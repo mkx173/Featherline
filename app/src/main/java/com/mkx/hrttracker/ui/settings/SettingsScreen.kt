@@ -153,6 +153,12 @@ fun SettingsScreen(
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     val backupExportFailedMessage = stringResource(R.string.settings_backup_export_failed)
+    val backupExportSuccessMessage = pendingPreparedBackupExport?.let { preparedBackupExport ->
+        stringResource(
+            R.string.settings_backup_export_success,
+            preparedBackupExport.displayName,
+        )
+    }
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -212,16 +218,13 @@ fun SettingsScreen(
         coroutineScope.launch {
             isBackupExportInProgress = true
             try {
-                val exportedFile = viewModel.exportPreparedBackup(
+                viewModel.exportPreparedBackup(
                     directoryUri = directoryUri,
                     preparedBackupExport = preparedBackupExport,
                 )
                 Toast.makeText(
                     context,
-                    context.getString(
-                        R.string.settings_backup_export_success,
-                        exportedFile.displayName,
-                    ),
+                    backupExportSuccessMessage ?: backupExportFailedMessage,
                     Toast.LENGTH_SHORT
                 ).show()
             } catch (_: Exception) {
@@ -420,14 +423,17 @@ fun SettingsScreen(
     }
 
     pendingRestoreRequest?.let { restoreRequest ->
+        val restorePasswordMessage = if (restoreRequest.displayName != null) {
+            stringResource(
+                R.string.settings_backup_restore_password_message_with_name,
+                restoreRequest.displayName,
+            )
+        } else {
+            stringResource(R.string.settings_backup_restore_password_message)
+        }
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_restore_confirm_title),
-            message = restoreRequest.displayName?.let { displayName ->
-                context.getString(
-                    R.string.settings_backup_restore_password_message_with_name,
-                    displayName,
-                )
-            } ?: stringResource(R.string.settings_backup_restore_password_message),
+            message = restorePasswordMessage,
             confirmLabel = stringResource(R.string.settings_backup_restore_confirm),
             passwordLabel = stringResource(R.string.settings_backup_password_label),
             isInProgress = isBackupRestoreInProgress,

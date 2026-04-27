@@ -63,7 +63,11 @@ class ReminderNotificationManager @Inject constructor(
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(context).notify(groupUuid.hashCode(), notification)
+        try {
+            NotificationManagerCompat.from(context).notify(groupUuid.hashCode(), notification)
+        } catch (_: SecurityException) {
+            // Notification permission can be revoked after the preflight check.
+        }
     }
 
     fun canPostNotifications(): Boolean {
