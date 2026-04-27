@@ -84,6 +84,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.history.historyCalendarMonthTitleFormatter
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.filterNotNull
@@ -153,7 +154,7 @@ private fun PlanScreenContent(
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
     }
     val monthFormatter = remember(appLocale) {
-        DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
+        historyCalendarMonthTitleFormatter(appLocale)
     }
     val selection = uiState.selectedDate
     val daySchedule = uiState.daySchedule
@@ -240,6 +241,7 @@ private fun PlanScreenContent(
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         monthFormatter = monthFormatter,
                         appLocale = appLocale,
+                        hasSelection = selection != null,
                         onPreviousClick = {
                             scope.launch {
                                 state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
@@ -278,13 +280,13 @@ private fun PlanScreenContent(
 
             item(key = "calendar-divider") {
                 HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.padding_medium)),
+                    modifier = Modifier.padding(top = 4.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
             }
 
             item(key = "selected-day") {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     SelectedDaySection(
                         date = displayedDate,
                         today = uiState.today,
@@ -379,6 +381,7 @@ private fun PlanWeekHeader(
     firstDayOfWeek: DayOfWeek,
     monthFormatter: DateTimeFormatter,
     appLocale: Locale,
+    hasSelection: Boolean,
     onPreviousClick: () -> Unit,
     onCurrentClick: () -> Unit,
     onNextClick: () -> Unit
@@ -407,7 +410,7 @@ private fun PlanWeekHeader(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlanWeekNavigationButton(
@@ -422,7 +425,7 @@ private fun PlanWeekHeader(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlanWeekNavigationButton(
                         imageVector = Icons.Rounded.RestartAlt,
-                        enabled = pageIndex != 1,
+                        enabled = pageIndex != 1 || hasSelection,
                         contentDescription = stringResource(R.string.plan_week_current),
                         onClick = onCurrentClick,
                         iconModifier = Modifier.size(24.dp)
@@ -439,18 +442,19 @@ private fun PlanWeekHeader(
 
             Column(
                 modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy((-2).dp)
             ) {
                 Text(
                     text = headerDate.format(monthFormatter),
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = stringResource(pageLabelRes),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

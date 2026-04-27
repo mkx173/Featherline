@@ -579,7 +579,12 @@ private fun HistoryScreenContent(
                     dayStates = monthDayStates,
                     appLocale = appLocale,
                     selectedDate = displayedSelectedDate,
+                    hasSelection = uiState.selectedDate != null,
                     onDayClick = onDayClick,
+                    onSelectionReset = {
+                        pendingSelectedDate.value = null
+                        uiState.selectedDate?.let(onDayClick)
+                    },
                     onDeferredDaySelectionRequested = { pendingSelectedDate.value = it }
                 )
             }
@@ -868,7 +873,9 @@ private fun HistoryMonthCalendar(
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
     appLocale: Locale,
     selectedDate: LocalDate?,
+    hasSelection: Boolean,
     onDayClick: (LocalDate) -> Unit,
+    onSelectionReset: () -> Unit,
     onDeferredDaySelectionRequested: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -887,12 +894,14 @@ private fun HistoryMonthCalendar(
                 appLocale = appLocale,
                 canGoToPrevious = displayedMonth > calendarState.startMonth,
                 canGoToNext = displayedMonth < calendarState.endMonth,
+                hasSelection = hasSelection,
                 onGoToPrevious = {
                     coroutineScope.launch {
                         calendarState.animateScrollToMonth(displayedMonth.minusMonths(1))
                     }
                 },
                 onGoToCurrent = {
+                    onSelectionReset()
                     coroutineScope.launch {
                         calendarState.animateScrollToMonth(YearMonth.from(today))
                     }
@@ -1033,6 +1042,7 @@ private fun HistoryCalendarTitle(
     appLocale: Locale,
     canGoToPrevious: Boolean,
     canGoToNext: Boolean,
+    hasSelection: Boolean,
     onGoToPrevious: () -> Unit,
     onGoToCurrent: () -> Unit,
     onGoToNext: () -> Unit
@@ -1060,7 +1070,7 @@ private fun HistoryCalendarTitle(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 HistoryCalendarNavigationButton(
                     imageVector = Icons.Rounded.RestartAlt,
-                    enabled = displayedMonth != currentMonth,
+                    enabled = displayedMonth != currentMonth || hasSelection,
                     contentDescription = stringResource(R.string.history_current_month),
                     onClick = onGoToCurrent,
                     modifier = Modifier.size(24.dp)
