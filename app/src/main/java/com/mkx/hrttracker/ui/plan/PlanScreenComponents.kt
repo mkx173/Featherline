@@ -3,16 +3,19 @@ package com.mkx.hrttracker.ui.plan
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +27,7 @@ import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -293,7 +297,7 @@ internal fun RegimenGroupCard(
     group: MedicationGroup,
     remindersEnabled: Boolean,
     appLocale: Locale,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     upcomingOccurrences: List<LocalDateTime>,
     today: LocalDate,
@@ -307,9 +311,7 @@ internal fun RegimenGroupCard(
         index = 0,
         count = 1
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -413,6 +415,8 @@ internal fun RegimenGroupCard(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -430,23 +434,31 @@ internal fun RegimenGroupCard(
                 }
             }
 
-            DashedDivider()
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = stringResource(R.string.plan_group_upcoming_title),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = stringResource(R.string.plan_group_upcoming_title).uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                FlowRow(
+                Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
                 ) {
                     upcomingOccurrences.forEachIndexed { index, occurrence ->
                         val dayLabel = when (occurrence.toLocalDate()) {
                             today -> stringResource(R.string.plan_group_upcoming_today)
                             today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                            else -> occurrence.toLocalDate().format(dateFormatter)
+                            else -> dateFormatter(occurrence.toLocalDate())
                         }
                         UpcomingOccurrenceChip(
                             label = dayLabel,
@@ -650,23 +662,13 @@ private fun RegimenMedicationChip(
                 contentDescription = applicationTypeLabel,
                 modifier = Modifier.size(14.dp)
             )
+            val medicationString =
+                listOfNotNull(medicationName, doseSummary.takeIf { it.isNotBlank() })
+                .joinToString(" · ")
             Text(
-                text = buildAnnotatedString {
-                    append(medicationName)
-
-                    if (doseSummary.isNotBlank()) {
-                        append(" · ")
-
-                        withStyle(
-                            style = SpanStyle(
-                                color = groupColorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                            )
-                        ) {
-                            append(doseSummary)
-                        }
-                    }
-                },
-                style = MaterialTheme.typography.labelMedium
+                text = medicationString,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.cjkTextOffset(medicationString)
             )
         }
     }
@@ -701,23 +703,6 @@ private fun UpcomingOccurrenceChip(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-    }
-}
-
-@Composable
-private fun DashedDivider() {
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-    ) {
-        drawLine(
-            color = dividerColor,
-            start = androidx.compose.ui.geometry.Offset(0f, size.height / 2f),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height / 2f),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
-        )
     }
 }
 
@@ -828,7 +813,11 @@ private fun SelectedDayManualRowPreview() {
 private fun RegimenGroupCardPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val dateFormatter = remember(appLocale) {
+        val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .withLocale(appLocale)
+        return@remember { date: LocalDate -> date.format(formatter) }
+    }
     val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     val group = uiState.medicationGroups.last()
 

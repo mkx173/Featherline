@@ -67,6 +67,7 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -266,7 +267,7 @@ private fun CalibrationUnitsScreenContent(
             }
 
             item {
-                HrtFilledTonalButton(
+                HrtButton(
                     text = stringResource(R.string.add),
                     onClick = { openCustomAnalyteDialog(customAnalyteId = null) },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

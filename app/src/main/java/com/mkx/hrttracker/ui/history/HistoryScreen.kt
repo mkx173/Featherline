@@ -1441,7 +1441,7 @@ internal fun HistoryEntryGroupHeader(
     }
 }
 
-internal fun historyEntryGroupDayFormatter(appLocale: Locale): DateTimeFormatter {
+fun historyEntryGroupDayFormatter(appLocale: Locale): DateTimeFormatter {
     return if (appLocale.language == Locale.CHINESE.language) {
         DateTimeFormatter.ofPattern("M月d日", appLocale)
     } else {

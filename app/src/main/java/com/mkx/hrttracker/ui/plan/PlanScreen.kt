@@ -88,6 +88,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.historyCalendarMonthTitleFormatter
+import com.mkx.hrttracker.ui.history.historyEntryGroupDayFormatter
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.filterNotNull
@@ -153,8 +154,11 @@ private fun PlanScreenContent(
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
-    val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val dateFormatter = remember(appLocale, uiState.today) {
+        planUpcomingDateFormatter(
+            appLocale = appLocale,
+            today = uiState.today
+        )
     }
     val monthFormatter = remember(appLocale) {
         historyCalendarMonthTitleFormatter(appLocale)
@@ -350,11 +354,11 @@ private fun PlanScreenContent(
 
             item(key = "add-group-button") {
                 HrtButton(
-                    text = stringResource(R.string.fab_add_medication_group),
+                    text = stringResource(R.string.add),
                     onClick = onAddGroupClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
+                        .padding(top = 8.dp),
                     icon = Icons.Rounded.Add,
                 )
             }
@@ -521,7 +525,7 @@ private fun RegimenSection(
     groups: List<MedicationGroup>,
     remindersEnabled: Boolean,
     appLocale: Locale,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>>,
     today: LocalDate,
@@ -625,6 +629,28 @@ private fun remainingQuickLogCount(
     fulfilledCount: Int
 ): Int {
     return totalCount - fulfilledCount
+}
+
+private fun planUpcomingDateFormatter(
+    appLocale: Locale,
+    today: LocalDate
+): (LocalDate) -> String {
+    val currentYearFormatter = historyEntryGroupDayFormatter(appLocale)
+    val nextYearFormatter = if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("yyyy年M月d日", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("MMM d, yyyy", appLocale)
+    }
+
+    return { date ->
+        date.format(
+            if (date.year > today.year) {
+                nextYearFormatter
+            } else {
+                currentYearFormatter
+            }
+        )
+    }
 }
 
 internal val fulfilledIndicatorColor = Color(0xFF2E7D32)
