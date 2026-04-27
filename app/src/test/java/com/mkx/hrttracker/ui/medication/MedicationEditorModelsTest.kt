@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.medication
 
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
@@ -9,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -24,6 +26,23 @@ class MedicationEditorModelsTest {
             ),
             editorMedicationCategories(),
         )
+    }
+
+    @Test
+    fun no_catalog_supports_both_catalog_selection_and_custom_names() {
+        MedicationCategory.entries.forEach { category ->
+            MedicationCatalog.applicationTypesFor(category).forEach { applicationType ->
+                val draft = defaultMedicationDraft(
+                    category = category,
+                    applicationType = applicationType,
+                )
+
+                assertFalse(
+                    "${category.name}/${applicationType.name} unexpectedly supports both catalog selection and custom names",
+                    draft.supportsCatalogSelection() && draft.supportsCustomName(),
+                )
+            }
+        }
     }
 
     @Test

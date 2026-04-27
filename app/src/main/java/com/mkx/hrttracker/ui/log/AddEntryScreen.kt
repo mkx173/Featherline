@@ -28,7 +28,6 @@ import com.mkx.hrttracker.ui.medication.changeCategory
 import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
 import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
-import com.mkx.hrttracker.ui.medication.changeSelectionKind
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
@@ -114,9 +113,6 @@ private fun AddEntryScreenContent(
         },
         onApplicationTypeChange = { applicationType ->
             onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
-        },
-        onSelectionKindChange = { selectionKind ->
-            onMedicationDraftChange { draft -> draft.changeSelectionKind(selectionKind) }
         },
         onMedicationKeyChange = { medicationKey ->
             onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }

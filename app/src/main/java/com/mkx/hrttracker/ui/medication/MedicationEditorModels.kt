@@ -280,27 +280,6 @@ fun MedicationDraftUiState.changeApplicationType(
     )
 }
 
-fun MedicationDraftUiState.changeSelectionKind(
-    selectionKind: MedicationSelectionKind,
-): MedicationDraftUiState {
-    val base = defaultMedicationDraft(
-        category = category,
-        applicationType = applicationType
-    )
-    return when (selectionKind) {
-        MedicationSelectionKind.CATALOG -> base.copy(
-            selectionKind = MedicationSelectionKind.CATALOG,
-            customMedicationName = customMedicationName
-        )
-
-        MedicationSelectionKind.CUSTOM -> base.copy(
-            selectionKind = MedicationSelectionKind.CUSTOM,
-            customMedicationName = customMedicationName,
-            medicationKey = null
-        )
-    }
-}
-
 fun MedicationDraftUiState.changeMedicationKey(
     medicationKey: MedicationKey,
 ): MedicationDraftUiState {

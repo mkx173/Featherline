@@ -30,11 +30,7 @@ import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -108,7 +104,6 @@ fun StructuredMedicationEditorSheet(
     draft: MedicationDraftUiState,
     onCategoryChange: (MedicationCategory) -> Unit,
     onApplicationTypeChange: (MedicationApplicationType) -> Unit,
-    onSelectionKindChange: (MedicationSelectionKind) -> Unit,
     onMedicationKeyChange: (MedicationKey) -> Unit,
     onCustomMedicationNameChange: (String) -> Unit,
     onDoseKindChange: (MedicationDoseKind) -> Unit,
@@ -259,31 +254,6 @@ fun StructuredMedicationEditorSheet(
             )
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            if (draft.supportsCatalogSelection() && draft.supportsCustomName()) {
-                DropdownField(
-                    label = stringResource(R.string.field_medication_source),
-                    value = stringResource(
-                        when (draft.selectionKind) {
-                            MedicationSelectionKind.CATALOG -> R.string.medication_source_catalog
-                            MedicationSelectionKind.CUSTOM -> R.string.medication_source_custom
-                        }
-                    ),
-                    options = MedicationSelectionKind.entries,
-                    optionLabel = { selectionKind ->
-                        stringResource(
-                            when (selectionKind) {
-                                MedicationSelectionKind.CATALOG -> R.string.medication_source_catalog
-                                MedicationSelectionKind.CUSTOM -> R.string.medication_source_custom
-                            }
-                        )
-                    },
-                    onOptionSelected = onSelectionKindChange,
-                    enabled = isMedicationIdentityEditable
-                )
-
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            }
 
             if (draft.supportsCatalogSelection()
                 && draft.selectionKind == MedicationSelectionKind.CATALOG
@@ -774,63 +744,6 @@ fun StructuredMedicationEditorSheet(
                         .fillMaxWidth()
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
                     enabled = !isSaving,
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun <T> DropdownField(
-    label: String,
-    value: String,
-    options: List<T>,
-    optionLabel: @Composable (T) -> String,
-    onOptionSelected: (T) -> Unit,
-    enabled: Boolean = true,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = {
-            if (enabled) {
-                expanded = !expanded
-            }
-        }
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(text = label) },
-            trailingIcon = if (enabled) {
-                {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                }
-            } else {
-                null
-            },
-            modifier = Modifier
-                .menuAnchor(
-                    type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                    enabled = enabled
-                )
-                .fillMaxWidth()
-        )
-
-        ExposedDropdownMenu(
-            expanded = enabled && expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(text = optionLabel(option)) },
-                    onClick = {
-                        onOptionSelected(option)
-                        expanded = false
-                    }
                 )
             }
         }
@@ -1337,7 +1250,6 @@ private fun StructuredMedicationEditorSheetPreview() {
             ),
             onCategoryChange = { },
             onApplicationTypeChange = { },
-            onSelectionKindChange = { },
             onMedicationKeyChange = { },
             onCustomMedicationNameChange = { },
             onDoseKindChange = { },

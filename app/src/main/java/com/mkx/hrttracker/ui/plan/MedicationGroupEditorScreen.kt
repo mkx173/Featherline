@@ -121,7 +121,6 @@ import com.mkx.hrttracker.ui.medication.changeCategory
 import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
 import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
-import com.mkx.hrttracker.ui.medication.changeSelectionKind
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
@@ -1013,9 +1012,6 @@ private fun MedicationGroupEditorScreenContent(
             },
             onApplicationTypeChange = { applicationType ->
                 onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
-            },
-            onSelectionKindChange = { selectionKind ->
-                onMedicationDraftChange { draft -> draft.changeSelectionKind(selectionKind) }
             },
             onMedicationKeyChange = { medicationKey ->
                 onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }
