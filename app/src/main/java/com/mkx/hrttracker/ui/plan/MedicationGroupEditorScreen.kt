@@ -382,6 +382,7 @@ fun MedicationGroupEditorScreen(
         onDeleteClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteGroup,
+        onDeleteWithRecordsConfirm = viewModel::deleteGroupAndRelatedEntries,
         modifier = modifier
     )
 }
@@ -425,6 +426,7 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
+    onDeleteWithRecordsConfirm: () -> Unit,
     occurrenceReferenceTime: LocalDateTime? = null,
     modifier: Modifier = Modifier
 ) {
@@ -590,18 +592,50 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isDeleteConfirmationVisible) {
+        val deleteGroupConfirmationText = if (uiState.relatedEntryCount > 0) {
+            pluralStringResource(
+                R.plurals.delete_medication_group_confirmation_with_related_records,
+                uiState.relatedEntryCount,
+                uiState.relatedEntryCount,
+            )
+        } else {
+            stringResource(R.string.delete_medication_group_confirmation)
+        }
         AlertDialog(
-            onDismissRequest = onDeleteDismiss,
-            title = { Text(text = stringResource(R.string.delete_medication_group_title)) },
-            text = { Text(text = stringResource(R.string.delete_medication_group_confirmation)) },
-            confirmButton = {
-                TextButton(onClick = onDeleteConfirm) {
-                    Text(text = stringResource(R.string.delete_entries_confirm))
+            onDismissRequest = {
+                if (!uiState.isDeleting) {
+                    onDeleteDismiss()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = onDeleteDismiss) {
-                    Text(text = stringResource(R.string.cancel))
+            title = { Text(text = stringResource(R.string.delete_medication_group_title)) },
+            text = { Text(text = deleteGroupConfirmationText) },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(
+                        enabled = !uiState.isDeleting && uiState.relatedEntryCount > 0,
+                        onClick = onDeleteWithRecordsConfirm,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                    ) {
+                        Text(text = stringResource(R.string.delete_group_related_records))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(
+                        enabled = !uiState.isDeleting,
+                        onClick = onDeleteDismiss,
+                    ) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = !uiState.isDeleting,
+                        onClick = onDeleteConfirm,
+                    ) {
+                        Text(text = stringResource(R.string.delete_medication_group_keep_records))
+                    }
                 }
             }
         )
@@ -1294,6 +1328,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
+            onDeleteWithRecordsConfirm = { },
             occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
         )
     }
@@ -1352,6 +1387,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
+            onDeleteWithRecordsConfirm = { },
             occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
         )
     }

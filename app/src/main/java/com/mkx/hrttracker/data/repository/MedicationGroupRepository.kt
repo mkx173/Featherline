@@ -1,6 +1,4 @@
 package com.mkx.hrttracker.data.repository
-
-import androidx.room.withTransaction
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
@@ -77,14 +75,11 @@ class MedicationGroupRepository @Inject constructor(
     }
 
     suspend fun deleteGroup(uuid: UUID) {
-        val database = databaseHolder.get()
-        val groupUuid = uuid.toString()
-        database.withTransaction {
-            database.medicationLogDao().reclassifyEntriesForDeletedGroup(
-                groupUuid = groupUuid
-            )
-            database.medicationGroupDao().deleteGroup(groupUuid)
-        }
+        deleteGroupInternal(uuid, deleteRelatedEntries = false)
+    }
+
+    suspend fun deleteGroupAndRelatedEntries(uuid: UUID) {
+        deleteGroupInternal(uuid, deleteRelatedEntries = true)
     }
 
     suspend fun saveGroup(
@@ -257,6 +252,21 @@ class MedicationGroupRepository @Inject constructor(
             gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
             customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
         )
+    }
+
+    private suspend fun deleteGroupInternal(
+        uuid: UUID,
+        deleteRelatedEntries: Boolean,
+    ) {
+        val groupUuid = uuid.toString()
+        databaseHolder.withTransaction { database ->
+            if (deleteRelatedEntries) {
+                database.medicationLogDao().deleteEntriesForGroup(groupUuid)
+            } else {
+                database.medicationLogDao().reclassifyEntriesForDeletedGroup(groupUuid)
+            }
+            database.medicationGroupDao().deleteGroup(groupUuid)
+        }
     }
 }
 

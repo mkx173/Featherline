@@ -461,27 +461,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun deleteGroup() {
-        val groupId = _uiState.value.editingGroupId ?: return
-        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+        deleteGroup(deleteRelatedEntries = false)
+    }
 
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isDeleting = true,
-                    isDeleteConfirmationVisible = false
-                )
-            }
-
-            medicationReminderScheduler.cancelReminder(uuid)
-            medicationGroupRepository.deleteGroup(uuid)
-
-            _uiState.update {
-                it.copy(
-                    isDeleting = false,
-                    isDeleted = true
-                )
-            }
-        }
+    fun deleteGroupAndRelatedEntries() {
+        deleteGroup(deleteRelatedEntries = true)
     }
 
     fun deleteRelatedEntries() {
@@ -601,6 +585,39 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationEditorErrorMessageRes = null,
                 medicationEditorInfoMessageRes = null,
             )
+        }
+    }
+
+    private fun deleteGroup(deleteRelatedEntries: Boolean) {
+        val groupId = _uiState.value.editingGroupId ?: return
+        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDeleting = true,
+                    isDeleteConfirmationVisible = false
+                )
+            }
+
+            val isDeleted = runCatching {
+                if (deleteRelatedEntries) {
+                    medicationGroupRepository.deleteGroupAndRelatedEntries(uuid)
+                } else {
+                    medicationGroupRepository.deleteGroup(uuid)
+                }
+            }.isSuccess
+
+            if (isDeleted) {
+                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isDeleting = false,
+                    isDeleted = isDeleted
+                )
+            }
         }
     }
 

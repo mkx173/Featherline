@@ -173,6 +173,11 @@
     <string name="delete_medication_group">删除分组</string>
     <string name="delete_medication_group_title">删除分组</string>
     <string name="delete_medication_group_confirmation">要删除这个用药分组吗？相关历史记录会被保留，并转换为手动记录。</string>
+    <plurals name="delete_medication_group_confirmation_with_related_records">
+        <item quantity="one">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除。</item>
+        <item quantity="other">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除。</item>
+    </plurals>
+    <string name="delete_medication_group_keep_records">保留记录</string>
     <string name="delete_group_related_records">删除记录</string>
     <string name="delete_group_related_records_disabled">暂无相关记录</string>
     <string name="delete_group_related_records_title">删除相关记录</string>

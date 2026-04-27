@@ -23,6 +23,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -129,6 +130,51 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(viewModel.uiState.value.deleteRelatedEntriesResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteEntriesForGroup(groupUuid) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteGroupAndRelatedEntries_deletesGroupRecordsAndMarksEditorDeleted() = runTest {
+        val groupUuid = UUID.fromString("9bd82f30-b6eb-495e-b894-48a1779fd5d7")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+                )
+            )
+        )
+        coEvery { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) } returns Unit
+        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.showDeleteConfirmation()
+        assertEquals(true, viewModel.uiState.value.isDeleteConfirmationVisible)
+
+        viewModel.deleteGroupAndRelatedEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertFalse(viewModel.uiState.value.isDeleteConfirmationVisible)
+        assertEquals(true, viewModel.uiState.value.isDeleted)
+
+        coVerify(exactly = 1) { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) }
+        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 }
 
