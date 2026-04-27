@@ -135,7 +135,7 @@ private fun AddEntryScreenContent(
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
 
     StructuredMedicationEditorSheet(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
         confirmButtonText = stringResource(R.string.save),
@@ -143,6 +143,9 @@ private fun AddEntryScreenContent(
         onCloseClick = onCloseClick,
         draft = uiState.medicationDraft,
         isMedicationIdentityEditable = uiState.canEditMedicationIdentity,
+        sourceGroupName = uiState.sourceGroupName,
+        sourceGroupColorKey = uiState.sourceGroupColorKey,
+        sourceGroupScheduledFor = uiState.scheduledFor,
         onCategoryChange = { category ->
             onMedicationDraftChange { draft -> draft.changeCategory(category) }
         },

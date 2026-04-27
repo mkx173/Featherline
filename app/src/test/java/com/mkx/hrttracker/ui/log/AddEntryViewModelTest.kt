@@ -1,8 +1,13 @@
 package com.mkx.hrttracker.ui.log
 
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
@@ -33,6 +38,7 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddEntryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
 
@@ -111,6 +117,36 @@ class AddEntryViewModelTest {
         assertEquals(1, uiState.count)
         assertTrue(uiState.isBulkEditing)
         assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun buildEditingUiState_keeps_source_group_metadata_for_group_linked_entries() {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        )
+        val sourceGroup = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+
+        val uiState = buildEditingUiState(
+            entries = listOf(entry),
+            sourceGroup = sourceGroup
+        )
+
+        requireNotNull(uiState)
+        assertEquals("Nightly estradiol", uiState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.INDIGO, uiState.sourceGroupColorKey)
     }
 
     @Test
@@ -276,6 +312,7 @@ class AddEntryViewModelTest {
 
         val viewModel = AddEntryViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -331,6 +368,7 @@ class AddEntryViewModelTest {
 
         val viewModel = AddEntryViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -373,6 +411,7 @@ class AddEntryViewModelTest {
 
         val viewModel = AddEntryViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -410,6 +449,7 @@ class AddEntryViewModelTest {
 
         val viewModel = AddEntryViewModel(
             medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
@@ -424,4 +464,26 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
+}
+
+private fun testMedicationGroup(
+    groupId: UUID,
+    name: String,
+    colorKey: MedicationGroupColorKey,
+): MedicationGroup {
+    return MedicationGroup(
+        uuid = groupId,
+        name = name,
+        colorKey = colorKey,
+        schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(21, 0))
+        ),
+        medications = emptyList(),
+        createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 12, 0)),
+        updatedAt = testInstant(LocalDateTime.of(2026, 4, 22, 12, 0))
+    )
 }

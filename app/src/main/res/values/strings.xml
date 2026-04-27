@@ -129,6 +129,7 @@
     <string name="field_medication">Medication</string>
     <string name="field_medication_source">Selection</string>
     <string name="field_medication_name">Medication name</string>
+    <string name="medication_editor_original_schedule">Scheduled for %1$s</string>
     <string name="field_dosage_mg">Dosage</string>
     <string name="field_count">Count</string>
     <string name="field_dose_type">Dose type</string>

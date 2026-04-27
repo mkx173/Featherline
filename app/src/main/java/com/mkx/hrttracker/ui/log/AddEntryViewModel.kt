@@ -2,7 +2,10 @@ package com.mkx.hrttracker.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -34,6 +37,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AddEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
@@ -255,7 +259,13 @@ class AddEntryViewModel @Inject constructor(
     private fun loadEntriesForEditing(entryIds: List<String>) {
         loadEntryJob = viewModelScope.launch {
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
-            _uiState.value = buildEditingUiState(entries) ?: AddEntryUiState()
+            val sourceGroup = entries.firstOrNull()?.sourceGroupUuid?.let { sourceGroupUuid ->
+                medicationGroupRepository.getGroup(sourceGroupUuid)
+            }
+            _uiState.value = buildEditingUiState(
+                entries = entries,
+                sourceGroup = sourceGroup
+            ) ?: AddEntryUiState()
         }
     }
 
@@ -265,6 +275,8 @@ data class AddEntryUiState(
     val editingEntryIds: List<String> = emptyList(),
     val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
     val sourceGroupUuid: UUID? = null,
+    val sourceGroupName: String? = null,
+    val sourceGroupColorKey: MedicationGroupColorKey? = null,
     val scheduledFor: LocalDateTime? = null,
     val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
@@ -306,15 +318,23 @@ internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String
     }.distinct()
 }
 
-internal fun buildEditingUiState(entries: List<MedicationLogEntry>): AddEntryUiState? {
+internal fun buildEditingUiState(
+    entries: List<MedicationLogEntry>,
+    sourceGroup: MedicationGroup? = null,
+): AddEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
     val appliedAt = representativeEntry.appliedAt.atZone(ZoneId.systemDefault())
+    val matchingSourceGroup = sourceGroup?.takeIf { group ->
+        group.uuid == representativeEntry.sourceGroupUuid
+    }
 
     return AddEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
         medicationDraft = medicationDraftFromDetails(representativeEntry.details),
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
+        sourceGroupName = matchingSourceGroup?.name,
+        sourceGroupColorKey = matchingSourceGroup?.colorKey,
         scheduledFor = representativeEntry.scheduledFor,
         countText = normalizeMedicationCount(
             representativeEntry.details.applicationType,

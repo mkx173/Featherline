@@ -127,6 +127,7 @@
     <string name="field_medication">药物</string>
     <string name="field_medication_source">选择方式</string>
     <string name="field_medication_name">药物名称</string>
+    <string name="medication_editor_original_schedule">计划于 %1$s</string>
     <string name="field_dosage_mg">剂量</string>
     <string name="field_count">数量</string>
     <string name="field_dose_type">剂量类型</string>

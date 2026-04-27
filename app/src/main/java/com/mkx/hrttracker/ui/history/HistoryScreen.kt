@@ -1398,7 +1398,7 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer
@@ -1409,7 +1409,7 @@ private fun HistoryEntryGroupHeader(
                 )
                 Text(
                     text = weekdayDisplayLabel,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     } else {

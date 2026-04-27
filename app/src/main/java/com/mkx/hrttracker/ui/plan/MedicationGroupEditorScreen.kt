@@ -1065,7 +1065,7 @@ private fun MedicationGroupEditorScreenContent(
 
     uiState.editingMedication?.let { medication ->
         StructuredMedicationEditorSheet(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier,
             title = stringResource(
                 if (uiState.medications.any { it.localId == medication.localId }) {
                     R.string.edit_medication

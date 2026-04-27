@@ -2,20 +2,24 @@ package com.mkx.hrttracker.ui.medication
 import android.text.format.DateFormat
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -59,9 +63,11 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,18 +79,22 @@ import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DatePickerModal
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -115,6 +125,9 @@ fun StructuredMedicationEditorSheet(
     onDecreaseCountClick: (() -> Unit)? = null,
     onIncreaseCountClick: (() -> Unit)? = null,
     isMedicationIdentityEditable: Boolean = true,
+    sourceGroupName: String? = null,
+    sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupScheduledFor: LocalDateTime? = null,
     appliedDate: LocalDate? = null,
     appliedTime: LocalTime? = null,
     onAppliedDateChange: ((LocalDate) -> Unit)? = null,
@@ -162,11 +175,8 @@ fun StructuredMedicationEditorSheet(
     val gelPercentFocusRequester = remember { FocusRequester() }
     val gelWeightFocusRequester = remember { FocusRequester() }
     val patchReleaseRateFocusRequester = remember { FocusRequester() }
-    val editableTextFields = remember(draft, isMedicationIdentityEditable) {
-        structuredMedicationEditorEditableFields(
-            draft = draft,
-            isMedicationIdentityEditable = isMedicationIdentityEditable
-        )
+    val editableTextFields = remember(draft) {
+        structuredMedicationEditorEditableFields(draft)
     }
     val textFieldFocusRequesters = remember(
         customNameFocusRequester,
@@ -191,6 +201,10 @@ fun StructuredMedicationEditorSheet(
     ) {
         Column(
             modifier = Modifier
+                .then(
+                    if (isMedicationIdentityEditable) Modifier.fillMaxSize()
+                    else Modifier
+                )
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
@@ -218,409 +232,432 @@ fun StructuredMedicationEditorSheet(
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-            Text(
-                text = stringResource(R.string.field_medication_category),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            )
-            ConnectedButtonGroup(
-                options = editorMedicationCategories(),
-                selectedOption = draft.category,
-                optionLabel = { category -> stringResource(category.labelRes) },
-                onOptionSelected = onCategoryChange,
-                enabled = isMedicationIdentityEditable
-            )
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            Text(
-                text = stringResource(R.string.field_medication_application),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            )
-            ConnectedButtonGroup(
-                options = MedicationCatalog.applicationTypesFor(draft.category),
-                selectedOption = draft.applicationType,
-                optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-                optionIcons = { applicationType ->
-                    listOf(applicationTypeButtonIcons.getValue(applicationType))
-                },
-                onOptionSelected = onApplicationTypeChange,
-                enabled = isMedicationIdentityEditable
-            )
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-            if (draft.supportsCatalogSelection()
-                && draft.selectionKind == MedicationSelectionKind.CATALOG
-                && catalog.entries.mapNotNull { it.medicationKey }.size > 1) {
-                val medicationOptions = catalog.entries.mapNotNull { it.medicationKey }
-                if (medicationOptions.size > 1) {
-                    Text(
-                        text = stringResource(R.string.field_medication),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    )
-                    ConnectedButtonGroup(
-                        options = medicationOptions,
-                        selectedOption = draft.selectedCatalogEntry().medicationKey,
-                        optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
-                        onOptionSelected = onMedicationKeyChange,
-                        enabled = isMedicationIdentityEditable
-                    )
-
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                }
-            }
-
-            if (draft.requiresCustomName()) {
-                val field = StructuredMedicationEditorTextField.CUSTOM_NAME
-                val focusManager = LocalFocusManager.current
-                val nextFocusRequester = structuredMedicationEditorNextField(
-                    editableFields = editableTextFields,
-                    field = field
-                )?.let(textFieldFocusRequesters::getValue)
-                OutlinedTextField(
-                    value = draft.customMedicationName,
-                    onValueChange = onCustomMedicationNameChange,
-                    enabled = isMedicationIdentityEditable,
-                    isError = fieldErrors.customName != null,
-                    label = {
-                        Text(text = stringResource(R.string.field_medication_name))
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Label,
-                            contentDescription = null
-                        )
-                    },
-                    supportingText = fieldErrors.customName?.let { errorMessageRes ->
-                        {
-                            Text(
-                                text = stringResource(errorMessageRes),
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    },
+            if (isMedicationIdentityEditable) {
+                Text(
+                    text = stringResource(R.string.field_medication_category),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(textFieldFocusRequesters.getValue(field)),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = field
+                        .padding(vertical = 4.dp)
+                )
+                ConnectedButtonGroup(
+                    options = editorMedicationCategories(),
+                    selectedOption = draft.category,
+                    optionLabel = { category -> stringResource(category.labelRes) },
+                    onOptionSelected = onCategoryChange,
+                )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+                Text(
+                    text = stringResource(R.string.field_medication_application),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+                ConnectedButtonGroup(
+                    options = MedicationCatalog.applicationTypesFor(draft.category),
+                    selectedOption = draft.applicationType,
+                    optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
+                    optionIcons = { applicationType ->
+                        listOf(applicationTypeButtonIcons.getValue(applicationType))
+                    },
+                    onOptionSelected = onApplicationTypeChange,
+                )
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+
+                if (draft.supportsCatalogSelection()
+                    && draft.selectionKind == MedicationSelectionKind.CATALOG
+                    && catalog.entries.mapNotNull { it.medicationKey }.size > 1) {
+                    val medicationOptions = catalog.entries.mapNotNull { it.medicationKey }
+                    if (medicationOptions.size > 1) {
+                        Text(
+                            text = stringResource(R.string.field_medication),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
                         )
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = {
-                            if (nextFocusRequester != null) {
-                                nextFocusRequester.requestFocus()
-                            } else {
-                                focusManager.clearFocus()
-                            }
-                        },
-                        onDone = { focusManager.clearFocus() }
-                    )
-                )
+                        ConnectedButtonGroup(
+                            options = medicationOptions,
+                            selectedOption = draft.selectedCatalogEntry().medicationKey,
+                            optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
+                            onOptionSelected = onMedicationKeyChange,
+                        )
 
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            }
-
-            if (draft.applicationType == MedicationApplicationType.GEL) {
-                Text(
-                    text = stringResource(R.string.field_gel_application_area),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-                ConnectedButtonGroup(
-                    options = MedicationGelApplicationArea.entries,
-                    selectedOption = MedicationGelApplicationArea.DEFAULT,
-                    optionLabel = { area -> stringResource(area.labelRes) },
-                    onOptionSelected = {},
-                    enabled = isMedicationIdentityEditable
-                )
-
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            }
-
-            if (draft.availableDoseKinds().size > 1) {
-                Text(
-                    text = stringResource(R.string.field_dose_type),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                )
-                ConnectedButtonGroup(
-                    options = draft.availableDoseKinds(),
-                    selectedOption = draft.doseKind,
-                    optionLabel = { doseKind -> stringResource(doseKindLabelRes(doseKind)) },
-                    onOptionSelected = onDoseKindChange,
-                    enabled = isMedicationIdentityEditable
-                )
-
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            }
-
-            when (draft.doseKind) {
-                MedicationDoseKind.MG_AS_MEDICINE -> {
-                    val field = StructuredMedicationEditorTextField.DOSE_MG
-                    DoseTextField(
-                        value = draft.doseMg,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind
-                        ),
-                        onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_dosage_mg),
-                        suffix = stringResource(draft.displayDoseUnit().shortLabelRes),
-                        errorMessageRes = fieldErrors.doseMg,
-                        showWarningIcon = showsDoseWarning,
-                        focusRequester = textFieldFocusRequesters.getValue(field),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = field
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = field
-                        ),
-                        enabled = isMedicationIdentityEditable
-                    )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets,
-                        onPresetClick = { preset ->
-                            val resolvedPreset = preset as MedicationDoseAssistPreset.MgAsMedicine
-                            onDoseMgChange(resolvedPreset.valueMg)
-                        },
-                        enabled = isMedicationIdentityEditable
-                    )
-                    if (draft.showsCustomDoseUnitSelector()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_calibration_unit_label),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 16.dp)
-                            )
-                            CompositionLocalProvider(
-                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                            ) {
-                                ConnectedButtonGroup(
-                                    options = MedicationDoseUnit.entries,
-                                    selectedOption = draft.customDoseUnit,
-                                    optionLabel = { unit -> stringResource(unit.shortLabelRes) },
-                                    onOptionSelected = onCustomDoseUnitChange,
-                                    layout = ConnectedButtonGroupLayout.ROW,
-                                    applyCjkTextOffset = false,
-                                    enabled = isMedicationIdentityEditable
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     }
                 }
 
-                MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
-                    val field = StructuredMedicationEditorTextField.DOSE_MG
-                    DoseTextField(
-                        value = draft.doseMg,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind
-                        ),
-                        onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_equivalent_estradiol_mg),
-                        suffix = stringResource(R.string.unit_mg),
-                        errorMessageRes = fieldErrors.doseMg,
-                        focusRequester = textFieldFocusRequesters.getValue(field),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = field
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = field
-                        ),
-                        enabled = isMedicationIdentityEditable
-                    )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets,
-                        onPresetClick = { preset ->
-                            val resolvedPreset =
-                                preset as MedicationDoseAssistPreset.GelEquivalentEstradiolMg
-                            onDoseMgChange(resolvedPreset.valueMg)
+                if (draft.requiresCustomName()) {
+                    val field = StructuredMedicationEditorTextField.CUSTOM_NAME
+                    val focusManager = LocalFocusManager.current
+                    val nextFocusRequester = structuredMedicationEditorNextField(
+                        editableFields = editableTextFields,
+                        field = field
+                    )?.let(textFieldFocusRequesters::getValue)
+                    OutlinedTextField(
+                        value = draft.customMedicationName,
+                        onValueChange = onCustomMedicationNameChange,
+                        isError = fieldErrors.customName != null,
+                        label = {
+                            Text(text = stringResource(R.string.field_medication_name))
                         },
-                        enabled = isMedicationIdentityEditable
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Label,
+                                contentDescription = null
+                            )
+                        },
+                        supportingText = fieldErrors.customName?.let { errorMessageRes ->
+                            {
+                                Text(
+                                    text = stringResource(errorMessageRes),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(textFieldFocusRequesters.getValue(field)),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = field
+                            )
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = {
+                                if (nextFocusRequester != null) {
+                                    nextFocusRequester.requestFocus()
+                                } else {
+                                    focusManager.clearFocus()
+                                }
+                            },
+                            onDone = { focusManager.clearFocus() }
+                        )
                     )
-                }
 
-                MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
-                    val percentField = StructuredMedicationEditorTextField.GEL_PERCENT
-                    DoseTextField(
-                        value = draft.gelPercent,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind,
-                            gelField = GelDoseField.PERCENT
-                        ),
-                        onValueChange = onGelPercentChange,
-                        label = stringResource(R.string.field_gel_percent),
-                        suffix = stringResource(R.string.unit_percent),
-                        errorMessageRes = fieldErrors.gelPercent,
-                        focusRequester = textFieldFocusRequesters.getValue(percentField),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = percentField
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = percentField
-                        ),
-                        enabled = isMedicationIdentityEditable
-                    )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
-                        onPresetClick = { preset ->
-                            val resolvedPreset =
-                                preset as MedicationDoseAssistPreset.GelPercent
-                            onGelPercentChange(resolvedPreset.percent)
-                        },
-                        enabled = isMedicationIdentityEditable
-                    )
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                    val weightField = StructuredMedicationEditorTextField.GEL_WEIGHT
-                    DoseTextField(
-                        value = draft.gelWeightGrams,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind,
-                            gelField = GelDoseField.WEIGHT
-                        ),
-                        onValueChange = onGelWeightChange,
-                        label = stringResource(R.string.field_gel_weight_grams),
-                        suffix = stringResource(R.string.unit_grams),
-                        errorMessageRes = fieldErrors.gelWeight,
-                        focusRequester = textFieldFocusRequesters.getValue(weightField),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = weightField
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = weightField
-                        ),
-                        enabled = isMedicationIdentityEditable
-                    )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
-                        onPresetClick = { preset ->
-                            val resolvedPreset =
-                                preset as MedicationDoseAssistPreset.GelWeightGrams
-                            onGelWeightChange(resolvedPreset.weightGrams)
-                        },
-                        enabled = isMedicationIdentityEditable
-                    )
                 }
 
-                MedicationDoseKind.PATCH_TOTAL_MG -> {
-                    val field = StructuredMedicationEditorTextField.DOSE_MG
-                    DoseTextField(
-                        value = draft.doseMg,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind
-                        ),
-                        onValueChange = onDoseMgChange,
-                        label = stringResource(R.string.field_patch_total_mg),
-                        suffix = stringResource(R.string.unit_mg),
-                        errorMessageRes = fieldErrors.doseMg,
-                        focusRequester = textFieldFocusRequesters.getValue(field),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = field
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = field
-                        ),
-                        enabled = isMedicationIdentityEditable
+                if (draft.applicationType == MedicationApplicationType.GEL) {
+                    Text(
+                        text = stringResource(R.string.field_gel_application_area),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets,
-                        onPresetClick = { preset ->
-                            val resolvedPreset = preset as MedicationDoseAssistPreset.PatchTotalMg
-                            onDoseMgChange(resolvedPreset.valueMg)
-                        },
-                        enabled = isMedicationIdentityEditable
+                    ConnectedButtonGroup(
+                        options = MedicationGelApplicationArea.entries,
+                        selectedOption = MedicationGelApplicationArea.DEFAULT,
+                        optionLabel = { area -> stringResource(area.labelRes) },
+                        onOptionSelected = {},
                     )
+
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                 }
 
-                MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
-                    val field = StructuredMedicationEditorTextField.PATCH_RELEASE_RATE
-                    DoseTextField(
-                        value = draft.patchReleaseRateMcgPerDay,
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind
-                        ),
-                        onValueChange = onPatchReleaseRateChange,
-                        label = stringResource(R.string.field_patch_release_rate_mcg_day),
-                        suffix = stringResource(R.string.unit_mcg_day),
-                        errorMessageRes = fieldErrors.patchReleaseRate,
-                        focusRequester = textFieldFocusRequesters.getValue(field),
-                        nextFocusRequester = structuredMedicationEditorNextField(
-                            editableFields = editableTextFields,
-                            field = field
-                        )?.let(textFieldFocusRequesters::getValue),
-                        imeAction = structuredMedicationEditorImeAction(
-                            editableFields = editableTextFields,
-                            field = field
-                        ),
-                        enabled = isMedicationIdentityEditable
+                if (draft.availableDoseKinds().size > 1) {
+                    Text(
+                        text = stringResource(R.string.field_dose_type),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     )
-                    DoseAssistPresetRow(
-                        presets = doseAssistPresets,
-                        onPresetClick = { preset ->
-                            val resolvedPreset =
-                                preset as MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay
-                            onPatchReleaseRateChange(resolvedPreset.valueMcgPerDay)
-                        },
-                        enabled = isMedicationIdentityEditable,
+                    ConnectedButtonGroup(
+                        options = draft.availableDoseKinds(),
+                        selectedOption = draft.doseKind,
+                        optionLabel = { doseKind -> stringResource(doseKindLabelRes(doseKind)) },
+                        onOptionSelected = onDoseKindChange,
                     )
+
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                 }
 
-                MedicationDoseKind.NONE -> {
-                    DoseTextField(
-                        value = "",
-                        painterRes = doseFieldPainterRes(
-                            applicationType = draft.applicationType,
-                            doseKind = draft.doseKind
-                        ),
-                        onValueChange = {},
-                        label = stringResource(R.string.field_dosage_mg),
-                        placeholder = stringResource(R.string.medication_editor_patch_off_hint),
-                        enabled = false
+                when (draft.doseKind) {
+                    MedicationDoseKind.MG_AS_MEDICINE -> {
+                        val field = StructuredMedicationEditorTextField.DOSE_MG
+                        DoseTextField(
+                            value = draft.doseMg,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind
+                            ),
+                            onValueChange = onDoseMgChange,
+                            label = stringResource(R.string.field_dosage_mg),
+                            suffix = stringResource(draft.displayDoseUnit().shortLabelRes),
+                            errorMessageRes = fieldErrors.doseMg,
+                            showWarningIcon = showsDoseWarning,
+                            focusRequester = textFieldFocusRequesters.getValue(field),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = field
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = field
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets,
+                            onPresetClick = { preset ->
+                                val resolvedPreset = preset as MedicationDoseAssistPreset.MgAsMedicine
+                                onDoseMgChange(resolvedPreset.valueMg)
+                            }
+                        )
+                        if (draft.showsCustomDoseUnitSelector()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.settings_calibration_unit_label),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(end = 16.dp)
+                                )
+                                CompositionLocalProvider(
+                                    LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                                ) {
+                                    ConnectedButtonGroup(
+                                        options = MedicationDoseUnit.entries,
+                                        selectedOption = draft.customDoseUnit,
+                                        optionLabel = { unit -> stringResource(unit.shortLabelRes) },
+                                        onOptionSelected = onCustomDoseUnitChange,
+                                        layout = ConnectedButtonGroupLayout.ROW,
+                                        applyCjkTextOffset = false,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> {
+                        val field = StructuredMedicationEditorTextField.DOSE_MG
+                        DoseTextField(
+                            value = draft.doseMg,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind
+                            ),
+                            onValueChange = onDoseMgChange,
+                            label = stringResource(R.string.field_equivalent_estradiol_mg),
+                            suffix = stringResource(R.string.unit_mg),
+                            errorMessageRes = fieldErrors.doseMg,
+                            focusRequester = textFieldFocusRequesters.getValue(field),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = field
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = field
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets,
+                            onPresetClick = { preset ->
+                                val resolvedPreset =
+                                    preset as MedicationDoseAssistPreset.GelEquivalentEstradiolMg
+                                onDoseMgChange(resolvedPreset.valueMg)
+                            }
+                        )
+                    }
+
+                    MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
+                        val percentField = StructuredMedicationEditorTextField.GEL_PERCENT
+                        DoseTextField(
+                            value = draft.gelPercent,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind,
+                                gelField = GelDoseField.PERCENT
+                            ),
+                            onValueChange = onGelPercentChange,
+                            label = stringResource(R.string.field_gel_percent),
+                            suffix = stringResource(R.string.unit_percent),
+                            errorMessageRes = fieldErrors.gelPercent,
+                            focusRequester = textFieldFocusRequesters.getValue(percentField),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = percentField
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = percentField
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                            onPresetClick = { preset ->
+                                val resolvedPreset =
+                                    preset as MedicationDoseAssistPreset.GelPercent
+                                onGelPercentChange(resolvedPreset.percent)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                        val weightField = StructuredMedicationEditorTextField.GEL_WEIGHT
+                        DoseTextField(
+                            value = draft.gelWeightGrams,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind,
+                                gelField = GelDoseField.WEIGHT
+                            ),
+                            onValueChange = onGelWeightChange,
+                            label = stringResource(R.string.field_gel_weight_grams),
+                            suffix = stringResource(R.string.unit_grams),
+                            errorMessageRes = fieldErrors.gelWeight,
+                            focusRequester = textFieldFocusRequesters.getValue(weightField),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = weightField
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = weightField
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
+                            onPresetClick = { preset ->
+                                val resolvedPreset =
+                                    preset as MedicationDoseAssistPreset.GelWeightGrams
+                                onGelWeightChange(resolvedPreset.weightGrams)
+                            }
+                        )
+                    }
+
+                    MedicationDoseKind.PATCH_TOTAL_MG -> {
+                        val field = StructuredMedicationEditorTextField.DOSE_MG
+                        DoseTextField(
+                            value = draft.doseMg,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind
+                            ),
+                            onValueChange = onDoseMgChange,
+                            label = stringResource(R.string.field_patch_total_mg),
+                            suffix = stringResource(R.string.unit_mg),
+                            errorMessageRes = fieldErrors.doseMg,
+                            focusRequester = textFieldFocusRequesters.getValue(field),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = field
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = field
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets,
+                            onPresetClick = { preset ->
+                                val resolvedPreset = preset as MedicationDoseAssistPreset.PatchTotalMg
+                                onDoseMgChange(resolvedPreset.valueMg)
+                            }
+                        )
+                    }
+
+                    MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
+                        val field = StructuredMedicationEditorTextField.PATCH_RELEASE_RATE
+                        DoseTextField(
+                            value = draft.patchReleaseRateMcgPerDay,
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind
+                            ),
+                            onValueChange = onPatchReleaseRateChange,
+                            label = stringResource(R.string.field_patch_release_rate_mcg_day),
+                            suffix = stringResource(R.string.unit_mcg_day),
+                            errorMessageRes = fieldErrors.patchReleaseRate,
+                            focusRequester = textFieldFocusRequesters.getValue(field),
+                            nextFocusRequester = structuredMedicationEditorNextField(
+                                editableFields = editableTextFields,
+                                field = field
+                            )?.let(textFieldFocusRequesters::getValue),
+                            imeAction = structuredMedicationEditorImeAction(
+                                editableFields = editableTextFields,
+                                field = field
+                            )
+                        )
+                        DoseAssistPresetRow(
+                            presets = doseAssistPresets,
+                            onPresetClick = { preset ->
+                                val resolvedPreset =
+                                    preset as MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay
+                                onPatchReleaseRateChange(resolvedPreset.valueMcgPerDay)
+                            }
+                        )
+                    }
+
+                    MedicationDoseKind.NONE -> {
+                        DoseTextField(
+                            value = "",
+                            painterRes = doseFieldPainterRes(
+                                applicationType = draft.applicationType,
+                                doseKind = draft.doseKind
+                            ),
+                            onValueChange = {},
+                            label = stringResource(R.string.field_dosage_mg),
+                            placeholder = stringResource(R.string.medication_editor_patch_off_hint),
+                            enabled = false
+                        )
+                    }
+                }
+
+                if (showsCountEditor) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+                    MedicationCountTextField(
+                        value = countText,
+                        onValueChange = checkNotNull(onCountTextChange),
+                        onDecreaseClick = checkNotNull(onDecreaseCountClick),
+                        onIncreaseClick = checkNotNull(onIncreaseCountClick),
+                        enabled = !isSaving,
+                        errorMessageRes = fieldErrors.count,
                     )
                 }
-            }
-
-            if (showsCountEditor) {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                MedicationCountTextField(
-                    value = countText,
-                    onValueChange = checkNotNull(onCountTextChange),
-                    onDecreaseClick = checkNotNull(onDecreaseCountClick),
-                    onIncreaseClick = checkNotNull(onIncreaseCountClick),
-                    enabled = !isSaving && isMedicationIdentityEditable,
-                    errorMessageRes = fieldErrors.count,
+            } else {
+                val groupName = sourceGroupName?.takeIf(String::isNotBlank)
+                val scheduledFor = sourceGroupScheduledFor
+                if (groupName != null && scheduledFor != null) {
+                    MedicationEditorGroupInfoCard(
+                        groupName = groupName,
+                        groupColorKey = sourceGroupColorKey,
+                        scheduledForText = stringResource(
+                            R.string.medication_editor_original_schedule,
+                            listOf(
+                                scheduledFor.toLocalDate().format(dateFormatter),
+                                scheduledFor.toLocalTime().format(timeFormatter)
+                            ).joinToString(separator = " ")
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                }
+                MedicationCard(
+                    details = draft.toMedicationDetails(),
+                    medicationCount = resolvedCount.coerceAtLeast(1),
+                    groupColorKey = sourceGroupColorKey,
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    index = 1,
+                    itemCount = 2
                 )
             }
 
@@ -647,17 +684,18 @@ fun StructuredMedicationEditorSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .pointerInput(appliedDate) {
-                        awaitEachGesture {
-                            // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
-                            // in the Initial pass to observe events before the text field consumes them
-                            // in the Main pass.
-                            awaitFirstDown(pass = PointerEventPass.Initial)
-                            val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                            if (upEvent != null) {
-                                showDatePickerModal = true
+                            awaitEachGesture {
+                                // Modifier.clickable doesn't work for text fields, so we use Modifier.pointerInput
+                                // in the Initial pass to observe events before the text field consumes them
+                                // in the Main pass.
+                                awaitFirstDown(pass = PointerEventPass.Initial)
+                                val upEvent =
+                                    waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                                if (upEvent != null) {
+                                    showDatePickerModal = true
+                                }
                             }
-                        }
-                    },
+                        },
                     leadingIcon = {
                         Icon(Icons.Rounded.CalendarMonth, contentDescription = stringResource(R.string.select_date))
                     },
@@ -693,7 +731,8 @@ fun StructuredMedicationEditorSheet(
                                 // in the Initial pass to observe events before the text field consumes them
                                 // in the Main pass.
                                 awaitFirstDown(pass = PointerEventPass.Initial)
-                                val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                                val upEvent =
+                                    waitForUpOrCancellation(pass = PointerEventPass.Initial)
                                 if (upEvent != null) {
                                     showTimePickerModal = true
                                 }
@@ -743,6 +782,66 @@ fun StructuredMedicationEditorSheet(
                         .padding(top = dimensionResource(R.dimen.padding_xsmall)),
                     enabled = !isSaving,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MedicationEditorGroupInfoCard(
+    groupName: String,
+    groupColorKey: MedicationGroupColorKey?,
+    scheduledForText: String,
+    modifier: Modifier = Modifier,
+) {
+    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
+
+    Column {
+        EditorSegmentedListItem(
+            onClick = {},
+            index = 0,
+            count = 2,
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 4.dp, height = 40.dp)
+                        .background(
+                            color = groupColorScheme.primary,
+                            shape = RoundedCornerShape(3.dp)
+                        )
+                )
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = groupName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Normal,
+                        modifier = Modifier.cjkTextOffset(groupName)
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_calendar_clock),
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = scheduledForText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.cjkTextOffset(scheduledForText)
+                        )
+                    }
+                }
             }
         }
     }
@@ -938,10 +1037,9 @@ internal enum class StructuredMedicationEditorTextField {
 
 internal fun structuredMedicationEditorEditableFields(
     draft: MedicationDraftUiState,
-    isMedicationIdentityEditable: Boolean = true,
 ): List<StructuredMedicationEditorTextField> {
     val fields = mutableListOf<StructuredMedicationEditorTextField>()
-    if (draft.requiresCustomName() && isMedicationIdentityEditable) {
+    if (draft.requiresCustomName()) {
         fields += StructuredMedicationEditorTextField.CUSTOM_NAME
     }
     when (draft.doseKind) {
@@ -1014,7 +1112,7 @@ internal fun resolveDoseTextFieldPlaceholder(
 private fun DoseAssistPresetRow(
     presets: List<MedicationDoseAssistPreset>,
     onPresetClick: (MedicationDoseAssistPreset) -> Unit,
-    enabled: Boolean,
+    enabled: Boolean = true,
 ) {
     if (presets.isEmpty() || !enabled) {
         return
@@ -1187,6 +1285,26 @@ internal fun resolveMedicationEditorFieldErrors(
             null
         },
     )
+}
+
+@Preview(
+    name = "Medication Editor Group Info Card",
+    showBackground = true,
+    widthDp = 420
+)
+@Composable
+private fun MedicationEditorGroupInfoCardPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicationEditorGroupInfoCard(
+            groupName = "Nightly estradiol",
+            groupColorKey = MedicationGroupColorKey.INDIGO,
+            scheduledForText = stringResource(
+                R.string.medication_editor_original_schedule,
+                "Apr 22, 2026 21:00"
+            ),
+            modifier = Modifier.padding(16.dp)
+        )
+    }
 }
 
 @Preview(

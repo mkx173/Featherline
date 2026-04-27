@@ -59,6 +59,7 @@ internal fun MedicationCard(
     extraSupportingText: String? = null,
     colorScheme: ColorScheme? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    enabled: Boolean = true,
     index: Int = 0,
     itemCount: Int = 1
 ) {
@@ -100,12 +101,13 @@ internal fun MedicationCard(
         index = index,
         count = itemCount,
         modifier = modifier,
+        enabled = enabled,
         containerColor = containerColor,
         trailingContent = resolvedTrailingContent
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-        ) {
+            ) {
             Surface(
                 modifier = Modifier.size(36.dp),
                 shape = MaterialTheme.shapes.small,
