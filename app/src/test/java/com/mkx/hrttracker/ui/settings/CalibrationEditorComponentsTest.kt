@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.settings
 
 import androidx.compose.ui.text.input.ImeAction
+import com.mkx.hrttracker.ui.calibration.calibrationEditorAnalyteImeAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -46,10 +46,10 @@ import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanScreen
-import com.mkx.hrttracker.ui.settings.CalibrationEditorScreen
-import com.mkx.hrttracker.ui.settings.CalibrationEditorViewModel
-import com.mkx.hrttracker.ui.settings.CalibrationScreen
-import com.mkx.hrttracker.ui.settings.CalibrationUnitsScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
+import com.mkx.hrttracker.ui.calibration.CalibrationScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.time.LocalDateTime
 import java.util.UUID

@@ -1,9 +1,8 @@
-package com.mkx.hrttracker.ui.settings
+package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -29,7 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.VisualTransformation
 import com.mkx.hrttracker.R
 
 @Composable
@@ -240,7 +239,7 @@ private fun BackupPasswordField(
             onDone = { onImeAction() },
         ),
         visualTransformation = if (passwordVisible) {
-            androidx.compose.ui.text.input.VisualTransformation.None
+            VisualTransformation.None
         } else {
             PasswordVisualTransformation()
         },

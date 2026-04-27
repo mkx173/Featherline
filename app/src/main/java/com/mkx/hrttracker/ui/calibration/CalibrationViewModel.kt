@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.settings
+package com.mkx.hrttracker.ui.calibration
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

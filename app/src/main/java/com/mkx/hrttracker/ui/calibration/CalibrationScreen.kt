@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.settings
+package com.mkx.hrttracker.ui.calibration
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -91,6 +90,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
 import android.widget.Toast
+import kotlin.math.round
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1115,9 +1115,9 @@ internal fun calibrationValueInPreferredUnitLabel(
 
 internal fun formatCalibrationConvertedValue(value: Double): String {
     val roundedValue = when {
-        value >= 100.0 -> kotlin.math.round(value * 10.0) / 10.0
-        value >= 1.0 -> kotlin.math.round(value * 100.0) / 100.0
-        else -> kotlin.math.round(value * 1000.0) / 1000.0
+        value >= 100.0 -> round(value * 10.0) / 10.0
+        value >= 1.0 -> round(value * 100.0) / 100.0
+        else -> round(value * 1000.0) / 1000.0
     }
     return formatCalibrationNumericValue(roundedValue)
 }
@@ -1216,7 +1216,7 @@ private fun formatCalibrationTargetValue(value: Double): String {
     return if (rounded == rounded.toLong().toDouble()) {
         rounded.toLong().toString()
     } else {
-        String.format(java.util.Locale.ROOT, "%.1f", rounded)
+        String.format(Locale.ROOT, "%.1f", rounded)
     }
 }
 

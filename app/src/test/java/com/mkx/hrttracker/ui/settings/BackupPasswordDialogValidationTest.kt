@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.settings
 
+import com.mkx.hrttracker.ui.components.BackupPasswordValidationError
+import com.mkx.hrttracker.ui.components.validateBackupPasswordInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
