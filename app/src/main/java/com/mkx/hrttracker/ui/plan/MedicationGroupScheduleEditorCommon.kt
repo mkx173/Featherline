@@ -224,7 +224,6 @@ internal fun NotificationsCard(
                 enabled = toggleEnabled
             )
         },
-        supportingTextStyle = MaterialTheme.typography.bodySmall,
     )
 }
 
@@ -240,7 +239,8 @@ internal fun DeleteMedicationGroupRecordsCard(
         onClick = onClick,
         icon = Icons.Rounded.PlaylistRemove,
         index = 0,
-        count = 2
+        count = 2,
+        supportText = if (!enabled) stringResource(R.string.delete_group_related_records_disabled) else null
     )
 }
 

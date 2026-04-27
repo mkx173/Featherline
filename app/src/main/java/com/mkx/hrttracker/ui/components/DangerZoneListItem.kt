@@ -8,6 +8,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -19,8 +20,9 @@ fun DangerZoneListItem(
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Rounded.Delete,
     index: Int = 0,
-    count: Int = 1
-) {
+    count: Int = 1,
+    supportText: String? = null,
+    ) {
     val displayLabel = label.uppercase()
     val contentColor = if (enabled) {
         MaterialTheme.colorScheme.onErrorContainer
@@ -34,9 +36,8 @@ fun DangerZoneListItem(
         count = count,
         enabled = enabled,
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.alpha(if (enabled) 1f else 0.72f),
         containerColor = MaterialTheme.colorScheme.errorContainer,
-        disabledContainerColor = MaterialTheme.colorScheme.errorContainer,
         titleTextStyle = MaterialTheme.typography.titleMedium,
         titleColor = contentColor,
         leadingContent = {
@@ -54,5 +55,6 @@ fun DangerZoneListItem(
                 tint = contentColor,
             )
         },
+        supportingText = supportText,
     )
 }

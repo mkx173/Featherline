@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -164,6 +166,11 @@ private fun PlanScreenContent(
     val daySchedule = uiState.daySchedule
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        lazyListState = listState,
+        state = topAppBarState
+    )
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
@@ -180,20 +187,24 @@ private fun PlanScreenContent(
         }
     }
 
+    val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal > 0) {
+        if (scrollToTopSignal != initialScrollToTopSignal) {
             listState.animateScrollToItem(0)
+            topAppBarState.contentOffset = 0f
+            topAppBarState.heightOffset = 0f
         }
     }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(R.string.tab_plan)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
+                scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(onClick = onHistoryClick) {
                         Icon(

@@ -59,6 +59,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -209,7 +210,12 @@ private fun HistoryScreenContent(
     val monthLabelFormatter = remember(appLocale) {
         historyMonthLabelFormatter(appLocale)
     }
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val listState = rememberLazyListState()
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        lazyListState = listState,
+        state = topAppBarState
+    )
     val calendarState = key(
         uiState.calendarStartMonth,
         uiState.calendarEndMonth,
@@ -238,7 +244,6 @@ private fun HistoryScreenContent(
             selectedDate = uiState.selectedDate
         )
     }
-    val listState = rememberLazyListState()
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     val displayedSelectedDate = remember(
@@ -280,21 +285,12 @@ private fun HistoryScreenContent(
         }
     }
 
+    val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal > 0) {
+        if (scrollToTopSignal != initialScrollToTopSignal) {
             listState.animateScrollToItem(0)
-        }
-    }
-
-    LaunchedEffect(listState, scrollBehavior) {
-        snapshotFlow {
-            historyHasScrolled(
-                firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
-            )
-        }.collect { isScrolled ->
-            scrollBehavior.state.contentOffset = scrolledTopAppBarContentOffset(isScrolled)
-            scrollBehavior.state.heightOffset = 0f
+            topAppBarState.contentOffset = 0f
+            topAppBarState.heightOffset = 0f
         }
     }
 
@@ -646,17 +642,6 @@ private fun HistoryScreenContent(
             }
         }
     }
-}
-
-internal fun historyHasScrolled(
-    firstVisibleItemIndex: Int,
-    firstVisibleItemScrollOffset: Int,
-): Boolean {
-    return firstVisibleItemIndex > 0 || firstVisibleItemScrollOffset > 0
-}
-
-internal fun scrolledTopAppBarContentOffset(isScrolled: Boolean): Float {
-    return if (isScrolled) 1f else 0f
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -63,7 +64,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -516,18 +516,18 @@ private fun SettingsScreenContent(
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
 
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        scrollState = scrollState,
+        state = topAppBarState
+    )
 
+    val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
-        if (scrollToTopSignal > 0) {
+        if (scrollToTopSignal != initialScrollToTopSignal) {
             scrollState.animateScrollTo(0)
-        }
-    }
-
-    LaunchedEffect(scrollState, scrollBehavior) {
-        snapshotFlow { scrollState.value > 0 }.collect { isScrolled ->
-            scrollBehavior.state.contentOffset = if (isScrolled) 1f else 0f
-            scrollBehavior.state.heightOffset = 0f
+            topAppBarState.contentOffset = 0f
+            topAppBarState.heightOffset = 0f
         }
     }
 

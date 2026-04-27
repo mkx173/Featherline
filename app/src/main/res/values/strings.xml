@@ -176,6 +176,7 @@
     <string name="delete_medication_group_title">Delete group</string>
     <string name="delete_medication_group_confirmation">Delete this medication group? Related history entries will be kept and converted to manual entries.</string>
     <string name="delete_group_related_records">Delete records</string>
+    <string name="delete_group_related_records_disabled">No related records yet.</string>
     <string name="delete_group_related_records_title">Delete related records</string>
     <string name="delete_group_related_records_success">Deleted related records.</string>
     <string name="delete_group_related_records_failure">Unable to delete related records.</string>

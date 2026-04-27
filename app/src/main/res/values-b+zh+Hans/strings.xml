@@ -174,6 +174,7 @@
     <string name="delete_medication_group_title">删除分组</string>
     <string name="delete_medication_group_confirmation">要删除这个用药分组吗？相关历史记录会被保留，并转换为手动记录。</string>
     <string name="delete_group_related_records">删除记录</string>
+    <string name="delete_group_related_records_disabled">暂无相关记录</string>
     <string name="delete_group_related_records_title">删除相关记录</string>
     <string name="delete_group_related_records_success">已删除相关记录</string>
     <string name="delete_group_related_records_failure">无法删除相关记录</string>
