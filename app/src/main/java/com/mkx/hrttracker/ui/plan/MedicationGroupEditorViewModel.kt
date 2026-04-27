@@ -370,7 +370,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveGroup() {
         val currentState = _uiState.value
-        if (!hasSaveableMedicationGroupContent(currentState)) {
+        if (
+            currentState.isSaving ||
+            currentState.isDeleting ||
+            currentState.isDeletingRelatedEntries ||
+            !hasSaveableMedicationGroupContent(currentState)
+        ) {
             return
         }
         val resolvedGroupName = resolveMedicationGroupName(
@@ -386,46 +391,62 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
+            _uiState.update {
+                it.copy(
+                    isSaving = true,
+                    saveMedicationGroupResult = null,
+                )
+            }
 
-            val savedGroupUuid = medicationGroupRepository.saveGroup(
-                uuid = currentState.editingGroupId?.let(UUID::fromString),
-                name = resolvedGroupName,
-                colorKey = currentState.groupColorKey,
-                schedule = when (currentState.scheduleType) {
-                    MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
-                        type = MedicationGroupScheduleType.WEEKLY,
-                        interval = parsedWeeklyInterval,
-                        since = currentState.sinceDate,
-                        weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
-                        times = listOf(currentState.weeklyTime)
-                    )
-                    MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
-                        type = MedicationGroupScheduleType.DAILY,
-                        interval = parsedDailyInterval,
-                        since = currentState.sinceDate,
-                        weeklyDaysOfWeek = emptySet(),
-                        times = resolvedDailyTimes
-                            .map(MedicationGroupScheduleTimeUiState::time)
-                            .sorted()
-                    )
-                },
-                medications = currentState.medications.map { medication ->
-                    MedicationGroupMedicationInput(
-                        uuid = medication.persistedMedicationId?.let(UUID::fromString),
-                        details = medication.details,
-                        count = medication.count
-                    )
-                },
-                notificationsEnabled = currentState.notificationsEnabled
+            val saveResult = runCatching {
+                val savedGroupUuid = medicationGroupRepository.saveGroup(
+                    uuid = currentState.editingGroupId?.let(UUID::fromString),
+                    name = resolvedGroupName,
+                    colorKey = currentState.groupColorKey,
+                    schedule = when (currentState.scheduleType) {
+                        MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
+                            type = MedicationGroupScheduleType.WEEKLY,
+                            interval = parsedWeeklyInterval,
+                            since = currentState.sinceDate,
+                            weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
+                            times = listOf(currentState.weeklyTime)
+                        )
+                        MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
+                            type = MedicationGroupScheduleType.DAILY,
+                            interval = parsedDailyInterval,
+                            since = currentState.sinceDate,
+                            weeklyDaysOfWeek = emptySet(),
+                            times = resolvedDailyTimes
+                                .map(MedicationGroupScheduleTimeUiState::time)
+                                .sorted()
+                        )
+                    },
+                    medications = currentState.medications.map { medication ->
+                        MedicationGroupMedicationInput(
+                            uuid = medication.persistedMedicationId?.let(UUID::fromString),
+                            details = medication.details,
+                            count = medication.count
+                        )
+                    },
+                    notificationsEnabled = currentState.notificationsEnabled
+                )
+                medicationReminderScheduler.rescheduleGroup(savedGroupUuid)
+            }.fold(
+                onSuccess = { null },
+                onFailure = { SaveMedicationGroupResult.FAILURE },
             )
-            medicationReminderScheduler.rescheduleGroup(savedGroupUuid)
+            val isSaved = saveResult == null
 
             _uiState.update {
                 it.copy(
-                    groupName = resolvedGroupName,
+                    groupName = if (isSaved) {
+                        resolvedGroupName
+                    } else {
+                        it.groupName
+                    },
                     isSaving = false,
-                    isSaved = true
+                    isSaved = isSaved,
+                    saveMedicationGroupResult = saveResult,
                 )
             }
         }
@@ -508,6 +529,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun consumeSavedState() {
         _uiState.update { it.copy(isSaved = false) }
+    }
+
+    fun consumeSaveMedicationGroupResult() {
+        _uiState.update { it.copy(saveMedicationGroupResult = null) }
     }
 
     fun consumeDeletedState() {
@@ -770,6 +795,7 @@ data class MedicationGroupEditorUiState(
     val isDeletingRelatedEntries: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
@@ -778,6 +804,10 @@ data class MedicationGroupEditorUiState(
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+}
+
+enum class SaveMedicationGroupResult {
+    FAILURE,
 }
 
 enum class DeleteRelatedEntriesResult {

@@ -239,6 +239,55 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
+    fun save_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        coEvery {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any()
+            )
+        } throws RuntimeException("save failed")
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+        viewModel.updateAnalyteValue(BloodAnalyteKey.E2, "152.4")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)
+        viewModel.updateAnalyteValue(BloodAnalyteKey.T, "31.7")
+        viewModel.updateAnalyteUnit(BloodAnalyteKey.T, BloodUnitKey.NMOL_L)
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertEquals(
+            CalibrationSaveEntryResult.FAILURE,
+            viewModel.uiState.value.saveEntryResult,
+        )
+
+        viewModel.consumeSaveEntryResult()
+        assertNull(viewModel.uiState.value.saveEntryResult)
+        coVerify(exactly = 1) {
+            repository.savePanel(
+                uuid = null,
+                collectedAt = any(),
+                collectedAtTimeZoneId = any(),
+                notes = any(),
+                results = any(),
+                now = any()
+            )
+        }
+    }
+
+    @Test
     fun save_omitsDeletedDefaultAnalytes() = runTest {
         val resultInputSlot = slot<List<BloodTestResultInput>>()
         coEvery {

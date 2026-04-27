@@ -107,6 +107,7 @@
     <string name="delete_entry_title">删除记录</string>
     <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
     <string name="delete_entries_confirm">删除</string>
+    <string name="save_entry_failure">无法保存记录</string>
     <string name="delete_entry_failure">无法删除记录</string>
     <string name="history_delete_all_entries">删除全部记录</string>
     <string name="history_delete_all_entries_title">删除全部记录</string>
@@ -181,6 +182,7 @@
         <item quantity="other">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除。</item>
     </plurals>
     <string name="delete_medication_group_keep_records">保留记录</string>
+    <string name="save_medication_group_failure">无法保存分组</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
     <string name="delete_group_related_records_disabled">暂无相关记录</string>
@@ -343,6 +345,7 @@
     <string name="settings_calibration_delete_all_entries_title">删除全部校准记录</string>
     <string name="settings_calibration_delete_all_entries_success">已删除全部校准记录</string>
     <string name="settings_calibration_delete_all_entries_failure">无法删除校准记录</string>
+    <string name="settings_calibration_save_entry_failure">无法保存校准记录</string>
     <string name="settings_calibration_delete_entry_failure">无法删除校准记录</string>
     <plurals name="settings_calibration_delete_all_entries_message">
         <item quantity="other">要删除全部 %1$d 条校准记录吗？自定义分析项和默认单位会保留</item>

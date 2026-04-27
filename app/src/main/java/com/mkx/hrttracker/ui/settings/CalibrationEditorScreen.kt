@@ -99,6 +99,8 @@ fun CalibrationEditorScreen(
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isAddAnalyteSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
+    val saveEntryFailureMessage =
+        stringResource(R.string.settings_calibration_save_entry_failure)
     val deleteEntryFailureMessage =
         stringResource(R.string.settings_calibration_delete_entry_failure)
 
@@ -113,6 +115,21 @@ fun CalibrationEditorScreen(
         if (uiState.isDeleted) {
             viewModel.consumeDeletedState()
             onSaved()
+        }
+    }
+
+    LaunchedEffect(uiState.saveEntryResult) {
+        when (uiState.saveEntryResult) {
+            CalibrationSaveEntryResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    saveEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                viewModel.consumeSaveEntryResult()
+            }
+
+            null -> Unit
         }
     }
 

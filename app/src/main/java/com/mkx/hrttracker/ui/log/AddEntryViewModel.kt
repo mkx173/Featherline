@@ -137,45 +137,61 @@ class AddEntryViewModel @Inject constructor(
 
         if (errorRes != null) {
             _uiState.update {
-                it.copy(errorMessageRes = errorRes)
+                it.copy(
+                    errorMessageRes = errorRes,
+                    saveEntryResult = null,
+                )
             }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
+            _uiState.update {
+                it.copy(
+                    isSaving = true,
+                    errorMessageRes = null,
+                    saveEntryResult = null,
+                )
+            }
 
             val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
             val resolvedCount = resolvedMedicationCountForSave(
                 applicationType = currentState.medicationDraft.applicationType,
                 countText = currentState.countText,
             )
-            if (editingEntryUuids.size > 1) {
-                medicationLogRepository.saveEntries(
-                    uuids = editingEntryUuids,
-                    medication = currentState.medicationDraft.toMedicationDetails(),
-                    sourceGroupUuid = currentState.sourceGroupUuid,
-                    appliedAt = appliedAt,
-                    scheduledFor = currentState.scheduledFor,
-                    count = resolvedCount
-                )
-            } else {
-                medicationLogRepository.saveEntry(
-                    uuid = editingEntryUuids.firstOrNull(),
-                    medication = currentState.medicationDraft.toMedicationDetails(),
-                    sourceGroupUuid = currentState.sourceGroupUuid,
-                    appliedAt = appliedAt,
-                    scheduledFor = currentState.scheduledFor,
-                    count = resolvedCount
-                )
-            }
-            medicationReminderScheduler.rescheduleAll()
+            val saveResult = runCatching {
+                if (editingEntryUuids.size > 1) {
+                    medicationLogRepository.saveEntries(
+                        uuids = editingEntryUuids,
+                        medication = currentState.medicationDraft.toMedicationDetails(),
+                        sourceGroupUuid = currentState.sourceGroupUuid,
+                        appliedAt = appliedAt,
+                        scheduledFor = currentState.scheduledFor,
+                        count = resolvedCount
+                    )
+                } else {
+                    medicationLogRepository.saveEntry(
+                        uuid = editingEntryUuids.firstOrNull(),
+                        medication = currentState.medicationDraft.toMedicationDetails(),
+                        sourceGroupUuid = currentState.sourceGroupUuid,
+                        appliedAt = appliedAt,
+                        scheduledFor = currentState.scheduledFor,
+                        count = resolvedCount
+                    )
+                }
+                medicationReminderScheduler.rescheduleAll()
+            }.fold(
+                onSuccess = { null },
+                onFailure = { SaveEntryResult.FAILURE },
+            )
+            val isSaved = saveResult == null
 
             _uiState.update {
                 it.copy(
                     isSaving = false,
-                    isSaved = true,
-                    errorMessageRes = null
+                    isSaved = isSaved,
+                    errorMessageRes = null,
+                    saveEntryResult = saveResult,
                 )
             }
         }
@@ -224,6 +240,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(isSaved = false) }
     }
 
+    fun consumeSaveEntryResult() {
+        _uiState.update { it.copy(saveEntryResult = null) }
+    }
+
     fun consumeDeleteEntryResult() {
         _uiState.update { it.copy(deleteEntryResult = null) }
     }
@@ -249,6 +269,7 @@ data class AddEntryUiState(
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
     val errorMessageRes: Int? = null,
+    val saveEntryResult: SaveEntryResult? = null,
     val deleteEntryResult: DeleteEntryResult? = null,
 ) {
     val count: Int
@@ -265,6 +286,10 @@ data class AddEntryUiState(
 
     val canDelete: Boolean
         get() = isEditing
+}
+
+enum class SaveEntryResult {
+    FAILURE,
 }
 
 enum class DeleteEntryResult {

@@ -22,6 +22,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -119,6 +120,45 @@ class CalibrationUnitsViewModelTest {
     }
 
     @Test
+    fun saveCustomAnalyte_whenRefreshFails_returnsNoErrorAndKeepsCurrentAnalytes() = runTest {
+        val analyteUuid = UUID.fromString("a6d8dc40-9421-4a8e-b3c2-f884f13b1512")
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } returns emptyList()
+        coEvery {
+            bloodTestRepository.saveCustomAnalyte(
+                uuid = null,
+                abbreviation = "DHT",
+                name = "DHT",
+                unitLabel = "ng/dL",
+                now = any(),
+            )
+        } returns analyteUuid
+
+        val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
+        advanceUntilIdle()
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } throws RuntimeException("refresh failed")
+
+        val error = viewModel.saveCustomAnalyte(
+            uuid = null,
+            abbreviation = "DHT",
+            name = "DHT",
+            unitLabel = "ng/dL",
+        )
+        advanceUntilIdle()
+
+        assertNull(error)
+        assertEquals(emptyList<CustomBloodAnalyte>(), viewModel.uiState.value.customAnalytes)
+        coVerify(exactly = 1) {
+            bloodTestRepository.saveCustomAnalyte(
+                uuid = null,
+                abbreviation = "DHT",
+                name = "DHT",
+                unitLabel = "ng/dL",
+                now = any(),
+            )
+        }
+    }
+
+    @Test
     fun archiveCustomAnalyte_refreshesActiveAnalytes() = runTest {
         val analyteUuid = UUID.fromString("9401767e-c4c7-4f06-8c78-73a2610ce4aa")
         val existingAnalytes = listOf(
@@ -161,6 +201,36 @@ class CalibrationUnitsViewModelTest {
     }
 
     @Test
+    fun archiveCustomAnalyte_whenRefreshFails_reportsSuccessAndRemovesAnalyte() = runTest {
+        val analyteUuid = UUID.fromString("6d18a7ad-818c-4fab-9744-8ebbe78149da")
+        val existingAnalytes = listOf(
+            testCustomBloodAnalyte(
+                uuid = analyteUuid,
+                name = "DHT",
+                unitLabel = "ng/dL",
+            )
+        )
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } returns existingAnalytes
+        coEvery {
+            bloodTestRepository.archiveCustomAnalyte(
+                uuid = analyteUuid,
+                now = any(),
+            )
+        } returns Unit
+
+        val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
+        advanceUntilIdle()
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } throws RuntimeException("refresh failed")
+
+        viewModel.archiveCustomAnalyte(analyteUuid)
+        advanceUntilIdle()
+
+        assertEquals(CalibrationArchiveCustomAnalyteResult.SUCCESS, viewModel.uiState.value.archiveCustomAnalyteResult)
+        assertFalse(viewModel.uiState.value.isArchivingCustomAnalyte)
+        assertEquals(emptyList<CustomBloodAnalyte>(), viewModel.uiState.value.customAnalytes)
+    }
+
+    @Test
     fun archiveCustomAnalyte_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
         val analyteUuid = UUID.fromString("56967f39-311b-43cc-943a-b7cb21f8a804")
         val existingAnalytes = listOf(
@@ -200,6 +270,20 @@ class CalibrationUnitsViewModelTest {
                 now = any(),
             )
         }
+    }
+
+    @Test
+    fun hasResultsForCustomAnalyte_whenRepositoryFails_returnsTrue() = runTest {
+        val analyteUuid = UUID.fromString("2ed03461-f8f7-42a9-85a0-20fd9398ef81")
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } returns emptyList()
+        coEvery {
+            bloodTestRepository.hasResultsForCustomAnalyte(analyteUuid)
+        } throws RuntimeException("check failed")
+
+        val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.hasResultsForCustomAnalyte(analyteUuid))
     }
 
 }

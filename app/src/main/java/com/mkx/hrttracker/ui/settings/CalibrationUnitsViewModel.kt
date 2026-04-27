@@ -69,7 +69,7 @@ class CalibrationUnitsViewModel @Inject constructor(
         name: String,
         unitLabel: String,
     ): Throwable? {
-        return runCatching {
+        val saveError = runCatching {
             bloodTestRepository.saveCustomAnalyte(
                 uuid = uuid,
                 abbreviation = abbreviation,
@@ -77,8 +77,11 @@ class CalibrationUnitsViewModel @Inject constructor(
                 unitLabel = unitLabel,
                 now = Instant.now(),
             )
-            customAnalytes.value = bloodTestRepository.getActiveCustomAnalytes()
         }.exceptionOrNull()
+        if (saveError == null) {
+            refreshCustomAnalytesPreservingCurrent()
+        }
+        return saveError
     }
 
     fun archiveCustomAnalyte(uuid: UUID) {
@@ -94,11 +97,14 @@ class CalibrationUnitsViewModel @Inject constructor(
                     uuid = uuid,
                     now = Instant.now(),
                 )
-                customAnalytes.value = bloodTestRepository.getActiveCustomAnalytes()
             }.fold(
                 onSuccess = { CalibrationArchiveCustomAnalyteResult.SUCCESS },
                 onFailure = { CalibrationArchiveCustomAnalyteResult.FAILURE },
             )
+            if (result == CalibrationArchiveCustomAnalyteResult.SUCCESS) {
+                customAnalytes.value = customAnalytes.value.filterNot { it.uuid == uuid }
+                refreshCustomAnalytesPreservingCurrent()
+            }
             isArchivingCustomAnalyte.value = false
             archiveCustomAnalyteResult.value = result
         }
@@ -111,7 +117,7 @@ class CalibrationUnitsViewModel @Inject constructor(
     suspend fun hasResultsForCustomAnalyte(uuid: UUID): Boolean {
         return runCatching {
             bloodTestRepository.hasResultsForCustomAnalyte(uuid)
-        }.getOrDefault(false)
+        }.getOrDefault(true)
     }
 
     private fun refreshCustomAnalytes() {
@@ -122,6 +128,12 @@ class CalibrationUnitsViewModel @Inject constructor(
             }.getOrDefault(emptyList())
             isLoadingCustomAnalytes.value = false
         }
+    }
+
+    private suspend fun refreshCustomAnalytesPreservingCurrent() {
+        customAnalytes.value = runCatching {
+            bloodTestRepository.getActiveCustomAnalytes()
+        }.getOrDefault(customAnalytes.value)
     }
 }
 

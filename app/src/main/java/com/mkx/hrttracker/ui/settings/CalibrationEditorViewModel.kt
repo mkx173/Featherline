@@ -209,7 +209,10 @@ class CalibrationEditorViewModel @Inject constructor(
         val invalidDraftKeys = invalidCalibrationDraftKeys(currentState)
         if (invalidDraftKeys.isNotEmpty()) {
             _uiState.update { state ->
-                state.copy(invalidDraftKeys = invalidDraftKeys)
+                state.copy(
+                    invalidDraftKeys = invalidDraftKeys,
+                    saveEntryResult = null,
+                )
             }
             return
         }
@@ -218,6 +221,7 @@ class CalibrationEditorViewModel @Inject constructor(
             state.copy(
                 isSaving = true,
                 invalidDraftKeys = emptySet(),
+                saveEntryResult = null,
             )
         }
 
@@ -246,7 +250,10 @@ class CalibrationEditorViewModel @Inject constructor(
                 }
             }.onFailure {
                 _uiState.update { state ->
-                    state.copy(isSaving = false)
+                    state.copy(
+                        isSaving = false,
+                        saveEntryResult = CalibrationSaveEntryResult.FAILURE,
+                    )
                 }
             }
         }
@@ -294,6 +301,12 @@ class CalibrationEditorViewModel @Inject constructor(
     fun consumeDeletedState() {
         _uiState.update { state ->
             state.copy(isDeleted = false)
+        }
+    }
+
+    fun consumeSaveEntryResult() {
+        _uiState.update { state ->
+            state.copy(saveEntryResult = null)
         }
     }
 
@@ -466,6 +479,7 @@ data class CalibrationEditorUiState(
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val saveEntryResult: CalibrationSaveEntryResult? = null,
     val deleteEntryResult: CalibrationDeleteEntryResult? = null,
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
@@ -477,6 +491,10 @@ data class CalibrationEditorUiState(
         CalibrationResultDraftUiState(analyteKey = analyteKey)
     },
 )
+
+enum class CalibrationSaveEntryResult {
+    FAILURE,
+}
 
 enum class CalibrationDeleteEntryResult {
     FAILURE,

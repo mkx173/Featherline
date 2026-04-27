@@ -216,6 +216,62 @@ class MedicationGroupEditorDeleteRecordsTest {
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
         verify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
+
+    @Test
+    fun saveGroup_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val groupUuid = UUID.fromString("8cb1973c-f22c-405a-8251-60194c022d47")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = groupUuid,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+            )
+        } throws RuntimeException("save failed")
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertEquals(
+            SaveMedicationGroupResult.FAILURE,
+            viewModel.uiState.value.saveMedicationGroupResult,
+        )
+
+        viewModel.consumeSaveMedicationGroupResult()
+        assertNull(viewModel.uiState.value.saveMedicationGroupResult)
+        coVerify(exactly = 1) {
+            medicationGroupRepository.saveGroup(
+                uuid = groupUuid,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+            )
+        }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleGroup(any()) }
+    }
 }
 
 private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {

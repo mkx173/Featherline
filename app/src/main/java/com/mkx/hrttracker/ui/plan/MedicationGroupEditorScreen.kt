@@ -375,6 +375,7 @@ fun MedicationGroupEditorScreen(
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
         onSaveMedicationClick = viewModel::saveEditingMedication,
         onSaveClick = viewModel::saveGroup,
+        onSaveMedicationGroupResultConsumed = viewModel::consumeSaveMedicationGroupResult,
         onDeleteRelatedEntriesClick = viewModel::showDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesDismiss = viewModel::dismissDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesConfirm = viewModel::deleteRelatedEntries,
@@ -420,6 +421,7 @@ private fun MedicationGroupEditorScreenContent(
     onIncreaseEditingMedicationCount: () -> Unit,
     onSaveMedicationClick: () -> Unit,
     onSaveClick: () -> Unit,
+    onSaveMedicationGroupResultConsumed: () -> Unit,
     onDeleteRelatedEntriesClick: () -> Unit,
     onDeleteRelatedEntriesDismiss: () -> Unit,
     onDeleteRelatedEntriesConfirm: () -> Unit,
@@ -459,6 +461,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_success)
     val deleteRelatedEntriesFailureMessage =
         stringResource(R.string.delete_group_related_records_failure)
+    val saveMedicationGroupFailureMessage =
+        stringResource(R.string.save_medication_group_failure)
     val deleteMedicationGroupFailureMessage =
         stringResource(R.string.delete_medication_group_failure)
     val scheduleOptions = remember {
@@ -530,6 +534,21 @@ private fun MedicationGroupEditorScreenContent(
                     Toast.LENGTH_SHORT,
                 ).show()
                 onDeleteRelatedEntriesResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(uiState.saveMedicationGroupResult) {
+        when (uiState.saveMedicationGroupResult) {
+            SaveMedicationGroupResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    saveMedicationGroupFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onSaveMedicationGroupResultConsumed()
             }
 
             null -> Unit
@@ -1351,6 +1370,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onIncreaseEditingMedicationCount = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
+            onSaveMedicationGroupResultConsumed = { },
             onDeleteRelatedEntriesClick = { },
             onDeleteRelatedEntriesDismiss = { },
             onDeleteRelatedEntriesConfirm = { },
@@ -1411,6 +1431,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onIncreaseEditingMedicationCount = { },
             onSaveMedicationClick = { },
             onSaveClick = { },
+            onSaveMedicationGroupResultConsumed = { },
             onDeleteRelatedEntriesClick = { },
             onDeleteRelatedEntriesDismiss = { },
             onDeleteRelatedEntriesConfirm = { },

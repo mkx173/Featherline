@@ -64,7 +64,23 @@ fun AddEntryScreen(
     }
 
     val context = LocalContext.current
+    val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
     val deleteEntryFailureMessage = stringResource(R.string.delete_entry_failure)
+    LaunchedEffect(uiState.saveEntryResult) {
+        when (uiState.saveEntryResult) {
+            SaveEntryResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    saveEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                viewModel.consumeSaveEntryResult()
+            }
+
+            null -> Unit
+        }
+    }
+
     LaunchedEffect(uiState.deleteEntryResult) {
         when (uiState.deleteEntryResult) {
             DeleteEntryResult.FAILURE -> {
