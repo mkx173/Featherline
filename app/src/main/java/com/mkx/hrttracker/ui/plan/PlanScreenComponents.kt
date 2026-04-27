@@ -49,6 +49,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
@@ -71,7 +72,7 @@ internal fun SelectedDaySection(
     today: LocalDate,
     overallStatus: PlanCalendarDayStatus,
     daySchedule: PlanDaySchedule,
-    headerFormatter: DateTimeFormatter,
+    appLocale: Locale,
     timeFormatter: DateTimeFormatter,
     onScheduledClick: (PlanDayScheduleEntry) -> Unit,
     onUnplannedClick: (MedicationLogEntry) -> Unit
@@ -95,74 +96,27 @@ internal fun SelectedDaySection(
     }
     val scheduledCount = daySchedule.scheduledEntries.size
     val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
-    val summaryColor = selectedDaySummaryColor(
+    val offPlanCount = daySchedule.unplannedEntries.size
+    val countLabel = selectedDayHeaderCountLabel(
         date = date,
         today = today,
-        overallStatus = overallStatus
+        completedScheduledCount = completedScheduledCount,
+        scheduledCount = scheduledCount,
+        offPlanCount = offPlanCount
     )
-    val summaryText = when {
-        scheduledCount > 0 && date.isBefore(today) -> stringResource(
-            R.string.plan_selected_day_summary_past,
-            completedScheduledCount,
-            scheduledCount
-        )
-        scheduledCount > 0 && date == today -> stringResource(
-            R.string.plan_selected_day_summary_today,
-            completedScheduledCount,
-            scheduledCount
-        )
-        scheduledCount > 0 -> stringResource(
-            R.string.plan_selected_day_summary_future,
-            scheduledCount
-        )
-        daySchedule.unplannedEntries.isNotEmpty() -> stringResource(
-            R.string.plan_selected_day_summary_manual_only
-        )
-        date.isAfter(today) -> stringResource(R.string.plan_selected_day_summary_empty_future)
-        else -> stringResource(R.string.plan_selected_day_summary_empty_past)
-    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = dimensionResource(R.dimen.padding_xsmall)),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = date.format(headerFormatter),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = summaryText,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = summaryColor
-                )
-            }
-            if (date == today) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    val todayLabel = stringResource(R.string.plan_group_upcoming_today)
-                    Text(
-                        text = todayLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp).cjkTextOffset(todayLabel),
-                    )
-                }
-            }
-        }
+        HistoryEntryGroupHeader(
+            date = date,
+            today = today,
+            dayStatus = overallStatus,
+            hasOffPlanRecord = offPlanCount > 0,
+            countLabel = countLabel,
+            appLocale = appLocale
+        )
 
         if (rows.isEmpty()) {
             Box(
@@ -614,17 +568,33 @@ private fun SelectedDayRowLeading(
     }
 }
 
-@Composable
-private fun selectedDaySummaryColor(
+private fun selectedDayHeaderCountLabel(
     date: LocalDate,
     today: LocalDate,
-    overallStatus: PlanCalendarDayStatus
-): Color {
-    return when {
-        overallStatus == PlanCalendarDayStatus.FULFILLED -> fulfilledIndicatorColor
-        overallStatus == PlanCalendarDayStatus.PARTIAL -> overduePartialIndicatorColor
-        overallStatus == PlanCalendarDayStatus.MISSED && date.isBefore(today) -> overdueScheduledIndicatorColor
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    completedScheduledCount: Int,
+    scheduledCount: Int,
+    offPlanCount: Int
+): String {
+    return if (date.isAfter(today)) {
+        scheduledCount.toString()
+    } else {
+        buildString {
+            if (scheduledCount > 0) {
+                append(completedScheduledCount)
+                append("/")
+                append(scheduledCount)
+            } else {
+                append("0")
+            }
+            if (offPlanCount > 0) {
+                if (isNotEmpty()) {
+                    append(" ")
+                }
+                append("(")
+                append(offPlanCount)
+                append(")")
+            }
+        }
     }
 }
 
@@ -791,7 +761,6 @@ private enum class SelectedDayRowState {
 private fun SelectedDaySectionPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val headerFormatter = planSelectedDayHeaderFormatter(appLocale)
     val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
 
     PlanScreenComponentPreviewContainer {
@@ -800,7 +769,7 @@ private fun SelectedDaySectionPreview() {
             today = uiState.today,
             overallStatus = uiState.calendarDays[uiState.selectedDate]?.status ?: PlanCalendarDayStatus.NONE,
             daySchedule = uiState.daySchedule,
-            headerFormatter = headerFormatter,
+            appLocale = appLocale,
             timeFormatter = timeFormatter,
             onScheduledClick = { },
             onUnplannedClick = { }

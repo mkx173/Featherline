@@ -84,10 +84,8 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
-import java.time.temporal.ChronoField
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
@@ -140,9 +138,6 @@ private fun PlanScreenContent(
     }
     val dateFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
-    }
-    val selectedDayHeaderFormatter = remember(appLocale) {
-        planSelectedDayHeaderFormatter(appLocale)
     }
     val monthFormatter = remember(appLocale) {
         DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
@@ -279,7 +274,7 @@ private fun PlanScreenContent(
                     today = uiState.today,
                     overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
                     daySchedule = daySchedule,
-                    headerFormatter = selectedDayHeaderFormatter,
+                    appLocale = appLocale,
                     timeFormatter = timeFormatter,
                     onScheduledClick = { scheduled ->
                         val editingEntryIds = plannedEntryEditorIds(scheduled)
@@ -690,21 +685,6 @@ fun DayOfWeek.displayText(uppercase: Boolean = false, narrow: Boolean = false): 
     return getDisplayName(style, Locale.ENGLISH).let { value ->
         if (uppercase) value.uppercase(Locale.ENGLISH) else value
     }
-}
-
-internal fun planSelectedDayHeaderFormatter(appLocale: Locale): DateTimeFormatter {
-    val datePattern = when (appLocale.language) {
-        Locale.CHINESE.language,
-        Locale.JAPANESE.language -> "M月d日"
-        Locale.KOREAN.language -> "M월 d일"
-        else -> "MMM d"
-    }
-    val separator = if (appLocale.language == Locale.ENGLISH.language) ", " else " "
-    return DateTimeFormatterBuilder()
-        .appendPattern(datePattern)
-        .appendLiteral(separator)
-        .appendText(ChronoField.DAY_OF_WEEK, TextStyle.SHORT)
-        .toFormatter(appLocale)
 }
 
 private fun currentWeekPageIndex(

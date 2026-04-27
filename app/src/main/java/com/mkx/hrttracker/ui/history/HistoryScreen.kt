@@ -624,7 +624,7 @@ private fun HistoryScreenContent(
                             today = today,
                             dayStatus = monthDayStates[date]?.status ?: PlanCalendarDayStatus.NONE,
                             hasOffPlanRecord = monthDayStates[date]?.hasOffPlanRecord == true,
-                            entryCount = dateEntries.size,
+                            countLabel = dateEntries.size.toString(),
                             appLocale = appLocale
                         )
                     }
@@ -1333,12 +1333,12 @@ private fun HistoryPrimaryStatusIndicator(
 }
 
 @Composable
-private fun HistoryEntryGroupHeader(
+internal fun HistoryEntryGroupHeader(
     date: LocalDate,
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
     hasOffPlanRecord: Boolean,
-    entryCount: Int,
+    countLabel: String,
     appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
@@ -1426,8 +1426,8 @@ private fun HistoryEntryGroupHeader(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         )
         Text(
-            text = entryCount.toString(),
-            style = MaterialTheme.typography.labelLarge,
+            text = countLabel,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
