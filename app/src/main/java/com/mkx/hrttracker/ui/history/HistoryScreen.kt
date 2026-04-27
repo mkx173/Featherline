@@ -1382,7 +1382,7 @@ internal fun HistoryEntryGroupHeader(
         Surface(
             shape = CircleShape,
             color = if (isToday) {
-                MaterialTheme.colorScheme.secondaryContainer
+                MaterialTheme.colorScheme.tertiaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
             }
@@ -1414,7 +1414,7 @@ internal fun HistoryEntryGroupHeader(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isToday) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
+                        MaterialTheme.colorScheme.onTertiaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },

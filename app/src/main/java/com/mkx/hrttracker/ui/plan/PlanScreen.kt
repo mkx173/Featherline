@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,15 +27,14 @@ import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.DonutLarge
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -56,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -67,7 +66,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.WeekCalendar
@@ -612,6 +610,11 @@ private fun Day(
     onClick: (LocalDate) -> Unit
 ) {
     val isToday = date == today
+    val dayAlpha = planWeekCalendarDayAlpha(
+        isFuture = date.isAfter(today),
+        isSelected = isSelected,
+        isToday = isToday
+    )
     val weekdayLabel = remember(date.dayOfWeek, appLocale) {
         date.dayOfWeek.getDisplayName(TextStyle.NARROW, appLocale)
     }
@@ -635,6 +638,7 @@ private fun Day(
         modifier = Modifier
             .fillMaxWidth()
             .padding(2.dp)
+            .alpha(dayAlpha)
             .clip(MaterialTheme.shapes.medium)
             .background(
                 color = containerColor,
@@ -671,6 +675,20 @@ private fun Day(
     }
 }
 
+internal fun planWeekCalendarDayAlpha(
+    isFuture: Boolean,
+    isSelected: Boolean,
+    isToday: Boolean
+): Float {
+    return if (isSelected || isToday) {
+        1f
+    } else if (isFuture) {
+        0.56f
+    } else {
+        1f
+    }
+}
+
 @Composable
 private fun DayStatusIndicator(
     date: LocalDate,
@@ -694,6 +712,7 @@ private fun DayStatusIndicator(
             selectedColor = selectedColor
         ),
         modifier = Modifier.size(12.dp),
+        showFutureMissedIcon = date.isAfter(today),
         showOffPlanBadge = planShouldShowOffPlanBadge(
             status = dayStatus,
             hasOffPlanRecord = hasOffPlanRecord
@@ -706,6 +725,7 @@ private fun PlanDayStatusIndicator(
     status: PlanCalendarDayStatus,
     colors: PlanDayIndicatorColors,
     modifier: Modifier = Modifier,
+    showFutureMissedIcon: Boolean = false,
     showOffPlanBadge: Boolean = false
 ) {
     Box(modifier = modifier) {
@@ -726,7 +746,11 @@ private fun PlanDayStatusIndicator(
             }
             PlanCalendarDayStatus.MISSED -> {
                 PlanDayIndicatorGlyph(
-                    kind = PlanDayIndicatorKind.MISSED,
+                    kind = if (showFutureMissedIcon) {
+                        PlanDayIndicatorKind.FUTURE
+                    } else {
+                        PlanDayIndicatorKind.MISSED
+                    },
                     color = colors.scheduled,
                     modifier = modifier
                 )
@@ -762,6 +786,7 @@ private enum class PlanDayIndicatorKind {
     CHECK,
     PARTIAL,
     MISSED,
+    FUTURE,
     OFFPLAN,
     NO_RECORD
 }
@@ -776,6 +801,7 @@ private fun PlanDayIndicatorGlyph(
         PlanDayIndicatorKind.CHECK -> Icons.Rounded.CheckCircleOutline
         PlanDayIndicatorKind.PARTIAL -> Icons.Rounded.Contrast
         PlanDayIndicatorKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
+        PlanDayIndicatorKind.FUTURE -> Icons.Rounded.DonutLarge
         PlanDayIndicatorKind.OFFPLAN -> Icons.Rounded.Circle
         PlanDayIndicatorKind.NO_RECORD -> Icons.Rounded.Remove
     }
