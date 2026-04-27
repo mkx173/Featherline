@@ -260,23 +260,27 @@ class CalibrationEditorViewModel @Inject constructor(
         }
 
         _uiState.update { state ->
-            state.copy(isDeleting = true)
+            state.copy(
+                isDeleting = true,
+                deleteEntryResult = null,
+            )
         }
 
         viewModelScope.launch {
-            runCatching {
+            val deleteResult = runCatching {
                 bloodTestRepository.deletePanel(panelUuid)
-            }.onSuccess {
-                _uiState.update { state ->
-                    state.copy(
-                        isDeleting = false,
-                        isDeleted = true,
-                    )
-                }
-            }.onFailure {
-                _uiState.update { state ->
-                    state.copy(isDeleting = false)
-                }
+            }.fold(
+                onSuccess = { null },
+                onFailure = { CalibrationDeleteEntryResult.FAILURE },
+            )
+            val isDeleted = deleteResult == null
+
+            _uiState.update { state ->
+                state.copy(
+                    isDeleting = false,
+                    isDeleted = isDeleted,
+                    deleteEntryResult = deleteResult,
+                )
             }
         }
     }
@@ -290,6 +294,12 @@ class CalibrationEditorViewModel @Inject constructor(
     fun consumeDeletedState() {
         _uiState.update { state ->
             state.copy(isDeleted = false)
+        }
+    }
+
+    fun consumeDeleteEntryResult() {
+        _uiState.update { state ->
+            state.copy(deleteEntryResult = null)
         }
     }
 
@@ -456,6 +466,7 @@ data class CalibrationEditorUiState(
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val deleteEntryResult: CalibrationDeleteEntryResult? = null,
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val timeSinceLastEstradiolDoseMillis: Long? = null,
@@ -466,6 +477,10 @@ data class CalibrationEditorUiState(
         CalibrationResultDraftUiState(analyteKey = analyteKey)
     },
 )
+
+enum class CalibrationDeleteEntryResult {
+    FAILURE,
+}
 
 data class CalibrationResultDraftUiState(
     val analyteKey: BloodAnalyteKey? = null,

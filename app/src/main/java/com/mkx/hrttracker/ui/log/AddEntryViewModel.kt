@@ -122,6 +122,9 @@ class AddEntryViewModel @Inject constructor(
 
     fun saveEntry() {
         val currentState = _uiState.value
+        if (currentState.isSaving || currentState.isDeleting) {
+            return
+        }
         val appliedAt = LocalDateTime.of(
             currentState.appliedDate,
             currentState.appliedTime
@@ -179,22 +182,39 @@ class AddEntryViewModel @Inject constructor(
     }
 
     fun deleteEntry() {
-        val editingEntryUuids = _uiState.value.editingEntryIds.map(UUID::fromString)
+        val currentState = _uiState.value
+        if (currentState.isSaving || currentState.isDeleting) {
+            return
+        }
+        val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
         if (editingEntryUuids.isEmpty()) {
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, errorMessageRes = null) }
+            _uiState.update {
+                it.copy(
+                    isDeleting = true,
+                    errorMessageRes = null,
+                    deleteEntryResult = null,
+                )
+            }
 
-            medicationLogRepository.deleteEntries(editingEntryUuids)
-            medicationReminderScheduler.rescheduleAll()
+            val result = runCatching {
+                medicationLogRepository.deleteEntries(editingEntryUuids)
+                medicationReminderScheduler.rescheduleAll()
+            }.fold(
+                onSuccess = { null },
+                onFailure = { DeleteEntryResult.FAILURE },
+            )
+            val isDeleted = result == null
 
             _uiState.update {
                 it.copy(
-                    isSaving = false,
-                    isSaved = true,
-                    errorMessageRes = null
+                    isDeleting = false,
+                    isSaved = isDeleted,
+                    errorMessageRes = null,
+                    deleteEntryResult = result,
                 )
             }
         }
@@ -202,6 +222,10 @@ class AddEntryViewModel @Inject constructor(
 
     fun consumeSavedState() {
         _uiState.update { it.copy(isSaved = false) }
+    }
+
+    fun consumeDeleteEntryResult() {
+        _uiState.update { it.copy(deleteEntryResult = null) }
     }
 
     private fun loadEntriesForEditing(entryIds: List<String>) {
@@ -222,8 +246,10 @@ data class AddEntryUiState(
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
     val errorMessageRes: Int? = null,
+    val deleteEntryResult: DeleteEntryResult? = null,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)
@@ -239,6 +265,10 @@ data class AddEntryUiState(
 
     val canDelete: Boolean
         get() = isEditing
+}
+
+enum class DeleteEntryResult {
+    FAILURE,
 }
 
 internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {

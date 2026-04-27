@@ -1,21 +1,51 @@
 package com.mkx.hrttracker.ui.log
 
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AddEntryViewModelTest {
+    private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
     @Test
     fun normalizeEditingEntryIds_filters_invalid_values_and_duplicates() {
         val entryId = UUID.fromString("3f77d0e1-76f2-4ba1-bbdf-61d3a0c2ed04")
@@ -217,5 +247,41 @@ class AddEntryViewModelTest {
                 editingEntryIds = listOf(UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString())
             ).canDelete
         )
+    }
+
+    @Test
+    fun deleteEntry_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val entryId = UUID.fromString("20de422b-b620-474f-b2d0-0e56389ebf74")
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery { medicationLogRepository.deleteEntries(listOf(entryId)) } throws RuntimeException("delete failed")
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.deleteEntry()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertEquals(DeleteEntryResult.FAILURE, viewModel.uiState.value.deleteEntryResult)
+
+        viewModel.consumeDeleteEntryResult()
+        assertNull(viewModel.uiState.value.deleteEntryResult)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 }

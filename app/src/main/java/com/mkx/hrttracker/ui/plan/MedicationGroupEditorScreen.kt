@@ -379,6 +379,7 @@ fun MedicationGroupEditorScreen(
         onDeleteRelatedEntriesDismiss = viewModel::dismissDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesConfirm = viewModel::deleteRelatedEntries,
         onDeleteRelatedEntriesResultConsumed = viewModel::consumeDeleteRelatedEntriesResult,
+        onDeleteMedicationGroupResultConsumed = viewModel::consumeDeleteMedicationGroupResult,
         onDeleteClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteGroup,
@@ -423,6 +424,7 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteRelatedEntriesDismiss: () -> Unit,
     onDeleteRelatedEntriesConfirm: () -> Unit,
     onDeleteRelatedEntriesResultConsumed: () -> Unit,
+    onDeleteMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
@@ -457,6 +459,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_success)
     val deleteRelatedEntriesFailureMessage =
         stringResource(R.string.delete_group_related_records_failure)
+    val deleteMedicationGroupFailureMessage =
+        stringResource(R.string.delete_medication_group_failure)
     val scheduleOptions = remember {
         listOf(
             MedicationGroupScheduleType.DAILY,
@@ -532,6 +536,21 @@ private fun MedicationGroupEditorScreenContent(
         }
     }
 
+    LaunchedEffect(uiState.deleteMedicationGroupResult) {
+        when (uiState.deleteMedicationGroupResult) {
+            DeleteMedicationGroupResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    deleteMedicationGroupFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onDeleteMedicationGroupResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
+
     pendingSinceDate?.let { initialSinceDate ->
         DatePickerModal(
             onDateSelected = onSinceDateChange,
@@ -592,7 +611,8 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isDeleteConfirmationVisible) {
-        val deleteGroupConfirmationText = if (uiState.relatedEntryCount > 0) {
+        val hasRelatedEntries = uiState.relatedEntryCount > 0
+        val deleteGroupConfirmationText = if (hasRelatedEntries) {
             pluralStringResource(
                 R.plurals.delete_medication_group_confirmation_with_related_records,
                 uiState.relatedEntryCount,
@@ -614,14 +634,16 @@ private fun MedicationGroupEditorScreenContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    TextButton(
-                        enabled = !uiState.isDeleting && uiState.relatedEntryCount > 0,
-                        onClick = onDeleteWithRecordsConfirm,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                    ) {
-                        Text(text = stringResource(R.string.delete_group_related_records))
+                    if (hasRelatedEntries) {
+                        TextButton(
+                            enabled = !uiState.isDeleting,
+                            onClick = onDeleteWithRecordsConfirm,
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                        ) {
+                            Text(text = stringResource(R.string.delete_group_related_records))
+                        }
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(
@@ -634,7 +656,15 @@ private fun MedicationGroupEditorScreenContent(
                         enabled = !uiState.isDeleting,
                         onClick = onDeleteConfirm,
                     ) {
-                        Text(text = stringResource(R.string.delete_medication_group_keep_records))
+                        Text(
+                            text = stringResource(
+                                if (hasRelatedEntries) {
+                                    R.string.delete_medication_group_keep_records
+                                } else {
+                                    R.string.delete_entries_confirm
+                                }
+                            )
+                        )
                     }
                 }
             }
@@ -1325,6 +1355,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onDeleteRelatedEntriesDismiss = { },
             onDeleteRelatedEntriesConfirm = { },
             onDeleteRelatedEntriesResultConsumed = { },
+            onDeleteMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
@@ -1384,6 +1415,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDeleteRelatedEntriesDismiss = { },
             onDeleteRelatedEntriesConfirm = { },
             onDeleteRelatedEntriesResultConsumed = { },
+            onDeleteMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },

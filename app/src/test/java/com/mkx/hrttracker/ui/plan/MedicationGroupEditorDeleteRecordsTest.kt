@@ -176,6 +176,46 @@ class MedicationGroupEditorDeleteRecordsTest {
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) }
         verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
+
+    @Test
+    fun deleteGroup_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val groupUuid = UUID.fromString("853c2f2c-016a-4dbb-9048-d198ad65ce25")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationGroupRepository.deleteGroup(groupUuid) } throws RuntimeException("delete failed")
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.showDeleteConfirmation()
+        viewModel.deleteGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertFalse(viewModel.uiState.value.isDeleteConfirmationVisible)
+        assertFalse(viewModel.uiState.value.isDeleted)
+        assertEquals(
+            DeleteMedicationGroupResult.FAILURE,
+            viewModel.uiState.value.deleteMedicationGroupResult,
+        )
+
+        viewModel.consumeDeleteMedicationGroupResult()
+        assertNull(viewModel.uiState.value.deleteMedicationGroupResult)
+        coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
+        verify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
+    }
 }
 
 private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {

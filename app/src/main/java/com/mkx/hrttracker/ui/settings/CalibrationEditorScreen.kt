@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.text.format.DateFormat
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,6 +99,8 @@ fun CalibrationEditorScreen(
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isAddAnalyteSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
+    val deleteEntryFailureMessage =
+        stringResource(R.string.settings_calibration_delete_entry_failure)
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
@@ -110,6 +113,21 @@ fun CalibrationEditorScreen(
         if (uiState.isDeleted) {
             viewModel.consumeDeletedState()
             onSaved()
+        }
+    }
+
+    LaunchedEffect(uiState.deleteEntryResult) {
+        when (uiState.deleteEntryResult) {
+            CalibrationDeleteEntryResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    deleteEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                viewModel.consumeDeleteEntryResult()
+            }
+
+            null -> Unit
         }
     }
 

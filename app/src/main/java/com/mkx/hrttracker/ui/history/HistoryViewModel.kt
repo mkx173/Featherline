@@ -30,7 +30,9 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
+    private val isDeletingSelectedEntries = MutableStateFlow(false)
     private val isDeletingAllEntries = MutableStateFlow(false)
+    private val deleteSelectedEntriesResult = MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
     private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
     private val displayedMonth = MutableStateFlow(YearMonth.now())
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
@@ -42,12 +44,29 @@ class HistoryViewModel @Inject constructor(
             ::Pair
         ),
         combine(
-            selectedEntryIds,
-            isDeleteConfirmationVisible,
-            isDeletingAllEntries,
-            deleteAllEntriesResult,
-            ::HistoryDeletionUiState
-        ),
+            combine(
+                selectedEntryIds,
+                isDeleteConfirmationVisible,
+                isDeletingSelectedEntries,
+                isDeletingAllEntries,
+                ::HistoryDeleteInteractionUiState,
+            ),
+            combine(
+                deleteSelectedEntriesResult,
+                deleteAllEntriesResult,
+                ::Pair,
+            ),
+        ) { interactionState, deleteResults ->
+            val (selectedResult, allResult) = deleteResults
+            HistoryDeletionUiState(
+                selectedEntryIds = interactionState.selectedEntryIds,
+                isDeleteConfirmationVisible = interactionState.isDeleteConfirmationVisible,
+                isDeletingSelectedEntries = interactionState.isDeletingSelectedEntries,
+                isDeletingAllEntries = interactionState.isDeletingAllEntries,
+                deleteSelectedEntriesResult = selectedResult,
+                deleteAllEntriesResult = allResult,
+            )
+        },
         combine(
             displayedMonth,
             selectedDate,
@@ -88,7 +107,9 @@ class HistoryViewModel @Inject constructor(
             selectedEntryIds = visibleSelection,
             isDeleteConfirmationVisible = deletionUiState.isDeleteConfirmationVisible &&
                 visibleSelection.isNotEmpty(),
+            isDeletingSelectedEntries = deletionUiState.isDeletingSelectedEntries,
             isDeletingAllEntries = deletionUiState.isDeletingAllEntries,
+            deleteSelectedEntriesResult = deletionUiState.deleteSelectedEntriesResult,
             deleteAllEntriesResult = deletionUiState.deleteAllEntriesResult,
         )
     }.stateIn(
@@ -172,15 +193,28 @@ class HistoryViewModel @Inject constructor(
 
     fun deleteSelectedEntries() {
         val entryIdsToDelete = selectedEntryIds.value
-        if (entryIdsToDelete.isEmpty()) {
+        if (entryIdsToDelete.isEmpty() || isDeletingSelectedEntries.value) {
             return
         }
 
         viewModelScope.launch {
-            medicationLogRepository.deleteEntries(entryIdsToDelete)
-            medicationReminderScheduler.rescheduleAll()
-            selectedEntryIds.value = emptySet()
+            isDeletingSelectedEntries.value = true
             isDeleteConfirmationVisible.value = false
+            deleteSelectedEntriesResult.value = null
+
+            val result = runCatching {
+                medicationLogRepository.deleteEntries(entryIdsToDelete)
+                medicationReminderScheduler.rescheduleAll()
+            }.fold(
+                onSuccess = { HistoryDeleteSelectedEntriesResult.SUCCESS },
+                onFailure = { HistoryDeleteSelectedEntriesResult.FAILURE },
+            )
+
+            if (result == HistoryDeleteSelectedEntriesResult.SUCCESS) {
+                selectedEntryIds.value = emptySet()
+            }
+            isDeletingSelectedEntries.value = false
+            deleteSelectedEntriesResult.value = result
         }
     }
 
@@ -209,6 +243,10 @@ class HistoryViewModel @Inject constructor(
     fun consumeDeleteAllEntriesResult() {
         deleteAllEntriesResult.value = null
     }
+
+    fun consumeDeleteSelectedEntriesResult() {
+        deleteSelectedEntriesResult.value = null
+    }
 }
 
 data class HistoryUiState(
@@ -222,7 +260,9 @@ data class HistoryUiState(
     val selectedDate: LocalDate? = null,
     val selectedEntryIds: Set<UUID> = emptySet(),
     val isDeleteConfirmationVisible: Boolean = false,
+    val isDeletingSelectedEntries: Boolean = false,
     val isDeletingAllEntries: Boolean = false,
+    val deleteSelectedEntriesResult: HistoryDeleteSelectedEntriesResult? = null,
     val deleteAllEntriesResult: HistoryDeleteAllEntriesResult? = null,
 ) {
     val isSelectionMode: Boolean
@@ -234,9 +274,23 @@ enum class HistoryDeleteAllEntriesResult {
     FAILURE,
 }
 
+enum class HistoryDeleteSelectedEntriesResult {
+    SUCCESS,
+    FAILURE,
+}
+
 private data class HistoryDeletionUiState(
     val selectedEntryIds: Set<UUID>,
     val isDeleteConfirmationVisible: Boolean,
+    val isDeletingSelectedEntries: Boolean,
     val isDeletingAllEntries: Boolean,
+    val deleteSelectedEntriesResult: HistoryDeleteSelectedEntriesResult?,
     val deleteAllEntriesResult: HistoryDeleteAllEntriesResult?,
+)
+
+private data class HistoryDeleteInteractionUiState(
+    val selectedEntryIds: Set<UUID>,
+    val isDeleteConfirmationVisible: Boolean,
+    val isDeletingSelectedEntries: Boolean,
+    val isDeletingAllEntries: Boolean,
 )

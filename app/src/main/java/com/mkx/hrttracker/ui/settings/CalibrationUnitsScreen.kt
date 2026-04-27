@@ -91,6 +91,7 @@ fun CalibrationUnitsScreen(
         onUnitChange = viewModel::setCalibrationDefaultUnit,
         onSaveCustomAnalyte = viewModel::saveCustomAnalyte,
         onArchiveCustomAnalyte = viewModel::archiveCustomAnalyte,
+        onArchiveCustomAnalyteResultConsumed = viewModel::consumeArchiveCustomAnalyteResult,
         onCheckHasResultsForCustomAnalyte = viewModel::hasResultsForCustomAnalyte,
         modifier = modifier,
     )
@@ -103,12 +104,18 @@ private fun CalibrationUnitsScreenContent(
     onNavigateBack: () -> Unit,
     onUnitChange: (BloodAnalyteKey, BloodUnitKey) -> Unit,
     onSaveCustomAnalyte: suspend (UUID?, String, String, String) -> Throwable?,
-    onArchiveCustomAnalyte: suspend (UUID) -> Throwable?,
+    onArchiveCustomAnalyte: (UUID) -> Unit,
+    onArchiveCustomAnalyteResultConsumed: () -> Unit,
     onCheckHasResultsForCustomAnalyte: suspend (UUID) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val listSegmentGap = dimensionResource(R.dimen.list_segment_gap)
     val sectionSpacing = dimensionResource(R.dimen.padding_medium)
+    val archiveSuccessMessage =
+        stringResource(R.string.settings_calibration_custom_analyte_archive_success)
+    val archiveFailureMessage =
+        stringResource(R.string.settings_calibration_custom_analyte_error_archive)
     var isCustomAnalyteDialogVisible by rememberSaveable { mutableStateOf(false) }
     var customAnalyteDialogAnalyteId by rememberSaveable { mutableStateOf<String?>(null) }
     var customAnalyteDialogSessionId by rememberSaveable { mutableIntStateOf(0) }
@@ -127,6 +134,31 @@ private fun CalibrationUnitsScreenContent(
     fun dismissCustomAnalyteDialog() {
         isCustomAnalyteDialogVisible = false
         customAnalyteDialogAnalyteId = null
+    }
+
+    LaunchedEffect(uiState.archiveCustomAnalyteResult) {
+        when (uiState.archiveCustomAnalyteResult) {
+            CalibrationArchiveCustomAnalyteResult.SUCCESS -> {
+                Toast.makeText(
+                    context,
+                    archiveSuccessMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                dismissCustomAnalyteDialog()
+                onArchiveCustomAnalyteResultConsumed()
+            }
+
+            CalibrationArchiveCustomAnalyteResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    archiveFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onArchiveCustomAnalyteResultConsumed()
+            }
+
+            null -> Unit
+        }
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -255,6 +287,7 @@ private fun CalibrationUnitsScreenContent(
                 onSave = onSaveCustomAnalyte,
                 onArchive = onArchiveCustomAnalyte,
                 onCheckHasResults = onCheckHasResultsForCustomAnalyte,
+                isArchiving = uiState.isArchivingCustomAnalyte,
                 onDismiss = ::dismissCustomAnalyteDialog,
             )
         }
@@ -350,10 +383,11 @@ private fun CalibrationCustomAnalyteItem(
 private fun CalibrationCustomAnalyteDialog(
     customAnalyte: CustomBloodAnalyte?,
     onSave: suspend (UUID?, String, String, String) -> Throwable?,
-    onArchive: suspend (UUID) -> Throwable?,
+    onArchive: (UUID) -> Unit,
     onCheckHasResults: suspend (UUID) -> Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    isArchiving: Boolean = false,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -361,8 +395,6 @@ private fun CalibrationCustomAnalyteDialog(
         stringResource(R.string.settings_calibration_custom_analyte_error_duplicate)
     val genericSaveErrorMessage =
         stringResource(R.string.settings_calibration_custom_analyte_error_save)
-    val archiveErrorMessage =
-        stringResource(R.string.settings_calibration_custom_analyte_error_archive)
     val unitLockedToastMessage =
         stringResource(R.string.settings_calibration_custom_analyte_unit_locked_toast)
     var abbreviationText by rememberSaveable { mutableStateOf(customAnalyte?.abbreviation.orEmpty()) }
@@ -377,6 +409,7 @@ private fun CalibrationCustomAnalyteDialog(
     var isUnitLocked by rememberSaveable { mutableStateOf(customAnalyte != null) }
     val abbreviationFocusRequester = remember { FocusRequester() }
     val unitFocusRequester = remember { FocusRequester() }
+    val isBusy = isWorking || isArchiving
 
     LaunchedEffect(customAnalyte?.uuid) {
         isUnitLocked = customAnalyte?.uuid?.let { onCheckHasResults(it) } ?: false
@@ -421,7 +454,7 @@ private fun CalibrationCustomAnalyteDialog(
     AlertDialog(
         modifier = modifier,
         onDismissRequest = {
-            if (!isWorking) {
+            if (!isBusy) {
                 onDismiss()
             }
         },
@@ -511,7 +544,7 @@ private fun CalibrationCustomAnalyteDialog(
                     keyboardActions = KeyboardActions(
                         onNext = { unitFocusRequester.requestFocus() },
                         onDone = {
-                            if (!isWorking) {
+                            if (!isBusy) {
                                 submit()
                             }
                         },
@@ -548,7 +581,7 @@ private fun CalibrationCustomAnalyteDialog(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                if (!isWorking) {
+                                if (!isBusy) {
                                     submit()
                                 }
                             },
@@ -587,7 +620,7 @@ private fun CalibrationCustomAnalyteDialog(
             ) {
                 customAnalyte?.let { existingAnalyte ->
                     TextButton(
-                        enabled = !isWorking,
+                        enabled = !isBusy,
                         onClick = { isArchiveConfirmationVisible = true },
                     ) {
                         Text(
@@ -598,13 +631,13 @@ private fun CalibrationCustomAnalyteDialog(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(
-                    enabled = !isWorking,
+                    enabled = !isBusy,
                     onClick = onDismiss,
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
                 TextButton(
-                    enabled = !isWorking,
+                    enabled = !isBusy,
                     onClick = { submit() },
                 ) {
                     Text(text = stringResource(R.string.save))
@@ -616,7 +649,7 @@ private fun CalibrationCustomAnalyteDialog(
     if (isArchiveConfirmationVisible && customAnalyte != null) {
         AlertDialog(
             onDismissRequest = {
-                if (!isWorking) {
+                if (!isBusy) {
                     isArchiveConfirmationVisible = false
                 }
             },
@@ -637,19 +670,10 @@ private fun CalibrationCustomAnalyteDialog(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isWorking,
+                    enabled = !isBusy,
                     onClick = {
                         isArchiveConfirmationVisible = false
-                        coroutineScope.launch {
-                            isWorking = true
-                            val error = onArchive(customAnalyte.uuid)
-                            isWorking = false
-                            if (error == null) {
-                                onDismiss()
-                            } else {
-                                actionErrorMessage = archiveErrorMessage
-                            }
-                        }
+                        onArchive(customAnalyte.uuid)
                     },
                 ) {
                     Text(text = stringResource(R.string.archive))
@@ -657,7 +681,7 @@ private fun CalibrationCustomAnalyteDialog(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isWorking,
+                    enabled = !isBusy,
                     onClick = { isArchiveConfirmationVisible = false },
                 ) {
                     Text(text = stringResource(R.string.cancel))
@@ -702,7 +726,8 @@ private fun CalibrationUnitsScreenPreview() {
             onNavigateBack = {},
             onUnitChange = { _, _ -> },
             onSaveCustomAnalyte = { _, _, _, _ -> null },
-            onArchiveCustomAnalyte = { null },
+            onArchiveCustomAnalyte = { },
+            onArchiveCustomAnalyteResultConsumed = { },
             onCheckHasResultsForCustomAnalyte = { false },
         )
     }
@@ -720,7 +745,7 @@ private fun CalibrationCustomAnalyteDialogPreview() {
         CalibrationCustomAnalyteDialog(
             customAnalyte = previewCustomAnalytes().first(),
             onSave = { _, _, _, _ -> null },
-            onArchive = { null },
+            onArchive = { },
             onCheckHasResults = { false },
             onDismiss = {},
         )

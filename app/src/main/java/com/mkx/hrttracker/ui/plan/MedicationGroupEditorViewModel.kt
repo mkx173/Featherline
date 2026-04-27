@@ -518,6 +518,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(deleteRelatedEntriesResult = null) }
     }
 
+    fun consumeDeleteMedicationGroupResult() {
+        _uiState.update { it.copy(deleteMedicationGroupResult = null) }
+    }
+
     private fun loadGroupForEditing(groupId: String) {
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
 
@@ -596,17 +600,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isDeleting = true,
-                    isDeleteConfirmationVisible = false
+                    isDeleteConfirmationVisible = false,
+                    deleteMedicationGroupResult = null,
                 )
             }
 
-            val isDeleted = runCatching {
+            val deleteResult = runCatching {
                 if (deleteRelatedEntries) {
                     medicationGroupRepository.deleteGroupAndRelatedEntries(uuid)
                 } else {
                     medicationGroupRepository.deleteGroup(uuid)
                 }
-            }.isSuccess
+            }.fold(
+                onSuccess = { null },
+                onFailure = { DeleteMedicationGroupResult.FAILURE },
+            )
+            val isDeleted = deleteResult == null
 
             if (isDeleted) {
                 runCatching { medicationReminderScheduler.cancelReminder(uuid) }
@@ -615,7 +624,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isDeleting = false,
-                    isDeleted = isDeleted
+                    isDeleted = isDeleted,
+                    deleteMedicationGroupResult = deleteResult,
                 )
             }
         }
@@ -764,6 +774,7 @@ data class MedicationGroupEditorUiState(
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
+    val deleteMedicationGroupResult: DeleteMedicationGroupResult? = null,
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
@@ -771,6 +782,10 @@ data class MedicationGroupEditorUiState(
 
 enum class DeleteRelatedEntriesResult {
     SUCCESS,
+    FAILURE,
+}
+
+enum class DeleteMedicationGroupResult {
     FAILURE,
 }
 

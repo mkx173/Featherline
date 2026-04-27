@@ -170,6 +170,7 @@ fun HistoryScreen(
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteSelectedEntries,
         onDeleteAllClick = viewModel::deleteAllEntries,
+        onDeleteSelectedResultConsumed = viewModel::consumeDeleteSelectedEntriesResult,
         onDeleteAllResultConsumed = viewModel::consumeDeleteAllEntriesResult,
         onDisplayedMonthChange = { month, clearSelection ->
             viewModel.setDisplayedMonth(month, clearSelection)
@@ -193,6 +194,7 @@ private fun HistoryScreenContent(
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
     onDeleteAllClick: () -> Unit,
+    onDeleteSelectedResultConsumed: () -> Unit,
     onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     scrollToTopSignal: Int = 0,
@@ -360,9 +362,37 @@ private fun HistoryScreenContent(
         stringResource(R.string.history_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
         stringResource(R.string.history_delete_all_entries_failure)
+    val deleteSelectedEntriesSuccessMessage =
+        stringResource(R.string.history_delete_selected_entries_success)
+    val deleteSelectedEntriesFailureMessage =
+        stringResource(R.string.history_delete_selected_entries_failure)
 
     BackHandler(enabled = uiState.isSelectionMode) {
         onCancelEntrySelectionClick()
+    }
+
+    LaunchedEffect(uiState.deleteSelectedEntriesResult) {
+        when (uiState.deleteSelectedEntriesResult) {
+            HistoryDeleteSelectedEntriesResult.SUCCESS -> {
+                Toast.makeText(
+                    context,
+                    deleteSelectedEntriesSuccessMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteSelectedResultConsumed()
+            }
+
+            HistoryDeleteSelectedEntriesResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    deleteSelectedEntriesFailureMessage,
+                    Toast.LENGTH_SHORT
+                ).show()
+                onDeleteSelectedResultConsumed()
+            }
+
+            null -> Unit
+        }
     }
 
     LaunchedEffect(uiState.deleteAllEntriesResult) {
@@ -391,7 +421,11 @@ private fun HistoryScreenContent(
 
     if (uiState.isDeleteConfirmationVisible) {
         AlertDialog(
-            onDismissRequest = onDeleteDismiss,
+            onDismissRequest = {
+                if (!uiState.isDeletingSelectedEntries) {
+                    onDeleteDismiss()
+                }
+            },
             title = { Text(text = stringResource(R.string.delete_entry_title)) },
             text = {
                 Text(
@@ -402,12 +436,18 @@ private fun HistoryScreenContent(
                 )
             },
             confirmButton = {
-                TextButton(onClick = onDeleteConfirm) {
+                TextButton(
+                    enabled = !uiState.isDeletingSelectedEntries,
+                    onClick = onDeleteConfirm,
+                ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDeleteDismiss) {
+                TextButton(
+                    enabled = !uiState.isDeletingSelectedEntries,
+                    onClick = onDeleteDismiss,
+                ) {
                     Text(text = stringResource(R.string.cancel))
                 }
             }
@@ -459,7 +499,9 @@ private fun HistoryScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
             if (uiState.isSelectionMode) {
-                FloatingActionButton(onClick = onDeleteSelectedClick) {
+                FloatingActionButton(
+                    onClick = onDeleteSelectedClick,
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Delete,
                         contentDescription = stringResource(R.string.delete_entries_fab)
@@ -1635,6 +1677,7 @@ private fun HistoryScreenMonthPreview() {
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },
+            onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )
@@ -1672,6 +1715,7 @@ private fun HistoryScreenSelectedDayPreview() {
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },
+            onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )
@@ -1701,6 +1745,7 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },
+            onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
             onDisplayedMonthChange = { _, _ -> }
         )

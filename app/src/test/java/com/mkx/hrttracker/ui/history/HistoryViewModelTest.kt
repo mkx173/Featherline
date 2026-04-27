@@ -24,6 +24,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -86,5 +87,91 @@ class HistoryViewModelTest {
         assertNull(viewModel.uiState.value.deleteAllEntriesResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteAllEntries() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteSelectedEntries_updatesUiStateWithSuccessResult() = runTest {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteEntries(setOf(entry.uuid)) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleEntrySelection(entry.uuid)
+        viewModel.showDeleteConfirmation()
+        viewModel.deleteSelectedEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingSelectedEntries)
+        assertFalse(viewModel.uiState.value.isSelectionMode)
+        assertEquals(
+            HistoryDeleteSelectedEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteSelectedEntriesResult,
+        )
+
+        viewModel.consumeDeleteSelectedEntriesResult()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.deleteSelectedEntriesResult)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun deleteSelectedEntries_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(entry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicationLogRepository.deleteEntries(setOf(entry.uuid)) } throws RuntimeException("delete failed")
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleEntrySelection(entry.uuid)
+        viewModel.showDeleteConfirmation()
+        viewModel.deleteSelectedEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingSelectedEntries)
+        assertTrue(viewModel.uiState.value.isSelectionMode)
+        assertFalse(viewModel.uiState.value.isDeleteConfirmationVisible)
+        assertEquals(
+            HistoryDeleteSelectedEntriesResult.FAILURE,
+            viewModel.uiState.value.deleteSelectedEntriesResult,
+        )
+
+        viewModel.consumeDeleteSelectedEntriesResult()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.deleteSelectedEntriesResult)
+        coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 }

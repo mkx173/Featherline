@@ -142,11 +142,58 @@ class CalibrationUnitsViewModelTest {
         val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
         advanceUntilIdle()
 
-        val error = viewModel.archiveCustomAnalyte(analyteUuid)
+        viewModel.archiveCustomAnalyte(analyteUuid)
         advanceUntilIdle()
 
-        assertNull(error)
+        assertEquals(CalibrationArchiveCustomAnalyteResult.SUCCESS, viewModel.uiState.value.archiveCustomAnalyteResult)
+        assertFalse(viewModel.uiState.value.isArchivingCustomAnalyte)
         assertEquals(emptyList<CustomBloodAnalyte>(), viewModel.uiState.value.customAnalytes)
+
+        viewModel.consumeArchiveCustomAnalyteResult()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.archiveCustomAnalyteResult)
+        coVerify(exactly = 1) {
+            bloodTestRepository.archiveCustomAnalyte(
+                uuid = analyteUuid,
+                now = any(),
+            )
+        }
+    }
+
+    @Test
+    fun archiveCustomAnalyte_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val analyteUuid = UUID.fromString("56967f39-311b-43cc-943a-b7cb21f8a804")
+        val existingAnalytes = listOf(
+            testCustomBloodAnalyte(
+                uuid = analyteUuid,
+                name = "SHBG",
+                unitLabel = "nmol/L",
+            )
+        )
+        coEvery { bloodTestRepository.getActiveCustomAnalytes() } returns existingAnalytes
+        coEvery {
+            bloodTestRepository.archiveCustomAnalyte(
+                uuid = analyteUuid,
+                now = any(),
+            )
+        } throws RuntimeException("archive failed")
+
+        val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
+        advanceUntilIdle()
+
+        viewModel.archiveCustomAnalyte(analyteUuid)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isArchivingCustomAnalyte)
+        assertEquals(
+            CalibrationArchiveCustomAnalyteResult.FAILURE,
+            viewModel.uiState.value.archiveCustomAnalyteResult,
+        )
+        assertEquals(existingAnalytes, viewModel.uiState.value.customAnalytes)
+
+        viewModel.consumeArchiveCustomAnalyteResult()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.archiveCustomAnalyteResult)
         coVerify(exactly = 1) {
             bloodTestRepository.archiveCustomAnalyte(
                 uuid = analyteUuid,

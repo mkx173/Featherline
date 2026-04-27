@@ -344,6 +344,37 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
+    fun delete_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
+        val panelUuid = UUID.fromString("32e9a133-51d1-41ed-b9b0-08af6fbb9b65")
+        coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(uuid = panelUuid)
+        coEvery { repository.deletePanel(panelUuid) } throws RuntimeException("delete failed")
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            )
+        )
+        advanceUntilIdle()
+
+        viewModel.delete()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleted)
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertEquals(
+            CalibrationDeleteEntryResult.FAILURE,
+            viewModel.uiState.value.deleteEntryResult,
+        )
+
+        viewModel.consumeDeleteEntryResult()
+        assertNull(viewModel.uiState.value.deleteEntryResult)
+        coVerify(exactly = 1) { repository.deletePanel(panelUuid) }
+    }
+
+    @Test
     fun updateCollectedDateAndTime_recomputesTimeSinceLastEstradiolDose() = runTest {
         val viewModel = CalibrationEditorViewModel(
             repository,

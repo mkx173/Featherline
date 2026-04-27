@@ -107,10 +107,13 @@
     <string name="delete_entry_title">Delete entry</string>
     <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
     <string name="delete_entries_confirm">Delete</string>
+    <string name="delete_entry_failure">Unable to delete entry.</string>
     <string name="history_delete_all_entries">Delete all records</string>
     <string name="history_delete_all_entries_title">Delete all records</string>
     <string name="history_delete_all_entries_success">Deleted all records.</string>
     <string name="history_delete_all_entries_failure">Unable to delete records.</string>
+    <string name="history_delete_selected_entries_success">Deleted selected records.</string>
+    <string name="history_delete_selected_entries_failure">Unable to delete selected records.</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="one">Delete all %1$d record?</item>
         <item quantity="other">Delete all %1$d records?</item>
@@ -174,12 +177,13 @@
     <string name="field_time_of_application">Time of application</string>
     <string name="delete_medication_group">Delete Group</string>
     <string name="delete_medication_group_title">Delete group</string>
-    <string name="delete_medication_group_confirmation">Delete this medication group? Related history entries will be kept and converted to manual entries.</string>
+    <string name="delete_medication_group_confirmation">Delete this medication group? It has no related history records.</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
         <item quantity="one">Delete this medication group? You can keep its %1$d related history record and convert it to a manual entry, or delete it too.</item>
         <item quantity="other">Delete this medication group? You can keep its %1$d related history records and convert them to manual entries, or delete them too.</item>
     </plurals>
     <string name="delete_medication_group_keep_records">Keep records</string>
+    <string name="delete_medication_group_failure">Unable to delete group.</string>
     <string name="delete_group_related_records">Delete records</string>
     <string name="delete_group_related_records_disabled">No related records yet.</string>
     <string name="delete_group_related_records_title">Delete related records</string>
@@ -334,6 +338,7 @@
     <string name="settings_calibration_custom_analyte_error_duplicate">That name and unit already exist.</string>
     <string name="settings_calibration_custom_analyte_error_save">Unable to save this custom analyte.</string>
     <string name="settings_calibration_custom_analyte_error_archive">Unable to archive this custom analyte.</string>
+    <string name="settings_calibration_custom_analyte_archive_success">Archived custom analyte.</string>
     <string name="settings_calibration_custom_analyte_archive_title">Archive custom analyte</string>
     <string name="settings_calibration_custom_analyte_archive_message">Archive %1$s? Existing test results will be kept.</string>
     <string name="settings_calibration_custom_analyte_unit_locked_toast">Unit can\'t be changed once test results have been recorded for this analyte.</string>
@@ -341,6 +346,7 @@
     <string name="settings_calibration_delete_all_entries_title">Delete all calibration entries</string>
     <string name="settings_calibration_delete_all_entries_success">Deleted all calibration entries.</string>
     <string name="settings_calibration_delete_all_entries_failure">Unable to delete calibration entries.</string>
+    <string name="settings_calibration_delete_entry_failure">Unable to delete calibration entry.</string>
     <plurals name="settings_calibration_delete_all_entries_message">
         <item quantity="one">Delete all %1$d calibration record? Custom analytes and default units will be kept.</item>
         <item quantity="other">Delete all %1$d calibration records? Custom analytes and default units will be kept.</item>
