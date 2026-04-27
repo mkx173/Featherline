@@ -70,6 +70,21 @@ fun medicationSummary(details: MedicationDetails): String {
     }
 }
 
+@Composable
+internal fun medicationSupportingText(
+    details: MedicationDetails,
+    medicationCount: Int,
+    extraSupportingText: String? = null,
+): String {
+    val applicationTypeLabel = stringResource(details.applicationType.labelRes)
+    return listOfNotNull(
+        applicationTypeLabel,
+        medicationDoseText(details),
+        medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
+        extraSupportingText?.takeIf(String::isNotBlank)
+    ).joinToString(separator = " · ")
+}
+
 fun applicationTypeBadgeLabelRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
         MedicationApplicationType.ORAL -> R.string.medication_application_badge_oral

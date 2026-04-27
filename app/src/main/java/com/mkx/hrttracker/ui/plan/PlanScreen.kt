@@ -277,7 +277,6 @@ private fun PlanScreenContent(
                     today = uiState.today,
                     overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
                     daySchedule = daySchedule,
-                    appLocale = appLocale,
                     headerFormatter = selectedDayHeaderFormatter,
                     timeFormatter = timeFormatter,
                     onScheduledClick = { scheduled ->

@@ -69,11 +69,10 @@ internal fun MedicationCard(
         .getValue(details.applicationType)
     val applicationTypeLabel = stringResource(details.applicationType.labelRes)
     val medicationName = medicationDisplayName(details)
-    val supportingParts = listOfNotNull(
-        applicationTypeLabel,
-        medicationDoseText(details),
-        medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
-        extraSupportingText?.takeIf(String::isNotBlank)
+    val supportingText = medicationSupportingText(
+        details = details,
+        medicationCount = medicationCount,
+        extraSupportingText = extraSupportingText
     )
     val resolvedTrailingContent = trailingContent ?: onDeleteClick?.let { deleteClick ->
         @Composable {
@@ -138,7 +137,7 @@ internal fun MedicationCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = supportingParts.joinToString(separator = " · "),
+                    text = supportingText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

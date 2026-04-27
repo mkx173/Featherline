@@ -38,19 +38,22 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
-import com.mkx.hrttracker.ui.medication.medicationSummary
+import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -66,7 +69,6 @@ internal fun SelectedDaySection(
     today: LocalDate,
     overallStatus: PlanCalendarDayStatus,
     daySchedule: PlanDaySchedule,
-    appLocale: Locale,
     headerFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onScheduledClick: (PlanDayScheduleEntry) -> Unit,
@@ -183,20 +185,20 @@ internal fun SelectedDaySection(
                     }
                     when (row) {
                         is SelectedDayRowModel.Scheduled -> {
-                            ScheduledDayRow(
+                            SelectedDayRow(
                                 date = date,
                                 today = today,
-                                entry = row.entry,
-                                appLocale = appLocale,
+                                row = row,
                                 timeFormatter = timeFormatter,
                                 onClick = { onScheduledClick(row.entry) }
                             )
                         }
 
                         is SelectedDayRowModel.Unplanned -> {
-                            UnplannedDayRow(
-                                entry = row.entry,
-                                appLocale = appLocale,
+                            SelectedDayRow(
+                                date = date,
+                                today = today,
+                                row = row,
                                 timeFormatter = timeFormatter,
                                 onClick = { onUnplannedClick(row.entry) }
                             )
@@ -209,38 +211,56 @@ internal fun SelectedDaySection(
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
-internal fun ScheduledDayRow(
+private fun SelectedDayRow(
     date: LocalDate,
     today: LocalDate,
-    entry: PlanDayScheduleEntry,
-    appLocale: Locale,
+    row: SelectedDayRowModel,
     timeFormatter: DateTimeFormatter,
     onClick: () -> Unit
 ) {
-    val groupColorScheme = rememberMedicationGroupColorScheme(entry.groupColorKey)
-    val rowState = when {
-        entry.isFulfilled -> ScheduledDayRowState.LOGGED
-        entry.isDueSoon -> ScheduledDayRowState.DUE
-        date == today && entry.isPastDue -> ScheduledDayRowState.PAST_DUE
-        date.isBefore(today) -> ScheduledDayRowState.MISSED
-        else -> ScheduledDayRowState.PLANNED
+    val rowColorScheme = when (row.groupColorKey) {
+        null -> rememberManualMedicationColorScheme()
+        else -> rememberMedicationGroupColorScheme(row.groupColorKey)
+    }
+    val rowState = when (row) {
+        is SelectedDayRowModel.Scheduled -> when {
+            row.entry.isFulfilled -> SelectedDayRowState.LOGGED
+            row.entry.isDueSoon -> SelectedDayRowState.DUE
+            date == today && row.entry.isPastDue -> SelectedDayRowState.PAST_DUE
+            date.isBefore(today) -> SelectedDayRowState.MISSED
+            else -> SelectedDayRowState.PLANNED
+        }
+
+        is SelectedDayRowModel.Unplanned -> SelectedDayRowState.MANUAL
     }
     val labelText = when (rowState) {
-        ScheduledDayRowState.LOGGED -> stringResource(R.string.plan_schedule_entry_logged)
-        ScheduledDayRowState.DUE -> stringResource(R.string.plan_schedule_entry_due_soon)
-        ScheduledDayRowState.PAST_DUE -> stringResource(R.string.plan_schedule_entry_past_due)
-        ScheduledDayRowState.MISSED -> stringResource(R.string.plan_schedule_entry_missed)
-        ScheduledDayRowState.PLANNED -> stringResource(R.string.plan_schedule_entry_planned)
+        SelectedDayRowState.LOGGED -> stringResource(R.string.plan_schedule_entry_logged)
+        SelectedDayRowState.DUE -> stringResource(R.string.plan_schedule_entry_due_soon)
+        SelectedDayRowState.PAST_DUE -> stringResource(R.string.plan_schedule_entry_past_due)
+        SelectedDayRowState.MISSED -> stringResource(R.string.plan_schedule_entry_missed)
+        SelectedDayRowState.PLANNED -> stringResource(R.string.plan_schedule_entry_planned)
+        SelectedDayRowState.MANUAL -> stringResource(R.string.plan_entry_label_manual)
     }
     val labelColor = when (rowState) {
-        ScheduledDayRowState.LOGGED -> fulfilledIndicatorColor
-        ScheduledDayRowState.DUE -> MaterialTheme.colorScheme.primary
-        ScheduledDayRowState.PAST_DUE -> overdueScheduledIndicatorColor
-        ScheduledDayRowState.MISSED -> overdueScheduledIndicatorColor
-        ScheduledDayRowState.PLANNED -> MaterialTheme.colorScheme.onSurfaceVariant
+        SelectedDayRowState.LOGGED -> fulfilledIndicatorColor
+        SelectedDayRowState.DUE -> MaterialTheme.colorScheme.primary
+        SelectedDayRowState.PAST_DUE -> overdueScheduledIndicatorColor
+        SelectedDayRowState.MISSED -> overdueScheduledIndicatorColor
+        SelectedDayRowState.PLANNED -> MaterialTheme.colorScheme.onSurfaceVariant
+        SelectedDayRowState.MANUAL -> rowColorScheme.primary
     }
-    val supportingText = medicationSummary(entry.medication.details)
+    val supportingText = medicationSupportingText(
+        details = row.details,
+        medicationCount = row.medicationCount,
+        extraSupportingText = row.groupName
+    )
+    val timeLabel = when (row) {
+        is SelectedDayRowModel.Scheduled -> row.entry.scheduledTime.format(timeFormatter)
+        is SelectedDayRowModel.Unplanned -> row.entry.appliedAt
+            .atZone(ZoneId.systemDefault())
+            .format(timeFormatter)
+    }
+    val titleText = medicationDisplayName(row.details)
 
     Row(
         modifier = Modifier
@@ -250,12 +270,15 @@ internal fun ScheduledDayRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ScheduledDayRowLeading(state = rowState)
+        SelectedDayRowLeading(
+            state = rowState,
+            colorScheme = rowColorScheme
+        )
         Box(
             modifier = Modifier
                 .size(width = 4.dp, height = 40.dp)
                 .background(
-                    color = groupColorScheme.primary,
+                    color = rowColorScheme.primary,
                     shape = RoundedCornerShape(3.dp)
                 )
         )
@@ -264,29 +287,24 @@ internal fun ScheduledDayRow(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                text = entry.groupName,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                text = titleText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                MedicationCountBadge(
-                    count = entry.medication.count,
-                    containerColor = groupColorScheme.secondaryContainer,
-                    contentColor = groupColorScheme.onSecondaryContainer
-                )
-            }
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = entry.scheduledTime.format(timeFormatter),
+                text = timeLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -462,11 +480,12 @@ internal fun RegimenGroupCard(
 }
 
 @Composable
-private fun ScheduledDayRowLeading(
-    state: ScheduledDayRowState
+private fun SelectedDayRowLeading(
+    state: SelectedDayRowState,
+    colorScheme: ColorScheme
 ) {
     when (state) {
-        ScheduledDayRowState.LOGGED -> {
+        SelectedDayRowState.LOGGED -> {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -485,7 +504,7 @@ private fun ScheduledDayRowLeading(
             }
         }
 
-        ScheduledDayRowState.PAST_DUE -> {
+        SelectedDayRowState.PAST_DUE -> {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -505,7 +524,7 @@ private fun ScheduledDayRowLeading(
             }
         }
 
-        ScheduledDayRowState.MISSED -> {
+        SelectedDayRowState.MISSED -> {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -525,7 +544,7 @@ private fun ScheduledDayRowLeading(
             }
         }
 
-        ScheduledDayRowState.DUE -> {
+        SelectedDayRowState.DUE -> {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -549,7 +568,7 @@ private fun ScheduledDayRowLeading(
             }
         }
 
-        ScheduledDayRowState.PLANNED -> {
+        SelectedDayRowState.PLANNED -> {
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -560,74 +579,24 @@ private fun ScheduledDayRowLeading(
                     )
             )
         }
-    }
-}
 
-@Composable
-private fun UnplannedDayRow(
-    entry: MedicationLogEntry,
-    appLocale: Locale,
-    timeFormatter: DateTimeFormatter,
-    onClick: () -> Unit
-) {
-    val applicationLabel = stringResource(entry.details.applicationType.labelRes)
-    val doseLabel = medicationDoseText(entry.details)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
-        ) {
-            Text(
-                text = medicationDisplayName(entry.details),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = if (doseLabel != null) {
-                    "$doseLabel · $applicationLabel"
-                } else {
-                    applicationLabel
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = entry.appliedAt
-                    .atZone(ZoneId.systemDefault())
-                    .format(timeFormatter),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = stringResource(R.string.plan_entry_label_manual),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        SelectedDayRowState.MANUAL -> {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(
+                        color = colorScheme.secondaryContainer,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -769,25 +738,39 @@ private fun DashedDivider() {
 
 private sealed interface SelectedDayRowModel {
     val sortTime: LocalTime
+    val details: com.mkx.hrttracker.model.medication.MedicationDetails
+    val medicationCount: Int
+    val groupName: String?
+    val groupColorKey: MedicationGroupColorKey?
 
     data class Scheduled(
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
         override val sortTime: LocalTime = entry.scheduledTime
+        override val details = entry.medication.details
+        override val medicationCount: Int = entry.medication.count
+        override val groupName: String = entry.groupName
+        override val groupColorKey: MedicationGroupColorKey = entry.groupColorKey
     }
 
     data class Unplanned(
         val entry: MedicationLogEntry,
         override val sortTime: LocalTime
-    ) : SelectedDayRowModel
+    ) : SelectedDayRowModel {
+        override val details = entry.details
+        override val medicationCount: Int = entry.count
+        override val groupName: String? = null
+        override val groupColorKey: MedicationGroupColorKey? = null
+    }
 }
 
-private enum class ScheduledDayRowState {
+private enum class SelectedDayRowState {
     LOGGED,
     DUE,
     PAST_DUE,
     MISSED,
     PLANNED,
+    MANUAL,
 }
 
 @Preview(showBackground = true, widthDp = 420, heightDp = 560)
@@ -804,7 +787,6 @@ private fun SelectedDaySectionPreview() {
             today = uiState.today,
             overallStatus = uiState.calendarDays[uiState.selectedDate]?.status ?: PlanCalendarDayStatus.NONE,
             daySchedule = uiState.daySchedule,
-            appLocale = appLocale,
             headerFormatter = headerFormatter,
             timeFormatter = timeFormatter,
             onScheduledClick = { },
@@ -815,18 +797,37 @@ private fun SelectedDaySectionPreview() {
 
 @Preview(showBackground = true, widthDp = 420)
 @Composable
-private fun ScheduledDayRowPreview() {
+private fun SelectedDayRowPreview() {
     val uiState = buildPlanPreviewUiState()
-    val appLocale = Locale.US
-    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
-    val entry = uiState.daySchedule.scheduledEntries.first()
+    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.US)
+    val row = SelectedDayRowModel.Scheduled(uiState.daySchedule.scheduledEntries.first())
 
     PlanScreenComponentPreviewContainer {
-        ScheduledDayRow(
+        SelectedDayRow(
             date = uiState.selectedDate,
             today = uiState.today,
-            entry = entry,
-            appLocale = appLocale,
+            row = row,
+            timeFormatter = timeFormatter,
+            onClick = { }
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 420)
+@Composable
+private fun SelectedDayManualRowPreview() {
+    val uiState = buildPlanPreviewUiState()
+    val entry = uiState.daySchedule.unplannedEntries.first()
+    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.US)
+
+    PlanScreenComponentPreviewContainer {
+        SelectedDayRow(
+            date = uiState.selectedDate,
+            today = uiState.today,
+            row = SelectedDayRowModel.Unplanned(
+                entry = entry,
+                sortTime = entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalTime()
+            ),
             timeFormatter = timeFormatter,
             onClick = { }
         )
