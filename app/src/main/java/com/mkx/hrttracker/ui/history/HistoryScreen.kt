@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -748,7 +749,7 @@ private fun HistoryMonthSummaryStrip(
         partialMode = HistoryIndicatorColorMode.Emphasized
     )
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1060,7 +1061,8 @@ private fun HistoryCalendarTitle(
                     enabled = canGoToPrevious,
                     contentDescription = stringResource(R.string.history_previous_month),
                     onClick = onGoToPrevious,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.offset(x = (-8).dp),
+                    iconSize = 30.dp
                 )
             }
 
@@ -1070,14 +1072,16 @@ private fun HistoryCalendarTitle(
                     enabled = displayedMonth != currentMonth || hasSelection,
                     contentDescription = stringResource(R.string.history_current_month),
                     onClick = onGoToCurrent,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.offset(x = 8.dp),
+                    iconSize = 22.dp
                 )
                 HistoryCalendarNavigationButton(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     enabled = canGoToNext,
                     contentDescription = stringResource(R.string.history_next_month),
                     onClick = onGoToNext,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.offset(x = 8.dp),
+                    iconSize = 30.dp
                 )
             }
         }
@@ -1095,23 +1099,25 @@ private fun HistoryCalendarTitle(
 
 @Composable
 private fun HistoryCalendarNavigationButton(
+    modifier: Modifier = Modifier,
     imageVector: ImageVector,
     enabled: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    iconSize: Dp
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        FilledTonalIconButton(
+        IconButton(
             onClick = onClick,
             enabled = enabled,
+            modifier = modifier
         ) {
             Icon(
                 imageVector = imageVector,
                 contentDescription = contentDescription,
-                modifier = modifier
+                modifier = Modifier.size(iconSize)
             )
         }
     }

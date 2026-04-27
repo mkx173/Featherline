@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -417,7 +418,8 @@ private fun PlanWeekHeader(
                         enabled = pageIndex > 0,
                         contentDescription = stringResource(R.string.plan_previous_week),
                         onClick = onPreviousClick,
-                        iconModifier = Modifier.size(30.dp)
+                        modifier = Modifier.offset(x = (-8).dp),
+                        iconSize = 30.dp
                     )
                 }
 
@@ -427,14 +429,16 @@ private fun PlanWeekHeader(
                         enabled = pageIndex != 1 || hasSelection,
                         contentDescription = stringResource(R.string.plan_week_current),
                         onClick = onCurrentClick,
-                        iconModifier = Modifier.size(22.dp)
+                        modifier = Modifier.offset(x = 8.dp),
+                        iconSize = 22.dp
                     )
                     PlanWeekNavigationButton(
                         imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                         enabled = pageIndex < 2,
                         contentDescription = stringResource(R.string.plan_next_week),
                         onClick = onNextClick,
-                        iconModifier = Modifier.size(30.dp)
+                        modifier = Modifier.offset(x = 8.dp),
+                        iconSize = 30.dp
                     )
                 }
             }
@@ -469,23 +473,25 @@ private fun PlanWeekHeader(
 
 @Composable
 private fun PlanWeekNavigationButton(
+    modifier: Modifier = Modifier,
     imageVector: ImageVector,
     enabled: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
-    iconModifier: Modifier = Modifier
+    iconSize: Dp
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
         IconButton(
             onClick = onClick,
-            enabled = enabled
+            enabled = enabled,
+            modifier = modifier
         ) {
             Icon(
                 imageVector = imageVector,
                 contentDescription = contentDescription,
-                modifier = iconModifier
+                modifier = Modifier.size(iconSize)
             )
         }
     }
