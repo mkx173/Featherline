@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
@@ -304,6 +308,16 @@ internal fun RegimenGroupCard(
     onClick: () -> Unit
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
+    val startDateFormatter = remember(appLocale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    }
+    val groupStartDate = remember(group.schedule.since, startDateFormatter) {
+        group.schedule.since.format(startDateFormatter)
+    }
+    val grouStartDateText = stringResource(
+        R.string.group_schedule_since_summary,
+        groupStartDate,
+    )
 
     EditorSegmentedListItem(
         onClick = onClick,
@@ -316,11 +330,14 @@ internal fun RegimenGroupCard(
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.height(IntrinsicSize.Min)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 6.dp, height = 40.dp)
+                        .width(4.dp)
+                        .padding(vertical = 4.dp)
+                        .fillMaxHeight()
                         .background(
                             color = groupColorScheme.primary,
                             shape = RoundedCornerShape(3.dp)
@@ -328,7 +345,6 @@ internal fun RegimenGroupCard(
                 )
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Text(
                         text = group.name,
@@ -379,6 +395,26 @@ internal fun RegimenGroupCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f).cjkTextOffset(groupScheduleSummary),
                             softWrap = true
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Event,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = grouStartDateText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).cjkTextOffset(grouStartDateText),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -435,7 +471,7 @@ internal fun RegimenGroupCard(
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 4.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
 
