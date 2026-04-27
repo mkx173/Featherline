@@ -69,7 +69,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -99,12 +98,12 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -515,9 +514,7 @@ private fun SettingsScreenContent(
         appVersionInfo.versionCode.toString()
     )
     val scrollState = rememberScrollState()
-
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
+    val weightSummary = formatWeightSummary(uiState.userProfile)
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
@@ -570,18 +567,17 @@ private fun SettingsScreenContent(
                     },
                     supportingContent = {
                         Text(
-                            text = formatWeightSummary(uiState.userProfile),
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese && uiState.userProfile.weightOriginalValue == null) (-1).dp.toPx() else 0f
-                            }
+                            text = weightSummary,
+                            modifier = Modifier.cjkTextOffset(
+                                text = weightSummary,
+                                enabled = uiState.userProfile.weightOriginalValue == null,
+                            )
                         )
                     }
                 ) {
                     Text(
                         text = stringResource(R.string.personalization_weight),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(stringResource(R.string.personalization_weight))
 
                     )
                 }
@@ -602,9 +598,9 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_personalization_calibration),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(
+                            stringResource(R.string.settings_personalization_calibration)
+                        )
                     )
                 }
             }
@@ -638,9 +634,9 @@ private fun SettingsScreenContent(
                     supportingContent = {
                         Text(
                             text = stringResource(R.string.settings_reminders_summary),
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese) (-1).dp.toPx() else 0f
-                            }
+                            modifier = Modifier.cjkTextOffset(
+                                stringResource(R.string.settings_reminders_summary)
+                            )
                         )
                     },
                     trailingContent = {
@@ -653,16 +649,13 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_reminders),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_reminders))
                     )
                 }
 
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        appLocale = appLocale,
                         icon = Icons.Rounded.ErrorOutline,
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
@@ -672,7 +665,6 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
-                        appLocale = appLocale,
                         icon = Icons.Rounded.ErrorOutline,
                         onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
@@ -717,17 +709,17 @@ private fun SettingsScreenContent(
                             Text(
                                 text = stringResource(R.string.settings_screen_lock_protection),
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_screen_lock_protection)
+                                )
                             )
                             Text(
                                 text = stringResource(R.string.settings_screen_lock_protection_summary),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_screen_lock_protection_summary)
+                                )
                             )
                         }
                         Switch(
@@ -752,17 +744,17 @@ private fun SettingsScreenContent(
                             supportingContent = {
                                 Text(
                                     text = stringResource(settingsState.appLockGracePeriodOption.labelRes),
-                                    modifier = Modifier.graphicsLayer {
-                                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                    }
+                                    modifier = Modifier.cjkTextOffset(
+                                        stringResource(settingsState.appLockGracePeriodOption.labelRes)
+                                    )
                                 )
                             }
                         ) {
                             Text(
                                 text = stringResource(R.string.settings_app_lock_grace_period),
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_app_lock_grace_period)
+                                )
                             )
                         }
                         DropdownMenu(
@@ -805,17 +797,17 @@ private fun SettingsScreenContent(
                             Text(
                                 text = stringResource(R.string.settings_hide_screen_content),
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_hide_screen_content)
+                                )
                             )
                             Text(
                                 text = stringResource(R.string.settings_hide_screen_content_summary),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_hide_screen_content_summary)
+                                )
                             )
                         }
                         Switch(
@@ -859,17 +851,17 @@ private fun SettingsScreenContent(
                         supportingContent = {
                             Text(
                                 text = stringResource(settingsState.appLanguageOption.labelRes),
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(settingsState.appLanguageOption.labelRes)
+                                )
                             )
                         }
                     ) {
                         Text(
                             text = stringResource(R.string.settings_app_language),
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese) (-1).dp.toPx() else 0f
-                            }
+                            modifier = Modifier.cjkTextOffset(
+                                stringResource(R.string.settings_app_language)
+                            )
                         )
                     }
                     DropdownMenu(
@@ -903,17 +895,15 @@ private fun SettingsScreenContent(
                         supportingContent = {
                             Text(
                                 text = stringResource(settingsState.darkModeOption.labelRes),
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(settingsState.darkModeOption.labelRes)
+                                )
                             )
                         }
                     ) {
                         Text(
                             text = stringResource(R.string.settings_dark_mode),
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese) (-1).dp.toPx() else 0f
-                            }
+                            modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_dark_mode))
                         )
                     }
                     DropdownMenu(
@@ -954,9 +944,7 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_adaptive_color),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_adaptive_color))
                     )
                 }
             }
@@ -989,9 +977,7 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_backup_to_file),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_backup_to_file))
                     )
                 }
 
@@ -1012,9 +998,9 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_restore_from_file),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(
+                            stringResource(R.string.settings_restore_from_file)
+                        )
                     )
                 }
             }
@@ -1046,9 +1032,9 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_about_privacy_policy),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(
+                            stringResource(R.string.settings_about_privacy_policy)
+                        )
                     )
                 }
 
@@ -1077,9 +1063,7 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_about_model),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_about_model))
                     )
                 }
 
@@ -1108,9 +1092,9 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = stringResource(R.string.settings_about_contact_developer),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(
+                            stringResource(R.string.settings_about_contact_developer)
+                        )
                     )
                 }
 
@@ -1134,9 +1118,7 @@ private fun SettingsScreenContent(
                 ) {
                     Text(
                         text = appName,
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(appName)
                     )
                 }
             }
@@ -1258,7 +1240,6 @@ private fun SettingsChevronTrailingIcon() {
 @Composable
 private fun SettingsSupportMessage(
     text: String,
-    appLocale: java.util.Locale,
     icon: ImageVector? = null,
     painter: Painter? = null,
     onClick: (() -> Unit)? = null,
@@ -1266,8 +1247,6 @@ private fun SettingsSupportMessage(
     index: Int = 0,
     count: Int = 1,
 ) {
-    val isChinese = appLocale.language == "zh"
-
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
@@ -1291,9 +1270,7 @@ private fun SettingsSupportMessage(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                }
+                modifier = Modifier.cjkTextOffset(text)
             )
         }
     }

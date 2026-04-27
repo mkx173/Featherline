@@ -53,7 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -78,6 +77,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -142,8 +142,6 @@ private fun CalibrationScreenContent(
         groupCalibrationPanelsByMonth(uiState.panels, monthFormatter)
     }
 
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
     val context = LocalContext.current
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllEntriesConfirmationVisible by rememberSaveable { mutableStateOf(false) }
@@ -275,9 +273,9 @@ private fun CalibrationScreenContent(
                             text = stringResource(R.string.settings_calibration_empty_state),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese) (-1).dp.toPx() else 0f
-                            }
+                            modifier = Modifier.cjkTextOffset(
+                                stringResource(R.string.settings_calibration_empty_state)
+                            )
                         )
                     }
                 }
@@ -364,9 +362,6 @@ private fun CalibrationInfoCard(
     panelCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
-
     EditorSegmentedListItem(
         onClick = {},
         index = 0,
@@ -388,21 +383,18 @@ private fun CalibrationInfoCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .weight(1f)
-                    .graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    }
+                    .cjkTextOffset(stringResource(R.string.settings_calibration_info_message))
             )
+            val totalCountLabel = pluralStringResource(
+                R.plurals.settings_calibration_total_count,
+                panelCount,
+                panelCount,
+            ).uppercase()
             Text(
-                text = pluralStringResource(
-                    R.plurals.settings_calibration_total_count,
-                    panelCount,
-                    panelCount,
-                ).uppercase(),
+                text = totalCountLabel,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                }
+                modifier = Modifier.cjkTextOffset(totalCountLabel)
             )
         }
     }
@@ -759,9 +751,6 @@ private fun CalibrationPanelMetadataRow(
     remainingResultCount: Int,
     hasNotes: Boolean,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
-
     if (timeSinceLastEstradiolDoseMillis == null && remainingResultCount <= 0 && !hasNotes) {
         return
     }
@@ -771,37 +760,40 @@ private fun CalibrationPanelMetadataRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
+            val elapsedLabel =
+                "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}"
 
             CalibrationPanelPill(
                 color = MaterialTheme.colorScheme.tertiaryContainer
             ) {
                 Text(
-                    text = "E2 +${calibrationElapsedDurationLabel(elapsedMillis).replace(" ", "")}",
+                    text = elapsedLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp).graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    },
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 1.dp)
+                        .cjkTextOffset(elapsedLabel),
                 )
             }
         }
         if (remainingResultCount > 0) {
+            val extraEntriesLabel = pluralStringResource(
+                R.plurals.settings_calibration_extra_entries,
+                remainingResultCount,
+                remainingResultCount,
+            )
             CalibrationPanelPill(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Text(
-                    text = pluralStringResource(
-                        R.plurals.settings_calibration_extra_entries,
-                        remainingResultCount,
-                        remainingResultCount,
-                    ),
+                    text = extraEntriesLabel,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp).graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    },
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 1.dp)
+                        .cjkTextOffset(extraEntriesLabel),
                 )
             }
         }

@@ -109,7 +109,7 @@ fun WeightDialog(
                         colors = ToggleButtonDefaults.toggleButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         ),
-                        applyChineseTextOffset = false
+                        applyCjkTextOffset = false
                     )
                 }
 

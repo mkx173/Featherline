@@ -36,7 +36,7 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyChineseTextOffset: Boolean = true,
+    applyCjkTextOffset: Boolean = true,
 ) {
     val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
     ConnectedButtonGroup(
@@ -51,7 +51,7 @@ fun <T> ConnectedButtonGroup(
             }
         },
         enabled = enabled,
-        applyChineseTextOffset = applyChineseTextOffset,
+        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -71,7 +71,7 @@ fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyChineseTextOffset: Boolean = true,
+    applyCjkTextOffset: Boolean = true,
 ) {
     ConnectedButtonGroup(
         modifier = modifier,
@@ -81,7 +81,7 @@ fun <T> ConnectedButtonGroup(
         optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
-        applyChineseTextOffset = applyChineseTextOffset,
+        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
@@ -101,7 +101,7 @@ private fun <T> ConnectedButtonGroup(
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
-    applyChineseTextOffset: Boolean = true,
+    applyCjkTextOffset: Boolean = true,
 ) {
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -123,7 +123,7 @@ private fun <T> ConnectedButtonGroup(
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
-                        applyChineseTextOffset = applyChineseTextOffset,
+                        applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
                     )
                 }
@@ -156,7 +156,7 @@ private fun <T> ConnectedButtonGroup(
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
-                        applyChineseTextOffset = applyChineseTextOffset,
+                        applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
                     )
                 }
@@ -177,7 +177,7 @@ private fun <T> ConnectedButtonGroupButton(
     optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
-    applyChineseTextOffset: Boolean,
+    applyCjkTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     ToggleButton(
@@ -203,7 +203,7 @@ private fun <T> ConnectedButtonGroupButton(
         }
         LocalizedButtonLabelText(
             text = optionLabel(option),
-            applyChineseTextOffset = applyChineseTextOffset,
+            applyCjkTextOffset = applyCjkTextOffset,
         )
     }
 }
@@ -220,7 +220,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     optionIcons: List<ImageVector>,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
-    applyChineseTextOffset: Boolean,
+    applyCjkTextOffset: Boolean,
     colors: ToggleButtonColors,
 ) {
     ConnectedButtonGroupButton(
@@ -233,7 +233,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         optionIcons = optionIcons,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
-        applyChineseTextOffset = applyChineseTextOffset,
+        applyCjkTextOffset = applyCjkTextOffset,
         colors = colors,
     )
 }

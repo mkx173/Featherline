@@ -49,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -62,6 +61,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -483,9 +483,6 @@ private fun CalibrationAddAnalyteSheetContent(
     onAnalyteClick: (CalibrationAddAnalyteOption) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -565,9 +562,7 @@ private fun CalibrationAddAnalyteSheetContent(
             ) {
                 Text(
                     text = title,
-                    modifier = Modifier.graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    }
+                    modifier = Modifier.cjkTextOffset(title)
                 )
             }
         }

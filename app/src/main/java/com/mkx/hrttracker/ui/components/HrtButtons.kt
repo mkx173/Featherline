@@ -13,11 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.mkx.hrttracker.util.rememberAppLocale
 
 @Composable
 fun HrtButton(
@@ -120,14 +118,10 @@ private fun ButtonContainer(
 internal fun LocalizedButtonLabelText(
     text: String,
     modifier: Modifier = Modifier,
-    applyChineseTextOffset: Boolean = true,
+    applyCjkTextOffset: Boolean = true,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = applyChineseTextOffset && appLocale.language == "zh"
     Text(
         text = text,
-        modifier = modifier.graphicsLayer {
-            translationY = if (isChinese) (-1).dp.toPx() else 0f
-        },
+        modifier = modifier.cjkTextOffset(text = text, enabled = applyCjkTextOffset),
     )
 }

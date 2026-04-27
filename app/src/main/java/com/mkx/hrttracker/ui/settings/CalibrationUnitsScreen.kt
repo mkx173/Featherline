@@ -50,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
@@ -68,10 +67,10 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
@@ -128,9 +127,6 @@ private fun CalibrationUnitsScreenContent(
         isCustomAnalyteDialogVisible = false
         customAnalyteDialogAnalyteId = null
     }
-
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -222,9 +218,9 @@ private fun CalibrationUnitsScreenContent(
                                 text = stringResource(R.string.settings_calibration_custom_analytes_empty),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.graphicsLayer {
-                                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                                }
+                                modifier = Modifier.cjkTextOffset(
+                                    stringResource(R.string.settings_calibration_custom_analytes_empty)
+                                )
                             )
                         }
                     }
@@ -309,9 +305,6 @@ private fun CalibrationUnitPreferenceItem(
     count: Int,
     onUnitChange: (BloodUnitKey) -> Unit,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
-
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -326,9 +319,9 @@ private fun CalibrationUnitPreferenceItem(
                 text = stringResource(calibrationAnalyteFullNameRes(analyteKey)),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f).graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                }
+                modifier = Modifier
+                    .weight(1f)
+                    .cjkTextOffset(stringResource(calibrationAnalyteFullNameRes(analyteKey)))
             )
             ConnectedButtonGroup(
                 options = calibrationAllowedUnitsFor(analyteKey),
@@ -336,7 +329,7 @@ private fun CalibrationUnitPreferenceItem(
                 optionLabel = { unit -> calibrationUnitLabel(unit) },
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
-                applyChineseTextOffset = false
+                applyCjkTextOffset = false
             )
         }
     }
@@ -349,9 +342,6 @@ private fun CalibrationCustomAnalyteItem(
     count: Int,
     onClick: () -> Unit,
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
-
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -383,9 +373,7 @@ private fun CalibrationCustomAnalyteItem(
     ) {
         Text(
             text = customAnalyte.name,
-            modifier = Modifier.graphicsLayer {
-                translationY = if (isChinese) (-1).dp.toPx() else 0f
-            }
+            modifier = Modifier.cjkTextOffset(customAnalyte.name)
         )
     }
 }

@@ -13,10 +13,8 @@ import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.mkx.hrttracker.util.rememberAppLocale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -29,8 +27,7 @@ fun DangerZoneListItem(
     index: Int = 0,
     count: Int = 1
 ) {
-    val appLocale = rememberAppLocale()
-    val isChinese = appLocale.language == "zh"
+    val displayLabel = label.uppercase()
 
     SegmentedListItem(
         leadingContent = {
@@ -57,11 +54,9 @@ fun DangerZoneListItem(
         shapes = segmentedListItemShapes(index = index, count = count)
     ) {
         Text(
-            text = label.uppercase(),
+            text = displayLabel,
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.graphicsLayer {
-                translationY = if (isChinese) (-1).dp.toPx() else 0f
-            }
+            modifier = Modifier.cjkTextOffset(displayLabel)
         )
     }
 }

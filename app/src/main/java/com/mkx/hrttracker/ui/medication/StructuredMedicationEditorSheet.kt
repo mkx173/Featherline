@@ -55,7 +55,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -84,6 +83,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -452,7 +452,7 @@ fun StructuredMedicationEditorSheet(
                                     optionLabel = { unit -> stringResource(unit.shortLabelRes) },
                                     onOptionSelected = onCustomDoseUnitChange,
                                     layout = ConnectedButtonGroupLayout.ROW,
-                                    applyChineseTextOffset = false,
+                                    applyCjkTextOffset = false,
                                     enabled = isMedicationIdentityEditable
                                 )
                             }
@@ -626,7 +626,6 @@ fun StructuredMedicationEditorSheet(
                             onPatchReleaseRateChange(resolvedPreset.valueMcgPerDay)
                         },
                         enabled = isMedicationIdentityEditable,
-                        appLocale = appLocale
                     )
                 }
 
@@ -1105,12 +1104,10 @@ private fun DoseAssistPresetRow(
     presets: List<MedicationDoseAssistPreset>,
     onPresetClick: (MedicationDoseAssistPreset) -> Unit,
     enabled: Boolean,
-    appLocale: Locale? = null
 ) {
     if (presets.isEmpty() || !enabled) {
         return
     }
-    val isChinese = appLocale?.language == "zh"
 
     Row(
         modifier = Modifier
@@ -1129,9 +1126,7 @@ private fun DoseAssistPresetRow(
                     label = {
                         Text(
                             text = doseAssistPresetLabel(preset),
-                            modifier = Modifier.graphicsLayer {
-                                translationY = if (isChinese) (-1).dp.toPx() else 0f
-                            }
+                            modifier = Modifier.cjkTextOffset(doseAssistPresetLabel(preset))
                         )
                     }
                 )

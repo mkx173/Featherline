@@ -69,7 +69,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -108,6 +107,7 @@ import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
@@ -810,7 +810,6 @@ private fun MedicationGroupEditorScreenContent(
                         EditorSupportMessage(
                             text = stringResource(R.string.group_medications_empty),
                             painter = painterResource(R.drawable.ic_info),
-                            appLocale = appLocale
                         )
                     } else {
                         Column(
@@ -830,7 +829,6 @@ private fun MedicationGroupEditorScreenContent(
                                     },
                                     index = index,
                                     count = uiState.medications.size,
-                                    appLocale = appLocale
                                 )
                             }
                         }
@@ -933,7 +931,6 @@ private fun MedicationGroupEditorScreenContent(
                         onToggle = onNotificationsEnabledChange,
                         index = 0,
                         count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2,
-                        appLocale = appLocale
                     )
                     when (notificationSupportState) {
                         NotificationSupportState.ACCESS_OFF -> {
@@ -944,7 +941,6 @@ private fun MedicationGroupEditorScreenContent(
                                 showChevron = true,
                                 index = 1,
                                 count = 2,
-                                appLocale = appLocale
                             )
                         }
 
@@ -956,7 +952,6 @@ private fun MedicationGroupEditorScreenContent(
                             showChevron = true,
                             index = 1,
                             count = 2,
-                            appLocale = appLocale
                         )
                         }
 
@@ -968,7 +963,6 @@ private fun MedicationGroupEditorScreenContent(
                                 showChevron = true,
                                 index = 1,
                                 count = 2,
-                                appLocale = appLocale
                             )
                         }
 
@@ -1168,13 +1162,11 @@ private fun maybeRequestExactAlarmAccess(
 private fun MedicationGroupMedicationCard(
     medication: MedicationGroupMedicationItemUiState,
     groupColorKey: MedicationGroupColorKey,
-    appLocale: Locale,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
     index: Int = 0,
     count: Int = 1
 ) {
-    val isChinese = appLocale.language == "zh"
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val supportingParts = listOfNotNull(
         medicationDoseText(medication.details)
@@ -1209,9 +1201,7 @@ private fun MedicationGroupMedicationCard(
                     Text(
                         text = medicationDisplayName(medication.details),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.graphicsLayer {
-                            translationY = if (isChinese) (-1).dp.toPx() else 0f
-                        }
+                        modifier = Modifier.cjkTextOffset(medicationDisplayName(medication.details))
                     )
                     Text(
                         text = supportingParts.joinToString(separator = " · "),
@@ -1263,7 +1253,6 @@ private fun EditorSectionHeader(
 @Composable
 private fun EditorSupportMessage(
     text: String,
-    appLocale: Locale,
     icon: ImageVector? = null,
     painter: Painter? = null,
     onClick: (() -> Unit)? = null,
@@ -1271,8 +1260,6 @@ private fun EditorSupportMessage(
     index: Int = 0,
     count: Int = 1,
 ) {
-    val isChinese = appLocale.language == "zh"
-
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
@@ -1320,9 +1307,7 @@ private fun EditorSupportMessage(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                }
+                modifier = Modifier.cjkTextOffset(text)
             )
         }
     }

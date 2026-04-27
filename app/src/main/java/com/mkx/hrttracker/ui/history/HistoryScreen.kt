@@ -74,7 +74,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -111,6 +110,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
@@ -550,7 +550,6 @@ private fun HistoryScreenContent(
                                 R.string.history_month_empty_state
                             }
                         ),
-                        appLocale = appLocale,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -850,14 +849,12 @@ private fun HistoryMonthCalendar(
                 }
             )
         }
-        HistoryCalendarLegend(appLocale = appLocale)
+        HistoryCalendarLegend()
     }
 }
 
 @Composable
-private fun HistoryCalendarLegend(modifier: Modifier = Modifier, appLocale: Locale) {
-    val isChinese = appLocale.language == "zh"
-
+private fun HistoryCalendarLegend(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(
@@ -869,22 +866,18 @@ private fun HistoryCalendarLegend(modifier: Modifier = Modifier, appLocale: Loca
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.FULFILLED,
             label = stringResource(R.string.history_summary_on_track),
-            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.PARTIAL,
             label = stringResource(R.string.history_summary_partial),
-            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.MISSED,
             label = stringResource(R.string.history_summary_missed),
-            isChinese = isChinese
         )
         HistoryCalendarLegendItem(
             status = PlanCalendarDayStatus.OFFPLAN,
             label = stringResource(R.string.history_legend_unplanned),
-            isChinese = isChinese
         )
     }
 }
@@ -894,7 +887,6 @@ private fun HistoryCalendarLegendItem(
     status: PlanCalendarDayStatus,
     label: String,
     modifier: Modifier = Modifier,
-    isChinese: Boolean
 ) {
     val indicatorColors = historyIndicatorColors(
         scheduledMode = HistoryIndicatorColorMode.Emphasized,
@@ -913,9 +905,9 @@ private fun HistoryCalendarLegendItem(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall)).graphicsLayer {
-                translationY = if (isChinese) (-1).dp.toPx() else 0f
-            }
+            modifier = Modifier
+                .padding(start = dimensionResource(R.dimen.padding_xsmall))
+                .cjkTextOffset(label)
         )
     }
 }
@@ -1263,7 +1255,6 @@ private fun HistoryEntryGroupHeader(
     val dayFormatter = remember(appLocale) {
         historyEntryGroupDayFormatter(appLocale)
     }
-    val isChinese = appLocale.language == "zh"
     val isToday = date == today
     val label = if (isToday) {
         stringResource(R.string.quick_add_group_planned_slot_today)
@@ -1273,6 +1264,7 @@ private fun HistoryEntryGroupHeader(
     val weekdayLabel = remember(date, appLocale) {
         date.dayOfWeek.getDisplayName(TextStyle.SHORT, appLocale)
     }
+    val weekdayDisplayLabel = weekdayLabel.uppercase()
     val showOffPlanBadge = historyShouldShowOffPlanBadge(
         status = dayStatus,
         hasOffPlanRecord = hasOffPlanRecord
@@ -1324,21 +1316,17 @@ private fun HistoryEntryGroupHeader(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier.alignByBaseline().graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    }
+                    modifier = Modifier.alignByBaseline().cjkTextOffset(label)
                 )
                 Text(
-                    text = weekdayLabel.uppercase(),
+                    text = weekdayDisplayLabel,
                     style = MaterialTheme.typography.labelLarge,
                     color = if (isToday) {
                         MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.alignByBaseline().graphicsLayer {
-                        translationY = if (isChinese) (-1).dp.toPx() else 0f
-                    },
+                    modifier = Modifier.alignByBaseline().cjkTextOffset(weekdayDisplayLabel),
                 )
             }
         }
@@ -1535,10 +1523,8 @@ private fun HistoryEntryCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun HistoryEmptyStateCard(
     text: String,
-    appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
-    val isChinese = appLocale.language == "zh"
     ListItem(
         onClick = {},
         colors = ListItemDefaults.colors(
@@ -1560,9 +1546,7 @@ private fun HistoryEmptyStateCard(
             text = text,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.graphicsLayer {
-                translationY = if (isChinese) (-1).dp.toPx() else 0f
-            }
+            modifier = Modifier.cjkTextOffset(text)
         )
     }
 }

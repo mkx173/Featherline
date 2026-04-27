@@ -25,17 +25,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -194,10 +193,7 @@ internal fun NotificationsCard(
     onToggle: (Boolean) -> Unit,
     index: Int = 0,
     count: Int = 1,
-    appLocale: Locale
 ) {
-    val isChinese = appLocale.language == "zh"
-
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -231,18 +227,14 @@ internal fun NotificationsCard(
                 text = stringResource(R.string.group_notifications_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.graphicsLayer {
-                    translationY = if (isChinese) (-1).dp.toPx() else 0f
-                },
+                modifier = Modifier.cjkTextOffset(stringResource(R.string.group_notifications_summary)),
             )
         },
     ) {
         Text(
             text = stringResource(R.string.group_notifications_reminder),
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.graphicsLayer {
-                translationY = if (isChinese) (-1).dp.toPx() else 0f
-            }
+            modifier = Modifier.cjkTextOffset(stringResource(R.string.group_notifications_reminder))
         )
     }
 }
@@ -316,7 +308,6 @@ private fun NotificationsCardPreview() {
                 enabled = true,
                 toggleEnabled = true,
                 onToggle = {},
-                appLocale = Locale.ENGLISH
             )
         }
     }
