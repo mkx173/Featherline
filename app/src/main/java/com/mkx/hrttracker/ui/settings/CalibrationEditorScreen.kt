@@ -235,7 +235,6 @@ fun CalibrationEditorScreen(
                         viewModel.addCustomAnalyte(option.customAnalyte)
                     }
                 }
-                isAddAnalyteSheetVisible = false
             },
         )
     }
@@ -502,10 +501,9 @@ private fun CalibrationAddAnalyteSheet(
         CalibrationAddAnalyteSheetContent(
             availableAnalytes = availableAnalytes,
             onDismissRequest = onDismissRequest,
-            onAnalyteClick = { analyteKey ->
-                hideBottomSheet(scope, sheetState) {
-                    onAnalyteClick(analyteKey)
-                }
+            onAnalyteClick = { option ->
+                onAnalyteClick(option)
+                hideBottomSheet(scope, sheetState, onDismissRequest)
             },
         )
     }
