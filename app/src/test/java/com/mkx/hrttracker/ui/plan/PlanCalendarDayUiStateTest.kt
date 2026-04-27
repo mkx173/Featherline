@@ -234,6 +234,7 @@ class PlanCalendarDayUiStateTest {
         )
 
         assertEquals(PlanCalendarDayStatus.MISSED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(true, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
     }
 
     @Test

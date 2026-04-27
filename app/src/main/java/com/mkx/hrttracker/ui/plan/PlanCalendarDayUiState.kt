@@ -51,6 +51,13 @@ fun buildPlanCalendarDayUiState(
     while (!currentDate.isAfter(endDate)) {
         val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(currentDate) }
         val dayEntries = entriesByDate[currentDate].orEmpty()
+        val hasOffPlanRecord = dayEntries.any { entry ->
+            isPlanOffPlanEntry(
+                entry = entry,
+                scheduledGroups = scheduledGroups,
+                date = currentDate
+            )
+        }
         val expectedOccurrenceCount = scheduledGroups.sumOf { group ->
             group.schedule.times.size
         }
@@ -73,13 +80,36 @@ fun buildPlanCalendarDayUiState(
         dayStates[currentDate] = PlanCalendarDayUiState(
             expectedOccurrenceCount = expectedOccurrenceCount,
             matchedOccurrenceCount = matchedOccurrenceCount,
-            hasOffPlanRecord = expectedOccurrenceCount == 0 && dayEntries.isNotEmpty(),
+            hasOffPlanRecord = hasOffPlanRecord,
             hasMatchingScheduledRecord = hasMatchingScheduledRecord
         )
         currentDate = currentDate.plusDays(1)
     }
 
     return dayStates
+}
+
+private fun isPlanOffPlanEntry(
+    entry: MedicationLogEntry,
+    scheduledGroups: List<MedicationGroup>,
+    date: LocalDate,
+): Boolean {
+    val sourceGroupUuid = entry.sourceGroupUuid ?: return true
+    val scheduledFor = entry.scheduledFor ?: return true
+    if (scheduledFor.toLocalDate() != date) {
+        return true
+    }
+
+    val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
+        ?: return true
+    if (scheduledFor.toLocalTime() !in group.schedule.times) {
+        return true
+    }
+
+    val requiredSignatures = group.medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .keys
+    return MedicationSignature.fromLogEntry(entry) !in requiredSignatures
 }
 
 internal fun isSlotFulfilled(

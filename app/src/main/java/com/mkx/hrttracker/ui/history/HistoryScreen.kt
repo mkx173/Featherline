@@ -1073,7 +1073,7 @@ private fun HistoryCalendarTitle(
                     enabled = displayedMonth != currentMonth || hasSelection,
                     contentDescription = stringResource(R.string.history_current_month),
                     onClick = onGoToCurrent,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
                 HistoryCalendarNavigationButton(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -1085,12 +1085,13 @@ private fun HistoryCalendarTitle(
             }
         }
 
+        val dateLabel = displayedMonth.atDay(1).format(monthFormatter)
         Text(
-            text = displayedMonth.atDay(1).format(monthFormatter),
+            text = dateLabel,
             style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.Center)
+            modifier = Modifier.align(Alignment.Center).cjkTextOffset(dateLabel)
         )
     }
 }

@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
@@ -84,6 +87,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.historyCalendarMonthTitleFormatter
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -233,14 +237,12 @@ private fun PlanScreenContent(
             item(key = "week-calendar") {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PlanWeekHeader(
                         weekStartDate = visibleWeekStartDate,
                         today = uiState.today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         monthFormatter = monthFormatter,
-                        appLocale = appLocale,
                         hasSelection = selection != null,
                         onPreviousClick = {
                             scope.launch {
@@ -259,34 +261,28 @@ private fun PlanScreenContent(
                             }
                         }
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
                     WeekCalendar(
                         modifier = Modifier.fillMaxWidth(),
                         state = state,
                         dayContent = { day ->
+                            val dayState = uiState.calendarDays[day.date] ?: PlanCalendarDayUiState()
                             Day(
                                 date = day.date,
                                 today = uiState.today,
-                                dayStatus = uiState.calendarDays[day.date]?.status
-                                    ?: PlanCalendarDayStatus.NONE,
+                                appLocale = appLocale,
+                                dayState = dayState,
                                 isSelected = selection == day.date
                             ) { clicked ->
                                 onDateSelected(clicked)
                             }
                         }
                     )
-                    PlanWeekCalendarLegend()
                 }
             }
 
-            item(key = "calendar-divider") {
-                HorizontalDivider(
-                    modifier = Modifier.padding(top = 4.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                )
-            }
-
             item(key = "selected-day") {
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     SelectedDaySection(
                         date = displayedDate,
                         today = uiState.today,
@@ -380,7 +376,6 @@ private fun PlanWeekHeader(
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     monthFormatter: DateTimeFormatter,
-    appLocale: Locale,
     hasSelection: Boolean,
     onPreviousClick: () -> Unit,
     onCurrentClick: () -> Unit,
@@ -400,12 +395,10 @@ private fun PlanWeekHeader(
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -428,7 +421,7 @@ private fun PlanWeekHeader(
                         enabled = pageIndex != 1 || hasSelection,
                         contentDescription = stringResource(R.string.plan_week_current),
                         onClick = onCurrentClick,
-                        iconModifier = Modifier.size(24.dp)
+                        iconModifier = Modifier.size(22.dp)
                     )
                     PlanWeekNavigationButton(
                         imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -445,26 +438,26 @@ private fun PlanWeekHeader(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy((-2).dp)
             ) {
+                val dateLabel = headerDate.format(monthFormatter)
+                val pageLabel = stringResource(pageLabelRes)
                 Text(
                     text = headerDate.format(monthFormatter),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.cjkTextOffset(dateLabel)
                 )
                 Text(
-                    text = stringResource(pageLabelRes),
+                    text = pageLabel,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.cjkTextOffset(pageLabel)
                 )
             }
         }
 
         PlanWeekPageIndicator(pageIndex = pageIndex)
-        PlanWeekDayHeader(
-            firstDayOfWeek = firstDayOfWeek,
-            appLocale = appLocale
-        )
     }
 }
 
@@ -479,7 +472,7 @@ private fun PlanWeekNavigationButton(
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        FilledTonalIconButton(
+        IconButton(
             onClick = onClick,
             enabled = enabled
         ) {
@@ -520,42 +513,6 @@ private fun PlanWeekPageIndicator(pageIndex: Int) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun PlanWeekDayHeader(
-    firstDayOfWeek: DayOfWeek,
-    appLocale: Locale
-) {
-    val weekdayLabels = remember(firstDayOfWeek, appLocale) {
-        planDayOfWeekLabels(
-            firstDayOfWeek = firstDayOfWeek,
-            locale = appLocale
-        )
-    }
-
-    Row(modifier = Modifier.fillMaxWidth()) {
-        weekdayLabels.forEach { label ->
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun planDayOfWeekLabels(
-    firstDayOfWeek: DayOfWeek,
-    locale: Locale
-): List<String> {
-    return List(7) { offset ->
-        firstDayOfWeek
-            .plus(offset.toLong())
-            .getDisplayName(TextStyle.NARROW, locale)
     }
 }
 
@@ -646,70 +603,18 @@ internal val fulfilledIndicatorColor = Color(0xFF2E7D32)
 internal val overdueScheduledIndicatorColor = Color(0xFFC62828)
 
 @Composable
-private fun PlanWeekCalendarLegend(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(
-            12.dp,
-            Alignment.CenterHorizontally
-        ),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PlanWeekCalendarLegendItem(
-            status = PlanCalendarDayStatus.FULFILLED,
-            label = stringResource(R.string.history_summary_on_track),
-        )
-        PlanWeekCalendarLegendItem(
-            status = PlanCalendarDayStatus.PARTIAL,
-            label = stringResource(R.string.history_summary_partial),
-        )
-        PlanWeekCalendarLegendItem(
-            status = PlanCalendarDayStatus.MISSED,
-            label = stringResource(R.string.history_summary_missed),
-        )
-        PlanWeekCalendarLegendItem(
-            status = PlanCalendarDayStatus.OFFPLAN,
-            label = stringResource(R.string.history_legend_unplanned),
-        )
-    }
-}
-
-@Composable
-private fun PlanWeekCalendarLegendItem(
-    status: PlanCalendarDayStatus,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PlanDayStatusIndicator(
-            status = status,
-            colors = planDayIndicatorColors(
-                scheduledMode = PlanDayIndicatorColorMode.Emphasized,
-                partialMode = PlanDayIndicatorColorMode.Emphasized
-            ),
-            modifier = Modifier.size(12.dp)
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall))
-        )
-    }
-}
-
-@Composable
 private fun Day(
     date: LocalDate,
     today: LocalDate,
-    dayStatus: PlanCalendarDayStatus,
+    appLocale: Locale,
+    dayState: PlanCalendarDayUiState,
     isSelected: Boolean,
     onClick: (LocalDate) -> Unit
 ) {
     val isToday = date == today
+    val weekdayLabel = remember(date.dayOfWeek, appLocale) {
+        date.dayOfWeek.getDisplayName(TextStyle.NARROW, appLocale)
+    }
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         isToday -> MaterialTheme.colorScheme.secondaryContainer
@@ -720,10 +625,14 @@ private fun Day(
         isToday -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val weekdayColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        isToday -> MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
             .fillMaxWidth()
             .padding(2.dp)
             .clip(MaterialTheme.shapes.medium)
@@ -737,8 +646,14 @@ private fun Day(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(bottom = 2.dp)
+            modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
         ) {
+            Text(
+                text = weekdayLabel,
+                color = weekdayColor,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium
+            )
             Text(
                 text = date.dayOfMonth.toString(),
                 color = textColor,
@@ -748,7 +663,8 @@ private fun Day(
             DayStatusIndicator(
                 date = date,
                 today = today,
-                dayStatus = dayStatus,
+                dayStatus = dayState.status,
+                hasOffPlanRecord = dayState.hasOffPlanRecord,
                 isSelected = isSelected
             )
         }
@@ -760,6 +676,7 @@ private fun DayStatusIndicator(
     date: LocalDate,
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
+    hasOffPlanRecord: Boolean,
     isSelected: Boolean
 ) {
     val indicatorMode = if (date.isBefore(today)) {
@@ -776,7 +693,11 @@ private fun DayStatusIndicator(
             partialMode = indicatorMode,
             selectedColor = selectedColor
         ),
-        modifier = Modifier.size(12.dp)
+        modifier = Modifier.size(12.dp),
+        showOffPlanBadge = planShouldShowOffPlanBadge(
+            status = dayStatus,
+            hasOffPlanRecord = hasOffPlanRecord
+        )
     )
 }
 
@@ -784,42 +705,54 @@ private fun DayStatusIndicator(
 private fun PlanDayStatusIndicator(
     status: PlanCalendarDayStatus,
     colors: PlanDayIndicatorColors,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showOffPlanBadge: Boolean = false
 ) {
-    when (status) {
-        PlanCalendarDayStatus.NONE -> {
-            PlanDayIndicatorGlyph(
-                kind = PlanDayIndicatorKind.NO_RECORD,
-                color = colors.neutral,
-                modifier = modifier
-            )
+    Box(modifier = modifier) {
+        when (status) {
+            PlanCalendarDayStatus.NONE -> {
+                PlanDayIndicatorGlyph(
+                    kind = PlanDayIndicatorKind.NO_RECORD,
+                    color = colors.neutral,
+                    modifier = modifier
+                )
+            }
+            PlanCalendarDayStatus.OFFPLAN -> {
+                PlanDayIndicatorGlyph(
+                    kind = PlanDayIndicatorKind.OFFPLAN,
+                    color = colors.unplanned,
+                    modifier = modifier
+                )
+            }
+            PlanCalendarDayStatus.MISSED -> {
+                PlanDayIndicatorGlyph(
+                    kind = PlanDayIndicatorKind.MISSED,
+                    color = colors.scheduled,
+                    modifier = modifier
+                )
+            }
+            PlanCalendarDayStatus.PARTIAL -> {
+                PlanDayIndicatorGlyph(
+                    kind = PlanDayIndicatorKind.PARTIAL,
+                    color = colors.partial,
+                    modifier = modifier
+                )
+            }
+            PlanCalendarDayStatus.FULFILLED -> {
+                PlanDayIndicatorGlyph(
+                    kind = PlanDayIndicatorKind.CHECK,
+                    color = colors.fulfilled,
+                    modifier = modifier
+                )
+            }
         }
-        PlanCalendarDayStatus.OFFPLAN -> {
-            PlanDayIndicatorGlyph(
-                kind = PlanDayIndicatorKind.OFFPLAN,
-                color = colors.unplanned,
-                modifier = modifier
-            )
-        }
-        PlanCalendarDayStatus.MISSED -> {
-            PlanDayIndicatorGlyph(
-                kind = PlanDayIndicatorKind.MISSED,
-                color = colors.scheduled,
-                modifier = modifier
-            )
-        }
-        PlanCalendarDayStatus.PARTIAL -> {
-            PlanDayIndicatorGlyph(
-                kind = PlanDayIndicatorKind.PARTIAL,
-                color = colors.partial,
-                modifier = modifier
-            )
-        }
-        PlanCalendarDayStatus.FULFILLED -> {
-            PlanDayIndicatorGlyph(
-                kind = PlanDayIndicatorKind.CHECK,
-                color = colors.fulfilled,
-                modifier = modifier
+
+        if (showOffPlanBadge) {
+            Badge(
+                containerColor = colors.unplanned,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(4.dp)
             )
         }
     }
@@ -906,6 +839,13 @@ private fun planDayIndicatorColor(
         PlanDayIndicatorColorMode.Neutral -> MaterialTheme.colorScheme.outline
         PlanDayIndicatorColorMode.Emphasized -> emphasizedColor
     }
+}
+
+private fun planShouldShowOffPlanBadge(
+    status: PlanCalendarDayStatus,
+    hasOffPlanRecord: Boolean
+): Boolean {
+    return hasOffPlanRecord && status != PlanCalendarDayStatus.OFFPLAN
 }
 
 private fun currentWeekPageIndex(
