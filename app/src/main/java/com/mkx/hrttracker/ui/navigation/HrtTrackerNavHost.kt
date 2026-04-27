@@ -273,7 +273,11 @@ fun HrtTrackerNavHost(
         NavHost(
             navController = navController,
             startDestination = Screen.Main.route,
-            modifier = Modifier.consumeWindowInsets(innerPadding)
+            modifier = Modifier.consumeWindowInsets(innerPadding),
+            enterTransition = { hrtNavHostEnterTransition() },
+            exitTransition = { hrtNavHostExitTransition() },
+            popEnterTransition = { hrtNavHostPopEnterTransition() },
+            popExitTransition = { hrtNavHostPopExitTransition() },
         ) {
             composable(Screen.Main.route) {
                 MainScreen(

@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -269,6 +270,7 @@ internal fun CalibrationAnalyteCard(
                         Text(
                             text = stringResource(calibrationAnalyteFullNameRes(analyteKey)),
                             style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Normal
                         )
                         val abbreviation = calibrationAnalyteLabel(analyteKey)
                         val target = calibrationTargetLabel(analyteKey, unit)
