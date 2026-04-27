@@ -106,6 +106,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicationCard
 import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
@@ -886,7 +887,8 @@ private fun MedicationGroupEditorScreenContent(
                             uiState.medications.forEachIndexed { index, medication ->
                                 val medicationName = medicationDisplayName(medication.details)
                                 MedicationCard(
-                                    medication = medication,
+                                    details = medication.details,
+                                    medicationCount = medication.count,
                                     groupColorKey = uiState.groupColorKey,
                                     onClick = { onMedicationClick(medication.localId) },
                                     onDeleteClick = {
@@ -896,7 +898,7 @@ private fun MedicationGroupEditorScreenContent(
                                         )
                                     },
                                     index = index,
-                                    count = uiState.medications.size,
+                                    itemCount = uiState.medications.size,
                                 )
                             }
                         }

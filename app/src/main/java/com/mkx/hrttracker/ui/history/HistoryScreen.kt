@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -84,7 +83,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -112,16 +110,14 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.MedicationCard
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -1525,90 +1521,52 @@ private fun HistoryEntryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-
-    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
-    val supportingText = buildHistoryEntrySupportingText(
-        entry = entry,
-        count = entry.count,
-        groupName = groupName
-    )
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.secondaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceContainerLow
     }
 
-    EditorSegmentedListItem(
-        index = index,
-        count = count,
+    MedicationCard(
+        details = entry.details,
+        medicationCount = entry.count,
+        groupColorKey = groupColorKey,
+        extraSupportingText = groupName,
         onClick = onClick,
         onLongClick = onLongClick,
+        index = index,
+        itemCount = count,
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
-        leadingContent = {
-            entry.scheduledFor?.let {
-                Icon(
-                    painter = painterResource(R.drawable.ic_calendar_clock),
-                    contentDescription = stringResource(R.string.history_entry_source_group_schedule),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } ?: Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = stringResource(R.string.history_entry_source_manual),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
         trailingContent = {
-            Text(
-                text = entry.appliedAt
-                    .atZone(ZoneId.systemDefault())
-                    .format(timeFormatter),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.End
-            )
-        },
-        supportingContent = {
-            Text(
-                text = supportingText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = groupColorScheme.primaryContainer
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                entry.scheduledFor?.let {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_calendar_clock),
+                        contentDescription = stringResource(R.string.history_entry_source_group_schedule),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                } ?: Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.history_entry_source_manual),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
                 Text(
-                    text = stringResource(entry.details.applicationType.labelRes).uppercase(),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                        .alignByBaseline(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = groupColorScheme.onPrimaryContainer,
-                    maxLines = 1,
+                    text = entry.appliedAt
+                        .atZone(ZoneId.systemDefault())
+                        .format(timeFormatter),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End
                 )
             }
-            Text(
-                text = medicationDisplayName(entry.details),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.alignByBaseline()
-            )
         }
-    }
+    )
 }
 
 @Composable
