@@ -169,8 +169,6 @@
     <string name="group_schedule_time_item">%1$s</string>
     <string name="group_schedule_duplicate_time">该时间已存在于计划中。</string>
     <string name="group_medication_duplicate_merged">该药物已存在于分组中，已改为增加数量。</string>
-    <string name="group_schedule_weekly_summary">每 %1$s 周</string>
-    <string name="group_schedule_daily_summary">每 %1$s 天</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>
     <string name="field_time_of_application">用药时间</string>
@@ -454,6 +452,14 @@
     </plurals>
     <plurals name="group_schedule_days_unit">
         <item quantity="other">天</item>
+    </plurals>
+    <string name="group_schedule_daily_single_interval_summary">每天</string>
+    <plurals name="group_schedule_daily_interval_summary">
+        <item quantity="other">每 %1$d 天</item>
+    </plurals>
+    <string name="group_schedule_weekly_single_interval_summary">每周</string>
+    <plurals name="group_schedule_weekly_interval_summary">
+        <item quantity="other">每 %1$d 周</item>
     </plurals>
     <string name="group_schedule_every_label">每次间隔</string>
     <string name="confirm">确定</string>

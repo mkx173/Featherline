@@ -171,8 +171,6 @@
     <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
     <string name="group_medication_duplicate_merged">That medication is already in the group. Increased its count instead.</string>
-    <string name="group_schedule_weekly_summary">Every %1$s week(s)</string>
-    <string name="group_schedule_daily_summary">Every %1$s day(s)</string>
     <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>
@@ -467,6 +465,14 @@
     <plurals name="group_schedule_days_unit">
         <item quantity="one">day</item>
         <item quantity="other">days</item>
+    </plurals>
+    <string name="group_schedule_daily_single_interval_summary">Every day</string>
+    <plurals name="group_schedule_daily_interval_summary">
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
+    <string name="group_schedule_weekly_single_interval_summary">Every week</string>
+    <plurals name="group_schedule_weekly_interval_summary">
+        <item quantity="other">Every %1$d weeks</item>
     </plurals>
     <string name="group_schedule_every_label">Repeat every</string>
     <string name="confirm">OK</string>

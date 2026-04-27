@@ -7,10 +7,10 @@ import java.util.Locale
 fun MedicationGroupSchedule.formatSummary(
     locale: Locale,
     timeFormatter: DateTimeFormatter,
-    dailyLabel: String,
-    weeklyLabel: String
+    dailyIntervalLabel: String,
+    weeklyIntervalLabel: String
 ): String {
-    val formattedTimes = times.sorted().joinToString(separator = ", ") { time ->
+    val formattedTimes = times.map { time ->
         time.format(timeFormatter)
     }
 
@@ -18,13 +18,19 @@ fun MedicationGroupSchedule.formatSummary(
         MedicationGroupScheduleType.WEEKLY -> {
             val dayLabel = weeklyDaysOfWeek
                 .sortedBy { it.value }
-                .joinToString(separator = ", ") { dayOfWeek ->
+                .joinToString(separator = "/") { dayOfWeek ->
                     dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
                 }
-            "$weeklyLabel $interval • $dayLabel • $formattedTimes"
+            buildList {
+                add(weeklyIntervalLabel)
+                if (dayLabel.isNotBlank()) {
+                    add(dayLabel)
+                }
+                addAll(formattedTimes)
+            }.joinToString(" • ")
         }
         MedicationGroupScheduleType.DAILY -> {
-            "$dailyLabel $interval • $formattedTimes"
+            (listOf(dailyIntervalLabel) + formattedTimes).joinToString(" • ")
         }
     }
 }

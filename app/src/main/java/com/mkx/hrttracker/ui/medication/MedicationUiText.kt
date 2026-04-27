@@ -85,6 +85,17 @@ internal fun medicationSupportingText(
     ).joinToString(separator = " · ")
 }
 
+@Composable
+internal fun medicationDoseSupportingText(
+    details: MedicationDetails,
+    medicationCount: Int,
+): String {
+    return listOfNotNull(
+        medicationDoseText(details),
+        medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
+    ).joinToString(separator = " · ")
+}
+
 fun applicationTypeBadgeLabelRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
         MedicationApplicationType.ORAL -> R.string.medication_application_badge_oral

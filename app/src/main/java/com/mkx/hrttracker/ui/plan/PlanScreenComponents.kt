@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,10 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
@@ -50,11 +55,11 @@ import com.mkx.hrttracker.model.medication.formatSummary
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
-import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
-import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
+import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
-import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.medication.medicationSupportingText
+import com.mkx.hrttracker.ui.medication.rememberMedicationApplicationIcons
+import com.mkx.hrttracker.ui.settings.calibrationElapsedDurationLabel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -298,23 +303,13 @@ internal fun RegimenGroupCard(
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+    EditorSegmentedListItem(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        index = 0,
+        count = 1
     ) {
         Column(
-            modifier = Modifier
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = RoundedCornerShape(24.dp)
-                )
-                .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -339,30 +334,49 @@ internal fun RegimenGroupCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Rounded.Sync,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
                         )
-                        Text(
-                            text = group.schedule.formatSummary(
-                                locale = appLocale,
-                                timeFormatter = timeFormatter,
-                                dailyLabel = stringResource(
-                                    R.string.group_schedule_daily_summary,
-                                    group.schedule.interval
+
+                        val groupScheduleSummary = group.schedule.formatSummary(
+                            locale = appLocale,
+                            timeFormatter = timeFormatter,
+                            dailyIntervalLabel = scheduleIntervalLabel(
+                                interval = group.schedule.interval,
+                                singleIntervalLabel = stringResource(
+                                    R.string.group_schedule_daily_single_interval_summary
                                 ),
-                                weeklyLabel = stringResource(
-                                    R.string.group_schedule_weekly_summary,
+                                multipleIntervalLabel = pluralStringResource(
+                                    R.plurals.group_schedule_daily_interval_summary,
+                                    group.schedule.interval,
                                     group.schedule.interval
                                 )
                             ),
+                            weeklyIntervalLabel = scheduleIntervalLabel(
+                                interval = group.schedule.interval,
+                                singleIntervalLabel = stringResource(
+                                    R.string.group_schedule_weekly_single_interval_summary
+                                ),
+                                multipleIntervalLabel = pluralStringResource(
+                                    R.plurals.group_schedule_weekly_interval_summary,
+                                    group.schedule.interval,
+                                    group.schedule.interval
+                                )
+                            )
+                        )
+                        Text(
+                            text = groupScheduleSummary,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).cjkTextOffset(groupScheduleSummary),
+                            softWrap = true
                         )
                     }
                 }
@@ -408,10 +422,12 @@ internal fun RegimenGroupCard(
                 group.medications.forEach { medication ->
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,
-                        medicationName = medicationDisplayName(medication.details),
-                        doseLabel = medicationDoseText(medication.details),
                         applicationType = medication.details.applicationType,
-                        count = medication.count
+                        medicationName = medicationDisplayName(medication.details),
+                        doseSummary = medicationDoseSupportingText(
+                            details = medication.details,
+                            medicationCount = medication.count
+                        )
                     )
                 }
             }
@@ -443,6 +459,18 @@ internal fun RegimenGroupCard(
                 }
             }
         }
+    }
+}
+
+private fun scheduleIntervalLabel(
+    interval: Int,
+    singleIntervalLabel: String,
+    multipleIntervalLabel: String
+): String {
+    return if (interval == 1) {
+        singleIntervalLabel
+    } else {
+        multipleIntervalLabel
     }
 }
 
@@ -601,72 +629,48 @@ private fun selectedDayHeaderCountLabel(
 @Composable
 private fun RegimenMedicationChip(
     groupColorScheme: ColorScheme,
-    medicationName: String,
-    doseLabel: String?,
     applicationType: MedicationApplicationType,
-    count: Int
+    medicationName: String,
+    doseSummary: String,
 ) {
+    val applicationTypeIcon = rememberMedicationApplicationIcons()
+        .getValue(applicationType)
+    val applicationTypeLabel = stringResource(applicationType.labelRes)
+
     Surface(
-        shape = RoundedCornerShape(999.dp),
+        shape = CircleShape,
         color = groupColorScheme.primaryContainer,
-        contentColor = groupColorScheme.onPrimaryContainer
+        contentColor = groupColorScheme.onPrimaryContainer,
     ) {
         Row(
-            modifier = Modifier.padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .background(
-                        color = groupColorScheme.surfaceContainerLow,
-                        shape = RoundedCornerShape(6.dp)
-                    )
-                    .padding(horizontal = 5.dp, vertical = 1.dp)
-            ) {
-                Text(
-                    text = applicationTypeBadgeLabel(applicationType),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = groupColorScheme.onPrimaryContainer
-                )
-            }
+            Icon(
+                imageVector = applicationTypeIcon,
+                contentDescription = applicationTypeLabel,
+                modifier = Modifier.size(14.dp)
+            )
             Text(
-                text = medicationName,
+                text = buildAnnotatedString {
+                    append(medicationName)
+
+                    if (doseSummary.isNotBlank()) {
+                        append(" · ")
+
+                        withStyle(
+                            style = SpanStyle(
+                                color = groupColorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                            )
+                        ) {
+                            append(doseSummary)
+                        }
+                    }
+                },
                 style = MaterialTheme.typography.labelMedium
             )
-            MedicationCountBadge(
-                count = count,
-                containerColor = groupColorScheme.secondaryContainer,
-                contentColor = groupColorScheme.onSecondaryContainer
-            )
-            if (doseLabel != null) {
-                Text(
-                    text = "· $doseLabel",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = groupColorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                )
-            }
         }
-    }
-}
-
-@Composable
-private fun MedicationCountBadge(
-    count: Int,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Text(
-            text = medicationCountIndicatorText(count),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
     }
 }
 
