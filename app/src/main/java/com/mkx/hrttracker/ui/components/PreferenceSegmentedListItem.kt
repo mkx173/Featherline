@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -66,7 +67,8 @@ fun PreferenceSegmentedListItem(
                     modifier = Modifier.cjkTextOffset(
                         text = title,
                         enabled = titleCjkTextOffsetEnabled,
-                    )
+                    ),
+                    fontWeight = FontWeight.Normal
                 )
                 supportingText?.let { supporting ->
                     Text(

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,6 +63,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -675,11 +677,10 @@ private fun CalibrationPanelResultSummaryRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.alignByBaseline(),
         )
-        Text(
-            text = calibrationResultSummaryDisplayName(resultSummary),
+        CalibrationResultSummaryDisplayNameText(
+            resultSummary = resultSummary,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.alignByBaseline(),
         )
     }
 }
@@ -717,31 +718,97 @@ private fun CalibrationPanelResultAdditionalSummaryRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alignByBaseline(),
             )
-            Text(
-                text = calibrationResultSummaryDisplayName(resultSummary),
+            CalibrationResultSummaryDisplayNameText(
+                resultSummary = resultSummary,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.alignByBaseline(),
             )
         }
     }
 }
 
 @Composable
-private fun calibrationResultSummaryDisplayName(
+private fun RowScope.CalibrationResultSummaryDisplayNameText(
+    resultSummary: CalibrationPanelResultSummary,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val fullDisplayName = calibrationResultSummaryFullDisplayName(resultSummary)
+    val abbreviatedDisplayName = calibrationResultSummaryAbbreviatedDisplayName(resultSummary)
+    var availableWidthPx by remember(fullDisplayName, abbreviatedDisplayName) { mutableIntStateOf(0) }
+    var useAbbreviation by remember(
+        fullDisplayName,
+        abbreviatedDisplayName,
+        availableWidthPx,
+        style,
+    ) {
+        mutableStateOf(false)
+    }
+
+    Text(
+        text = if (useAbbreviation && abbreviatedDisplayName != null) {
+            abbreviatedDisplayName
+        } else {
+            fullDisplayName
+        },
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .weight(1f)
+            .alignByBaseline()
+            .onSizeChanged { size ->
+                if (availableWidthPx != size.width) {
+                    availableWidthPx = size.width
+                }
+            },
+        onTextLayout = { layoutResult ->
+            if (!useAbbreviation &&
+                abbreviatedDisplayName != null &&
+                layoutResult.hasVisualOverflow
+            ) {
+                useAbbreviation = true
+            }
+        },
+    )
+}
+
+@Composable
+private fun calibrationResultSummaryFullDisplayName(
     resultSummary: CalibrationPanelResultSummary,
 ): String {
     return when (resultSummary) {
         is CalibrationPanelResultSummary.Builtin -> {
-            val name = stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey))
-            val suffix = when (resultSummary.rangeStatus) {
-                CalibrationRangeStatus.ABOVE -> " ↑"
-                CalibrationRangeStatus.BELOW -> " ↓"
-                else -> ""
-            }
-            name + suffix
+            stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey)) +
+                calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
         }
         is CalibrationPanelResultSummary.Custom -> resultSummary.name
+    }
+}
+
+private fun calibrationResultSummaryAbbreviatedDisplayName(
+    resultSummary: CalibrationPanelResultSummary,
+): String? {
+    return when (resultSummary) {
+        is CalibrationPanelResultSummary.Builtin -> {
+            calibrationAnalyteLabel(resultSummary.analyteKey) +
+                calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+        }
+        is CalibrationPanelResultSummary.Custom -> {
+            resultSummary.abbreviation.takeUnless { it == resultSummary.name }
+        }
+    }
+}
+
+private fun calibrationResultSummaryRangeStatusSuffix(
+    rangeStatus: CalibrationRangeStatus?,
+): String {
+    return when (rangeStatus) {
+        CalibrationRangeStatus.ABOVE -> " ↑"
+        CalibrationRangeStatus.BELOW -> " ↓"
+        else -> ""
     }
 }
 
@@ -836,6 +903,7 @@ internal sealed interface CalibrationPanelResultSummary {
 
     data class Custom(
         val name: String,
+        val abbreviation: String,
         override val value: String,
         override val unit: String,
     ) : CalibrationPanelResultSummary
@@ -895,6 +963,7 @@ private fun formatCalibrationResultSummary(
         is BloodTestResultAnalyte.Custom -> {
             CalibrationPanelResultSummary.Custom(
                 name = analyte.name,
+                abbreviation = analyte.abbreviation,
                 value = formatCalibrationNumericValue(result.value),
                 unit = formatCalibrationUnitLabel(result.unitSnapshot),
             )
