@@ -376,6 +376,39 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun selectAllHistoryEntries_adds_all_target_entry_ids_without_dropping_existing_selection() {
+        val visibleEntryId = UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24")
+        val alreadySelectedHiddenEntryId = UUID.fromString("7e96ac74-7177-4ef0-b2cc-81230f89f78d")
+
+        val selection = selectAllHistoryEntries(
+            currentSelection = setOf(alreadySelectedHiddenEntryId),
+            entryIds = setOf(visibleEntryId),
+        )
+
+        assertEquals(
+            setOf(alreadySelectedHiddenEntryId, visibleEntryId),
+            selection,
+        )
+    }
+
+    @Test
+    fun reverseHistoryEntrySelection_inverts_only_target_entries_and_preserves_others() {
+        val selectedVisibleEntryId = UUID.fromString("88fd619f-528b-4510-b41e-6fef01f20d24")
+        val unselectedVisibleEntryId = UUID.fromString("44cd9d4d-4b8e-4d7c-9218-df44a20a3f36")
+        val hiddenSelectedEntryId = UUID.fromString("7e96ac74-7177-4ef0-b2cc-81230f89f78d")
+
+        val selection = reverseHistoryEntrySelection(
+            currentSelection = setOf(selectedVisibleEntryId, hiddenSelectedEntryId),
+            entryIds = setOf(selectedVisibleEntryId, unselectedVisibleEntryId),
+        )
+
+        assertEquals(
+            setOf(unselectedVisibleEntryId, hiddenSelectedEntryId),
+            selection,
+        )
+    }
+
+    @Test
     fun historyEntryTapAction_opens_editor_only_when_selection_mode_is_inactive() {
         assertEquals(
             HistoryEntryTapAction.OPEN_EDITOR,

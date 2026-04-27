@@ -199,6 +199,22 @@ internal fun toggleHistoryEntrySelection(
     }
 }
 
+internal fun selectAllHistoryEntries(
+    currentSelection: Set<UUID>,
+    entryIds: Set<UUID>
+): Set<UUID> {
+    return currentSelection + entryIds
+}
+
+internal fun reverseHistoryEntrySelection(
+    currentSelection: Set<UUID>,
+    entryIds: Set<UUID>
+): Set<UUID> {
+    val preservedSelection = currentSelection - entryIds
+    val reversedVisibleSelection = entryIds - currentSelection
+    return preservedSelection + reversedVisibleSelection
+}
+
 internal fun historyEntryTapAction(
     selectedEntryIds: Set<UUID>
 ): HistoryEntryTapAction {

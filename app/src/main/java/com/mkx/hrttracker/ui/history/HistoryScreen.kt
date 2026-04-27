@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.history
 
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -32,10 +33,12 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
@@ -55,6 +58,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -159,6 +163,9 @@ fun HistoryScreen(
         },
         onDayClick = viewModel::toggleSelectedDate,
         onDeleteSelectedClick = viewModel::showDeleteConfirmation,
+        onCancelEntrySelectionClick = viewModel::clearEntrySelection,
+        onSelectAllEntriesClick = viewModel::selectEntries,
+        onReverseEntrySelectionClick = viewModel::reverseEntrySelection,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteSelectedEntries,
         onDeleteAllClick = viewModel::deleteAllEntries,
@@ -179,6 +186,9 @@ private fun HistoryScreenContent(
     onEntryLongClick: (MedicationLogEntry) -> Unit,
     onDayClick: (LocalDate) -> Unit,
     onDeleteSelectedClick: () -> Unit,
+    onCancelEntrySelectionClick: () -> Unit,
+    onSelectAllEntriesClick: (Set<UUID>) -> Unit,
+    onReverseEntrySelectionClick: (Set<UUID>) -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
     onDeleteAllClick: () -> Unit,
@@ -324,8 +334,14 @@ private fun HistoryScreenContent(
     val groupedEntries = remember(visibleEntries) {
         groupHistoryEntriesByDate(visibleEntries)
     }
-    val selectedEntryCount = remember(visibleEntries, uiState.selectedEntryIds) {
-        visibleEntries.count { entry -> entry.uuid in uiState.selectedEntryIds }
+    val visibleEntryIds = remember(visibleEntries) {
+        visibleEntries.mapTo(linkedSetOf()) { entry -> entry.uuid }
+    }
+    val selectedEntryCount = uiState.selectedEntryIds.size
+    val canSelectAllVisibleEntries = remember(visibleEntryIds, uiState.selectedEntryIds) {
+        visibleEntryIds.isNotEmpty() && visibleEntryIds.any { entryId ->
+            entryId !in uiState.selectedEntryIds
+        }
     }
     val groupNamesById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.name }
@@ -348,6 +364,10 @@ private fun HistoryScreenContent(
         stringResource(R.string.history_delete_all_entries_success)
     val deleteAllEntriesFailureMessage =
         stringResource(R.string.history_delete_all_entries_failure)
+
+    BackHandler(enabled = uiState.isSelectionMode) {
+        onCancelEntrySelectionClick()
+    }
 
     LaunchedEffect(uiState.deleteAllEntriesResult) {
         when (uiState.deleteAllEntriesResult) {
@@ -452,31 +472,43 @@ private fun HistoryScreenContent(
             }
         },
         topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.tab_history)) },
-                actions = {
-                    Box {
-                        IconButton(onClick = { isActionMenuExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(R.string.plan_more_options),
+            if (uiState.isSelectionMode) {
+                HistorySelectionTopAppBar(
+                    selectedEntryCount = selectedEntryCount,
+                    canSelectAll = canSelectAllVisibleEntries,
+                    canReverseSelection = visibleEntryIds.isNotEmpty(),
+                    onCancelSelectionClick = onCancelEntrySelectionClick,
+                    onSelectAllClick = { onSelectAllEntriesClick(visibleEntryIds) },
+                    onReverseSelectionClick = { onReverseEntrySelectionClick(visibleEntryIds) },
+                    scrollBehavior = scrollBehavior,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(text = stringResource(R.string.tab_history)) },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { isActionMenuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(R.string.plan_more_options),
+                                )
+                            }
+                            HrtDropdownMenu(
+                                expanded = isActionMenuExpanded,
+                                onDismissRequest = { isActionMenuExpanded = false },
+                                items = listOf(
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(R.string.history_delete_all_entries),
+                                        enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                        onClick = { isDeleteAllConfirmationVisible = true },
+                                    )
+                                ),
                             )
                         }
-                        HrtDropdownMenu(
-                            expanded = isActionMenuExpanded,
-                            onDismissRequest = { isActionMenuExpanded = false },
-                            items = listOf(
-                                HrtDropdownMenuItem(
-                                    text = stringResource(R.string.history_delete_all_entries),
-                                    enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
-                                    onClick = { isDeleteAllConfirmationVisible = true },
-                                )
-                            ),
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior
-            )
+                    },
+                    scrollBehavior = scrollBehavior
+                )
+            }
         }
     ) { innerPadding ->
         if (uiState.isLoading) {
@@ -625,6 +657,59 @@ internal fun historyHasScrolled(
 
 internal fun scrolledTopAppBarContentOffset(isScrolled: Boolean): Float {
     return if (isScrolled) 1f else 0f
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistorySelectionTopAppBar(
+    selectedEntryCount: Int,
+    canSelectAll: Boolean,
+    canReverseSelection: Boolean,
+    onCancelSelectionClick: () -> Unit,
+    onSelectAllClick: () -> Unit,
+    onReverseSelectionClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text = pluralStringResource(
+                    R.plurals.history_selected_entries_title,
+                    selectedEntryCount,
+                    selectedEntryCount,
+                ),
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onCancelSelectionClick) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.history_cancel_selection),
+                )
+            }
+        },
+        actions = {
+            IconButton(
+                enabled = canSelectAll,
+                onClick = onSelectAllClick
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SelectAll,
+                    contentDescription = stringResource(R.string.history_select_all),
+                )
+            }
+            IconButton(
+                enabled = canReverseSelection,
+                onClick = onReverseSelectionClick
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FlipToBack,
+                    contentDescription = stringResource(R.string.history_reverse_selection),
+                )
+            }
+        },
+        scrollBehavior = scrollBehavior,
+    )
 }
 
 @Composable
@@ -1559,6 +1644,9 @@ private fun HistoryScreenMonthPreview() {
             onEntryLongClick = { },
             onDayClick = { },
             onDeleteSelectedClick = { },
+            onCancelEntrySelectionClick = { },
+            onSelectAllEntriesClick = { },
+            onReverseEntrySelectionClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },
@@ -1593,6 +1681,9 @@ private fun HistoryScreenSelectedDayPreview() {
             onEntryLongClick = { },
             onDayClick = { },
             onDeleteSelectedClick = { },
+            onCancelEntrySelectionClick = { },
+            onSelectAllEntriesClick = { },
+            onReverseEntrySelectionClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },
@@ -1619,6 +1710,9 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onEntryLongClick = { },
             onDayClick = { },
             onDeleteSelectedClick = { },
+            onCancelEntrySelectionClick = { },
+            onSelectAllEntriesClick = { },
+            onReverseEntrySelectionClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
             onDeleteAllClick = { },

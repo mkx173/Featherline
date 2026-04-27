@@ -135,6 +135,31 @@ class HistoryViewModel @Inject constructor(
         }
     }
 
+    fun clearEntrySelection() {
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
+    }
+
+    fun selectEntries(entryIds: Set<UUID>) {
+        selectedEntryIds.update { currentSelection ->
+            selectAllHistoryEntries(
+                currentSelection = currentSelection,
+                entryIds = entryIds,
+            )
+        }
+        isDeleteConfirmationVisible.value = false
+    }
+
+    fun reverseEntrySelection(entryIds: Set<UUID>) {
+        selectedEntryIds.update { currentSelection ->
+            reverseHistoryEntrySelection(
+                currentSelection = currentSelection,
+                entryIds = entryIds,
+            )
+        }
+        isDeleteConfirmationVisible.value = false
+    }
+
     fun showDeleteConfirmation() {
         if (selectedEntryIds.value.isNotEmpty()) {
             isDeleteConfirmationVisible.value = true

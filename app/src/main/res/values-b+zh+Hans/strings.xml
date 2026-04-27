@@ -87,6 +87,9 @@
     <string name="history_selected_day_records_title">%1$s的记录</string>
     <string name="history_selected_day_empty_state">这一天暂无记录</string>
     <string name="history_clear_selection">清除选择</string>
+    <string name="history_cancel_selection">取消选择</string>
+    <string name="history_select_all">全选</string>
+    <string name="history_reverse_selection">反选</string>
     <string name="history_previous_month">上个月</string>
     <string name="history_current_month">当前月份</string>
     <string name="history_next_month">下个月</string>
@@ -110,6 +113,9 @@
     <string name="history_delete_all_entries_failure">无法删除记录</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="other">要删除全部 %1$d 条记录吗？</item>
+    </plurals>
+    <plurals name="history_selected_entries_title">
+        <item quantity="other">已选择 %1$d 项</item>
     </plurals>
     <string name="delete_editing_entry_confirmation">删除这条记录？</string>
     <string name="field_medication_category">类别</string>
