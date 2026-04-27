@@ -55,7 +55,7 @@
     <string name="plan_selected_day_unplanned_title">Unplanned entries</string>
     <string name="plan_selected_day_summary_past">%1$d of %2$d doses completed</string>
     <string name="plan_selected_day_summary_today">%1$d of %2$d doses so far</string>
-    <string name="plan_selected_day_summary_future">%1$d of %2$d doses scheduled</string>
+    <string name="plan_selected_day_summary_future">%1$d doses scheduled</string>
     <string name="plan_selected_day_summary_manual_only">Manual entries only</string>
     <string name="plan_selected_day_summary_empty_past">No doses logged</string>
     <string name="plan_selected_day_summary_empty_future">Nothing planned yet</string>

@@ -55,7 +55,7 @@
     <string name="plan_selected_day_unplanned_title">未计划的记录</string>
     <string name="plan_selected_day_summary_past">已完成 %1$d/%2$d 次用药</string>
     <string name="plan_selected_day_summary_today">目前已完成 %1$d/%2$d 次用药</string>
-    <string name="plan_selected_day_summary_future">已安排 %1$d/%2$d 次用药</string>
+    <string name="plan_selected_day_summary_future">已安排 %1$d 次用药</string>
     <string name="plan_selected_day_summary_manual_only">仅有手动记录</string>
     <string name="plan_selected_day_summary_empty_past">没有已记录的用药</string>
     <string name="plan_selected_day_summary_empty_future">尚无计划</string>

@@ -1346,13 +1346,14 @@ private fun HistoryEntryGroupHeader(
         historyEntryGroupDayFormatter(appLocale)
     }
     val isToday = date == today
-    val label = if (isToday) {
-        stringResource(R.string.quick_add_group_planned_slot_today)
-    } else {
-        date.format(dayFormatter)
-    }
-    val weekdayLabel = remember(date, appLocale) {
+    val label = date.format(dayFormatter)
+    val weekdayLabelShort = remember(date, appLocale) {
         date.dayOfWeek.getDisplayName(TextStyle.SHORT, appLocale)
+    }
+    val weekdayLabel = if (isToday) {
+        "$weekdayLabelShort · ${stringResource(R.string.quick_add_group_planned_slot_today)}"
+    } else {
+        weekdayLabelShort
     }
     val weekdayDisplayLabel = weekdayLabel.uppercase()
     val showOffPlanBadge = historyShouldShowOffPlanBadge(

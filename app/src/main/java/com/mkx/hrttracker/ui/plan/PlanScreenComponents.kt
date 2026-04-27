@@ -113,7 +113,6 @@ internal fun SelectedDaySection(
         )
         scheduledCount > 0 -> stringResource(
             R.string.plan_selected_day_summary_future,
-            completedScheduledCount,
             scheduledCount
         )
         daySchedule.unplannedEntries.isNotEmpty() -> stringResource(
@@ -132,35 +131,34 @@ internal fun SelectedDaySection(
                 .fillMaxWidth()
                 .padding(horizontal = dimensionResource(R.dimen.padding_xsmall)),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = date.format(headerFormatter),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
                     text = summaryText,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelLarge,
                     color = summaryColor
                 )
             }
             if (date == today) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = RoundedCornerShape(percent = 50)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
+                    val todayLabel = stringResource(R.string.plan_group_upcoming_today)
                     Text(
-                        text = stringResource(R.string.plan_group_upcoming_today),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        text = todayLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp).cjkTextOffset(todayLabel),
                     )
                 }
             }
@@ -793,7 +791,7 @@ private enum class SelectedDayRowState {
 private fun SelectedDaySectionPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val headerFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d", appLocale)
+    val headerFormatter = planSelectedDayHeaderFormatter(appLocale)
     val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
 
     PlanScreenComponentPreviewContainer {
