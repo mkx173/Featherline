@@ -236,7 +236,7 @@
     <string name="medication_dose_with_unit">%1$s %2$s</string>
     <string name="medication_dose_mg">%1$s mg</string>
     <string name="medication_dose_mg_e2">%1$s mg E2</string>
-    <string name="medication_dose_percent_and_weight">%1$s%%, %2$s g</string>
+    <string name="medication_dose_percent_and_weight">%1$s%% · %2$s g</string>
     <string name="medication_dose_release_rate_mcg_day">%1$s μg/day</string>
     <string name="medication_summary_with_dose">%1$s, %2$s, %3$s</string>
     <string name="medication_summary_without_dose">%1$s, %2$s</string>

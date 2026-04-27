@@ -51,7 +51,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +58,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -158,7 +156,7 @@ fun StructuredMedicationEditorSheet(
             onDecreaseCountClick != null &&
             onIncreaseCountClick != null
     }
-    val applicationTypeButtonIcons = rememberMedicationApplicationButtonIcons()
+    val applicationTypeButtonIcons = rememberMedicationApplicationIcons()
     val customNameFocusRequester = remember { FocusRequester() }
     val doseMgFocusRequester = remember { FocusRequester() }
     val gelPercentFocusRequester = remember { FocusRequester() }
@@ -1086,38 +1084,6 @@ private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
 internal enum class GelDoseField {
     PERCENT,
     WEIGHT,
-}
-
-@Composable
-private fun rememberMedicationApplicationButtonIcons(): Map<MedicationApplicationType, ImageVector> {
-    val pillIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.ORAL))
-    val pillAltIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.SUBLINGUAL))
-    val injectionIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.INJECTION))
-    val gelIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.GEL))
-    val patchOnIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_ON))
-    val patchOffIcon = ImageVector.vectorResource(medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_OFF))
-    return remember(pillIcon, pillAltIcon, injectionIcon, gelIcon, patchOnIcon, patchOffIcon) {
-        mapOf(
-            MedicationApplicationType.ORAL to pillIcon,
-            MedicationApplicationType.SUBLINGUAL to pillAltIcon,
-            MedicationApplicationType.INJECTION to injectionIcon,
-            MedicationApplicationType.GEL to gelIcon,
-            MedicationApplicationType.PATCH_ON to patchOnIcon,
-            MedicationApplicationType.PATCH_OFF to patchOffIcon,
-        )
-    }
-}
-
-@DrawableRes
-internal fun medicationApplicationButtonIconRes(applicationType: MedicationApplicationType): Int {
-    return when (applicationType) {
-        MedicationApplicationType.ORAL -> R.drawable.ic_pill
-        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_pill_alt
-        MedicationApplicationType.INJECTION -> R.drawable.ic_syringe
-        MedicationApplicationType.GEL -> R.drawable.ic_water_drops
-        MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add
-        MedicationApplicationType.PATCH_OFF -> R.drawable.ic_tab_close_inactive
-    }
 }
 
 @DrawableRes

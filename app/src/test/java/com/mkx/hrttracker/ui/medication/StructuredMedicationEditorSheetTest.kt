@@ -119,30 +119,30 @@ class StructuredMedicationEditorSheetTest {
     }
 
     @Test
-    fun medicationApplicationButtonIconRes_uses_requested_icons() {
+    fun medicationApplicationIconRes_uses_requested_icons() {
         assertEquals(
             R.drawable.ic_pill,
-            medicationApplicationButtonIconRes(MedicationApplicationType.ORAL)
+            medicationApplicationIconRes(MedicationApplicationType.ORAL)
         )
         assertEquals(
             R.drawable.ic_pill_alt,
-            medicationApplicationButtonIconRes(MedicationApplicationType.SUBLINGUAL)
+            medicationApplicationIconRes(MedicationApplicationType.SUBLINGUAL)
         )
         assertEquals(
             R.drawable.ic_syringe,
-            medicationApplicationButtonIconRes(MedicationApplicationType.INJECTION)
+            medicationApplicationIconRes(MedicationApplicationType.INJECTION)
         )
         assertEquals(
             R.drawable.ic_water_drops,
-            medicationApplicationButtonIconRes(MedicationApplicationType.GEL)
+            medicationApplicationIconRes(MedicationApplicationType.GEL)
         )
         assertEquals(
             R.drawable.ic_sticker_add,
-            medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_ON)
+            medicationApplicationIconRes(MedicationApplicationType.PATCH_ON)
         )
         assertEquals(
             R.drawable.ic_tab_close_inactive,
-            medicationApplicationButtonIconRes(MedicationApplicationType.PATCH_OFF)
+            medicationApplicationIconRes(MedicationApplicationType.PATCH_OFF)
         )
     }
 

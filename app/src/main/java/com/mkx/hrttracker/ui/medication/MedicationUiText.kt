@@ -45,7 +45,7 @@ fun medicationDoseText(details: MedicationDetails): String? {
         )
 
         is MedicationDose.PatchTotalMg -> stringResource(
-            R.string.medication_dose_mg,
+            R.string.medication_dose_mg_e2,
             dose.valueMg.formatDose(appLocale)
         )
 
