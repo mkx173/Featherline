@@ -49,8 +49,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -113,6 +111,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
@@ -1510,30 +1509,11 @@ private fun HistoryEmptyStateCard(
     text: String,
     modifier: Modifier = Modifier
 ) {
-    ListItem(
-        onClick = {},
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        shapes = ListItemDefaults.shapes(
-            shape = MaterialTheme.shapes.large
-        ),
+    SupportMessageListItem(
+        text = text,
+        painter = painterResource(R.drawable.ic_info),
         modifier = modifier,
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_info),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    ) {
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.cjkTextOffset(text)
-        )
-    }
+    )
 }
 
 @Composable

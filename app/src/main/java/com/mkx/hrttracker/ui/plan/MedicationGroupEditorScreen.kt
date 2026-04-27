@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -69,8 +68,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -113,6 +110,7 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -807,7 +805,7 @@ private fun MedicationGroupEditorScreenContent(
                         title = stringResource(R.string.group_medications_title)
                     )
                     if (uiState.medications.isEmpty()) {
-                        EditorSupportMessage(
+                        SupportMessageListItem(
                             text = stringResource(R.string.group_medications_empty),
                             painter = painterResource(R.drawable.ic_info),
                         )
@@ -934,7 +932,7 @@ private fun MedicationGroupEditorScreenContent(
                     )
                     when (notificationSupportState) {
                         NotificationSupportState.ACCESS_OFF -> {
-                            EditorSupportMessage(
+                            SupportMessageListItem(
                                 text = stringResource(R.string.settings_reminders_permission_off_summary),
                                 icon = Icons.Rounded.ErrorOutline,
                                 onClick = onRecoverMasterReminders,
@@ -945,18 +943,18 @@ private fun MedicationGroupEditorScreenContent(
                         }
 
                         NotificationSupportState.MASTER_OFF -> {
-                        EditorSupportMessage(
-                            text = stringResource(R.string.group_notifications_master_disabled),
-                            icon = Icons.Rounded.ErrorOutline,
-                            onClick = { isMasterReminderRecoveryDialogVisible = true },
-                            showChevron = true,
-                            index = 1,
-                            count = 2,
-                        )
+                            SupportMessageListItem(
+                                text = stringResource(R.string.group_notifications_master_disabled),
+                                icon = Icons.Rounded.ErrorOutline,
+                                onClick = { isMasterReminderRecoveryDialogVisible = true },
+                                showChevron = true,
+                                index = 1,
+                                count = 2,
+                            )
                         }
 
                         NotificationSupportState.INEXACT -> {
-                            EditorSupportMessage(
+                            SupportMessageListItem(
                                 text = stringResource(R.string.group_notifications_inexact_warning),
                                 icon = Icons.Rounded.ErrorOutline,
                                 onClick = onRequestExactAlarmAccess,
@@ -1246,70 +1244,6 @@ private fun EditorSectionHeader(
             modifier = Modifier.padding(4.dp)
         )
         trailing?.invoke()
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun EditorSupportMessage(
-    text: String,
-    icon: ImageVector? = null,
-    painter: Painter? = null,
-    onClick: (() -> Unit)? = null,
-    showChevron: Boolean = false,
-    index: Int = 0,
-    count: Int = 1,
-) {
-    CompositionLocalProvider(
-        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-    ) {
-        EditorSegmentedListItem(
-            index = index,
-            count = count,
-            onClick = onClick ?: {},
-            modifier = Modifier.wrapContentHeight(),
-            leadingContent = when {
-                icon != null -> {
-                    {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                        )
-                    }
-                }
-                painter != null -> {
-                    {
-                        Icon(
-                            painter = painter,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-                else -> null
-            },
-            trailingContent = if (showChevron) {
-                {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                null
-            }
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.cjkTextOffset(text)
-            )
-        }
     }
 }
 

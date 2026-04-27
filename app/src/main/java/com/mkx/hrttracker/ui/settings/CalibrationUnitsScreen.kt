@@ -68,9 +68,9 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -202,28 +202,12 @@ private fun CalibrationUnitsScreenContent(
 
                 uiState.customAnalytes.isEmpty() -> {
                     item(key = "custom-empty") {
-                        EditorSegmentedListItem(
-                            onClick = {},
-                            leadingContent = {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_info),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
+                        SupportMessageListItem(
+                            text = stringResource(R.string.settings_calibration_custom_analytes_empty),
+                            painter = painterResource(R.drawable.ic_info),
                             index = 0,
-                            count = 1
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_calibration_custom_analytes_empty),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_calibration_custom_analytes_empty)
-                                )
-                            )
-                        }
+                            count = 1,
+                        )
                     }
                 }
 

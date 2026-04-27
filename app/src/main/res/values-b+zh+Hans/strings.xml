@@ -306,7 +306,7 @@
     <string name="settings_calibration_analyte_lh">黄体生成素</string>
     <string name="settings_calibration_builtin_analytes">内置分析项</string>
     <string name="settings_calibration_custom_analytes">自定义分析项</string>
-    <string name="settings_calibration_custom_analytes_empty">还没有自定义分析项</string>
+    <string name="settings_calibration_custom_analytes_empty">暂无自定义分析项</string>
     <string name="settings_calibration_custom_analyte_add_title">添加自定义分析项</string>
     <string name="settings_calibration_custom_analyte_edit_title">编辑自定义分析项</string>
     <string name="settings_calibration_custom_analyte_name_label">名称</string>

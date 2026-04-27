@@ -1,0 +1,83 @@
+package com.mkx.hrttracker.ui.components
+
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun SupportMessageListItem(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    painter: Painter? = null,
+    showChevron: Boolean = false,
+    index: Int = 0,
+    count: Int = 1,
+    trailingContent: (@Composable () -> Unit)? = null,
+    textStyle: TextStyle = MaterialTheme.typography.labelMedium,
+) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+    ) {
+        PreferenceSegmentedListItem(
+            title = text,
+            index = index,
+            count = count,
+            onClick = onClick ?: {},
+            modifier = modifier.wrapContentHeight(),
+            enabled = enabled,
+            leadingContent = when {
+                icon != null -> {
+                    {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
+
+                painter != null -> {
+                    {
+                        Icon(
+                            painter = painter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                else -> null
+            },
+            trailingContent = trailingContent ?: if (showChevron) {
+                {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else {
+                null
+            },
+            titleTextStyle = textStyle,
+            titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

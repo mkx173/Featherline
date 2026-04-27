@@ -32,8 +32,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -81,6 +79,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Duration
@@ -254,32 +253,11 @@ private fun CalibrationScreenContent(
 
             if (uiState.panels.isEmpty() && !uiState.isLoading) {
                 item(key = "calibration-empty") {
-                    ListItem(
-                        onClick = {},
-                        colors = ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        ),
-                        shapes = ListItemDefaults.shapes(
-                            shape = MaterialTheme.shapes.large
-                        ),
+                    SupportMessageListItem(
+                        text = stringResource(R.string.settings_calibration_empty_state),
+                        painter = painterResource(R.drawable.ic_info),
                         modifier = modifier,
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_info),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_calibration_empty_state),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.cjkTextOffset(
-                                stringResource(R.string.settings_calibration_empty_state)
-                            )
-                        )
-                    }
+                    )
                 }
             } else {
                 monthGroups.forEachIndexed { index, monthGroup ->
@@ -364,29 +342,13 @@ private fun CalibrationInfoCard(
     panelCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    EditorSegmentedListItem(
-        onClick = {},
+    SupportMessageListItem(
+        text = stringResource(R.string.settings_calibration_info_message),
+        painter = painterResource(R.drawable.ic_experiment),
         index = 0,
-        count = 1
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_experiment),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = stringResource(R.string.settings_calibration_info_message),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .weight(1f)
-                    .cjkTextOffset(stringResource(R.string.settings_calibration_info_message))
-            )
+        count = 1,
+        modifier = modifier,
+        trailingContent = {
             val totalCountLabel = pluralStringResource(
                 R.plurals.settings_calibration_total_count,
                 panelCount,
@@ -398,8 +360,8 @@ private fun CalibrationInfoCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.cjkTextOffset(totalCountLabel)
             )
-        }
-    }
+        },
+    )
 }
 
 @Composable
