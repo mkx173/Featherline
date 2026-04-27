@@ -191,23 +191,12 @@ private fun HistoryMedicationCardPreview() {
             extraSupportingText = "Nightly estradiol",
             onClick = { },
             trailingContent = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_calendar_clock),
-                        contentDescription = stringResource(R.string.history_entry_source_group_schedule),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "19:00",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.End
-                    )
-                }
+                Text(
+                    text = "19:00",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End
+                )
             },
             modifier = Modifier.padding(16.dp)
         )

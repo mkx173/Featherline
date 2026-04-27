@@ -1171,7 +1171,8 @@ private fun HistoryCalendarDay(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(bottom = 2.dp)
         ) {
             Text(
                 text = day.date.dayOfMonth.toString(),
@@ -1547,32 +1548,14 @@ private fun HistoryEntryCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
         trailingContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                entry.scheduledFor?.let {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_calendar_clock),
-                        contentDescription = stringResource(R.string.history_entry_source_group_schedule),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
-                    )
-                } ?: Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = stringResource(R.string.history_entry_source_manual),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = entry.appliedAt
-                        .atZone(ZoneId.systemDefault())
-                        .format(timeFormatter),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.End
-                )
-            }
+            Text(
+                text = entry.appliedAt
+                    .atZone(ZoneId.systemDefault())
+                    .format(timeFormatter),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.End
+            )
         }
     )
 }
