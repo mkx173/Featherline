@@ -24,8 +24,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -77,6 +75,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -208,21 +208,17 @@ private fun CalibrationScreenContent(
                                 contentDescription = stringResource(R.string.plan_more_options),
                             )
                         }
-                        DropdownMenu(
+                        HrtDropdownMenu(
                             expanded = isActionMenuExpanded,
                             onDismissRequest = { isActionMenuExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(text = stringResource(R.string.settings_calibration_delete_all_entries))
-                                },
-                                enabled = uiState.panels.isNotEmpty() && !uiState.isDeletingAllEntries,
-                                onClick = {
-                                    isActionMenuExpanded = false
-                                    isDeleteAllEntriesConfirmationVisible = true
-                                },
-                            )
-                        }
+                            items = listOf(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.settings_calibration_delete_all_entries),
+                                    enabled = uiState.panels.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                    onClick = { isDeleteAllEntriesConfirmationVisible = true },
+                                )
+                            ),
+                        )
                     }
                 },
                 scrollBehavior = scrollBehavior

@@ -40,8 +40,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -110,6 +108,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
@@ -462,21 +462,17 @@ private fun HistoryScreenContent(
                                 contentDescription = stringResource(R.string.plan_more_options),
                             )
                         }
-                        DropdownMenu(
+                        HrtDropdownMenu(
                             expanded = isActionMenuExpanded,
                             onDismissRequest = { isActionMenuExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(text = stringResource(R.string.history_delete_all_entries))
-                                },
-                                enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
-                                onClick = {
-                                    isActionMenuExpanded = false
-                                    isDeleteAllConfirmationVisible = true
-                                },
-                            )
-                        }
+                            items = listOf(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.history_delete_all_entries),
+                                    enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                    onClick = { isDeleteAllConfirmationVisible = true },
+                                )
+                            ),
+                        )
                     }
                 },
                 scrollBehavior = scrollBehavior

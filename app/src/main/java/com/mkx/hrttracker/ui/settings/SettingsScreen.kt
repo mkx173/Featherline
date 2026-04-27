@@ -43,8 +43,6 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -100,6 +98,8 @@ import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -692,21 +692,17 @@ private fun SettingsScreenContent(
                                 )
                             }
                         )
-                        DropdownMenu(
+                        HrtDropdownMenu(
                             expanded = isAppLockGracePeriodMenuExpanded,
                             onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
-                            modifier = Modifier.width(IntrinsicSize.Min)
-                        ) {
-                            AppLockGracePeriodOption.entries.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(text = stringResource(option.labelRes)) },
-                                    onClick = {
-                                        onAppLockGracePeriodOptionChange(option)
-                                        setAppLockGracePeriodMenuExpanded(false)
-                                    }
+                            modifier = Modifier.width(IntrinsicSize.Min),
+                            items = AppLockGracePeriodOption.entries.map { option ->
+                                HrtDropdownMenuItem(
+                                    text = stringResource(option.labelRes),
+                                    onClick = { onAppLockGracePeriodOptionChange(option) },
                                 )
-                            }
-                        }
+                            },
+                        )
                     }
                 }
 
@@ -766,21 +762,17 @@ private fun SettingsScreenContent(
                             )
                         }
                     )
-                    DropdownMenu(
+                    HrtDropdownMenu(
                         expanded = isLanguageMenuExpanded,
                         onDismissRequest = { setLanguageMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min)
-                    ) {
-                        AppLanguageOption.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(text = stringResource(option.labelRes)) },
-                                onClick = {
-                                    onAppLanguageOptionChange(option)
-                                    setLanguageMenuExpanded(false)
-                                }
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = AppLanguageOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.labelRes),
+                                onClick = { onAppLanguageOptionChange(option) },
                             )
-                        }
-                    }
+                        },
+                    )
                 }
 
                 Box {
@@ -796,21 +788,17 @@ private fun SettingsScreenContent(
                             )
                         }
                     )
-                    DropdownMenu(
+                    HrtDropdownMenu(
                         expanded = isDarkModeMenuExpanded,
                         onDismissRequest = { setDarkModeMenuExpanded(false) },
-                        modifier = Modifier.width(IntrinsicSize.Min)
-                    ) {
-                        DarkModeOption.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(text = stringResource(option.labelRes)) },
-                                onClick = {
-                                    onDarkModeOptionChange(option)
-                                    setDarkModeMenuExpanded(false)
-                                }
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = DarkModeOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.labelRes),
+                                onClick = { onDarkModeOptionChange(option) },
                             )
-                        }
-                    }
+                        },
+                    )
                 }
 
                 SettingsSegmentedListItem(
