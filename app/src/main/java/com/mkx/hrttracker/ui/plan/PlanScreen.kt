@@ -124,7 +124,8 @@ fun PlanScreen(
         onQuickLogClick = onQuickLogClick,
         onAddGroupClick = onAddGroupClick,
         onHistoryClick = onHistoryClick,
-        onDateSelected = viewModel::setSelectedDate,
+        onDateSelected = viewModel::toggleSelectedDate,
+        onDateSelectionReset = viewModel::clearSelectedDate,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
@@ -140,6 +141,7 @@ private fun PlanScreenContent(
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
+    onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
@@ -155,6 +157,7 @@ private fun PlanScreenContent(
     }
     val selection = uiState.selectedDate
     val daySchedule = uiState.daySchedule
+    val displayedDate = daySchedule.date
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
@@ -173,7 +176,7 @@ private fun PlanScreenContent(
     val visibleWeekStartDate = visibleWeek.days.first().date
 
     LaunchedEffect(selection) {
-        if (visibleWeek.days.none { it.date == selection }) {
+        if (selection != null && visibleWeek.days.none { it.date == selection }) {
             state.animateScrollToWeek(selection)
         }
     }
@@ -243,6 +246,7 @@ private fun PlanScreenContent(
                             }
                         },
                         onCurrentClick = {
+                            onDateSelectionReset()
                             scope.launch {
                                 state.animateScrollToWeek(uiState.today)
                             }
@@ -282,9 +286,10 @@ private fun PlanScreenContent(
             item(key = "selected-day") {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     SelectedDaySection(
-                        date = selection,
+                        date = displayedDate,
                         today = uiState.today,
-                        overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
+                        overallStatus = uiState.calendarDays[displayedDate]?.status
+                            ?: PlanCalendarDayStatus.NONE,
                         daySchedule = daySchedule,
                         appLocale = appLocale,
                         timeFormatter = timeFormatter,
@@ -308,7 +313,7 @@ private fun PlanScreenContent(
                             onEntryClick(unplannedEntryEditorIds(entry))
                         }
                     )
-                    if (selection != uiState.today) {
+                    if (selection != null) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -317,7 +322,7 @@ private fun PlanScreenContent(
                         ) {
                             HrtOutlinedButton(
                                 text = stringResource(R.string.history_clear_selection),
-                                onClick = { onDateSelected(uiState.today) },
+                                onClick = onDateSelectionReset,
                                 icon = Icons.Rounded.Close,
                                 iconModifier = Modifier.size(14.dp),
                                 iconSpacing = 6.dp,
@@ -954,7 +959,8 @@ private fun PlanScreenPreview() {
             onQuickLogClick = { _, _, _, _ -> },
             onAddGroupClick = { },
             onHistoryClick = { },
-            onDateSelected = { }
+            onDateSelected = { },
+            onDateSelectionReset = { }
         )
     }
 }
@@ -1137,7 +1143,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         calendarFirstDayOfWeek = DayOfWeek.MONDAY,
         calendarStartDate = range.startDate,
         calendarEndDate = range.endDate,
-        selectedDate = today,
         entries = entries,
         medicationGroups = groups,
         remindersEnabled = true,

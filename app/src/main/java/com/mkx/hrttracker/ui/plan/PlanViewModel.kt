@@ -28,7 +28,7 @@ class PlanViewModel @Inject constructor(
     medicationLogRepository: MedicationLogRepository,
     settingsRepository: SettingsRepository
 ) : ViewModel() {
-    private val selectedDate = MutableStateFlow(LocalDate.now())
+    private val selectedDate = MutableStateFlow<LocalDate?>(null)
     private val currentDateTime = flow {
         while (true) {
             emit(LocalDateTime.now())
@@ -51,9 +51,10 @@ class PlanViewModel @Inject constructor(
             today = today,
             firstDayOfWeek = DayOfWeek.MONDAY
         )
-        val clampedSelection = selection.coerceIn(calendarRange.startDate, calendarRange.endDate)
+        val clampedSelection = selection?.coerceIn(calendarRange.startDate, calendarRange.endDate)
+        val displayedDate = clampedSelection ?: today
         val daySchedule = buildPlanDaySchedule(
-            date = clampedSelection,
+            date = displayedDate,
             groups = groups,
             entries = entries,
             now = now
@@ -91,11 +92,18 @@ class PlanViewModel @Inject constructor(
             initialValue = PlanUiState()
         )
 
-    fun setSelectedDate(date: LocalDate) {
-        if (selectedDate.value == date) {
-            return
+    fun toggleSelectedDate(date: LocalDate) {
+        selectedDate.value = if (date == uiState.value.today || selectedDate.value == date) {
+            null
+        } else {
+            date
         }
-        selectedDate.value = date
+    }
+
+    fun clearSelectedDate() {
+        if (selectedDate.value != null) {
+            selectedDate.value = null
+        }
     }
 
     private companion object {
@@ -146,13 +154,13 @@ data class PlanUiState(
         today = today,
         firstDayOfWeek = calendarFirstDayOfWeek
     ).endDate,
-    val selectedDate: LocalDate = today,
+    val selectedDate: LocalDate? = null,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val remindersEnabled: Boolean = true,
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
     val daySchedule: PlanDaySchedule = PlanDaySchedule(
-        date = selectedDate,
+        date = selectedDate ?: today,
         scheduledEntries = emptyList(),
         unplannedEntries = emptyList()
     ),

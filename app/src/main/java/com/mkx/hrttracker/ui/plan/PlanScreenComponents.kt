@@ -765,9 +765,10 @@ private fun SelectedDaySectionPreview() {
 
     PlanScreenComponentPreviewContainer {
         SelectedDaySection(
-            date = uiState.selectedDate,
+            date = uiState.daySchedule.date,
             today = uiState.today,
-            overallStatus = uiState.calendarDays[uiState.selectedDate]?.status ?: PlanCalendarDayStatus.NONE,
+            overallStatus = uiState.calendarDays[uiState.daySchedule.date]?.status
+                ?: PlanCalendarDayStatus.NONE,
             daySchedule = uiState.daySchedule,
             appLocale = appLocale,
             timeFormatter = timeFormatter,
@@ -786,7 +787,7 @@ private fun SelectedDayRowPreview() {
 
     PlanScreenComponentPreviewContainer {
         SelectedDayRow(
-            date = uiState.selectedDate,
+            date = uiState.daySchedule.date,
             today = uiState.today,
             row = row,
             index = 0,
@@ -806,7 +807,7 @@ private fun SelectedDayManualRowPreview() {
 
     PlanScreenComponentPreviewContainer {
         SelectedDayRow(
-            date = uiState.selectedDate,
+            date = uiState.daySchedule.date,
             today = uiState.today,
             row = SelectedDayRowModel.Unplanned(
                 entry = entry,
