@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -9,6 +10,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -84,6 +86,49 @@ fun HrtFilledTonalButton(
             modifier = modifier,
             enabled = enabled,
             colors = colors,
+            contentPadding = resolvedContentPadding,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = iconContentDescription,
+                    modifier = iconModifier,
+                )
+                Spacer(modifier = Modifier.size(iconSpacing))
+            }
+            LocalizedButtonLabelText(text = text)
+        }
+    }
+}
+
+@Composable
+fun HrtOutlinedButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    iconModifier: Modifier = Modifier,
+    iconSpacing: Dp = 8.dp,
+    iconContentDescription: String? = null,
+    colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+    border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled = enabled),
+    compact: Boolean = false,
+    contentPadding: PaddingValues? = null,
+) {
+    val resolvedContentPadding = contentPadding
+        ?: ButtonDefaults.contentPaddingFor(
+            buttonHeight = ButtonDefaults.MinHeight,
+            hasStartIcon = icon != null,
+        )
+
+    ButtonContainer(compact = compact) {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            colors = colors,
+            border = border,
             contentPadding = resolvedContentPadding,
         ) {
             if (icon != null) {
