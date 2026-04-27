@@ -2,34 +2,41 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ChevronLeft
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,6 +44,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,14 +53,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -73,6 +83,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.filterNotNull
@@ -215,50 +226,50 @@ private fun PlanScreenContent(
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
         ) {
-            item(key = "week-header") {
-                PlanWeekHeader(
-                    weekStartDate = visibleWeekStartDate,
-                    today = uiState.today,
-                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                    monthFormatter = monthFormatter,
-                    canNavigateBackward = state.canScrollBackward,
-                    canNavigateForward = state.canScrollForward,
-                    onPreviousClick = {
-                        if (state.canScrollBackward) {
+            item(key = "week-calendar") {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PlanWeekHeader(
+                        weekStartDate = visibleWeekStartDate,
+                        today = uiState.today,
+                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                        monthFormatter = monthFormatter,
+                        appLocale = appLocale,
+                        onPreviousClick = {
                             scope.launch {
                                 state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
                             }
-                        }
-                    },
-                    onNextClick = {
-                        if (state.canScrollForward) {
+                        },
+                        onCurrentClick = {
+                            scope.launch {
+                                state.animateScrollToWeek(uiState.today)
+                            }
+                        },
+                        onNextClick = {
                             scope.launch {
                                 state.animateScrollToWeek(visibleWeekStartDate.plusWeeks(1))
                             }
                         }
-                    }
-                )
-            }
-
-            item(key = "week-calendar") {
-                WeekCalendar(
-                    modifier = Modifier.fillMaxWidth(),
-                    state = state,
-                    dayContent = { day ->
-                        Day(
-                            date = day.date,
-                            today = uiState.today,
-                            dayStatus = if (day.date.month == uiState.today.month) {
-                                uiState.calendarDays[day.date]?.status ?: PlanCalendarDayStatus.NONE
-                            } else {
-                                PlanCalendarDayStatus.NONE
-                            },
-                            isSelected = selection == day.date
-                        ) { clicked ->
-                            onDateSelected(clicked)
+                    )
+                    WeekCalendar(
+                        modifier = Modifier.fillMaxWidth(),
+                        state = state,
+                        dayContent = { day ->
+                            Day(
+                                date = day.date,
+                                today = uiState.today,
+                                dayStatus = uiState.calendarDays[day.date]?.status
+                                    ?: PlanCalendarDayStatus.NONE,
+                                isSelected = selection == day.date
+                            ) { clicked ->
+                                onDateSelected(clicked)
+                            }
                         }
-                    },
-                )
+                    )
+                    PlanWeekCalendarLegend()
+                }
             }
 
             item(key = "calendar-divider") {
@@ -269,33 +280,56 @@ private fun PlanScreenContent(
             }
 
             item(key = "selected-day") {
-                SelectedDaySection(
-                    date = selection,
-                    today = uiState.today,
-                    overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
-                    daySchedule = daySchedule,
-                    appLocale = appLocale,
-                    timeFormatter = timeFormatter,
-                    onScheduledClick = { scheduled ->
-                        val editingEntryIds = plannedEntryEditorIds(scheduled)
-                        if (scheduled.isFulfilled && editingEntryIds.isNotEmpty()) {
-                            onEntryClick(editingEntryIds)
-                        } else {
-                            onQuickLogClick(
-                                scheduled.groupUuid,
-                                LocalDateTime.of(daySchedule.date, scheduled.scheduledTime),
-                                scheduled.medication.details,
-                                remainingQuickLogCount(
-                                    totalCount = scheduled.medication.count,
-                                    fulfilledCount = scheduled.loggedCount
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    SelectedDaySection(
+                        date = selection,
+                        today = uiState.today,
+                        overallStatus = uiState.calendarDays[selection]?.status ?: PlanCalendarDayStatus.NONE,
+                        daySchedule = daySchedule,
+                        appLocale = appLocale,
+                        timeFormatter = timeFormatter,
+                        onScheduledClick = { scheduled ->
+                            val editingEntryIds = plannedEntryEditorIds(scheduled)
+                            if (scheduled.isFulfilled && editingEntryIds.isNotEmpty()) {
+                                onEntryClick(editingEntryIds)
+                            } else {
+                                onQuickLogClick(
+                                    scheduled.groupUuid,
+                                    LocalDateTime.of(daySchedule.date, scheduled.scheduledTime),
+                                    scheduled.medication.details,
+                                    remainingQuickLogCount(
+                                        totalCount = scheduled.medication.count,
+                                        fulfilledCount = scheduled.loggedCount
+                                    )
+                                )
+                            }
+                        },
+                        onUnplannedClick = { entry ->
+                            onEntryClick(unplannedEntryEditorIds(entry))
+                        }
+                    )
+                    if (selection != uiState.today) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            HrtOutlinedButton(
+                                text = stringResource(R.string.history_clear_selection),
+                                onClick = { onDateSelected(uiState.today) },
+                                icon = Icons.Rounded.Close,
+                                iconModifier = Modifier.size(14.dp),
+                                iconSpacing = 6.dp,
+                                compact = true,
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary,
                                 )
                             )
                         }
-                    },
-                    onUnplannedClick = { entry ->
-                        onEntryClick(unplannedEntryEditorIds(entry))
                     }
-                )
+                }
             }
 
             item(key = "regimen-section") {
@@ -339,9 +373,9 @@ private fun PlanWeekHeader(
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     monthFormatter: DateTimeFormatter,
-    canNavigateBackward: Boolean,
-    canNavigateForward: Boolean,
+    appLocale: Locale,
     onPreviousClick: () -> Unit,
+    onCurrentClick: () -> Unit,
     onNextClick: () -> Unit
 ) {
     val pageIndex = currentWeekPageIndex(
@@ -357,30 +391,56 @@ private fun PlanWeekHeader(
     val headerDate = weekStartDate.plusDays(3)
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp, start = 4.dp, end = 4.dp, bottom = 12.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 8.dp)
         ) {
-            IconButton(
-                onClick = onPreviousClick,
-                enabled = canNavigateBackward
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronLeft,
-                    contentDescription = stringResource(R.string.plan_previous_week)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PlanWeekNavigationButton(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        enabled = pageIndex > 0,
+                        contentDescription = stringResource(R.string.plan_previous_week),
+                        onClick = onPreviousClick,
+                        iconModifier = Modifier.size(30.dp)
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PlanWeekNavigationButton(
+                        imageVector = Icons.Rounded.RestartAlt,
+                        enabled = pageIndex != 1,
+                        contentDescription = stringResource(R.string.plan_week_current),
+                        onClick = onCurrentClick,
+                        iconModifier = Modifier.size(24.dp)
+                    )
+                    PlanWeekNavigationButton(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        enabled = pageIndex < 2,
+                        contentDescription = stringResource(R.string.plan_next_week),
+                        onClick = onNextClick,
+                        iconModifier = Modifier.size(30.dp)
+                    )
+                }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     text = headerDate.format(monthFormatter),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
@@ -389,43 +449,104 @@ private fun PlanWeekHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(
-                onClick = onNextClick,
-                enabled = canNavigateForward
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = stringResource(R.string.plan_next_week)
+        }
+
+        PlanWeekPageIndicator(pageIndex = pageIndex)
+        PlanWeekDayHeader(
+            firstDayOfWeek = firstDayOfWeek,
+            appLocale = appLocale
+        )
+    }
+}
+
+@Composable
+private fun PlanWeekNavigationButton(
+    imageVector: ImageVector,
+    enabled: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    iconModifier: Modifier = Modifier
+) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+    ) {
+        FilledTonalIconButton(
+            onClick = onClick,
+            enabled = enabled
+        ) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                modifier = iconModifier
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlanWeekPageIndicator(pageIndex: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(3) { index ->
+                Box(
+                    modifier = Modifier
+                        .size(
+                            width = if (index == pageIndex) 18.dp else 6.dp,
+                            height = 6.dp
+                        )
+                        .background(
+                            color = if (index == pageIndex) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
+                            shape = RoundedCornerShape(percent = 50)
+                        )
                 )
             }
         }
+    }
+}
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(3) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(
-                                width = if (index == pageIndex) 18.dp else 6.dp,
-                                height = 6.dp
-                            )
-                            .background(
-                                color = if (index == pageIndex) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                                shape = RoundedCornerShape(percent = 50)
-                            )
-                    )
-                }
-            }
+@Composable
+private fun PlanWeekDayHeader(
+    firstDayOfWeek: DayOfWeek,
+    appLocale: Locale
+) {
+    val weekdayLabels = remember(firstDayOfWeek, appLocale) {
+        planDayOfWeekLabels(
+            firstDayOfWeek = firstDayOfWeek,
+            locale = appLocale
+        )
+    }
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        weekdayLabels.forEach { label ->
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
+}
+
+private fun planDayOfWeekLabels(
+    firstDayOfWeek: DayOfWeek,
+    locale: Locale
+): List<String> {
+    return List(7) { offset ->
+        firstDayOfWeek
+            .plus(offset.toLong())
+            .getDisplayName(TextStyle.NARROW, locale)
     }
 }
 
@@ -512,10 +633,64 @@ private fun remainingQuickLogCount(
     return totalCount - fulfilledCount
 }
 
-private val dateFormatter = DateTimeFormatter.ofPattern("dd")
 internal val fulfilledIndicatorColor = Color(0xFF2E7D32)
 internal val overdueScheduledIndicatorColor = Color(0xFFC62828)
-internal val overduePartialIndicatorColor = Color(0xFFEF6C00)
+
+@Composable
+private fun PlanWeekCalendarLegend(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(
+            12.dp,
+            Alignment.CenterHorizontally
+        ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PlanWeekCalendarLegendItem(
+            status = PlanCalendarDayStatus.FULFILLED,
+            label = stringResource(R.string.history_summary_on_track),
+        )
+        PlanWeekCalendarLegendItem(
+            status = PlanCalendarDayStatus.PARTIAL,
+            label = stringResource(R.string.history_summary_partial),
+        )
+        PlanWeekCalendarLegendItem(
+            status = PlanCalendarDayStatus.MISSED,
+            label = stringResource(R.string.history_summary_missed),
+        )
+        PlanWeekCalendarLegendItem(
+            status = PlanCalendarDayStatus.OFFPLAN,
+            label = stringResource(R.string.history_legend_unplanned),
+        )
+    }
+}
+
+@Composable
+private fun PlanWeekCalendarLegendItem(
+    status: PlanCalendarDayStatus,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlanDayStatusIndicator(
+            status = status,
+            colors = planDayIndicatorColors(
+                scheduledMode = PlanDayIndicatorColorMode.Emphasized,
+                partialMode = PlanDayIndicatorColorMode.Emphasized
+            ),
+            modifier = Modifier.size(12.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = dimensionResource(R.dimen.padding_xsmall))
+        )
+    }
+}
 
 @Composable
 private fun Day(
@@ -526,64 +701,40 @@ private fun Day(
     onClick: (LocalDate) -> Unit
 ) {
     val isToday = date == today
-    val alpha = if (date.month == today.month) 1f else 0.6f
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        Color.Transparent
+    val containerColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        isToday -> MaterialTheme.colorScheme.secondaryContainer
+        else -> Color.Transparent
     }
-    val borderColor = if (isToday && !isSelected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        Color.Transparent
-    }
-    val dayLabelColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
-    }
-    val dayNumberColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else if (isToday) {
-        MaterialTheme.colorScheme.primary.copy(alpha = alpha)
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+    val textColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        isToday -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
     }
 
     Box(
         modifier = Modifier
+            .aspectRatio(1f)
             .fillMaxWidth()
-            .padding(horizontal = 1.dp, vertical = 2.dp)
-            .border(
-                width = 1.5.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(20.dp)
-            )
+            .padding(2.dp)
+            .clip(MaterialTheme.shapes.medium)
             .background(
-                color = backgroundColor,
-                shape = RoundedCornerShape(20.dp)
+                color = containerColor,
+                shape = MaterialTheme.shapes.medium
             )
             .clickable { onClick(date) },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(bottom = 2.dp)
         ) {
             Text(
-                text = date.dayOfWeek.displayText(uppercase = true, narrow = true),
-                fontSize = 11.sp,
-                color = dayLabelColor,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = dateFormatter.format(date),
-                fontSize = 18.sp,
-                color = dayNumberColor,
-                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
+                text = date.dayOfMonth.toString(),
+                color = textColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
             )
             DayStatusIndicator(
                 date = date,
@@ -602,88 +753,149 @@ private fun DayStatusIndicator(
     dayStatus: PlanCalendarDayStatus,
     isSelected: Boolean
 ) {
-    val neutralIndicatorColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+    val indicatorMode = if (date.isBefore(today)) {
+        PlanDayIndicatorColorMode.Emphasized
     } else {
-        MaterialTheme.colorScheme.outline
+        PlanDayIndicatorColorMode.Neutral
     }
-    val scheduledIndicatorColor = if (date.isBefore(today)) {
-        if (isSelected) MaterialTheme.colorScheme.onPrimary else overdueScheduledIndicatorColor
-    } else {
-        neutralIndicatorColor
-    }
-    val partialIndicatorColor = if (date.isBefore(today)) {
-        if (isSelected) MaterialTheme.colorScheme.onPrimary else overduePartialIndicatorColor
-    } else {
-        neutralIndicatorColor
-    }
+    val selectedColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else null
 
-    when (dayStatus) {
+    PlanDayStatusIndicator(
+        status = dayStatus,
+        colors = planDayIndicatorColors(
+            scheduledMode = indicatorMode,
+            partialMode = indicatorMode,
+            selectedColor = selectedColor
+        ),
+        modifier = Modifier.size(12.dp)
+    )
+}
+
+@Composable
+private fun PlanDayStatusIndicator(
+    status: PlanCalendarDayStatus,
+    colors: PlanDayIndicatorColors,
+    modifier: Modifier = Modifier
+) {
+    when (status) {
         PlanCalendarDayStatus.NONE -> {
-            Box(
-                modifier = Modifier
-                    .size(width = 10.dp, height = 2.dp)
-                    .background(
-                        color = neutralIndicatorColor,
-                        shape = RoundedCornerShape(percent = 50)
-                    )
+            PlanDayIndicatorGlyph(
+                kind = PlanDayIndicatorKind.NO_RECORD,
+                color = colors.neutral,
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.OFFPLAN -> {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(
-                        color = neutralIndicatorColor,
-                        shape = CircleShape
-                    )
+            PlanDayIndicatorGlyph(
+                kind = PlanDayIndicatorKind.OFFPLAN,
+                color = colors.unplanned,
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.MISSED -> {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .border(
-                        width = 1.5.dp,
-                        color = scheduledIndicatorColor,
-                        shape = CircleShape
-                    )
+            PlanDayIndicatorGlyph(
+                kind = PlanDayIndicatorKind.MISSED,
+                color = colors.scheduled,
+                modifier = modifier
             )
         }
         PlanCalendarDayStatus.PARTIAL -> {
-            Canvas(modifier = Modifier.size(10.dp)) {
-                val strokeWidth = 1.5.dp.toPx()
-                drawCircle(
-                    color = partialIndicatorColor,
-                    style = Stroke(width = strokeWidth)
-                )
-                drawArc(
-                    color = partialIndicatorColor,
-                    startAngle = -90f,
-                    sweepAngle = 180f,
-                    useCenter = false,
-                    style = Stroke(
-                        width = strokeWidth,
-                        cap = StrokeCap.Round
-                    )
-                )
-            }
+            PlanDayIndicatorGlyph(
+                kind = PlanDayIndicatorKind.PARTIAL,
+                color = colors.partial,
+                modifier = modifier
+            )
         }
         PlanCalendarDayStatus.FULFILLED -> {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else fulfilledIndicatorColor,
-                modifier = Modifier.size(14.dp)
+            PlanDayIndicatorGlyph(
+                kind = PlanDayIndicatorKind.CHECK,
+                color = colors.fulfilled,
+                modifier = modifier
             )
         }
     }
 }
 
-fun DayOfWeek.displayText(uppercase: Boolean = false, narrow: Boolean = false): String {
-    val style = if (narrow) TextStyle.NARROW else TextStyle.SHORT
-    return getDisplayName(style, Locale.ENGLISH).let { value ->
-        if (uppercase) value.uppercase(Locale.ENGLISH) else value
+private enum class PlanDayIndicatorKind {
+    CHECK,
+    PARTIAL,
+    MISSED,
+    OFFPLAN,
+    NO_RECORD
+}
+
+@Composable
+private fun PlanDayIndicatorGlyph(
+    kind: PlanDayIndicatorKind,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val imageVector = when (kind) {
+        PlanDayIndicatorKind.CHECK -> Icons.Rounded.CheckCircleOutline
+        PlanDayIndicatorKind.PARTIAL -> Icons.Rounded.Contrast
+        PlanDayIndicatorKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
+        PlanDayIndicatorKind.OFFPLAN -> Icons.Rounded.Circle
+        PlanDayIndicatorKind.NO_RECORD -> Icons.Rounded.Remove
+    }
+    Icon(
+        imageVector = imageVector,
+        contentDescription = null,
+        tint = color,
+        modifier = modifier
+    )
+}
+
+private enum class PlanDayIndicatorColorMode {
+    Neutral,
+    Emphasized
+}
+
+private data class PlanDayIndicatorColors(
+    val scheduled: Color,
+    val partial: Color,
+    val fulfilled: Color,
+    val neutral: Color,
+    val unplanned: Color
+)
+
+@Composable
+private fun planDayIndicatorColors(
+    scheduledMode: PlanDayIndicatorColorMode = PlanDayIndicatorColorMode.Neutral,
+    partialMode: PlanDayIndicatorColorMode = PlanDayIndicatorColorMode.Neutral,
+    selectedColor: Color? = null
+): PlanDayIndicatorColors {
+    if (selectedColor != null) {
+        return PlanDayIndicatorColors(
+            scheduled = selectedColor,
+            partial = selectedColor,
+            fulfilled = selectedColor,
+            neutral = selectedColor,
+            unplanned = selectedColor
+        )
+    }
+    return PlanDayIndicatorColors(
+        scheduled = planDayIndicatorColor(
+            mode = scheduledMode,
+            emphasizedColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        partial = planDayIndicatorColor(
+            mode = partialMode,
+            emphasizedColor = MaterialTheme.colorScheme.primary
+        ),
+        fulfilled = MaterialTheme.colorScheme.primary,
+        neutral = MaterialTheme.colorScheme.outlineVariant,
+        unplanned = MaterialTheme.colorScheme.tertiary
+    )
+}
+
+@Composable
+private fun planDayIndicatorColor(
+    mode: PlanDayIndicatorColorMode,
+    emphasizedColor: Color
+): Color {
+    return when (mode) {
+        PlanDayIndicatorColorMode.Neutral -> MaterialTheme.colorScheme.outline
+        PlanDayIndicatorColorMode.Emphasized -> emphasizedColor
     }
 }
 
