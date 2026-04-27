@@ -31,9 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -194,7 +194,9 @@ internal fun NotificationsCard(
     index: Int = 0,
     count: Int = 1,
 ) {
-    EditorSegmentedListItem(
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.group_notifications_reminder),
+        supportingText = stringResource(R.string.group_notifications_summary),
         index = index,
         count = count,
         modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f),
@@ -222,21 +224,8 @@ internal fun NotificationsCard(
                 enabled = toggleEnabled
             )
         },
-        supportingContent = {
-            Text(
-                text = stringResource(R.string.group_notifications_summary),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.cjkTextOffset(stringResource(R.string.group_notifications_summary)),
-            )
-        },
-    ) {
-        Text(
-            text = stringResource(R.string.group_notifications_reminder),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.cjkTextOffset(stringResource(R.string.group_notifications_reminder))
-        )
-    }
+        supportingTextStyle = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

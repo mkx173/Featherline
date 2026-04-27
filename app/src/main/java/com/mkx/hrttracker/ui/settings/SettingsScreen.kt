@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -98,9 +99,8 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
-import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -555,37 +555,24 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.personalization_weight),
+                    supportingText = weightSummary,
+                    supportingCjkTextOffsetEnabled = uiState.userProfile.weightOriginalValue == null,
                     index = 0,
                     count = 2,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = { showWeightDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.MonitorWeight
                         )
                     },
-                    supportingContent = {
-                        Text(
-                            text = weightSummary,
-                            modifier = Modifier.cjkTextOffset(
-                                text = weightSummary,
-                                enabled = uiState.userProfile.weightOriginalValue == null,
-                            )
-                        )
-                    }
-                ) {
-                    Text(
-                        text = stringResource(R.string.personalization_weight),
-                        modifier = Modifier.cjkTextOffset(stringResource(R.string.personalization_weight))
+                )
 
-                    )
-                }
-
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_personalization_calibration),
                     index = 1,
                     count = 2,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = onCalibrationClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -595,14 +582,7 @@ private fun SettingsScreenContent(
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_personalization_calibration),
-                        modifier = Modifier.cjkTextOffset(
-                            stringResource(R.string.settings_personalization_calibration)
-                        )
-                    )
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -616,11 +596,12 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_reminders),
+                    supportingText = stringResource(R.string.settings_reminders_summary),
+                    enabled = hasNotificationAccess,
                     index = 0,
                     count = if (!hasNotificationAccess || showInexactReminderWarning) 2 else 1,
-                    enabled = hasNotificationAccess,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         if (hasNotificationAccess) {
                             onRemindersEnabledChange(!settingsState.remindersEnabled)
@@ -631,14 +612,6 @@ private fun SettingsScreenContent(
                             icon = Icons.Rounded.Notifications
                         )
                     },
-                    supportingContent = {
-                        Text(
-                            text = stringResource(R.string.settings_reminders_summary),
-                            modifier = Modifier.cjkTextOffset(
-                                stringResource(R.string.settings_reminders_summary)
-                            )
-                        )
-                    },
                     trailingContent = {
                         Switch(
                             checked = settingsState.remindersEnabled && hasNotificationAccess,
@@ -646,12 +619,7 @@ private fun SettingsScreenContent(
                             enabled = hasNotificationAccess
                         )
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_reminders),
-                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_reminders))
-                    )
-                }
+                )
 
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
@@ -687,7 +655,9 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_screen_lock_protection),
+                    supportingText = stringResource(R.string.settings_screen_lock_protection_summary),
                     onClick = {
                         onScreenLockProtectionToggle(
                             !settingsState.screenLockProtectionEnabled
@@ -695,68 +665,33 @@ private fun SettingsScreenContent(
                     },
                     index = 0,
                     count = securityItemCount,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    leadingContent = {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.Lock
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_screen_lock_protection),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_screen_lock_protection)
-                                )
-                            )
-                            Text(
-                                text = stringResource(R.string.settings_screen_lock_protection_summary),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_screen_lock_protection_summary)
-                                )
-                            )
-                        }
+                    },
+                    trailingContent = {
                         Switch(
                             checked = settingsState.screenLockProtectionEnabled,
                             onCheckedChange = onScreenLockProtectionToggle
                         )
-                    }
-                }
+                    },
+                )
 
                 if (settingsState.screenLockProtectionEnabled) {
                     Box {
-                        EditorSegmentedListItem(
+                        SettingsSegmentedListItem(
+                            title = stringResource(R.string.settings_app_lock_grace_period),
+                            supportingText = stringResource(settingsState.appLockGracePeriodOption.labelRes),
                             index = 1,
                             count = securityItemCount,
-                            modifier = Modifier.fillMaxWidth(),
                             onClick = { setAppLockGracePeriodMenuExpanded(true) },
                             leadingContent = {
                                 SettingsLeadingIconSlot(
                                     icon = Icons.Rounded.LockClock
                                 )
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = stringResource(settingsState.appLockGracePeriodOption.labelRes),
-                                    modifier = Modifier.cjkTextOffset(
-                                        stringResource(settingsState.appLockGracePeriodOption.labelRes)
-                                    )
-                                )
                             }
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_app_lock_grace_period),
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_app_lock_grace_period)
-                                )
-                            )
-                        }
+                        )
                         DropdownMenu(
                             expanded = isAppLockGracePeriodMenuExpanded,
                             onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
@@ -775,7 +710,9 @@ private fun SettingsScreenContent(
                     }
                 }
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_screen_content),
+                    supportingText = stringResource(R.string.settings_hide_screen_content_summary),
                     onClick = {
                         onHideScreenContentEnabledChange(
                             !settingsState.hideScreenContentEnabled
@@ -783,39 +720,18 @@ private fun SettingsScreenContent(
                     },
                     index = if (settingsState.screenLockProtectionEnabled) 2 else 1,
                     count = securityItemCount,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    leadingContent = {
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.VisibilityOff
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_hide_screen_content),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_hide_screen_content)
-                                )
-                            )
-                            Text(
-                                text = stringResource(R.string.settings_hide_screen_content_summary),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(R.string.settings_hide_screen_content_summary)
-                                )
-                            )
-                        }
+                    },
+                    trailingContent = {
                         Switch(
                             checked = settingsState.hideScreenContentEnabled,
                             onCheckedChange = onHideScreenContentEnabledChange
                         )
-                    }
-                }
+                    },
+                )
             }
 
             uiState.securityErrorMessageRes?.let { messageRes ->
@@ -838,32 +754,18 @@ private fun SettingsScreenContent(
                 )
             ) {
                 Box {
-                    EditorSegmentedListItem(
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_app_language),
+                        supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
                         count = 3,
-                        modifier = Modifier.fillMaxWidth(),
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
                                 icon = Icons.Rounded.Language
                             )
-                        },
-                        supportingContent = {
-                            Text(
-                                text = stringResource(settingsState.appLanguageOption.labelRes),
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(settingsState.appLanguageOption.labelRes)
-                                )
-                            )
                         }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_app_language),
-                            modifier = Modifier.cjkTextOffset(
-                                stringResource(R.string.settings_app_language)
-                            )
-                        )
-                    }
+                    )
                     DropdownMenu(
                         expanded = isLanguageMenuExpanded,
                         onDismissRequest = { setLanguageMenuExpanded(false) },
@@ -882,30 +784,18 @@ private fun SettingsScreenContent(
                 }
 
                 Box {
-                    EditorSegmentedListItem(
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_dark_mode),
+                        supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 1,
                         count = 3,
-                        modifier = Modifier.fillMaxWidth(),
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
                                 icon = Icons.Rounded.DarkMode
                             )
-                        },
-                        supportingContent = {
-                            Text(
-                                text = stringResource(settingsState.darkModeOption.labelRes),
-                                modifier = Modifier.cjkTextOffset(
-                                    stringResource(settingsState.darkModeOption.labelRes)
-                                )
-                            )
                         }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_dark_mode),
-                            modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_dark_mode))
-                        )
-                    }
+                    )
                     DropdownMenu(
                         expanded = isDarkModeMenuExpanded,
                         onDismissRequest = { setDarkModeMenuExpanded(false) },
@@ -923,10 +813,10 @@ private fun SettingsScreenContent(
                     }
                 }
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_adaptive_color),
                     index = 2,
                     count = 3,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -941,12 +831,7 @@ private fun SettingsScreenContent(
                             onCheckedChange = onAdaptiveColorEnabledChange
                         )
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_adaptive_color),
-                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_adaptive_color))
-                    )
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -960,11 +845,11 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_backup_to_file),
+                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
                     index = 0,
                     count = 2,
-                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = onBackupToFileClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -974,18 +859,13 @@ private fun SettingsScreenContent(
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_backup_to_file),
-                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_backup_to_file))
-                    )
-                }
+                )
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_restore_from_file),
+                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
                     index = 1,
                     count = 2,
-                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = onRestoreFromFileClick,
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -995,14 +875,7 @@ private fun SettingsScreenContent(
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_restore_from_file),
-                        modifier = Modifier.cjkTextOffset(
-                            stringResource(R.string.settings_restore_from_file)
-                        )
-                    )
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1016,10 +889,10 @@ private fun SettingsScreenContent(
                     dimensionResource(R.dimen.list_segment_gap)
                 )
             ) {
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_about_privacy_policy),
                     index = 0,
                     count = 4,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = { showPrivacyPolicyDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1029,19 +902,13 @@ private fun SettingsScreenContent(
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_privacy_policy),
-                        modifier = Modifier.cjkTextOffset(
-                            stringResource(R.string.settings_about_privacy_policy)
-                        )
-                    )
-                }
+                )
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_about_model),
+                    supportingText = stringResource(R.string.settings_about_model_summary),
                     index = 1,
                     count = 4,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
                     leadingContent = {
                         Box(
@@ -1054,23 +921,16 @@ private fun SettingsScreenContent(
                             )
                         }
                     },
-                    supportingContent = {
-                        Text(text = stringResource(R.string.settings_about_model_summary))
-                    },
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_model),
-                        modifier = Modifier.cjkTextOffset(stringResource(R.string.settings_about_model))
-                    )
-                }
+                )
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_about_contact_developer),
+                    supportingText = stringResource(R.string.settings_about_contact_developer_summary),
                     index = 2,
                     count = 4,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = { pendingExternalUrl = DEVELOPER_X_URL },
                     leadingContent = {
                         Box(
@@ -1083,25 +943,16 @@ private fun SettingsScreenContent(
                             )
                         }
                     },
-                    supportingContent = {
-                        Text(text = stringResource(R.string.settings_about_contact_developer_summary))
-                    },
                     trailingContent = {
                         SettingsChevronTrailingIcon()
                     }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_contact_developer),
-                        modifier = Modifier.cjkTextOffset(
-                            stringResource(R.string.settings_about_contact_developer)
-                        )
-                    )
-                }
+                )
 
-                EditorSegmentedListItem(
+                SettingsSegmentedListItem(
+                    title = appName,
+                    supportingText = appInfoSummary,
                     index = 3,
                     count = 4,
-                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         context.getSystemService(ClipboardManager::class.java)
                             ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
@@ -1111,16 +962,8 @@ private fun SettingsScreenContent(
                         SettingsLeadingIconSlot(
                             icon = Icons.Rounded.Info
                         )
-                    },
-                    supportingContent = {
-                        Text(text = appInfoSummary)
                     }
-                ) {
-                    Text(
-                        text = appName,
-                        modifier = Modifier.cjkTextOffset(appName)
-                    )
-                }
+                )
             }
         }
     }
@@ -1238,6 +1081,43 @@ private fun SettingsChevronTrailingIcon() {
 }
 
 @Composable
+private fun SettingsSegmentedListItem(
+    title: String,
+    index: Int,
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    supportingText: String? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
+    titleTextStyle: TextStyle? = null,
+    supportingTextStyle: TextStyle? = null,
+    titleColor: Color? = null,
+    supportingTextColor: Color? = null,
+    titleCjkTextOffsetEnabled: Boolean = true,
+    supportingCjkTextOffsetEnabled: Boolean = true,
+) {
+    PreferenceSegmentedListItem(
+        title = title,
+        index = index,
+        count = count,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        supportingText = supportingText,
+        leadingContent = leadingContent,
+        trailingContent = trailingContent,
+        titleTextStyle = titleTextStyle,
+        supportingTextStyle = supportingTextStyle,
+        titleColor = titleColor,
+        supportingTextColor = supportingTextColor,
+        titleCjkTextOffsetEnabled = titleCjkTextOffsetEnabled,
+        supportingCjkTextOffsetEnabled = supportingCjkTextOffsetEnabled,
+    )
+}
+
+@Composable
 private fun SettingsSupportMessage(
     text: String,
     icon: ImageVector? = null,
@@ -1250,29 +1130,27 @@ private fun SettingsSupportMessage(
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
     ) {
-        EditorSegmentedListItem(
+        SettingsSegmentedListItem(
+            title = text,
             index = index,
             count = count,
             onClick = onClick ?: {},
             modifier = Modifier.wrapContentHeight(),
             leadingContent = {
-                SettingsLeadingIconSlot(icon = icon, painter = painter, tint = MaterialTheme.colorScheme.tertiary)
+                SettingsLeadingIconSlot(
+                    icon = icon,
+                    painter = painter,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                )
             },
             trailingContent = if (showChevron) {
-                {
-                    SettingsChevronTrailingIcon()
-                }
+                { SettingsChevronTrailingIcon() }
             } else {
                 null
-            }
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.cjkTextOffset(text)
-            )
-        }
+            },
+            titleTextStyle = MaterialTheme.typography.labelMedium,
+            titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

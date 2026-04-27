@@ -4,19 +4,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DangerZoneListItem(
     label: String,
@@ -28,35 +22,37 @@ fun DangerZoneListItem(
     count: Int = 1
 ) {
     val displayLabel = label.uppercase()
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.38f)
+    }
 
-    SegmentedListItem(
+    PreferenceSegmentedListItem(
+        title = displayLabel,
+        index = index,
+        count = count,
+        enabled = enabled,
+        onClick = onClick,
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        disabledContainerColor = MaterialTheme.colorScheme.errorContainer,
+        titleTextStyle = MaterialTheme.typography.titleMedium,
+        titleColor = contentColor,
         leadingContent = {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(24.dp),
+                tint = contentColor,
             )
         },
         trailingContent = {
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
+                tint = contentColor,
             )
         },
-        enabled = enabled,
-        onClick = onClick,
-        modifier = modifier,
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
-        shapes = segmentedListItemShapes(index = index, count = count)
-    ) {
-        Text(
-            text = displayLabel,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.cjkTextOffset(displayLabel)
-        )
-    }
+    )
 }
