@@ -73,7 +73,6 @@
     <string name="plan_group_notifications_enabled">Reminders on</string>
     <string name="plan_group_notifications_disabled">Reminders off</string>
     <string name="plan_regimen_title">Regimen</string>
-    <string name="plan_regimen_summary">%1$d groups · %2$d daily · %3$d weekly</string>
     <string name="plan_open_history">Open history</string>
     <string name="plan_more_options">More options</string>
     <string name="plan_previous_week">Previous week</string>
@@ -444,6 +443,18 @@
     <plurals name="plan_group_medication_count">
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
+    </plurals>
+    <plurals name="plan_regimen_group_count">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
+    </plurals>
+    <plurals name="plan_regimen_daily_count">
+        <item quantity="one">%1$d daily</item>
+        <item quantity="other">%1$d daily</item>
+    </plurals>
+    <plurals name="plan_regimen_weekly_count">
+        <item quantity="one">%1$d weekly</item>
+        <item quantity="other">%1$d weekly</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="one">entry logged</item>

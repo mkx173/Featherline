@@ -73,7 +73,6 @@
     <string name="plan_group_notifications_enabled">提醒已开启</string>
     <string name="plan_group_notifications_disabled">提醒已关闭</string>
     <string name="plan_regimen_title">用药方案</string>
-    <string name="plan_regimen_summary">%1$d 个分组 · %2$d 个每日 · %3$d 个每周</string>
     <string name="plan_open_history">打开历史</string>
     <string name="plan_more_options">更多选项</string>
     <string name="plan_previous_week">上一周</string>
@@ -437,6 +436,15 @@
 
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
+    </plurals>
+    <plurals name="plan_regimen_group_count">
+        <item quantity="other">%1$d 分组</item>
+    </plurals>
+    <plurals name="plan_regimen_daily_count">
+        <item quantity="other">%1$d 每日</item>
+    </plurals>
+    <plurals name="plan_regimen_weekly_count">
+        <item quantity="other">%1$d 每周</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="other">条记录</item>

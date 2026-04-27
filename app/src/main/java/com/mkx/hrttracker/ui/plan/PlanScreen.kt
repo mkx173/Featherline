@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -230,7 +231,6 @@ private fun PlanScreenContent(
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
         ) {
             item(key = "week-calendar") {
                 Column(
@@ -280,7 +280,7 @@ private fun PlanScreenContent(
             }
 
             item(key = "selected-day") {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     SelectedDaySection(
                         date = displayedDate,
                         today = uiState.today,
@@ -334,6 +334,8 @@ private fun PlanScreenContent(
             }
 
             item(key = "regimen-section") {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
                 RegimenSection(
                     groups = uiState.medicationGroups,
                     remindersEnabled = uiState.remindersEnabled,
@@ -529,30 +531,58 @@ private fun RegimenSection(
         groups.count { it.schedule.type == MedicationGroupScheduleType.DAILY }
     }
     val weeklyCount = groups.size - dailyCount
+    val regimenSummary = if (groups.isEmpty()) {
+        null
+    } else {
+        listOfNotNull(
+            pluralStringResource(
+                R.plurals.plan_regimen_group_count,
+                groups.size,
+                groups.size
+            ),
+            if (dailyCount > 0) {
+                pluralStringResource(
+                    R.plurals.plan_regimen_daily_count,
+                    dailyCount,
+                    dailyCount
+                )
+            } else {
+                null
+            },
+            if (weeklyCount > 0) {
+                pluralStringResource(
+                    R.plurals.plan_regimen_weekly_count,
+                    weeklyCount,
+                    weeklyCount
+                )
+            } else {
+                null
+            }
+        ).joinToString(" · ")
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)
         ) {
             Text(
-                text = stringResource(R.string.plan_regimen_title),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = stringResource(R.string.plan_regimen_title).uppercase(),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline()
             )
-            Text(
-                text = stringResource(
-                    R.string.plan_regimen_summary,
-                    groups.size,
-                    dailyCount,
-                    weeklyCount
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (regimenSummary != null) {
+                Text(
+                    text = regimenSummary.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alignByBaseline()
+                )
+            }
         }
 
         if (groups.isEmpty()) {
