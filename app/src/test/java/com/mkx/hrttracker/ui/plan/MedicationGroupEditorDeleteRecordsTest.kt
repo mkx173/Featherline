@@ -26,6 +26,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -60,6 +61,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
         every {
             context.getString(R.string.default_group_name_format, any())
         } returns "Group 1"
@@ -68,6 +70,47 @@ class MedicationGroupEditorDeleteRecordsTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun loadGroupForEditing_preservesRelatedEntryCountComputedBeforeGroupLoads() = runTest {
+        val groupUuid = UUID.fromString("52004338-1f91-4b9b-b2ab-8f3b88d72117")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } coAnswers {
+            delay(1)
+            group
+        }
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+                ),
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
+                ),
+            )
+        )
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
+        assertEquals(2, viewModel.uiState.value.relatedEntryCount)
     }
 
     @Test

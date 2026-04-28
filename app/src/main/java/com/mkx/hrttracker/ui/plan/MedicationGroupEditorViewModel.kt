@@ -11,6 +11,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -59,8 +60,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
     private val editingGroupId = editingGroupUuid?.toString()
     private val pendingGroupUuid = editingGroupUuid ?: UUID.randomUUID()
+    private val cachedEditingGroup = editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
     private val _uiState = MutableStateFlow(
-        MedicationGroupEditorUiState(
+        cachedEditingGroup?.toEditorState(
+            remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
+            relatedEntryCount = 0
+        ) ?: MedicationGroupEditorUiState(
             editingGroupId = editingGroupId,
             isLoadingGroupForEditing = editingGroupUuid != null
         )
@@ -124,7 +129,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 }
         }
 
-        if (editingGroupUuid != null) {
+        if (editingGroupUuid != null && cachedEditingGroup == null) {
             loadGroupForEditing(editingGroupUuid)
         }
     }
@@ -570,55 +575,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
-            _uiState.value = MedicationGroupEditorUiState(
-                editingGroupId = group.uuid.toString(),
-                groupName = group.name,
-                defaultGroupName = group.name,
-                hasResolvedInitialGroupName = true,
-                scheduleType = group.schedule.type,
-                sinceDate = group.schedule.since,
-                weeklyIntervalWeeks = if (group.schedule.type == MedicationGroupScheduleType.WEEKLY) {
-                    parseScheduleInterval(group.schedule.interval.toString()).toString()
-                } else {
-                    "1"
-                },
-                weeklyDaysOfWeek = group.schedule.weeklyDaysOfWeek.ifEmpty {
-                    setOf(LocalDate.now().dayOfWeek)
-                },
-                weeklyTime = group.schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
-                dailyIntervalDays = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
-                    parseScheduleInterval(group.schedule.interval.toString()).toString()
-                } else {
-                    "1"
-                },
-                dailyTimes = if (group.schedule.type == MedicationGroupScheduleType.DAILY) {
-                    group.schedule.times
-                        .ifEmpty { listOf(LocalTime.of(9, 0)) }
-                        .sorted()
-                        .map { time ->
-                        MedicationGroupScheduleTimeUiState(time = time)
-                    }
-                } else {
-                    listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
-                },
-                remindersEnabled = remindersEnabled,
-                notificationsEnabled = group.notificationsEnabled,
-                hasResolvedNotificationDefault = true,
-                groupColorKey = group.colorKey,
-                hasAssignedGroupColor = true,
-                isLoadingGroupForEditing = false,
-                medications = group.medications.map { medication ->
-                    MedicationGroupMedicationItemUiState(
-                        localId = medication.uuid.toString(),
-                        persistedMedicationId = medication.uuid.toString(),
-                        details = medication.details,
-                        count = normalizeMedicationCount(
-                            medication.details.applicationType,
-                            medication.count
-                        )
-                    )
-                }
-            )
+            _uiState.update { currentState ->
+                group.toEditorState(
+                    remindersEnabled = remindersEnabled,
+                    relatedEntryCount = currentState.relatedEntryCount,
+                )
+            }
         }
     }
 
@@ -676,6 +638,60 @@ class MedicationGroupEditorViewModel @Inject constructor(
     companion object {
         const val GROUP_ID_ARG = "groupId"
     }
+}
+
+private fun MedicationGroup.toEditorState(
+    remindersEnabled: Boolean,
+    relatedEntryCount: Int,
+): MedicationGroupEditorUiState {
+    return MedicationGroupEditorUiState(
+        editingGroupId = uuid.toString(),
+        groupName = name,
+        defaultGroupName = name,
+        hasResolvedInitialGroupName = true,
+        scheduleType = schedule.type,
+        sinceDate = schedule.since,
+        weeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
+            parseScheduleInterval(schedule.interval.toString()).toString()
+        } else {
+            "1"
+        },
+        weeklyDaysOfWeek = schedule.weeklyDaysOfWeek.ifEmpty {
+            setOf(LocalDate.now().dayOfWeek)
+        },
+        weeklyTime = schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
+        dailyIntervalDays = if (schedule.type == MedicationGroupScheduleType.DAILY) {
+            parseScheduleInterval(schedule.interval.toString()).toString()
+        } else {
+            "1"
+        },
+        dailyTimes = if (schedule.type == MedicationGroupScheduleType.DAILY) {
+            schedule.times
+                .ifEmpty { listOf(LocalTime.of(9, 0)) }
+                .sorted()
+                .map { time -> MedicationGroupScheduleTimeUiState(time = time) }
+        } else {
+            listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+        },
+        remindersEnabled = remindersEnabled,
+        notificationsEnabled = notificationsEnabled,
+        hasResolvedNotificationDefault = true,
+        groupColorKey = colorKey,
+        hasAssignedGroupColor = true,
+        isLoadingGroupForEditing = false,
+        medications = medications.map { medication ->
+            MedicationGroupMedicationItemUiState(
+                localId = medication.uuid.toString(),
+                persistedMedicationId = medication.uuid.toString(),
+                details = medication.details,
+                count = normalizeMedicationCount(
+                    medication.details.applicationType,
+                    medication.count
+                )
+            )
+        },
+        relatedEntryCount = relatedEntryCount,
+    )
 }
 
 internal fun toggleWeeklyDaySelection(

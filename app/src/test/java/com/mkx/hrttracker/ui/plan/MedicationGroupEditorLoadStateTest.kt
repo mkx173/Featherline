@@ -58,6 +58,7 @@ class MedicationGroupEditorLoadStateTest {
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
         every {
             context.getString(R.string.default_group_name_format, any())
         } returns "Group 1"
@@ -95,6 +96,35 @@ class MedicationGroupEditorLoadStateTest {
         assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
         assertEquals(group.name, viewModel.uiState.value.groupName)
         assertEquals(1, viewModel.uiState.value.medications.size)
+    }
+
+    @Test
+    fun editingGroup_usesCachedGroupWithoutLoadingState() = runTest {
+        val groupUuid = UUID.fromString("64df58d1-b7c7-45bf-bc6d-a7c99d4ff96f")
+        val group = testMedicationGroup(groupUuid)
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+        )
+
+        assertEquals(groupUuid.toString(), viewModel.uiState.value.editingGroupId)
+        assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
+        assertEquals(group.name, viewModel.uiState.value.groupName)
+        assertEquals(1, viewModel.uiState.value.medications.size)
+
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
+        assertEquals(group.name, viewModel.uiState.value.groupName)
     }
 }
 
