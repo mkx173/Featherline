@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +81,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
+import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarState
 import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
 import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
@@ -213,6 +215,7 @@ private fun PlanScreenContent(
     )
     val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
+    val weekPageProgress = rememberWeekPageProgress(state)
 
     LaunchedEffect(selection) {
         if (selection != null && visibleWeek.days.none { it.date == selection }) {
@@ -277,6 +280,7 @@ private fun PlanScreenContent(
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         monthFormatter = monthFormatter,
                         hasSelection = selection != null,
+                        pageProgress = weekPageProgress,
                         onPreviousClick = {
                             scope.launch {
                                 state.animateScrollToWeek(visibleWeekStartDate.minusWeeks(1))
@@ -413,6 +417,7 @@ private fun PlanWeekHeader(
     firstDayOfWeek: DayOfWeek,
     monthFormatter: (LocalDate) -> String,
     hasSelection: Boolean,
+    pageProgress: Float,
     onPreviousClick: () -> Unit,
     onCurrentClick: () -> Unit,
     onNextClick: () -> Unit
@@ -496,7 +501,7 @@ private fun PlanWeekHeader(
             }
         }
 
-        PlanWeekPageIndicator(pageIndex = pageIndex)
+        PlanWeekPageIndicator(pageProgress = pageProgress)
     }
 }
 
@@ -527,7 +532,8 @@ private fun PlanWeekNavigationButton(
 }
 
 @Composable
-private fun PlanWeekPageIndicator(pageIndex: Int) {
+private fun PlanWeekPageIndicator(pageProgress: Float) {
+    val clampedProgress = pageProgress.coerceIn(0f, 2f)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center
@@ -537,18 +543,22 @@ private fun PlanWeekPageIndicator(pageIndex: Int) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(3) { index ->
+                val selectedFraction = (1f - kotlin.math.abs(clampedProgress - index))
+                    .coerceIn(0f, 1f)
+                val indicatorWidth = 6.dp + 12.dp * selectedFraction
+                val indicatorColor = lerp(
+                    start = MaterialTheme.colorScheme.outlineVariant,
+                    stop = MaterialTheme.colorScheme.primary,
+                    fraction = selectedFraction
+                )
                 Box(
                     modifier = Modifier
                         .size(
-                            width = if (index == pageIndex) 18.dp else 6.dp,
+                            width = indicatorWidth,
                             height = 6.dp
                         )
                         .background(
-                            color = if (index == pageIndex) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
+                            color = indicatorColor,
                             shape = RoundedCornerShape(percent = 50)
                         )
                 )
@@ -973,7 +983,7 @@ private fun currentWeekPageIndex(
 
 @Composable
 private fun rememberFirstMostVisibleWeek(
-    state: com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarState,
+    state: WeekCalendarState,
     viewportPercent: Float = 50f,
 ): Week {
     val visibleWeek = remember(state) { mutableStateOf(state.firstVisibleWeek) }
@@ -983,6 +993,27 @@ private fun rememberFirstMostVisibleWeek(
             .collect { week -> visibleWeek.value = week }
     }
     return visibleWeek.value
+}
+
+@Composable
+private fun rememberWeekPageProgress(state: WeekCalendarState): Float {
+    val pageProgress = remember(state) { mutableStateOf(1f) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.weekPageProgress() }
+            .filterNotNull()
+            .collect { progress -> pageProgress.value = progress }
+    }
+    return pageProgress.value
+}
+
+private fun WeekCalendarLayoutInfo.weekPageProgress(): Float? {
+    val firstVisibleWeekInfo = visibleWeeksInfo.firstOrNull() ?: return null
+    if (firstVisibleWeekInfo.size == 0) {
+        return firstVisibleWeekInfo.index.toFloat().coerceIn(0f, 2f)
+    }
+    val firstVisibleScrollOffset = viewportStartOffset - firstVisibleWeekInfo.offset
+    return (firstVisibleWeekInfo.index + firstVisibleScrollOffset.toFloat() / firstVisibleWeekInfo.size)
+        .coerceIn(0f, 2f)
 }
 
 private fun WeekCalendarLayoutInfo.firstMostVisibleWeek(viewportPercent: Float = 50f): Week? {
