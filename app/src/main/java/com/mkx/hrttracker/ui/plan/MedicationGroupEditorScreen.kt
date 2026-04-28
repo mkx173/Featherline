@@ -12,6 +12,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -463,10 +465,12 @@ private fun MedicationGroupEditorScreenContent(
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val groupNameFocusRequester = remember { FocusRequester() }
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
+        !uiState.isLoadingGroupForEditing &&
         !uiState.isSaving &&
         !uiState.isDeleting &&
         !uiState.isDeletingRelatedEntries
-    val dangerZoneActionEnabled = !uiState.isSaving &&
+    val dangerZoneActionEnabled = !uiState.isLoadingGroupForEditing &&
+        !uiState.isSaving &&
         !uiState.isDeleting &&
         !uiState.isDeletingRelatedEntries
     val resolvedOccurrenceReferenceTime = remember(occurrenceReferenceTime) {
@@ -812,6 +816,18 @@ private fun MedicationGroupEditorScreenContent(
             )
         }
     ) { innerPadding ->
+        if (uiState.isLoadingGroupForEditing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

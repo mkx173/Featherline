@@ -53,12 +53,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(MedicationGroupEditorUiState())
-    val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
-    private val editingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
-    private val pendingGroupUuid = editingGroupId?.let { groupId ->
+    private val requestedEditingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
+    private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
-    } ?: UUID.randomUUID()
+    }
+    private val editingGroupId = editingGroupUuid?.toString()
+    private val pendingGroupUuid = editingGroupUuid ?: UUID.randomUUID()
+    private val _uiState = MutableStateFlow(
+        MedicationGroupEditorUiState(
+            editingGroupId = editingGroupId,
+            isLoadingGroupForEditing = editingGroupUuid != null
+        )
+    )
+    val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -117,8 +124,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 }
         }
 
-        if (editingGroupId != null) {
-            loadGroupForEditing(editingGroupId)
+        if (editingGroupUuid != null) {
+            loadGroupForEditing(editingGroupUuid)
         }
     }
 
@@ -554,11 +561,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(deleteMedicationGroupResult = null) }
     }
 
-    private fun loadGroupForEditing(groupId: String) {
-        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
-
+    private fun loadGroupForEditing(uuid: UUID) {
         viewModelScope.launch {
-            val group = medicationGroupRepository.getGroup(uuid) ?: return@launch
+            val group = medicationGroupRepository.getGroup(uuid)
+            if (group == null) {
+                _uiState.update { it.copy(isLoadingGroupForEditing = false) }
+                return@launch
+            }
             val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
 
             _uiState.value = MedicationGroupEditorUiState(
@@ -597,6 +606,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 hasResolvedNotificationDefault = true,
                 groupColorKey = group.colorKey,
                 hasAssignedGroupColor = true,
+                isLoadingGroupForEditing = false,
                 medications = group.medications.map { medication ->
                     MedicationGroupMedicationItemUiState(
                         localId = medication.uuid.toString(),
@@ -800,6 +810,7 @@ data class MedicationGroupEditorUiState(
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val isDeletingRelatedEntries: Boolean = false,
+    val isLoadingGroupForEditing: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
