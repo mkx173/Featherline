@@ -79,6 +79,7 @@ class PlanBatchAddViewModel @Inject constructor(
             manualEntryCount = entryInputs.count { entry -> entry.sourceGroupUuid == null },
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
+            savedEntryCount = selection.savedEntryCount,
             saveResult = selection.saveResult,
         )
     }.stateIn(
@@ -100,6 +101,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 startDate = group.schedule.since,
                 endDate = LocalDate.now(),
                 isSaved = false,
+                savedEntryCount = null,
                 saveResult = null,
             )
         }
@@ -112,6 +114,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 startDate = null,
                 endDate = null,
                 isSaved = false,
+                savedEntryCount = null,
                 saveResult = null,
             )
         }
@@ -125,6 +128,7 @@ class PlanBatchAddViewModel @Inject constructor(
                     if (date.isAfter(endDate)) date else endDate
                 },
                 isSaved = false,
+                savedEntryCount = null,
                 saveResult = null,
             )
         }
@@ -138,6 +142,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 },
                 endDate = date,
                 isSaved = false,
+                savedEntryCount = null,
                 saveResult = null,
             )
         }
@@ -151,7 +156,12 @@ class PlanBatchAddViewModel @Inject constructor(
 
         viewModelScope.launch {
             selectionState.update { state ->
-                state.copy(isSaving = true, isSaved = false, saveResult = null)
+                state.copy(
+                    isSaving = true,
+                    isSaved = false,
+                    savedEntryCount = null,
+                    saveResult = null,
+                )
             }
             val saveResult = runCatching {
                 medicationLogRepository.saveNewEntries(entriesToSave)
@@ -164,18 +174,31 @@ class PlanBatchAddViewModel @Inject constructor(
                 runCatching { medicationReminderScheduler.rescheduleAll() }
             }
             selectionState.update { state ->
-                state.copy(
-                    isSaving = false,
-                    isSaved = isSaved,
-                    saveResult = saveResult,
-                )
+                if (isSaved) {
+                    state.copy(
+                        selectedGroupUuid = null,
+                        startDate = null,
+                        endDate = null,
+                        isSaving = false,
+                        isSaved = true,
+                        savedEntryCount = entriesToSave.size,
+                        saveResult = null,
+                    )
+                } else {
+                    state.copy(
+                        isSaving = false,
+                        isSaved = false,
+                        savedEntryCount = null,
+                        saveResult = saveResult,
+                    )
+                }
             }
         }
     }
 
     fun consumeSavedState() {
         selectionState.update { state ->
-            state.copy(isSaved = false)
+            state.copy(isSaved = false, savedEntryCount = null)
         }
     }
 
@@ -200,6 +223,7 @@ data class PlanBatchAddUiState(
     val manualEntryCount: Int = 0,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
+    val savedEntryCount: Int? = null,
     val saveResult: PlanBatchAddSaveResult? = null,
 ) {
     val entryCount: Int
@@ -219,6 +243,7 @@ private data class PlanBatchAddSelectionState(
     val endDate: LocalDate? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
+    val savedEntryCount: Int? = null,
     val saveResult: PlanBatchAddSaveResult? = null,
 )
 

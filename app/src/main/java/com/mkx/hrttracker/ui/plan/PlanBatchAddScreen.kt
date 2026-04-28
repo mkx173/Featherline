@@ -71,7 +71,6 @@ import java.util.UUID
 @Composable
 fun PlanBatchAddScreen(
     onNavigateBack: () -> Unit,
-    onEntriesSaved: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlanBatchAddViewModel = hiltViewModel(),
 ) {
@@ -80,7 +79,6 @@ fun PlanBatchAddScreen(
     PlanBatchAddScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
-        onEntriesSaved = onEntriesSaved,
         onGroupSelected = viewModel::selectGroup,
         onSelectionCleared = viewModel::clearSelection,
         onStartDateSelected = viewModel::updateStartDate,
@@ -97,7 +95,6 @@ fun PlanBatchAddScreen(
 private fun PlanBatchAddScreenContent(
     uiState: PlanBatchAddUiState,
     onNavigateBack: () -> Unit,
-    onEntriesSaved: () -> Unit,
     onGroupSelected: (UUID) -> Unit,
     onSelectionCleared: () -> Unit,
     onStartDateSelected: (LocalDate) -> Unit,
@@ -128,6 +125,12 @@ private fun PlanBatchAddScreenContent(
         mutableStateOf(false)
     }
     val saveFailureMessage = stringResource(R.string.plan_batch_add_failure)
+    val savedEntryCount = uiState.savedEntryCount ?: 0
+    val saveSuccessMessage = pluralStringResource(
+        R.plurals.plan_batch_add_success,
+        savedEntryCount,
+        savedEntryCount,
+    )
     val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
 
     fun clearSelectionAndDismissDialogs() {
@@ -169,10 +172,12 @@ private fun PlanBatchAddScreenContent(
         }
     }
 
-    LaunchedEffect(uiState.isSaved) {
+    LaunchedEffect(uiState.isSaved, savedEntryCount) {
         if (uiState.isSaved) {
+            if (savedEntryCount > 0) {
+                Toast.makeText(context, saveSuccessMessage, Toast.LENGTH_SHORT).show()
+            }
             onSavedStateConsumed()
-            onEntriesSaved()
         }
     }
 
@@ -525,7 +530,6 @@ private fun PlanBatchAddScreenPreview() {
                 nextOccurrencesByGroup = buildPlanPreviewUiState().nextOccurrencesByGroup,
             ),
             onNavigateBack = { },
-            onEntriesSaved = { },
             onGroupSelected = { },
             onSelectionCleared = { },
             onStartDateSelected = { },

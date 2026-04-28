@@ -1422,6 +1422,11 @@ internal fun HistoryEntryGroupHeader(
                             HistoryIndicatorColorMode.Neutral
                         } else {
                             HistoryIndicatorColorMode.Emphasized
+                        },
+                        selectedColor = if (isToday) {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        } else {
+                            null
                         }
                     ),
                     modifier = Modifier.size(14.dp),

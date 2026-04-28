@@ -369,7 +369,6 @@ fun HrtTrackerNavHost(
                 PlanBatchAddScreen(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
-                    onEntriesSaved = { navController.popBackStack() },
                 )
             }
             composable(

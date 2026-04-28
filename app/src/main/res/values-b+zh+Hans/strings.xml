@@ -462,6 +462,9 @@
     <plurals name="plan_batch_add_entries_to_add">
         <item quantity="other">将添加 %1$d 条记录</item>
     </plurals>
+    <plurals name="plan_batch_add_success">
+        <item quantity="other">已添加 %1$d 条记录</item>
+    </plurals>
     <plurals name="plan_batch_add_confirm_message">
         <item quantity="other">要为「%2$s」在 %3$s 至 %4$s 期间添加 %1$d 条记录吗？</item>
     </plurals>

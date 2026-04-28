@@ -473,6 +473,10 @@
         <item quantity="one">%1$d record will be added</item>
         <item quantity="other">%1$d records will be added</item>
     </plurals>
+    <plurals name="plan_batch_add_success">
+        <item quantity="one">Added %1$d record.</item>
+        <item quantity="other">Added %1$d records.</item>
+    </plurals>
     <plurals name="plan_batch_add_confirm_message">
         <item quantity="one">Add %1$d record for %2$s from %3$s to %4$s?</item>
         <item quantity="other">Add %1$d records for %2$s from %3$s to %4$s?</item>
