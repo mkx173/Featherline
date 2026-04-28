@@ -33,6 +33,10 @@ fun SupportMessageListItem(
     textStyle: TextStyle = MaterialTheme.typography.labelMedium,
     supportingTextStyle: TextStyle? = null,
     titleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    leadingIconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    leadingIconSize: Dp = 20.dp,
+    chevronTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    chevronSize: Dp = 24.dp,
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
@@ -51,7 +55,8 @@ fun SupportMessageListItem(
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = leadingIconTint,
+                            modifier = Modifier.size(leadingIconSize)
                         )
                     }
                 }
@@ -61,8 +66,8 @@ fun SupportMessageListItem(
                         Icon(
                             painter = painter,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            tint = leadingIconTint,
+                            modifier = Modifier.size(leadingIconSize)
                         )
                     }
                 }
@@ -74,8 +79,8 @@ fun SupportMessageListItem(
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        tint = chevronTint,
+                        modifier = Modifier.size(chevronSize)
                     )
                 }
             } else {

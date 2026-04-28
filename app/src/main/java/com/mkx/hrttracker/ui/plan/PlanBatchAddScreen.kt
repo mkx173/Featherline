@@ -327,6 +327,8 @@ private fun PlanBatchAddRangeSelector(
             onClick = onDateRangeClick,
             modifier = Modifier.fillMaxWidth(),
             icon = Icons.Rounded.Event,
+            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+            leadingIconSize = 24.dp,
             showChevron = true,
             index = 0,
             count = 2
@@ -344,14 +346,18 @@ private fun PlanBatchAddRangeSelector(
                 } else {
                     null
                 },
-                painter = painterResource(R.drawable.ic_info),
+                painter = painterResource(R.drawable.ic_data_info_alert),
+                leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                leadingIconSize = 24.dp,
                 index = 1,
                 count = 2
             )
         } else {
             SupportMessageListItem(
                 text = stringResource(R.string.plan_batch_add_no_entries),
-                painter = painterResource(R.drawable.ic_info),
+                painter = painterResource(R.drawable.ic_data_info_alert),
+                leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                leadingIconSize = 24.dp,
                 index = 1,
                 count = 2
             )

@@ -1018,6 +1018,8 @@ private fun MedicationGroupEditorScreenContent(
                             SupportMessageListItem(
                                 text = stringResource(R.string.settings_reminders_permission_off_summary),
                                 icon = Icons.Rounded.ErrorOutline,
+                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                leadingIconSize = 24.dp,
                                 onClick = onRecoverMasterReminders,
                                 showChevron = true,
                                 index = 1,
@@ -1029,6 +1031,8 @@ private fun MedicationGroupEditorScreenContent(
                             SupportMessageListItem(
                                 text = stringResource(R.string.group_notifications_master_disabled),
                                 icon = Icons.Rounded.ErrorOutline,
+                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                leadingIconSize = 24.dp,
                                 onClick = { isMasterReminderRecoveryDialogVisible = true },
                                 showChevron = true,
                                 index = 1,
@@ -1040,6 +1044,8 @@ private fun MedicationGroupEditorScreenContent(
                             SupportMessageListItem(
                                 text = stringResource(R.string.group_notifications_inexact_warning),
                                 icon = Icons.Rounded.ErrorOutline,
+                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                leadingIconSize = 24.dp,
                                 onClick = onRequestExactAlarmAccess,
                                 showChevron = true,
                                 index = 1,
