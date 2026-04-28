@@ -31,6 +31,7 @@ fun <T> ConnectedButtonGroup(
     selectedOption: T?,
     optionLabel: @Composable (T) -> String,
     optionIcons: ((T) -> List<ImageVector>)? = null,
+    optionLeadingContent: (@Composable (T) -> Unit)? = null,
     onOptionSelected: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -45,6 +46,7 @@ fun <T> ConnectedButtonGroup(
         isOptionSelected = { option -> option == resolvedSelectedOption },
         optionLabel = optionLabel,
         optionIcons = optionIcons,
+        optionLeadingContent = optionLeadingContent,
         onOptionToggled = { option ->
             if (option != resolvedSelectedOption) {
                 onOptionSelected(option)
@@ -66,6 +68,7 @@ fun <T> ConnectedButtonGroup(
     selectedOptions: Set<T>,
     optionLabel: @Composable (T) -> String,
     optionIcons: ((T) -> List<ImageVector>)? = null,
+    optionLeadingContent: (@Composable (T) -> Unit)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -79,6 +82,7 @@ fun <T> ConnectedButtonGroup(
         isOptionSelected = { option -> option in selectedOptions },
         optionLabel = optionLabel,
         optionIcons = optionIcons,
+        optionLeadingContent = optionLeadingContent,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         applyCjkTextOffset = applyCjkTextOffset,
@@ -96,6 +100,7 @@ private fun <T> ConnectedButtonGroup(
     isOptionSelected: (T) -> Boolean,
     optionLabel: @Composable (T) -> String,
     optionIcons: ((T) -> List<ImageVector>)? = null,
+    optionLeadingContent: (@Composable (T) -> Unit)? = null,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
@@ -121,6 +126,9 @@ private fun <T> ConnectedButtonGroup(
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
+                        optionLeadingContent = optionLeadingContent?.let { leadingContent ->
+                            { leadingContent(option) }
+                        },
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
@@ -154,6 +162,9 @@ private fun <T> ConnectedButtonGroup(
                         selected = isOptionSelected(option),
                         optionLabel = optionLabel,
                         optionIcons = optionIcons?.invoke(option).orEmpty(),
+                        optionLeadingContent = optionLeadingContent?.let { leadingContent ->
+                            { leadingContent(option) }
+                        },
                         onOptionToggled = onOptionToggled,
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
@@ -175,6 +186,7 @@ private fun <T> ConnectedButtonGroupButton(
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
     optionIcons: List<ImageVector>,
+    optionLeadingContent: (@Composable () -> Unit)?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     applyCjkTextOffset: Boolean,
@@ -193,13 +205,18 @@ private fun <T> ConnectedButtonGroupButton(
                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
             },
     ) {
-        optionIcons.forEach { icon ->
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
-            )
+        optionLeadingContent?.invoke()
+        if (optionLeadingContent != null) {
             Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
+        } else {
+            optionIcons.forEach { icon ->
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+                )
+                Spacer(modifier = Modifier.size(ToggleButtonDefaults.IconSpacing))
+            }
         }
         LocalizedButtonLabelText(
             text = optionLabel(option),
@@ -218,6 +235,7 @@ private fun <T> ConnectedButtonGroupRowButton(
     selected: Boolean,
     optionLabel: @Composable (T) -> String,
     optionIcons: List<ImageVector>,
+    optionLeadingContent: (@Composable () -> Unit)?,
     onOptionToggled: (T) -> Unit,
     enabled: Boolean,
     applyCjkTextOffset: Boolean,
@@ -231,6 +249,7 @@ private fun <T> ConnectedButtonGroupRowButton(
         selected = selected,
         optionLabel = optionLabel,
         optionIcons = optionIcons,
+        optionLeadingContent = optionLeadingContent,
         onOptionToggled = onOptionToggled,
         enabled = enabled,
         applyCjkTextOffset = applyCjkTextOffset,

@@ -125,7 +125,7 @@ class StructuredMedicationEditorSheetTest {
             medicationApplicationIconRes(MedicationApplicationType.ORAL)
         )
         assertEquals(
-            R.drawable.ic_pill_alt,
+            R.drawable.ic_pill,
             medicationApplicationIconRes(MedicationApplicationType.SUBLINGUAL)
         )
         assertEquals(

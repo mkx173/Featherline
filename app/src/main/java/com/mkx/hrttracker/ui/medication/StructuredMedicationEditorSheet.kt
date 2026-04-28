@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -46,6 +47,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -102,7 +104,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StructuredMedicationEditorSheet(
     modifier: Modifier = Modifier,
@@ -171,7 +173,6 @@ fun StructuredMedicationEditorSheet(
             onDecreaseCountClick != null &&
             onIncreaseCountClick != null
     }
-    val applicationTypeButtonIcons = rememberMedicationApplicationIcons()
     val customNameFocusRequester = remember { FocusRequester() }
     val doseMgFocusRequester = remember { FocusRequester() }
     val gelPercentFocusRequester = remember { FocusRequester() }
@@ -264,8 +265,12 @@ fun StructuredMedicationEditorSheet(
                     options = MedicationCatalog.applicationTypesFor(draft.category),
                     selectedOption = draft.applicationType,
                     optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-                    optionIcons = { applicationType ->
-                        listOf(applicationTypeButtonIcons.getValue(applicationType))
+                    optionLeadingContent = { applicationType ->
+                        MedicationApplicationIcon(
+                            applicationType = applicationType,
+                            contentDescription = null,
+                            modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+                        )
                     },
                     onOptionSelected = onApplicationTypeChange,
                 )

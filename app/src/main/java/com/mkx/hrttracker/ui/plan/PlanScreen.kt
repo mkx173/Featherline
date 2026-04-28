@@ -854,16 +854,16 @@ private fun PlanDayIndicatorGlyph(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    val imageVector = when (kind) {
-        PlanDayIndicatorKind.CHECK -> Icons.Rounded.CheckCircleOutline
-        PlanDayIndicatorKind.PARTIAL -> Icons.Rounded.Contrast
-        PlanDayIndicatorKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
-        PlanDayIndicatorKind.FUTURE -> Icons.Rounded.DonutLarge
-        PlanDayIndicatorKind.OFFPLAN -> Icons.Rounded.Circle
-        PlanDayIndicatorKind.NO_RECORD -> Icons.Rounded.Remove
+    val painter = when (kind) {
+        PlanDayIndicatorKind.CHECK -> R.drawable.ic_check_circle
+        PlanDayIndicatorKind.PARTIAL -> R.drawable.ic_contrast
+        PlanDayIndicatorKind.MISSED -> R.drawable.ic_radio_button_unchecked
+        PlanDayIndicatorKind.FUTURE -> R.drawable.ic_donut_large
+        PlanDayIndicatorKind.OFFPLAN -> R.drawable.ic_circle
+        PlanDayIndicatorKind.NO_RECORD -> R.drawable.ic_remove
     }
     Icon(
-        imageVector = imageVector,
+        painter = painterResource(painter),
         contentDescription = null,
         tint = color,
         modifier = modifier

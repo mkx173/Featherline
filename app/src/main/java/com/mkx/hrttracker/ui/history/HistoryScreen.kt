@@ -847,15 +847,15 @@ private fun HistorySummaryIndicatorGlyph(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    val imageVector = when (kind) {
-        HistorySummaryInlineStatKind.CHECK -> Icons.Rounded.CheckCircleOutline
-        HistorySummaryInlineStatKind.PARTIAL -> Icons.Rounded.Contrast
-        HistorySummaryInlineStatKind.MISSED -> Icons.Rounded.RadioButtonUnchecked
-        HistorySummaryInlineStatKind.OFFPLAN -> Icons.Rounded.Circle
-        HistorySummaryInlineStatKind.NO_RECORD -> Icons.Rounded.Remove
+    val painter = when (kind) {
+        HistorySummaryInlineStatKind.CHECK -> R.drawable.ic_check_circle
+        HistorySummaryInlineStatKind.PARTIAL -> R.drawable.ic_contrast
+        HistorySummaryInlineStatKind.MISSED -> R.drawable.ic_radio_button_unchecked
+        HistorySummaryInlineStatKind.OFFPLAN -> R.drawable.ic_circle
+        HistorySummaryInlineStatKind.NO_RECORD -> R.drawable.ic_remove
     }
     Icon(
-        imageVector = imageVector,
+        painter = painterResource(painter),
         contentDescription = null,
         tint = color,
         modifier = modifier

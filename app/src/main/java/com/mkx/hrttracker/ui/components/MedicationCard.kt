@@ -38,9 +38,9 @@ import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationSupportingText
-import com.mkx.hrttracker.ui.medication.rememberMedicationApplicationIcons
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
@@ -64,8 +64,6 @@ internal fun MedicationCard(
 ) {
     val fallbackColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
     val groupColorScheme = colorScheme ?: fallbackColorScheme
-    val applicationTypeIcon = rememberMedicationApplicationIcons()
-        .getValue(details.applicationType)
     val applicationTypeLabel = stringResource(details.applicationType.labelRes)
     val medicationName = medicationDisplayName(details)
     val supportingText = medicationSupportingText(
@@ -116,10 +114,11 @@ internal fun MedicationCard(
                     modifier = Modifier.size(36.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = applicationTypeIcon,
+                    MedicationApplicationIcon(
+                        applicationType = details.applicationType,
                         contentDescription = applicationTypeLabel,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
+                        scheduleIconSize = 9.dp,
                     )
                 }
             }

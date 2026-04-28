@@ -64,10 +64,10 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
+import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationSupportingText
-import com.mkx.hrttracker.ui.medication.rememberMedicationApplicationIcons
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -670,8 +670,6 @@ private fun RegimenMedicationChip(
     medicationName: String,
     doseSummary: String,
 ) {
-    val applicationTypeIcon = rememberMedicationApplicationIcons()
-        .getValue(applicationType)
     val applicationTypeLabel = stringResource(applicationType.labelRes)
 
     Surface(
@@ -684,10 +682,11 @@ private fun RegimenMedicationChip(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
-            Icon(
-                imageVector = applicationTypeIcon,
+            MedicationApplicationIcon(
+                applicationType = applicationType,
                 contentDescription = applicationTypeLabel,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(14.dp),
+                scheduleIconSize = 6.dp,
             )
             val medicationString =
                 listOfNotNull(medicationName, doseSummary.takeIf { it.isNotBlank() })
