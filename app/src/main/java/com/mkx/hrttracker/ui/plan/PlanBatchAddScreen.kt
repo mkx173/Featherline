@@ -261,6 +261,9 @@ private fun PlanBatchAddScreenContent(
                             index = index,
                             itemCount = uiState.groups.size,
                             selected = group.uuid == uiState.selectedGroupUuid,
+                            showNotificationIcon = false,
+                            showChevron = false,
+                            showUpcomingSection = false,
                         )
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                     }

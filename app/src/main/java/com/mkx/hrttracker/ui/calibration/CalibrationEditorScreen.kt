@@ -523,7 +523,7 @@ private fun CalibrationAddAnalyteSheetContent(
             .padding(
                 start = dimensionResource(R.dimen.padding_large),
                 end = dimensionResource(R.dimen.padding_large),
-                bottom = dimensionResource(R.dimen.padding_medium),
+                bottom = dimensionResource(R.dimen.padding_large),
             ),
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
     ) {

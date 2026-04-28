@@ -296,6 +296,9 @@ internal fun RegimenGroupCard(
     index: Int = 0,
     itemCount: Int = 1,
     selected: Boolean = false,
+    showNotificationIcon: Boolean = true,
+    showChevron: Boolean = true,
+    showUpcomingSection: Boolean = true,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
     val startDateFormatter = remember(appLocale) {
@@ -315,13 +318,14 @@ internal fun RegimenGroupCard(
         index = index,
         count = itemCount,
         containerColor = if (selected) {
-            groupColorScheme.secondaryContainer
+            MaterialTheme.colorScheme.secondaryContainer
         } else {
             MaterialTheme.colorScheme.surfaceContainerLow
         }
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 4.dp)
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -417,7 +421,9 @@ internal fun RegimenGroupCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (shouldShowRegimenNotificationIcon(remindersEnabled, hasNotificationAccess)) {
+                    if (showNotificationIcon &&
+                        shouldShowRegimenNotificationIcon(remindersEnabled, hasNotificationAccess)
+                    ) {
                         val notificationsEnabled = isRegimenNotificationIconEnabled(
                             remindersEnabled = remindersEnabled,
                             hasNotificationAccess = hasNotificationAccess,
@@ -444,19 +450,21 @@ internal fun RegimenGroupCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    Icon(
-                        imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
-                        contentDescription = if (selected) {
-                            stringResource(R.string.plan_batch_add_group_selected)
-                        } else {
-                            null
-                        },
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
+                    if (selected || showChevron) {
+                        Icon(
+                            imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
+                            contentDescription = if (selected) {
+                                stringResource(R.string.plan_batch_add_group_selected)
+                            } else {
+                                null
+                            },
+                            tint = if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                 }
             }
 
@@ -477,33 +485,35 @@ internal fun RegimenGroupCard(
                 }
             }
 
-            HorizontalDivider(
-                modifier = Modifier.padding(top = 4.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = stringResource(R.string.plan_group_upcoming_title).uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (showUpcomingSection) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    upcomingOccurrences.forEachIndexed { index, occurrence ->
-                        val dayLabel = when (occurrence.toLocalDate()) {
-                            today -> stringResource(R.string.plan_group_upcoming_today)
-                            today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
-                            else -> dateFormatter(occurrence.toLocalDate())
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = stringResource(R.string.plan_group_upcoming_title).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        upcomingOccurrences.forEachIndexed { index, occurrence ->
+                            val dayLabel = when (occurrence.toLocalDate()) {
+                                today -> stringResource(R.string.plan_group_upcoming_today)
+                                today.plusDays(1) -> stringResource(R.string.plan_group_upcoming_tomorrow)
+                                else -> dateFormatter(occurrence.toLocalDate())
+                            }
+                            UpcomingOccurrenceChip(
+                                label = dayLabel,
+                                time = occurrence.toLocalTime().format(timeFormatter),
+                                emphasized = index == 0
+                            )
                         }
-                        UpcomingOccurrenceChip(
-                            label = dayLabel,
-                            time = occurrence.toLocalTime().format(timeFormatter),
-                            emphasized = index == 0
-                        )
                     }
                 }
             }

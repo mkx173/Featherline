@@ -1438,7 +1438,7 @@ internal fun HistoryEntryGroupHeader(
                     text = weekdayDisplayLabel,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isToday) {
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
