@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,8 +12,10 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,12 +25,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.Badge
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +41,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -254,17 +254,10 @@ private fun SelectedDayRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            SelectedDayRowLeading(
+            SelectedDayMedicationIconSurface(
                 state = rowState,
+                applicationType = row.details.applicationType,
                 colorScheme = rowColorScheme
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = 4.dp, height = 40.dp)
-                    .background(
-                        color = rowColorScheme.primary,
-                        shape = RoundedCornerShape(3.dp)
-                    )
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -512,123 +505,55 @@ private fun scheduleIntervalLabel(
 }
 
 @Composable
-private fun SelectedDayRowLeading(
+private fun SelectedDayMedicationIconSurface(
     state: SelectedDayRowState,
+    applicationType: MedicationApplicationType,
     colorScheme: ColorScheme
 ) {
-    when (state) {
-        SelectedDayRowState.LOGGED -> {
+    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    val showDueBadge = state == SelectedDayRowState.DUE
+    val useOutlinedIcon = state == SelectedDayRowState.PAST_DUE ||
+        state == SelectedDayRowState.MISSED
+
+    Box(
+        modifier = Modifier.size(36.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = MaterialTheme.shapes.small,
+            color = colorScheme.secondaryContainer,
+            contentColor = colorScheme.onSecondaryContainer
+        ) {
             Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(
-                        color = fulfilledIndicatorColor,
-                        shape = CircleShape
-                    ),
+                modifier = Modifier.size(36.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        SelectedDayRowState.PAST_DUE -> {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .border(
-                        width = 2.dp,
-                        color = overdueScheduledIndicatorColor,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = null,
-                    tint = overdueScheduledIndicatorColor,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        SelectedDayRowState.MISSED -> {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .border(
-                        width = 2.dp,
-                        color = overdueScheduledIndicatorColor,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = null,
-                    tint = overdueScheduledIndicatorColor,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        SelectedDayRowState.DUE -> {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape
+                if (state == SelectedDayRowState.LOGGED) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
                     )
-                    .border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(14.dp)
-                )
+                } else {
+                    MedicationApplicationIcon(
+                        applicationType = applicationType,
+                        contentDescription = applicationTypeLabel,
+                        modifier = Modifier.size(20.dp),
+                        scheduleIconSize = 9.dp,
+                        outlined = useOutlinedIcon,
+                    )
+                }
             }
         }
-
-        SelectedDayRowState.PLANNED -> {
-            Box(
+        if (showDueBadge) {
+            Badge(
+                containerColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
-                    .size(28.dp)
-                    .border(
-                        width = 1.5.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = CircleShape
-                    )
+                    .align(Alignment.TopEnd)
+                    .size(8.dp)
+                    .offset(x = 1.dp, y = (-1).dp)
             )
-        }
-
-        SelectedDayRowState.MANUAL -> {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(
-                        color = colorScheme.secondaryContainer,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
         }
     }
 }

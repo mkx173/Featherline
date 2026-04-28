@@ -147,6 +147,34 @@ class StructuredMedicationEditorSheetTest {
     }
 
     @Test
+    fun medicationApplicationOutlinedIconRes_uses_requested_alt_icons() {
+        assertEquals(
+            R.drawable.ic_pill_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.ORAL)
+        )
+        assertEquals(
+            R.drawable.ic_pill_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.SUBLINGUAL)
+        )
+        assertEquals(
+            R.drawable.ic_syringe_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.INJECTION)
+        )
+        assertEquals(
+            R.drawable.ic_water_drops_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.GEL)
+        )
+        assertEquals(
+            R.drawable.ic_sticker_add_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_ON)
+        )
+        assertEquals(
+            R.drawable.ic_tab_close_inactive_alt,
+            medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF)
+        )
+    }
+
+    @Test
     fun resolveDoseTextFieldValue_uses_placeholder_as_display_text_when_disabled() {
         assertEquals(
             "Patch removal has no dose fields.",

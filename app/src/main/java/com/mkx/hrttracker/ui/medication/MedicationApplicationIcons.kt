@@ -19,12 +19,19 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 
 @Composable
-internal fun rememberMedicationApplicationIcons(): Map<MedicationApplicationType, ImageVector> {
-    val pillIcon = ImageVector.vectorResource(medicationApplicationIconRes(MedicationApplicationType.ORAL))
-    val injectionIcon = ImageVector.vectorResource(medicationApplicationIconRes(MedicationApplicationType.INJECTION))
-    val gelIcon = ImageVector.vectorResource(medicationApplicationIconRes(MedicationApplicationType.GEL))
-    val patchOnIcon = ImageVector.vectorResource(medicationApplicationIconRes(MedicationApplicationType.PATCH_ON))
-    val patchOffIcon = ImageVector.vectorResource(medicationApplicationIconRes(MedicationApplicationType.PATCH_OFF))
+internal fun rememberMedicationApplicationIcons(
+    outlined: Boolean = false
+): Map<MedicationApplicationType, ImageVector> {
+    val iconRes: (MedicationApplicationType) -> Int = if (outlined) {
+        ::medicationApplicationOutlinedIconRes
+    } else {
+        ::medicationApplicationIconRes
+    }
+    val pillIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.ORAL))
+    val injectionIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.INJECTION))
+    val gelIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.GEL))
+    val patchOnIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.PATCH_ON))
+    val patchOffIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.PATCH_OFF))
     return remember(pillIcon, injectionIcon, gelIcon, patchOnIcon, patchOffIcon) {
         mapOf(
             MedicationApplicationType.ORAL to pillIcon,
@@ -43,8 +50,10 @@ internal fun MedicationApplicationIcon(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     scheduleIconSize: Dp = 9.dp,
+    outlined: Boolean = false,
 ) {
-    val applicationTypeIcon = rememberMedicationApplicationIcons().getValue(applicationType)
+    val applicationTypeIcon = rememberMedicationApplicationIcons(outlined = outlined)
+        .getValue(applicationType)
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
@@ -75,5 +84,17 @@ internal fun medicationApplicationIconRes(applicationType: MedicationApplication
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops
         MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add
         MedicationApplicationType.PATCH_OFF -> R.drawable.ic_tab_close_inactive
+    }
+}
+
+@DrawableRes
+internal fun medicationApplicationOutlinedIconRes(applicationType: MedicationApplicationType): Int {
+    return when (applicationType) {
+        MedicationApplicationType.ORAL -> R.drawable.ic_pill_alt
+        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_pill_alt
+        MedicationApplicationType.INJECTION -> R.drawable.ic_syringe_alt
+        MedicationApplicationType.GEL -> R.drawable.ic_water_drops_alt
+        MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add_alt
+        MedicationApplicationType.PATCH_OFF -> R.drawable.ic_tab_close_inactive_alt
     }
 }
