@@ -88,12 +88,29 @@ class PlanBatchAddViewModel @Inject constructor(
     )
 
     fun selectGroup(groupUuid: UUID) {
+        if (selectionState.value.selectedGroupUuid == groupUuid) {
+            clearSelection()
+            return
+        }
+
         val group = uiState.value.groups.firstOrNull { group -> group.uuid == groupUuid } ?: return
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = groupUuid,
                 startDate = group.schedule.since,
                 endDate = LocalDate.now(),
+                isSaved = false,
+                saveResult = null,
+            )
+        }
+    }
+
+    fun clearSelection() {
+        selectionState.update { state ->
+            state.copy(
+                selectedGroupUuid = null,
+                startDate = null,
+                endDate = null,
                 isSaved = false,
                 saveResult = null,
             )

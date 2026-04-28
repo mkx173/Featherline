@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +81,7 @@ fun PlanBatchAddScreen(
         onNavigateBack = onNavigateBack,
         onEntriesSaved = onEntriesSaved,
         onGroupSelected = viewModel::selectGroup,
+        onSelectionCleared = viewModel::clearSelection,
         onStartDateSelected = viewModel::updateStartDate,
         onEndDateSelected = viewModel::updateEndDate,
         onSaveClick = viewModel::saveSelectedRange,
@@ -96,6 +98,7 @@ private fun PlanBatchAddScreenContent(
     onNavigateBack: () -> Unit,
     onEntriesSaved: () -> Unit,
     onGroupSelected: (UUID) -> Unit,
+    onSelectionCleared: () -> Unit,
     onStartDateSelected: (LocalDate) -> Unit,
     onEndDateSelected: (LocalDate) -> Unit,
     onSaveClick: () -> Unit,
@@ -124,6 +127,17 @@ private fun PlanBatchAddScreenContent(
         mutableStateOf(false)
     }
     val saveFailureMessage = stringResource(R.string.plan_batch_add_failure)
+    val shouldDeselectOnBack = uiState.selectedGroupUuid != null && !uiState.isSaving
+
+    fun clearSelectionAndDismissDialogs() {
+        isRangePickerVisible = false
+        isConfirmationVisible = false
+        onSelectionCleared()
+    }
+
+    BackHandler(enabled = shouldDeselectOnBack) {
+        clearSelectionAndDismissDialogs()
+    }
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
@@ -196,7 +210,15 @@ private fun PlanBatchAddScreenContent(
             TopAppBar(
                 title = { Text(text = stringResource(R.string.plan_batch_add_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = {
+                            if (shouldDeselectOnBack) {
+                                clearSelectionAndDismissDialogs()
+                            } else {
+                                onNavigateBack()
+                            }
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.navigate_back)
@@ -504,6 +526,7 @@ private fun PlanBatchAddScreenPreview() {
             onNavigateBack = { },
             onEntriesSaved = { },
             onGroupSelected = { },
+            onSelectionCleared = { },
             onStartDateSelected = { },
             onEndDateSelected = { },
             onSaveClick = { },
