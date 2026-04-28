@@ -37,20 +37,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.history.HistoryScreen
+import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
-import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
-import java.time.LocalDateTime
 import java.util.UUID
 
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
@@ -185,7 +183,6 @@ fun HrtTrackerNavHost(
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
-    var quickLogPlannedDoseRequest by remember { mutableStateOf<QuickLogPlannedDoseRequest?>(null) }
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -289,11 +286,13 @@ fun HrtTrackerNavHost(
                     scrollToTopSignal = mainScrollToTopSignal,
                     onQuickLogDoseClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         if (medicationCount > 0) {
-                            quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
-                                groupId = groupId,
-                                scheduledFor = scheduledAt,
-                                medicationDetails = medicationDetails,
-                                medicationCount = medicationCount
+                            addEntrySheetRequest = AddEntrySheetRequest(
+                                quickLogRequest = AddEntryQuickLogRequest(
+                                    groupId = groupId,
+                                    scheduledFor = scheduledAt,
+                                    medicationDetails = medicationDetails,
+                                    medicationCount = medicationCount
+                                )
                             )
                         }
                     }
@@ -318,11 +317,13 @@ fun HrtTrackerNavHost(
                     },
                     onQuickLogClick = { groupId, scheduledAt, medicationDetails, medicationCount ->
                         if (medicationCount > 0) {
-                            quickLogPlannedDoseRequest = QuickLogPlannedDoseRequest(
-                                groupId = groupId,
-                                scheduledFor = scheduledAt,
-                                medicationDetails = medicationDetails,
-                                medicationCount = medicationCount
+                            addEntrySheetRequest = AddEntrySheetRequest(
+                                quickLogRequest = AddEntryQuickLogRequest(
+                                    groupId = groupId,
+                                    scheduledFor = scheduledAt,
+                                    medicationDetails = medicationDetails,
+                                    medicationCount = medicationCount
+                                )
                             )
                         }
                     },
@@ -463,19 +464,9 @@ fun HrtTrackerNavHost(
         AddEntryScreen(
             modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
             entryIds = request.entryIds,
+            quickLogRequest = request.quickLogRequest,
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
-        )
-    }
-
-    quickLogPlannedDoseRequest?.let { request ->
-        QuickLogPlannedDoseSheet(
-            groupId = request.groupId,
-            scheduledFor = request.scheduledFor,
-            medicationDetails = request.medicationDetails,
-            medicationCount = request.medicationCount,
-            onDismissRequest = { quickLogPlannedDoseRequest = null },
-            onEntriesSaved = { quickLogPlannedDoseRequest = null }
         )
     }
 }
@@ -483,12 +474,6 @@ fun HrtTrackerNavHost(
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 
 private data class AddEntrySheetRequest(
-    val entryIds: List<String>,
-)
-
-private data class QuickLogPlannedDoseRequest(
-    val groupId: UUID,
-    val scheduledFor: LocalDateTime,
-    val medicationDetails: MedicationDetails,
-    val medicationCount: Int,
+    val entryIds: List<String> = emptyList(),
+    val quickLogRequest: AddEntryQuickLogRequest? = null,
 )

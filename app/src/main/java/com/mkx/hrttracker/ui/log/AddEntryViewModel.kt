@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -47,10 +48,64 @@ class AddEntryViewModel @Inject constructor(
     fun initialize(entryIds: List<String>) {
         loadEntryJob?.cancel()
         val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
-        _uiState.value = AddEntryUiState(editingEntryIds = normalizedEntryIds)
+        _uiState.value = AddEntryUiState(
+            editingEntryIds = normalizedEntryIds,
+            isLoading = normalizedEntryIds.isNotEmpty()
+        )
 
         if (normalizedEntryIds.isNotEmpty()) {
             loadEntriesForEditing(normalizedEntryIds)
+        }
+    }
+
+    fun initializeQuickLog(
+        groupId: UUID,
+        scheduledFor: LocalDateTime,
+        medicationDetails: MedicationDetails,
+        medicationCount: Int,
+    ) {
+        loadEntryJob?.cancel()
+        val cachedGroup = medicationGroupRepository.getCachedGroup(groupId)
+        _uiState.value = buildQuickLogUiState(
+            groupId = groupId,
+            group = cachedGroup,
+            scheduledFor = scheduledFor,
+            medicationDetails = medicationDetails,
+            medicationCount = medicationCount,
+            appliedAt = LocalDateTime.now(),
+            isLoading = cachedGroup == null,
+        )
+
+        loadEntryJob = viewModelScope.launch {
+            val group = cachedGroup ?: runCatching {
+                medicationGroupRepository.getGroup(groupId)
+            }.getOrNull()
+            if (group == null) {
+                _uiState.update { currentState ->
+                    if (currentState.sourceGroupUuid == groupId &&
+                        currentState.scheduledFor == scheduledFor
+                    ) {
+                        currentState.copy(isLoading = false, isSaved = true)
+                    } else {
+                        currentState
+                    }
+                }
+                return@launch
+            }
+
+            _uiState.update { currentState ->
+                if (currentState.sourceGroupUuid == groupId &&
+                    currentState.scheduledFor == scheduledFor
+                ) {
+                    currentState.copy(
+                        sourceGroupName = group.name,
+                        sourceGroupColorKey = group.colorKey,
+                        isLoading = false,
+                    )
+                } else {
+                    currentState
+                }
+            }
         }
     }
 
@@ -126,7 +181,7 @@ class AddEntryViewModel @Inject constructor(
 
     fun saveEntry() {
         val currentState = _uiState.value
-        if (currentState.isSaving || currentState.isDeleting) {
+        if (currentState.isLoading || currentState.isSaving || currentState.isDeleting) {
             return
         }
         val appliedAt = LocalDateTime.of(
@@ -205,7 +260,7 @@ class AddEntryViewModel @Inject constructor(
 
     fun deleteEntry() {
         val currentState = _uiState.value
-        if (currentState.isSaving || currentState.isDeleting) {
+        if (currentState.isLoading || currentState.isSaving || currentState.isDeleting) {
             return
         }
         val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
@@ -281,6 +336,7 @@ data class AddEntryUiState(
     val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
+    val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val isSaved: Boolean = false,
@@ -303,6 +359,13 @@ data class AddEntryUiState(
     val canDelete: Boolean
         get() = isEditing
 }
+
+data class AddEntryQuickLogRequest(
+    val groupId: UUID,
+    val scheduledFor: LocalDateTime,
+    val medicationDetails: MedicationDetails,
+    val medicationCount: Int,
+)
 
 enum class SaveEntryResult {
     FAILURE,
@@ -342,6 +405,31 @@ internal fun buildEditingUiState(
         ).toString(),
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
+    )
+}
+
+internal fun buildQuickLogUiState(
+    groupId: UUID,
+    group: MedicationGroup?,
+    scheduledFor: LocalDateTime,
+    medicationDetails: MedicationDetails,
+    medicationCount: Int,
+    appliedAt: LocalDateTime,
+    isLoading: Boolean = false,
+): AddEntryUiState {
+    return AddEntryUiState(
+        medicationDraft = medicationDraftFromDetails(medicationDetails),
+        sourceGroupUuid = groupId,
+        sourceGroupName = group?.name,
+        sourceGroupColorKey = group?.colorKey,
+        scheduledFor = scheduledFor,
+        countText = normalizeMedicationCount(
+            medicationDetails.applicationType,
+            medicationCount
+        ).toString(),
+        appliedDate = appliedAt.toLocalDate(),
+        appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0),
+        isLoading = isLoading,
     )
 }
 

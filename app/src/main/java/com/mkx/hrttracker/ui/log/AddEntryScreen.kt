@@ -38,6 +38,7 @@ import java.time.LocalTime
 @Composable
 fun AddEntryScreen(
     entryIds: List<String>,
+    quickLogRequest: AddEntryQuickLogRequest? = null,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     modifier: Modifier = Modifier,
@@ -49,8 +50,17 @@ fun AddEntryScreen(
     )
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(entryIds) {
-        viewModel.initialize(entryIds)
+    LaunchedEffect(entryIds, quickLogRequest) {
+        if (quickLogRequest == null) {
+            viewModel.initialize(entryIds)
+        } else {
+            viewModel.initializeQuickLog(
+                groupId = quickLogRequest.groupId,
+                scheduledFor = quickLogRequest.scheduledFor,
+                medicationDetails = quickLogRequest.medicationDetails,
+                medicationCount = quickLogRequest.medicationCount,
+            )
+        }
     }
 
     LaunchedEffect(uiState.isSaved) {
@@ -187,7 +197,7 @@ private fun AddEntryScreenContent(
         onAppliedTimeChange = onAppliedTimeChange,
         showAppliedAtFields = true,
         errorMessageRes = uiState.errorMessageRes,
-        isSaving = uiState.isSaving || uiState.isDeleting,
+        isSaving = uiState.isLoading || uiState.isSaving || uiState.isDeleting,
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
         } else {

@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -283,6 +284,134 @@ class AddEntryViewModelTest {
                 editingEntryIds = listOf(UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f").toString())
             ).canDelete
         )
+    }
+
+    @Test
+    fun buildQuickLogUiState_uses_planned_dose_metadata() {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30)
+
+        val uiState = buildQuickLogUiState(
+            groupId = groupId,
+            group = group,
+            scheduledFor = scheduledFor,
+            medicationDetails = details,
+            medicationCount = 2,
+            appliedAt = appliedAt
+        )
+
+        assertEquals(groupId, uiState.sourceGroupUuid)
+        assertEquals("Nightly estradiol", uiState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.INDIGO, uiState.sourceGroupColorKey)
+        assertEquals(scheduledFor, uiState.scheduledFor)
+        assertEquals(2, uiState.count)
+        assertEquals(LocalDate.of(2026, 4, 22), uiState.appliedDate)
+        assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
+        assertFalse(uiState.canEditMedicationIdentity)
+        assertFalse(uiState.canDelete)
+    }
+
+    @Test
+    fun initializeQuickLog_uses_cached_group_metadata_immediately() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+            medicationDetails = details,
+            medicationCount = 2
+        )
+
+        val uiState = viewModel.uiState.value
+        assertFalse(uiState.isLoading)
+        assertEquals(groupId, uiState.sourceGroupUuid)
+        assertEquals("Nightly estradiol", uiState.sourceGroupName)
+        assertEquals(2, uiState.count)
+        assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun saveEntry_forQuickLog_createsScheduledGroupEntry() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Nightly estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO
+        )
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medication = details,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 2,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicationDetails = details,
+            medicationCount = 2
+        )
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medication = details,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 2,
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test

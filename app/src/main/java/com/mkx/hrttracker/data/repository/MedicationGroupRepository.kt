@@ -66,6 +66,10 @@ class MedicationGroupRepository @Inject constructor(
 
     fun observeGroups(): Flow<List<MedicationGroup>?> = groupsFlow
 
+    fun getCachedGroup(uuid: UUID): MedicationGroup? {
+        return groupsFlow.value?.firstOrNull { group -> group.uuid == uuid }
+    }
+
     suspend fun getGroups(): List<MedicationGroup> {
         return databaseHolder.get().medicationGroupDao().getGroups().map { it.toModel() }
     }
