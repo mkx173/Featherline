@@ -309,6 +309,7 @@ private fun PlanBatchAddScreenContent(
                         endDate = uiState.endDate,
                         entryCount = uiState.entryCount,
                         manualEntryCount = uiState.manualEntryCount,
+                        skippedEntryCount = uiState.skippedEntryCount,
                         canConfirm = uiState.canConfirm,
                         isSaving = uiState.isSaving,
                         dateFormatter = dateFormatter,
@@ -327,6 +328,7 @@ private fun PlanBatchAddRangeSelector(
     endDate: LocalDate,
     entryCount: Int,
     manualEntryCount: Int,
+    skippedEntryCount: Int,
     canConfirm: Boolean,
     isSaving: Boolean,
     dateFormatter: LocalDateFormatter,
@@ -362,13 +364,27 @@ private fun PlanBatchAddRangeSelector(
             count = 2
         )
 
-        if (entryCount > 0) {
+        if (entryCount > 0 || skippedEntryCount > 0) {
+            val entriesToAddLabel = pluralStringResource(
+                R.plurals.plan_batch_add_entries_to_add,
+                entryCount,
+                entryCount
+            )
+            val skippedEntriesLabel = pluralStringResource(
+                R.plurals.plan_batch_add_entries_skipped,
+                skippedEntryCount,
+                skippedEntryCount
+            )
             SupportMessageListItem(
-                text = pluralStringResource(
-                    R.plurals.plan_batch_add_entries_to_add,
-                    entryCount,
-                    entryCount
-                ),
+                text = if (skippedEntryCount > 0) {
+                    stringResource(
+                        R.string.plan_batch_add_entries_to_add_with_skipped,
+                        entriesToAddLabel,
+                        skippedEntriesLabel
+                    )
+                } else {
+                    entriesToAddLabel
+                },
                 supportingText = if (manualEntryCount > 0) {
                     stringResource(R.string.plan_batch_add_manual_before_start_note)
                 } else {

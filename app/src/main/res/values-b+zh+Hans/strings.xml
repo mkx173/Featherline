@@ -462,6 +462,10 @@
     <plurals name="plan_batch_add_entries_to_add">
         <item quantity="other">将添加 %1$d 条记录</item>
     </plurals>
+    <plurals name="plan_batch_add_entries_skipped">
+        <item quantity="other">将跳过 %1$d 条已存在的记录</item>
+    </plurals>
+    <string name="plan_batch_add_entries_to_add_with_skipped">%1$s · %2$s</string>
     <plurals name="plan_batch_add_success">
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>

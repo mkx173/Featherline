@@ -9,7 +9,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -107,6 +109,46 @@ class PlanBatchAddViewModelTest {
 
         assertEquals(2, entries.size)
         assertEquals(listOf(3, 1), entries.map { entry -> entry.count })
+    }
+
+    @Test
+    fun buildPlanBatchAddEntries_skipsPlannedSlotWhenRecordAlreadyExists() {
+        val groupUuid = UUID.fromString("865b9574-199f-4bbb-a90b-07b2738bd1ee")
+        val existingSlot = LocalDateTime.of(2026, 4, 10, 9, 0)
+        val remainingSlot = LocalDateTime.of(2026, 4, 10, 21, 0)
+        val group = medicationGroup(
+            uuid = groupUuid,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(existingSlot.toLocalTime(), remainingSlot.toLocalTime()),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(details = estradiolDetails(), count = 3),
+                testMedicationGroupMedication(details = spironolactoneDetails(), count = 1),
+            ),
+        )
+        val existingEntry = testMedicationLogEntry(
+            details = estradiolDetails(),
+            sourceGroupUuid = groupUuid,
+            appliedAt = testInstant(existingSlot),
+            scheduledFor = existingSlot,
+        )
+
+        val plan = buildPlanBatchAddEntryPlan(
+            group = group,
+            existingEntries = listOf(existingEntry),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        val entries = plan.entries
+        assertEquals(2, entries.size)
+        assertEquals(2, plan.skippedEntryCount)
+        assertEquals(listOf(remainingSlot, remainingSlot), entries.map { entry -> entry.scheduledFor })
     }
 
     private fun medicationGroup(

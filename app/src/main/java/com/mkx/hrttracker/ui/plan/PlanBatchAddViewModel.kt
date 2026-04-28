@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,14 +51,15 @@ class PlanBatchAddViewModel @Inject constructor(
         }
         val startDate = selection.startDate ?: selectedGroup?.schedule?.since
         val endDate = selection.endDate ?: now.toLocalDate()
-        val entryInputs = if (selectedGroup != null && startDate != null && endDate != null) {
-            buildPlanBatchAddEntries(
+        val entryPlan = if (selectedGroup != null && startDate != null && endDate != null) {
+            buildPlanBatchAddEntryPlan(
                 group = selectedGroup,
+                existingEntries = entries,
                 startDate = startDate,
                 endDate = endDate,
             )
         } else {
-            emptyList()
+            PlanBatchAddEntryPlan()
         }
 
         PlanBatchAddUiState(
@@ -75,8 +77,9 @@ class PlanBatchAddViewModel @Inject constructor(
                 start = now,
                 limit = PLAN_BATCH_ADD_UPCOMING_OCCURRENCE_LIMIT
             ),
-            entriesToAdd = entryInputs,
-            manualEntryCount = entryInputs.count { entry -> entry.sourceGroupUuid == null },
+            entriesToAdd = entryPlan.entries,
+            manualEntryCount = entryPlan.entries.count { entry -> entry.sourceGroupUuid == null },
+            skippedEntryCount = entryPlan.skippedEntryCount,
             isSaving = selection.isSaving,
             isSaved = selection.isSaved,
             savedEntryCount = selection.savedEntryCount,
@@ -221,6 +224,7 @@ data class PlanBatchAddUiState(
     val nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>> = emptyMap(),
     val entriesToAdd: List<MedicationLogEntryInput> = emptyList(),
     val manualEntryCount: Int = 0,
+    val skippedEntryCount: Int = 0,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val savedEntryCount: Int? = null,
@@ -249,22 +253,58 @@ private data class PlanBatchAddSelectionState(
 
 internal fun buildPlanBatchAddEntries(
     group: MedicationGroup,
+    existingEntries: List<MedicationLogEntry> = emptyList(),
     startDate: LocalDate,
     endDate: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MedicationLogEntryInput> {
+    return buildPlanBatchAddEntryPlan(
+        group = group,
+        existingEntries = existingEntries,
+        startDate = startDate,
+        endDate = endDate,
+        zoneId = zoneId,
+    ).entries
+}
+
+internal data class PlanBatchAddEntryPlan(
+    val entries: List<MedicationLogEntryInput> = emptyList(),
+    val skippedEntryCount: Int = 0,
+)
+
+internal fun buildPlanBatchAddEntryPlan(
+    group: MedicationGroup,
+    existingEntries: List<MedicationLogEntry> = emptyList(),
+    startDate: LocalDate,
+    endDate: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): PlanBatchAddEntryPlan {
     if (group.medications.isEmpty() || startDate.isAfter(endDate)) {
-        return emptyList()
+        return PlanBatchAddEntryPlan()
     }
 
-    return buildPlanBatchAddOccurrences(
+    val fulfilledPlanSlots = existingEntries
+        .asSequence()
+        .filter { entry -> entry.sourceGroupUuid == group.uuid }
+        .mapNotNull(MedicationLogEntry::scheduledFor)
+        .toSet()
+
+    val entries = mutableListOf<MedicationLogEntryInput>()
+    var skippedEntryCount = 0
+
+    buildPlanBatchAddOccurrences(
         schedule = group.schedule,
         startDate = startDate,
         endDate = endDate,
-    ).flatMap { occurrence ->
+    ).forEach { occurrence ->
         val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
-        group.medications.map { medication ->
-            MedicationLogEntryInput(
+        if (!isBeforePlanStart && occurrence in fulfilledPlanSlots) {
+            skippedEntryCount += group.medications.size
+            return@forEach
+        }
+
+        group.medications.forEach { medication ->
+            entries += MedicationLogEntryInput(
                 medication = medication.details,
                 sourceGroupUuid = if (isBeforePlanStart) null else group.uuid,
                 appliedAt = occurrence.atZone(zoneId).toInstant(),
@@ -274,6 +314,11 @@ internal fun buildPlanBatchAddEntries(
             )
         }
     }
+
+    return PlanBatchAddEntryPlan(
+        entries = entries,
+        skippedEntryCount = skippedEntryCount,
+    )
 }
 
 internal fun buildPlanBatchAddOccurrences(

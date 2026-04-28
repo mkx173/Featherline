@@ -473,6 +473,11 @@
         <item quantity="one">%1$d record will be added</item>
         <item quantity="other">%1$d records will be added</item>
     </plurals>
+    <plurals name="plan_batch_add_entries_skipped">
+        <item quantity="one">%1$d existing record will be skipped</item>
+        <item quantity="other">%1$d existing records will be skipped</item>
+    </plurals>
+    <string name="plan_batch_add_entries_to_add_with_skipped">%1$s · %2$s</string>
     <plurals name="plan_batch_add_success">
         <item quantity="one">Added %1$d record.</item>
         <item quantity="other">Added %1$d records.</item>
