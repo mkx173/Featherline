@@ -252,7 +252,7 @@ private fun PlanBatchAddScreenContent(
         ) {
             item(key = "group-heading") {
                 Text(
-                    text = stringResource(R.string.plan_batch_add_select_group),
+                    text = stringResource(R.string.plan_batch_add_select_group).uppercase(),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
@@ -329,83 +329,82 @@ private fun PlanBatchAddRangeSelector(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
         Text(
-            text = stringResource(R.string.plan_batch_add_range_title),
+            text = stringResource(R.string.plan_batch_add_range_title).uppercase(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp)
         )
 
-        SupportMessageListItem(
-            text = stringResource(R.string.plan_batch_add_date_range),
-            supportingText = if (hasSelectedGroup) {
-                stringResource(
-                    R.string.plan_batch_add_date_range_value,
-                    dateFormatter(startDate),
-                    dateFormatter(endDate),
-                )
-            } else {
-                null
-            },
-            onClick = onDateRangeClick,
-            modifier = Modifier.fillMaxWidth(),
-            icon = Icons.Rounded.Event,
-            leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-            leadingIconSize = 24.dp,
-            showChevron = true,
-            index = 0,
-            count = 2
-        )
+
 
         if (!hasSelectedGroup) {
             SupportMessageListItem(
                 text = stringResource(R.string.plan_batch_add_select_group_prompt),
-                painter = painterResource(R.drawable.ic_data_info_alert),
+                painter = painterResource(R.drawable.ic_info),
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 leadingIconSize = 24.dp,
-                index = 1,
-                count = 2
-            )
-        } else if (entryCount > 0 || skippedEntryCount > 0) {
-            val entriesToAddLabel = pluralStringResource(
-                R.plurals.plan_batch_add_entries_to_add,
-                entryCount,
-                entryCount
-            )
-            val skippedEntriesLabel = pluralStringResource(
-                R.plurals.plan_batch_add_entries_skipped,
-                skippedEntryCount,
-                skippedEntryCount
-            )
-            SupportMessageListItem(
-                text = if (skippedEntryCount > 0) {
-                    stringResource(
-                        R.string.plan_batch_add_entries_to_add_with_skipped,
-                        entriesToAddLabel,
-                        skippedEntriesLabel
-                    )
-                } else {
-                    entriesToAddLabel
-                },
-                supportingText = if (manualEntryCount > 0) {
-                    stringResource(R.string.plan_batch_add_manual_before_start_note)
-                } else {
-                    null
-                },
-                painter = painterResource(R.drawable.ic_data_info_alert),
-                leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                leadingIconSize = 24.dp,
-                index = 1,
-                count = 2
+                index = 0,
+                count = 1
             )
         } else {
             SupportMessageListItem(
-                text = stringResource(R.string.plan_batch_add_no_entries),
-                painter = painterResource(R.drawable.ic_data_info_alert),
+                text = stringResource(R.string.plan_batch_add_date_range),
+                supportingText = stringResource(
+                    R.string.plan_batch_add_date_range_value,
+                    dateFormatter(startDate),
+                    dateFormatter(endDate),
+                ),
+                onClick = onDateRangeClick,
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Rounded.Event,
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 leadingIconSize = 24.dp,
-                index = 1,
+                showChevron = true,
+                index = 0,
                 count = 2
             )
+            if (entryCount > 0 || skippedEntryCount > 0) {
+                val entriesToAddLabel = pluralStringResource(
+                    R.plurals.plan_batch_add_entries_to_add,
+                    entryCount,
+                    entryCount
+                )
+                val skippedEntriesLabel = pluralStringResource(
+                    R.plurals.plan_batch_add_entries_skipped,
+                    skippedEntryCount,
+                    skippedEntryCount
+                )
+                SupportMessageListItem(
+                    text = if (skippedEntryCount > 0) {
+                        stringResource(
+                            R.string.plan_batch_add_entries_to_add_with_skipped,
+                            entriesToAddLabel,
+                            skippedEntriesLabel
+                        )
+                    } else {
+                        entriesToAddLabel
+                    },
+                    supportingText = if (manualEntryCount > 0) {
+                        stringResource(R.string.plan_batch_add_manual_before_start_note)
+                    } else {
+                        null
+                    },
+                    painter = painterResource(R.drawable.ic_data_info_alert),
+                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconSize = 24.dp,
+                    index = 1,
+                    count = 2
+                )
+            } else {
+                SupportMessageListItem(
+                    text = stringResource(R.string.plan_batch_add_no_entries),
+                    painter = painterResource(R.drawable.ic_data_info_alert),
+                    leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    leadingIconSize = 24.dp,
+                    index = 1,
+                    count = 2
+                )
+            }
         }
 
         HrtButton(
