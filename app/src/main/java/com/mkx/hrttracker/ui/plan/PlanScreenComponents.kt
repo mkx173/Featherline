@@ -208,12 +208,12 @@ private fun SelectedDayRow(
         SelectedDayRowState.MANUAL -> stringResource(R.string.plan_entry_label_manual)
     }
     val labelColor = when (rowState) {
-        SelectedDayRowState.LOGGED -> fulfilledIndicatorColor
-        SelectedDayRowState.DUE -> MaterialTheme.colorScheme.primary
-        SelectedDayRowState.PAST_DUE -> overdueScheduledIndicatorColor
-        SelectedDayRowState.MISSED -> overdueScheduledIndicatorColor
-        SelectedDayRowState.PLANNED -> MaterialTheme.colorScheme.onSurfaceVariant
-        SelectedDayRowState.MANUAL -> rowColorScheme.primary
+        SelectedDayRowState.LOGGED -> MaterialTheme.colorScheme.primary
+        SelectedDayRowState.DUE -> MaterialTheme.colorScheme.tertiary
+        SelectedDayRowState.PAST_DUE,
+        SelectedDayRowState.MISSED,
+        SelectedDayRowState.PLANNED,
+        SelectedDayRowState.MANUAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val supportingText = medicationSupportingText(
         details = row.details,
@@ -575,7 +575,7 @@ private fun SelectedDayMedicationIconSurface(
         }
         if (showDueBadge) {
             Badge(
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(8.dp)

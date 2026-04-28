@@ -687,9 +687,6 @@ private fun planUpcomingDateFormatter(
     }
 }
 
-internal val fulfilledIndicatorColor = Color(0xFF2E7D32)
-internal val overdueScheduledIndicatorColor = Color(0xFFC62828)
-
 @Composable
 private fun Day(
     date: LocalDate,
