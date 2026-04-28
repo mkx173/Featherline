@@ -138,11 +138,8 @@ private fun PlanBatchAddScreenContent(
     }
 
     LaunchedEffect(uiState.selectedGroupUuid, uiState.groups.size) {
-        val selectedIndex = uiState.groups.indexOfFirst { group ->
-            group.uuid == uiState.selectedGroupUuid
-        }
-        if (selectedIndex >= 0) {
-            listState.animateScrollToItem(index = selectedIndex + 2)
+        if (uiState.selectedGroupUuid != null) {
+            listState.animateScrollToItem(index = uiState.groups.size + 1)
         }
     }
 
@@ -265,28 +262,28 @@ private fun PlanBatchAddScreenContent(
                             itemCount = uiState.groups.size,
                             selected = group.uuid == uiState.selectedGroupUuid,
                         )
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                     }
+                }
+            }
 
-                    if (group.uuid == uiState.selectedGroupUuid &&
-                        uiState.startDate != null &&
-                        uiState.endDate != null
-                    ) {
-                        item(key = "range-selector") {
-                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                            PlanBatchAddRangeSelector(
-                                startDate = uiState.startDate,
-                                endDate = uiState.endDate,
-                                entryCount = uiState.entryCount,
-                                manualEntryCount = uiState.manualEntryCount,
-                                canConfirm = uiState.canConfirm,
-                                isSaving = uiState.isSaving,
-                                dateFormatter = dateFormatter,
-                                onDateRangeClick = { isRangePickerVisible = true },
-                                onConfirmClick = { isConfirmationVisible = true },
-                                modifier = Modifier.padding(top = dimensionResource(R.dimen.padding_medium))
-                            )
-                        }
-                    }
+            if (uiState.selectedGroupUuid != null &&
+                uiState.startDate != null &&
+                uiState.endDate != null
+            ) {
+                item(key = "range-selector") {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    PlanBatchAddRangeSelector(
+                        startDate = uiState.startDate,
+                        endDate = uiState.endDate,
+                        entryCount = uiState.entryCount,
+                        manualEntryCount = uiState.manualEntryCount,
+                        canConfirm = uiState.canConfirm,
+                        isSaving = uiState.isSaving,
+                        dateFormatter = dateFormatter,
+                        onDateRangeClick = { isRangePickerVisible = true },
+                        onConfirmClick = { isConfirmationVisible = true },
+                    )
                 }
             }
         }
@@ -328,6 +325,8 @@ private fun PlanBatchAddRangeSelector(
             modifier = Modifier.fillMaxWidth(),
             icon = Icons.Rounded.Event,
             showChevron = true,
+            index = 0,
+            count = 2
         )
 
         if (entryCount > 0) {
@@ -343,11 +342,15 @@ private fun PlanBatchAddRangeSelector(
                     null
                 },
                 painter = painterResource(R.drawable.ic_info),
+                index = 1,
+                count = 2
             )
         } else {
             SupportMessageListItem(
                 text = stringResource(R.string.plan_batch_add_no_entries),
                 painter = painterResource(R.drawable.ic_info),
+                index = 1,
+                count = 2
             )
         }
 
@@ -356,7 +359,7 @@ private fun PlanBatchAddRangeSelector(
             onClick = onConfirmClick,
             enabled = canConfirm,
             icon = Icons.Rounded.Add,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         )
 
         if (isSaving) {

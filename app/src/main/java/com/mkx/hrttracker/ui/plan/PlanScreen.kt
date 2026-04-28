@@ -1082,9 +1082,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
     )
 
     val morningGroupId = UUID.fromString("ef1b16ca-86d7-4872-9540-5b0d0e286e10")
-    val eveningGroupId = UUID.fromString("f1db9123-b83c-4230-a0a7-269843f38de0")
-    val blockerGroupId = UUID.fromString("7bba70a0-3b70-4d20-bc46-ed38d7f0b48d")
-    val weeklyGroupId = UUID.fromString("9e71c6e4-72b7-4a49-ba04-d9ec9c0f5b44")
 
     val groups = listOf(
         MedicationGroup(
@@ -1111,78 +1108,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
             createdAt = previewInstant(today.minusMonths(2), LocalTime.NOON, zoneId),
             updatedAt = previewInstant(today.minusDays(1), LocalTime.NOON, zoneId)
         ),
-        MedicationGroup(
-            uuid = eveningGroupId,
-            name = "Evening estradiol",
-            schedule = MedicationGroupSchedule(
-                type = MedicationGroupScheduleType.DAILY,
-                interval = 1,
-                since = today.minusMonths(1),
-                weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(20, 0))
-            ),
-            medications = listOf(
-                MedicationGroupMedication(
-                    uuid = UUID.fromString("4233f227-405b-45d4-8c89-e25b52dfb20c"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.SUBLINGUAL,
-                        dose = MedicationDose.MgAsMedicine(1.0)
-                    )
-                )
-            ),
-            notificationsEnabled = false,
-            createdAt = previewInstant(today.minusMonths(1), LocalTime.NOON, zoneId),
-            updatedAt = previewInstant(today, LocalTime.NOON, zoneId)
-        ),
-        MedicationGroup(
-            uuid = blockerGroupId,
-            name = "Spironolactone",
-            schedule = MedicationGroupSchedule(
-                type = MedicationGroupScheduleType.DAILY,
-                interval = 1,
-                since = today.minusWeeks(8),
-                weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(22, 0))
-            ),
-            medications = listOf(
-                MedicationGroupMedication(
-                    uuid = UUID.fromString("548f616c-f347-4aa1-a460-8dd8235e3bb7"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.SPIRONOLACTONE,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(50.0)
-                    )
-                )
-            ),
-            notificationsEnabled = true,
-            createdAt = previewInstant(today.minusWeeks(8), LocalTime.NOON, zoneId),
-            updatedAt = previewInstant(today.minusDays(2), LocalTime.NOON, zoneId)
-        ),
-        MedicationGroup(
-            uuid = weeklyGroupId,
-            name = "Weekly injection",
-            schedule = MedicationGroupSchedule(
-                type = MedicationGroupScheduleType.WEEKLY,
-                interval = 1,
-                since = today.minusWeeks(6).with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
-                weeklyDaysOfWeek = setOf(DayOfWeek.FRIDAY),
-                times = listOf(LocalTime.of(9, 0))
-            ),
-            medications = listOf(
-                MedicationGroupMedication(
-                    uuid = UUID.fromString("190964f5-c5f3-4f14-a4b2-394cbd4222dc"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL_VALERATE,
-                        applicationType = MedicationApplicationType.INJECTION,
-                        dose = MedicationDose.MgAsMedicine(5.0)
-                    )
-                )
-            ),
-            notificationsEnabled = true,
-            createdAt = previewInstant(today.minusWeeks(6), LocalTime.NOON, zoneId),
-            updatedAt = previewInstant(today.minusDays(3), LocalTime.NOON, zoneId)
-        )
     )
 
     val entries = listOf(
@@ -1209,25 +1134,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
             sourceGroupUuid = null,
             appliedAt = previewInstant(today, LocalTime.of(13, 30), zoneId)
         ),
-        MedicationLogEntry(
-            uuid = UUID.fromString("ee7d7612-9281-4a26-a74b-6eb39532fd76"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_VALERATE,
-                applicationType = MedicationApplicationType.INJECTION,
-                dose = MedicationDose.MgAsMedicine(5.0)
-            ),
-            dosageMgAsEstradiol = 3.82,
-            sourceGroupUuid = weeklyGroupId,
-            appliedAt = previewInstant(
-                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
-                LocalTime.of(9, 5),
-                zoneId
-            ),
-            scheduledFor = LocalDateTime.of(
-                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY)),
-                LocalTime.of(9, 0)
-            )
-        )
     )
 
     val daySchedule = buildPlanDaySchedule(
@@ -1261,26 +1167,6 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
                 LocalDateTime.of(today.plusDays(2), LocalTime.of(8, 0)),
                 LocalDateTime.of(today.plusDays(3), LocalTime.of(8, 0))
             ),
-            eveningGroupId to listOf(
-                LocalDateTime.of(today, LocalTime.of(20, 0)),
-                LocalDateTime.of(today.plusDays(1), LocalTime.of(20, 0)),
-                LocalDateTime.of(today.plusDays(2), LocalTime.of(20, 0))
-            ),
-            blockerGroupId to listOf(
-                LocalDateTime.of(today, LocalTime.of(22, 0)),
-                LocalDateTime.of(today.plusDays(1), LocalTime.of(22, 0)),
-                LocalDateTime.of(today.plusDays(2), LocalTime.of(22, 0))
-            ),
-            weeklyGroupId to listOf(
-                LocalDateTime.of(
-                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY)),
-                    LocalTime.of(9, 0)
-                ),
-                LocalDateTime.of(
-                    today.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY)).plusWeeks(1),
-                    LocalTime.of(9, 0)
-                )
-            )
         )
     )
 }
