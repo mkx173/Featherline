@@ -71,8 +71,13 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     fun canPostNotifications(): Boolean {
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            return false
+        try {
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                return false
+            }
+        } catch (_: Throwable) {
+            // Notification service is not available in some environments like Android Studio preview.
+            return true
         }
 
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

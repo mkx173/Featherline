@@ -9,8 +9,13 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
 fun canPostNotifications(context: Context): Boolean {
-    if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-        return false
+    try {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return false
+        }
+    } catch (_: Throwable) {
+        // Notification service is not available in some environments like Android Studio preview.
+        return true
     }
 
     return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -21,7 +26,12 @@ fun canPostNotifications(context: Context): Boolean {
 }
 
 fun canScheduleExactAlarms(context: Context): Boolean {
-    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    return try {
+        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    } catch (_: Throwable) {
+        // Alarm service is not available in some environments like Android Studio preview.
+        true
+    }
 }
 
 internal fun shouldShowNotificationPermissionRecoveryToast(
