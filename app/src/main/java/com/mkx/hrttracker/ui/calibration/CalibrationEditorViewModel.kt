@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
@@ -61,14 +62,29 @@ class CalibrationEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         cachedEditingPanel?.toEditorState()?.copy(
             customAnalytes = cachedCustomAnalytes.orEmpty(),
-        ) ?: CalibrationEditorUiState(
-            panelUuid = editingPanelUuid?.toString(),
-            isEditing = editingPanelUuid != null,
-            isLoading = editingPanelUuid != null,
-            collectedDate = LocalDate.now(defaultZoneId),
-            collectedTime = LocalTime.now(defaultZoneId).withSecond(0).withNano(0),
-            customAnalytes = cachedCustomAnalytes.orEmpty(),
-        )
+        ) ?: run {
+            val collectedDate = LocalDate.now(defaultZoneId)
+            val collectedTime = LocalTime.now(defaultZoneId).withSecond(0).withNano(0)
+            val collectedAt = LocalDateTime.of(collectedDate, collectedTime)
+                .atZone(defaultZoneId)
+                .toInstant()
+            CalibrationEditorUiState(
+                panelUuid = editingPanelUuid?.toString(),
+                isEditing = editingPanelUuid != null,
+                isLoading = editingPanelUuid != null,
+                collectedDate = collectedDate,
+                collectedTime = collectedTime,
+                timeSinceLastEstradiolDoseMillis = medicationLogRepository
+                    .getCachedRecentEstradiolEntries(collectedAt)?.let { entries ->
+                        resolveTimeSinceLastEstradiolDoseMillis(
+                            entries = entries,
+                            targetCollectedAt = collectedAt,
+                        )
+                    },
+                customAnalytes = cachedCustomAnalytes.orEmpty(),
+                drafts = defaultCalibrationDrafts(latestSettingsState),
+            )
+        }
     )
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
@@ -77,7 +93,9 @@ class CalibrationEditorViewModel @Inject constructor(
         if (cachedCustomAnalytes == null) {
             refreshAvailableCustomAnalytes()
         }
-        refreshTimeSinceLastEstradiolDose()
+        if (editingPanelUuid == null) {
+            refreshTimeSinceLastEstradiolDose()
+        }
         if (cachedEditingPanel == null) {
             editingPanelUuid?.let(::loadPanelForEditing)
         }
@@ -377,7 +395,6 @@ class CalibrationEditorViewModel @Inject constructor(
             _uiState.update { state ->
                 panel.toEditorState().copy(customAnalytes = state.customAnalytes)
             }
-            refreshTimeSinceLastEstradiolDose()
         }
     }
 
@@ -394,24 +411,66 @@ class CalibrationEditorViewModel @Inject constructor(
     }
 
     private fun refreshTimeSinceLastEstradiolDose() {
-        viewModelScope.launch {
-            val targetState = uiState.value
-            val targetCollectedAt = targetState.toCollectedAtInstant(defaultZoneId)
-            val elapsedMillis = findLastEstradiolEntry(
-                entries = medicationLogRepository.getEntries(),
-                onOrBefore = targetCollectedAt,
-            )?.let { lastEntry ->
-                (targetCollectedAt.toEpochMilli() - lastEntry.appliedAt.toEpochMilli())
-                    .coerceAtLeast(0L)
-            }
+        val targetState = uiState.value
+        val targetCollectedAt = targetState.toCollectedAtInstant(defaultZoneId)
+        medicationLogRepository
+            .getCachedRecentEstradiolEntries(targetCollectedAt)?.let { cachedEntries ->
+            updateTimeSinceLastEstradiolDose(
+                targetCollectedAt = targetCollectedAt,
+                elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
+                    entries = cachedEntries,
+                    targetCollectedAt = targetCollectedAt,
+                ),
+            )
+            return
+        }
 
-            _uiState.update { state ->
-                if (state.toCollectedAtInstant(defaultZoneId) != targetCollectedAt) {
-                    state
-                } else {
-                    state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
-                }
+        viewModelScope.launch {
+            val elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
+                lastEntry = medicationLogRepository
+                    .getLatestEstradiolEntryOnOrBefore(targetCollectedAt),
+                targetCollectedAt = targetCollectedAt,
+            )
+            updateTimeSinceLastEstradiolDose(
+                targetCollectedAt = targetCollectedAt,
+                elapsedMillis = elapsedMillis,
+            )
+        }
+    }
+
+    private fun updateTimeSinceLastEstradiolDose(
+        targetCollectedAt: Instant,
+        elapsedMillis: Long?,
+    ) {
+        _uiState.update { state ->
+            if (state.toCollectedAtInstant(defaultZoneId) != targetCollectedAt) {
+                state
+            } else {
+                state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
             }
+        }
+    }
+
+    private fun resolveTimeSinceLastEstradiolDoseMillis(
+        entries: List<MedicationLogEntry>,
+        targetCollectedAt: Instant,
+    ): Long? {
+        return findLastEstradiolEntry(
+            entries = entries,
+            onOrBefore = targetCollectedAt,
+        )?.let { lastEntry ->
+            (targetCollectedAt.toEpochMilli() - lastEntry.appliedAt.toEpochMilli())
+                .coerceAtLeast(0L)
+        }
+    }
+
+    private fun resolveTimeSinceLastEstradiolDoseMillis(
+        lastEntry: MedicationLogEntry?,
+        targetCollectedAt: Instant,
+    ): Long? {
+        return lastEntry?.let { entry ->
+            (targetCollectedAt.toEpochMilli() - entry.appliedAt.toEpochMilli())
+                .coerceAtLeast(0L)
         }
     }
 
@@ -470,6 +529,7 @@ class CalibrationEditorViewModel @Inject constructor(
             isLoading = false,
             collectedDate = collectedDateTime.toLocalDate(),
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
+            timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
             notes = notes.orEmpty(),
             drafts = drafts,
         )
@@ -496,9 +556,7 @@ data class CalibrationEditorUiState(
     val notes: String = "",
     val customAnalytes: List<CustomBloodAnalyte> = emptyList(),
     val invalidDraftKeys: Set<String> = emptySet(),
-    val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationAnalytes.map { analyteKey ->
-        CalibrationResultDraftUiState(analyteKey = analyteKey)
-    },
+    val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationDrafts(),
 )
 
 enum class CalibrationSaveEntryResult {
@@ -524,6 +582,19 @@ data class CalibrationResultDraftUiState(
 ) {
     val draftKey: String
         get() = analyteKey?.storageValue ?: "custom:${checkNotNull(customAnalyteUuid)}"
+}
+
+internal fun defaultCalibrationDrafts(
+    settingsState: SettingsState = SettingsState(),
+): List<CalibrationResultDraftUiState> {
+    return defaultCalibrationAnalytes.map { analyteKey ->
+        val defaultUnit = defaultCalibrationUnitFor(analyteKey, settingsState)
+        CalibrationResultDraftUiState(
+            analyteKey = analyteKey,
+            unit = defaultUnit,
+            defaultUnit = defaultUnit,
+        )
+    }
 }
 
 internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boolean {

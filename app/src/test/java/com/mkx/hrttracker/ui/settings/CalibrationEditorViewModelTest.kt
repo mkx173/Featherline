@@ -64,7 +64,8 @@ class CalibrationEditorViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        every { medicationLogRepository.getCachedRecentEstradiolEntries(any()) } returns null
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         coEvery { repository.getActiveCustomAnalytes() } returns emptyList()
         every { repository.getCachedPanel(any()) } returns null
         every { repository.getCachedActiveCustomAnalytes() } returns null
@@ -84,6 +85,7 @@ class CalibrationEditorViewModelTest {
             uuid = panelUuid,
             collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
             notes = "Visible from history",
+            timeSinceLastEstradiolDoseMillis = 7_200_000L,
         )
         every { repository.getCachedPanel(panelUuid) } returns panel
         coEvery { repository.getPanel(panelUuid) } returns panel
@@ -102,11 +104,14 @@ class CalibrationEditorViewModelTest {
         assertFalse(initialState.isLoading)
         assertEquals("Visible from history", initialState.notes)
         assertEquals(panelUuid.toString(), initialState.panelUuid)
+        assertEquals(7_200_000L, initialState.timeSinceLastEstradiolDoseMillis)
 
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(7_200_000L, viewModel.uiState.value.timeSinceLastEstradiolDoseMillis)
         coVerify(exactly = 0) { repository.getPanel(panelUuid) }
+        coVerify(exactly = 0) { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) }
     }
 
     @Test
@@ -136,6 +141,40 @@ class CalibrationEditorViewModelTest {
                 .contains(CalibrationAddAnalyteOption.Custom(customAnalyte))
         )
         coVerify(exactly = 0) { repository.getActiveCustomAnalytes() }
+    }
+
+    @Test
+    fun init_usesCachedMedicationEntriesForInitialElapsedDose() = runTest {
+        val cachedEntry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+        )
+        every {
+            medicationLogRepository.getCachedRecentEstradiolEntries(any())
+        } returns listOf(cachedEntry)
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+
+        val initialState = viewModel.uiState.value
+        val targetCollectedAt = LocalDateTime.of(
+            initialState.collectedDate,
+            initialState.collectedTime,
+        ).atZone(ZoneId.systemDefault()).toInstant()
+        assertEquals(
+            targetCollectedAt.toEpochMilli() - cachedEntry.appliedAt.toEpochMilli(),
+            initialState.timeSinceLastEstradiolDoseMillis,
+        )
+        coVerify(exactly = 0) { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) }
     }
 
     @Test
@@ -509,16 +548,16 @@ class CalibrationEditorViewModelTest {
         val selectedCollectedAt = LocalDateTime.of(2026, 4, 24, 9, 30)
             .atZone(zoneId)
             .toInstant()
-        coEvery { medicationLogRepository.getEntries() } returns listOf(
-            testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0),
-                ),
-                sourceGroupUuid = null,
-                appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),
-            )
+        coEvery {
+            medicationLogRepository.getLatestEstradiolEntryOnOrBefore(selectedCollectedAt)
+        } returns testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),
         )
 
         viewModel.updateCollectedDate(LocalDate.of(2026, 4, 24))
@@ -546,6 +585,14 @@ class CalibrationEditorViewModelTest {
             settingsRepository,
             SavedStateHandle()
         )
+
+        assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)
+        assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].defaultUnit)
+        assertNull(viewModel.uiState.value.drafts[0].originalUnit)
+        assertEquals(BloodUnitKey.NMOL_L, viewModel.uiState.value.drafts[1].unit)
+        assertEquals(BloodUnitKey.NMOL_L, viewModel.uiState.value.drafts[1].defaultUnit)
+        assertNull(viewModel.uiState.value.drafts[1].originalUnit)
+
         advanceUntilIdle()
 
         assertEquals(BloodUnitKey.PMOL_L, viewModel.uiState.value.drafts[0].unit)

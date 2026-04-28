@@ -44,6 +44,35 @@ interface MedicationLogDao {
     @Query(
         """
         SELECT * FROM medication_log_entries
+        WHERE category = :category
+          AND appliedAtEpochMillis >= :sinceEpochMillis
+          AND appliedAtEpochMillis <= :untilEpochMillis
+        ORDER BY appliedAtEpochMillis DESC
+        """
+    )
+    suspend fun getEntriesByCategoryBetween(
+        category: String,
+        sinceEpochMillis: Long,
+        untilEpochMillis: Long,
+    ): List<MedicationLogEntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
+        WHERE category = :category
+          AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
+        ORDER BY appliedAtEpochMillis DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestEntryByCategoryOnOrBefore(
+        category: String,
+        onOrBeforeEpochMillis: Long,
+    ): MedicationLogEntryEntity?
+
+    @Query(
+        """
+        SELECT * FROM medication_log_entries
         WHERE sourceGroupUuid IS NOT NULL
           AND scheduledForIso IS NOT NULL
           AND scheduledForIso >= :sinceIso

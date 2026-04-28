@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -13,11 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
 class CalibrationViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val isDeletingAllEntries = MutableStateFlow(false)
@@ -45,6 +49,7 @@ class CalibrationViewModel @Inject constructor(
 
     init {
         preloadCustomAnalytes()
+        preloadMedicationEntries()
     }
 
     fun deleteAllCalibrationEntries() {
@@ -76,7 +81,22 @@ class CalibrationViewModel @Inject constructor(
             }
         }
     }
+
+    private fun preloadMedicationEntries() {
+        viewModelScope.launch {
+            runCatching {
+                val preloadUntil = Instant.now().plus(calibrationMedicationPreloadLookAhead)
+                medicationLogRepository.preloadRecentEstradiolEntries(
+                    since = preloadUntil.minus(calibrationMedicationPreloadWindow),
+                    until = preloadUntil,
+                )
+            }
+        }
+    }
 }
+
+private val calibrationMedicationPreloadWindow: Duration = Duration.ofDays(45)
+private val calibrationMedicationPreloadLookAhead: Duration = Duration.ofDays(1)
 
 data class CalibrationUiState(
     val panels: List<BloodTestPanel> = emptyList(),

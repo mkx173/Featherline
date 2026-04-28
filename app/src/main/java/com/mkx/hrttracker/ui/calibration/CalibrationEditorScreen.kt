@@ -351,7 +351,7 @@ private fun CalibrationEditorScreenContent(
                     .padding(innerPadding),
                 contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             ) {
-                item {
+                item(key = "collected-at") {
                     CalibrationDateTimeCard(
                         dateLabel = dateFormatter(uiState.collectedDate),
                         timeLabel = uiState.collectedTime.format(timeFormatter),
@@ -361,7 +361,7 @@ private fun CalibrationEditorScreenContent(
                     )
                 }
 
-                item {
+                item(key = "results-header") {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     Text(
                         text = stringResource(R.string.settings_calibration_results).uppercase(),
@@ -428,7 +428,7 @@ private fun CalibrationEditorScreenContent(
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                     }
                 }
-                item {
+                item(key = "add-analyte") {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -460,7 +460,7 @@ private fun CalibrationEditorScreenContent(
                     }
 
                 }
-                item {
+                item(key = "notes") {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     Text(
                         text = stringResource(R.string.settings_calibration_notes_label).uppercase(),
@@ -475,7 +475,7 @@ private fun CalibrationEditorScreenContent(
                     )
                 }
                 if (uiState.isEditing) {
-                    item {
+                    item(key = "delete") {
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                         HrtButton(
                             text = stringResource(R.string.delete_entries_confirm),
