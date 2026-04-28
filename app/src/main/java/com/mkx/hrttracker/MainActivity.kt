@@ -20,7 +20,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.ui.HrtTrackerApp
-import com.mkx.hrttracker.ui.history.HistoryViewModel
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.onboarding.OnboardingDialogs
 import com.mkx.hrttracker.ui.plan.PlanViewModel
@@ -85,7 +84,6 @@ class MainActivity : AppCompatActivity() {
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
 
                 hiltViewModel<PlanViewModel>(viewModelStoreOwner = this@MainActivity)
-                hiltViewModel<HistoryViewModel>(viewModelStoreOwner = this@MainActivity)
 
                 AppAuthenticationPromptEffect(
                     request = appLockUiState.pendingPrompt,

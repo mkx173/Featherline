@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Circle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.DonutLarge
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.RestartAlt
@@ -216,7 +217,7 @@ private fun PlanScreenContent(
                 actions = {
                     IconButton(onClick = onHistoryClick) {
                         Icon(
-                            imageVector = Icons.Rounded.BarChart,
+                            imageVector = Icons.Rounded.History,
                             contentDescription = stringResource(R.string.plan_open_history)
                         )
                     }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.FloatingActionButton
@@ -19,6 +18,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,7 +58,16 @@ import java.util.UUID
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object Plan : Screen("plan", R.string.tab_plan)
-    data object History : Screen("history", R.string.tab_history)
+    data object History : Screen(
+        "history?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.tab_history
+    ) {
+        const val baseRoute = "history"
+
+        fun createRoute(topLevelParentRoute: String = Plan.route): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
     data object Settings : Screen("settings", R.string.tab_settings)
     data object SettingsCalibration : Screen(
         "settings_calibration?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
@@ -128,7 +138,6 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             return when (route) {
                 Main.route -> Main
                 Plan.route -> Plan
-                History.route -> History
                 Settings.route -> Settings
                 else -> null
             }
@@ -144,7 +153,6 @@ private data class NavigationItemContent(
 private val bottomNavItems = listOf(
     NavigationItemContent(Screen.Main, Icons.Rounded.Home),
     NavigationItemContent(Screen.Plan, Icons.Rounded.CalendarMonth),
-    NavigationItemContent(Screen.History, Icons.Rounded.History),
     NavigationItemContent(Screen.Settings, Icons.Rounded.Settings)
 )
 
@@ -182,7 +190,6 @@ fun HrtTrackerNavHost(
     var quickLogPlannedDoseRequest by remember { mutableStateOf<QuickLogPlannedDoseRequest?>(null) }
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
-    var historyScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
@@ -198,9 +205,9 @@ fun HrtTrackerNavHost(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            NavigationBar {
+            ShortNavigationBar {
                 bottomNavItems.forEach { navItem ->
-                    NavigationBarItem(
+                    ShortNavigationBarItem(
                         selected = selectedBottomScreen == navItem.screen,
                         onClick = {
                             when (
@@ -218,7 +225,6 @@ fun HrtTrackerNavHost(
                                     when (navItem.screen) {
                                         Screen.Main -> mainScrollToTopSignal++
                                         Screen.Plan -> planScrollToTopSignal++
-                                        Screen.History -> historyScrollToTopSignal++
                                         Screen.Settings -> settingsScrollToTopSignal++
                                         else -> Unit
                                     }
@@ -330,20 +336,24 @@ fun HrtTrackerNavHost(
                         )
                     },
                     onHistoryClick = {
-                        navController.navigate(Screen.History.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
+                        navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
                             launchSingleTop = true
-                            restoreState = true
                         }
                     }
                 )
             }
-            composable(Screen.History.route) {
+            composable(
+                route = Screen.History.route,
+                arguments = listOf(
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Plan.route
+                    }
+                )
+            ) {
                 HistoryScreen(
                     modifier = modifier.padding(innerPadding),
-                    scrollToTopSignal = historyScrollToTopSignal,
+                    onNavigateBack = { navController.popBackStack() },
                     onEntryClick = { entryIds ->
                         addEntrySheetRequest = AddEntrySheetRequest(
                             entryIds = entryIds.map(UUID::toString)

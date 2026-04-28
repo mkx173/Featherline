@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.CheckCircleOutline
@@ -136,6 +137,7 @@ import java.util.UUID
 @Composable
 fun HistoryScreen(
     onEntryClick: (Set<UUID>) -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: HistoryViewModel = hiltViewModel(
@@ -170,6 +172,7 @@ fun HistoryScreen(
         onDisplayedMonthChange = { month, clearSelection ->
             viewModel.setDisplayedMonth(month, clearSelection)
         },
+        onNavigateBack = onNavigateBack,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
     )
@@ -192,6 +195,7 @@ private fun HistoryScreenContent(
     onDeleteSelectedResultConsumed: () -> Unit,
     onDeleteAllResultConsumed: () -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
 ) {
@@ -518,6 +522,16 @@ private fun HistoryScreenContent(
             } else {
                 TopAppBar(
                     title = { Text(text = stringResource(R.string.tab_history)) },
+                    navigationIcon = {
+                        if (onNavigateBack != null) {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = stringResource(R.string.navigate_back),
+                                )
+                            }
+                        }
+                    },
                     actions = {
                         Box {
                             IconButton(onClick = { isActionMenuExpanded = true }) {

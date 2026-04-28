@@ -4,6 +4,7 @@
     <string name="tab_plan">计划</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
+    <string name="navigate_back">返回</string>
     <string name="add_entry">添加记录</string>
     <string name="edit_entry">编辑记录</string>
     <string name="add_medication_group">添加分组</string>
@@ -61,7 +62,7 @@
     <string name="plan_selected_day_summary_empty_future">尚无计划</string>
     <string name="plan_schedule_entry_not_logged">尚未记录</string>
     <string name="plan_schedule_entry_logged">已记录</string>
-    <string name="plan_schedule_entry_due_soon">即将到点</string>
+    <string name="plan_schedule_entry_due_soon">即将到来</string>
     <string name="plan_schedule_entry_past_due">已逾期</string>
     <string name="plan_schedule_entry_missed">已错过</string>
     <string name="plan_schedule_entry_planned">已计划</string>

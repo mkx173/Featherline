@@ -33,9 +33,21 @@ class HrtTrackerNavHostTest {
         assertEquals(
             TopLevelNavigationTapAction.NAVIGATE,
             topLevelNavigationTapAction(
-                tappedScreen = Screen.History,
+                tappedScreen = Screen.Settings,
                 selectedBottomScreen = Screen.Plan,
                 currentRoute = Screen.Plan.route,
+            )
+        )
+    }
+
+    @Test
+    fun topLevelNavigationTapAction_returnsPopToTopLevel_for_plan_history_route() {
+        assertEquals(
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL,
+            topLevelNavigationTapAction(
+                tappedScreen = Screen.Plan,
+                selectedBottomScreen = Screen.Plan,
+                currentRoute = Screen.History.route,
             )
         )
     }

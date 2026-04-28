@@ -10,19 +10,31 @@ class NavigationTransitionsTest {
             NavigationMotionPattern.TOP_LEVEL,
             resolveNavigationMotionPattern(
                 initialRoute = Screen.Main.route,
-                targetRoute = Screen.History.route,
+                targetRoute = Screen.Plan.route,
                 isPop = false,
             )
         )
     }
 
     @Test
-    fun resolveNavigationMotionPattern_returnsTopLevel_when_switching_to_restored_nested_section_route() {
+    fun resolveNavigationMotionPattern_returnsTopLevel_when_switching_from_plan_nested_route_to_settings() {
         assertEquals(
             NavigationMotionPattern.TOP_LEVEL,
             resolveNavigationMotionPattern(
                 initialRoute = Screen.History.route,
                 targetRoute = Screen.SettingsCalibration.createRoute(Screen.Settings.route),
+                isPop = false,
+            )
+        )
+    }
+
+    @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_plan_history_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Plan.route,
+                targetRoute = Screen.History.createRoute(Screen.Plan.route),
                 isPop = false,
             )
         )

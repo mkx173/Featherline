@@ -4,6 +4,7 @@
     <string name="tab_plan">Plan</string>
     <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
+    <string name="navigate_back">Navigate back</string>
     <string name="add_entry">Add Entry</string>
     <string name="edit_entry">Edit Entry</string>
     <string name="add_medication_group">Add Group</string>
