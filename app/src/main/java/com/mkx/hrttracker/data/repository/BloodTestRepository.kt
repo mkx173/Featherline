@@ -30,22 +30,31 @@ class BloodTestRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val medicationLogRepository: MedicationLogRepository,
 ) {
+    @Volatile
+    private var cachedPanels: List<BloodTestPanel> = emptyList()
+
     suspend fun getPanels(): List<BloodTestPanel> {
         val dao = databaseHolder.get().bloodTestDao()
         val panels = dao.getPanels()
-        return mapPanels(panels = panels, dao = dao)
+        return cachePanels(mapPanels(panels = panels, dao = dao))
     }
 
     fun observePanels(): Flow<List<BloodTestPanel>> {
         val dao = databaseHolder.get().bloodTestDao()
-        return dao.observePanels().map { panels -> mapPanels(panels = panels, dao = dao) }
+        return dao.observePanels().map { panels ->
+            cachePanels(mapPanels(panels = panels, dao = dao))
+        }
     }
 
     suspend fun getPanel(uuid: UUID): BloodTestPanel? {
         val dao = databaseHolder.get().bloodTestDao()
         return dao.getPanel(uuid.toString())?.let { panel ->
-            mapPanels(panels = listOf(panel), dao = dao).firstOrNull()
+            mapPanels(panels = listOf(panel), dao = dao).firstOrNull()?.also(::cachePanel)
         }
+    }
+
+    fun getCachedPanel(uuid: UUID): BloodTestPanel? {
+        return cachedPanels.firstOrNull { panel -> panel.uuid == uuid }
     }
 
     suspend fun savePanel(
@@ -96,6 +105,7 @@ class BloodTestRepository @Inject constructor(
 
     suspend fun deletePanel(uuid: UUID) {
         databaseHolder.get().bloodTestDao().deletePanel(uuid.toString())
+        cachedPanels = cachedPanels.filterNot { panel -> panel.uuid == uuid }
     }
 
     suspend fun deleteAllPanels() {
@@ -104,6 +114,7 @@ class BloodTestRepository @Inject constructor(
             dao.deleteAllResults()
             dao.deleteAllPanels()
         }
+        cachedPanels = emptyList()
     }
 
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {
@@ -244,6 +255,16 @@ class BloodTestRepository @Inject constructor(
         return panels.map { panel ->
             panel.toModel(customAnalytesByUuid = customAnalytesByUuid)
         }
+    }
+
+    private fun cachePanels(panels: List<BloodTestPanel>): List<BloodTestPanel> {
+        cachedPanels = panels
+        return panels
+    }
+
+    private fun cachePanel(panel: BloodTestPanel) {
+        cachedPanels = cachedPanels
+            .filterNot { cachedPanel -> cachedPanel.uuid == panel.uuid } + panel
     }
 
     private suspend fun resolveCustomAnalytesForResults(

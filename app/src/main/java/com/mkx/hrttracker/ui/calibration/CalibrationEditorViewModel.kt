@@ -56,8 +56,9 @@ class CalibrationEditorViewModel @Inject constructor(
     }
     private val defaultZoneId = ZoneId.systemDefault()
     private var latestSettingsState = SettingsState()
+    private val cachedEditingPanel = editingPanelUuid?.let(bloodTestRepository::getCachedPanel)
     private val _uiState = MutableStateFlow(
-        CalibrationEditorUiState(
+        cachedEditingPanel?.toEditorState() ?: CalibrationEditorUiState(
             panelUuid = editingPanelUuid?.toString(),
             isEditing = editingPanelUuid != null,
             isLoading = editingPanelUuid != null,

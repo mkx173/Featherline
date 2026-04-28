@@ -21,6 +21,8 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -229,6 +231,46 @@ class BloodTestRepositoryTest {
             BloodTestResultAnalyte.Custom(customAnalyteUuid, "DHT", "DHT"),
             panel.results.last().analyte
         )
+    }
+
+    @Test
+    fun observePanels_cachesLatestPanelsForSynchronousLookup() = runTest {
+        val panelUuid = UUID.randomUUID()
+        val resultUuid = UUID.randomUUID()
+        every { dao.observePanels() } returns flowOf(
+            listOf(
+                BloodTestPanelWithResultsEntity(
+                    panel = BloodTestPanelEntity(
+                        uuid = panelUuid.toString(),
+                        collectedAtInstantEpochMillis = 1_700_000_000_000L,
+                        collectedAtTimeZoneId = "Asia/Tokyo",
+                        notes = null,
+                        timeSinceLastEstradiolDoseMillis = null,
+                        timeSinceLastTestosteroneDoseMillis = null,
+                        createdAtEpochMillis = 1_700_000_000_000L,
+                        updatedAtEpochMillis = 1_700_000_100_000L,
+                    ),
+                    results = listOf(
+                        BloodTestResultEntity(
+                            uuid = resultUuid.toString(),
+                            panelUuid = panelUuid.toString(),
+                            createdAtEpochMillis = 1_700_000_000_000L,
+                            displayOrder = 0,
+                            builtinAnalyteKey = "e2",
+                            customAnalyteUuid = null,
+                            value = 95.0,
+                            unitSnapshot = "pg_ml",
+                            canonicalValue = 95.0,
+                        )
+                    )
+                )
+            )
+        )
+
+        val panels = repository.observePanels().first()
+
+        assertEquals(panelUuid, panels.single().uuid)
+        assertEquals(panelUuid, repository.getCachedPanel(panelUuid)?.uuid)
     }
 
     @Test

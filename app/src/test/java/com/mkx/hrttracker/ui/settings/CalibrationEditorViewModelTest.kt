@@ -76,6 +76,37 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
+    fun cachedPanelForEditing_initializesWithoutLoadingState() = runTest {
+        val panelUuid = UUID.fromString("2a45018d-864f-402f-9376-1cd167a46ab6")
+        val panel = testBloodTestPanel(
+            uuid = panelUuid,
+            collectedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            notes = "Visible from history",
+        )
+        every { repository.getCachedPanel(panelUuid) } returns panel
+        coEvery { repository.getPanel(panelUuid) } returns panel
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle(
+                mapOf(CalibrationEditorViewModel.PANEL_ID_ARG to panelUuid.toString())
+            )
+        )
+
+        val initialState = viewModel.uiState.value
+        assertTrue(initialState.isEditing)
+        assertFalse(initialState.isLoading)
+        assertEquals("Visible from history", initialState.notes)
+        assertEquals(panelUuid.toString(), initialState.panelUuid)
+
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
     fun loadPanelForEditing_mapsExistingBuiltinsIntoDrafts() = runTest {
         val panelUuid = UUID.fromString("f791a95e-f0e0-495d-a1ce-0f41150eed2d")
         coEvery { repository.getPanel(panelUuid) } returns testBloodTestPanel(
