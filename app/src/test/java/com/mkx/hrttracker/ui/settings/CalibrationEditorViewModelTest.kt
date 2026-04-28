@@ -66,6 +66,8 @@ class CalibrationEditorViewModelTest {
         Dispatchers.setMain(dispatcher)
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery { repository.getActiveCustomAnalytes() } returns emptyList()
+        every { repository.getCachedPanel(any()) } returns null
+        every { repository.getCachedActiveCustomAnalytes() } returns null
         settingsStateFlow = MutableStateFlow(SettingsState())
         every { settingsRepository.settingsState } returns settingsStateFlow
     }
@@ -104,6 +106,36 @@ class CalibrationEditorViewModelTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isLoading)
+        coVerify(exactly = 0) { repository.getPanel(panelUuid) }
+    }
+
+    @Test
+    fun init_usesCachedCustomAnalytesForAddOptions() = runTest {
+        val customAnalyte = CustomBloodAnalyte(
+            uuid = UUID.fromString("61d5fc71-5533-4d5d-aa61-7333077c65c2"),
+            abbreviation = "DHT",
+            name = "DHT",
+            unitLabel = "ng/dL",
+            createdAt = Instant.parse("2026-04-24T00:30:00Z"),
+            updatedAt = Instant.parse("2026-04-24T00:30:00Z"),
+            archivedAt = null,
+        )
+        every { repository.getCachedPanel(any()) } returns null
+        every { repository.getCachedActiveCustomAnalytes() } returns listOf(customAnalyte)
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+
+        assertEquals(listOf(customAnalyte), viewModel.uiState.value.customAnalytes)
+        assertTrue(
+            calibrationAddAnalyteOptions(viewModel.uiState.value)
+                .contains(CalibrationAddAnalyteOption.Custom(customAnalyte))
+        )
+        coVerify(exactly = 0) { repository.getActiveCustomAnalytes() }
     }
 
     @Test

@@ -24,8 +24,9 @@ class CalibrationUnitsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val bloodTestRepository: BloodTestRepository,
 ) : ViewModel() {
-    private val customAnalytes = MutableStateFlow<List<CustomBloodAnalyte>>(emptyList())
-    private val isLoadingCustomAnalytes = MutableStateFlow(true)
+    private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
+    private val customAnalytes = MutableStateFlow(cachedCustomAnalytes.orEmpty())
+    private val isLoadingCustomAnalytes = MutableStateFlow(cachedCustomAnalytes == null)
     private val isArchivingCustomAnalyte = MutableStateFlow(false)
     private val archiveCustomAnalyteResult = MutableStateFlow<CalibrationArchiveCustomAnalyteResult?>(null)
 
@@ -51,7 +52,9 @@ class CalibrationUnitsViewModel @Inject constructor(
         )
 
     init {
-        refreshCustomAnalytes()
+        if (cachedCustomAnalytes == null) {
+            refreshCustomAnalytes()
+        }
     }
 
     fun setCalibrationDefaultUnit(

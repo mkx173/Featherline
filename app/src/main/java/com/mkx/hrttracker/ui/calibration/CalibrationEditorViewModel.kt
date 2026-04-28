@@ -55,24 +55,32 @@ class CalibrationEditorViewModel @Inject constructor(
         runCatching { UUID.fromString(panelId) }.getOrNull()
     }
     private val defaultZoneId = ZoneId.systemDefault()
-    private var latestSettingsState = SettingsState()
+    private var latestSettingsState = settingsRepository.settingsState.value
+    private val cachedCustomAnalytes = bloodTestRepository.getCachedActiveCustomAnalytes()
     private val cachedEditingPanel = editingPanelUuid?.let(bloodTestRepository::getCachedPanel)
     private val _uiState = MutableStateFlow(
-        cachedEditingPanel?.toEditorState() ?: CalibrationEditorUiState(
+        cachedEditingPanel?.toEditorState()?.copy(
+            customAnalytes = cachedCustomAnalytes.orEmpty(),
+        ) ?: CalibrationEditorUiState(
             panelUuid = editingPanelUuid?.toString(),
             isEditing = editingPanelUuid != null,
             isLoading = editingPanelUuid != null,
             collectedDate = LocalDate.now(defaultZoneId),
             collectedTime = LocalTime.now(defaultZoneId).withSecond(0).withNano(0),
+            customAnalytes = cachedCustomAnalytes.orEmpty(),
         )
     )
     val uiState: StateFlow<CalibrationEditorUiState> = _uiState.asStateFlow()
 
     init {
         observeCalibrationDefaultUnits()
-        refreshAvailableCustomAnalytes()
+        if (cachedCustomAnalytes == null) {
+            refreshAvailableCustomAnalytes()
+        }
         refreshTimeSinceLastEstradiolDose()
-        editingPanelUuid?.let(::loadPanelForEditing)
+        if (cachedEditingPanel == null) {
+            editingPanelUuid?.let(::loadPanelForEditing)
+        }
     }
 
     fun updateCollectedDate(date: LocalDate) {

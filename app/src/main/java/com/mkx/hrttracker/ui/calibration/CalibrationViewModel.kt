@@ -43,6 +43,10 @@ class CalibrationViewModel @Inject constructor(
         initialValue = CalibrationUiState(isLoading = true),
     )
 
+    init {
+        preloadCustomAnalytes()
+    }
+
     fun deleteAllCalibrationEntries() {
         if (isDeletingAllEntries.value) {
             return
@@ -63,6 +67,14 @@ class CalibrationViewModel @Inject constructor(
 
     fun consumeDeleteAllEntriesResult() {
         deleteAllEntriesResult.value = null
+    }
+
+    private fun preloadCustomAnalytes() {
+        viewModelScope.launch {
+            runCatching {
+                bloodTestRepository.preloadActiveCustomAnalytes()
+            }
+        }
     }
 }
 

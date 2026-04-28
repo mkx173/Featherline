@@ -46,6 +46,7 @@ class CalibrationUnitsViewModelTest {
             )
         )
         every { settingsRepository.settingsState } returns settingsStateFlow
+        every { bloodTestRepository.getCachedActiveCustomAnalytes() } returns null
     }
 
     @After
@@ -70,6 +71,25 @@ class CalibrationUnitsViewModelTest {
         assertEquals(customAnalytes, viewModel.uiState.value.customAnalytes)
         assertEquals(settingsStateFlow.value, viewModel.uiState.value.settingsState)
         assertFalse(viewModel.uiState.value.isLoadingCustomAnalytes)
+    }
+
+    @Test
+    fun init_usesCachedCustomAnalytesWithoutLoadingState() = runTest {
+        val cachedAnalytes = listOf(
+            testCustomBloodAnalyte(
+                uuid = UUID.fromString("fc515834-5b90-4354-b268-f68c861b2b1d"),
+                name = "DHT",
+                unitLabel = "ng/dL",
+            )
+        )
+        every { bloodTestRepository.getCachedActiveCustomAnalytes() } returns cachedAnalytes
+
+        val viewModel = CalibrationUnitsViewModel(settingsRepository, bloodTestRepository)
+        advanceUntilIdle()
+
+        assertEquals(cachedAnalytes, viewModel.uiState.value.customAnalytes)
+        assertFalse(viewModel.uiState.value.isLoadingCustomAnalytes)
+        coVerify(exactly = 0) { bloodTestRepository.getActiveCustomAnalytes() }
     }
 
     @Test

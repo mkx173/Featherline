@@ -32,6 +32,8 @@ class BloodTestRepository @Inject constructor(
 ) {
     @Volatile
     private var cachedPanels: List<BloodTestPanel> = emptyList()
+    @Volatile
+    private var cachedActiveCustomAnalytes: List<CustomBloodAnalyte>? = null
 
     suspend fun getPanels(): List<BloodTestPanel> {
         val dao = databaseHolder.get().bloodTestDao()
@@ -118,13 +120,22 @@ class BloodTestRepository @Inject constructor(
     }
 
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {
-        return databaseHolder.get().bloodTestDao()
+        return cacheActiveCustomAnalytes(databaseHolder.get().bloodTestDao()
             .getActiveCustomAnalytes()
             .map { analyte -> analyte.toModel() }
             .sortedWith(
                 compareBy<CustomBloodAnalyte>({ it.createdAt }, { it.name.lowercase(Locale.ROOT) })
                     .thenBy { it.unitLabel.lowercase(Locale.ROOT) }
             )
+        )
+    }
+
+    suspend fun preloadActiveCustomAnalytes(): List<CustomBloodAnalyte> {
+        return getActiveCustomAnalytes()
+    }
+
+    fun getCachedActiveCustomAnalytes(): List<CustomBloodAnalyte>? {
+        return cachedActiveCustomAnalytes
     }
 
     suspend fun getCustomAnalytes(): List<CustomBloodAnalyte> {
@@ -192,6 +203,7 @@ class BloodTestRepository @Inject constructor(
         } else {
             dao.updateCustomAnalyte(entity)
         }
+        cachedActiveCustomAnalytes = null
         return analyteUuid
     }
 
@@ -210,6 +222,7 @@ class BloodTestRepository @Inject constructor(
                 archivedAtEpochMillis = now.toEpochMilli(),
             )
         )
+        cachedActiveCustomAnalytes = null
     }
 
     suspend fun deleteCustomAnalyte(uuid: UUID) {
@@ -218,6 +231,7 @@ class BloodTestRepository @Inject constructor(
             "Cannot delete a custom analyte that is referenced by blood test results."
         }
         dao.deleteCustomAnalyte(uuid.toString())
+        cachedActiveCustomAnalytes = null
     }
 
     suspend fun hasResultsForCustomAnalyte(uuid: UUID): Boolean {
@@ -265,6 +279,13 @@ class BloodTestRepository @Inject constructor(
     private fun cachePanel(panel: BloodTestPanel) {
         cachedPanels = cachedPanels
             .filterNot { cachedPanel -> cachedPanel.uuid == panel.uuid } + panel
+    }
+
+    private fun cacheActiveCustomAnalytes(
+        customAnalytes: List<CustomBloodAnalyte>,
+    ): List<CustomBloodAnalyte> {
+        cachedActiveCustomAnalytes = customAnalytes
+        return customAnalytes
     }
 
     private suspend fun resolveCustomAnalytesForResults(
