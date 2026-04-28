@@ -42,6 +42,36 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historyEntryGroupDateFormatter_omits_year_for_current_year() {
+        val formatter = historyEntryGroupDateFormatter(
+            appLocale = Locale.US,
+            today = LocalDate.of(2026, 4, 28)
+        )
+
+        assertEquals("Apr 23", formatter(LocalDate.of(2026, 4, 23)))
+    }
+
+    @Test
+    fun historyEntryGroupDateFormatter_shows_year_for_different_year() {
+        val formatter = historyEntryGroupDateFormatter(
+            appLocale = Locale.US,
+            today = LocalDate.of(2026, 4, 28)
+        )
+
+        assertEquals("Dec 31, 2025", formatter(LocalDate.of(2025, 12, 31)))
+    }
+
+    @Test
+    fun historyEntryGroupDateFormatter_shows_year_for_different_year_in_chinese() {
+        val formatter = historyEntryGroupDateFormatter(
+            appLocale = Locale.SIMPLIFIED_CHINESE,
+            today = LocalDate.of(2026, 4, 28)
+        )
+
+        assertEquals("2025年12月31日", formatter(LocalDate.of(2025, 12, 31)))
+    }
+
+    @Test
     fun historyMonthLabelFormatter_uses_compact_chinese_month_format() {
         assertEquals(
             "4月",
@@ -50,12 +80,48 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarMonthTitleFormatter_uses_chinese_year_month_format() {
+    fun historyCalendarMonthTitleFormatter_omits_year_for_current_year() {
+        val formatter = historyCalendarMonthTitleFormatter(
+            appLocale = Locale.US,
+            currentYear = 2026
+        )
+
+        assertEquals("April", formatter(LocalDate.of(2026, 4, 23)))
+    }
+
+    @Test
+    fun historyCalendarMonthTitleFormatter_shows_year_for_different_year() {
+        val formatter = historyCalendarMonthTitleFormatter(
+            appLocale = Locale.US,
+            currentYear = 2026
+        )
+
+        assertEquals("December 2025", formatter(LocalDate.of(2025, 12, 31)))
+    }
+
+    @Test
+    fun historyCalendarMonthTitleFormatter_omits_year_for_current_year_in_chinese() {
+        val formatter = historyCalendarMonthTitleFormatter(
+            appLocale = Locale.SIMPLIFIED_CHINESE,
+            currentYear = 2026
+        )
+
         assertEquals(
-            "2026年4月",
-            LocalDate.of(2026, 4, 23).format(
-                historyCalendarMonthTitleFormatter(Locale.SIMPLIFIED_CHINESE)
-            )
+            "4月",
+            formatter(LocalDate.of(2026, 4, 23))
+        )
+    }
+
+    @Test
+    fun historyCalendarMonthTitleFormatter_shows_year_for_different_year_in_chinese() {
+        val formatter = historyCalendarMonthTitleFormatter(
+            appLocale = Locale.SIMPLIFIED_CHINESE,
+            currentYear = 2026
+        )
+
+        assertEquals(
+            "2025年12月",
+            formatter(LocalDate.of(2025, 12, 31))
         )
     }
 

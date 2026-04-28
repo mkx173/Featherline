@@ -1045,8 +1045,11 @@ private fun HistoryCalendarTitle(
     onGoToCurrent: () -> Unit,
     onGoToNext: () -> Unit
 ) {
-    val monthFormatter = remember(appLocale) {
-        historyCalendarMonthTitleFormatter(appLocale)
+    val monthFormatter = remember(appLocale, currentMonth) {
+        historyCalendarMonthTitleFormatter(
+            appLocale = appLocale,
+            currentYear = currentMonth.year
+        )
     }
 
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -1086,7 +1089,7 @@ private fun HistoryCalendarTitle(
             }
         }
 
-        val dateLabel = displayedMonth.atDay(1).format(monthFormatter)
+        val dateLabel = monthFormatter(displayedMonth.atDay(1))
         Text(
             text = dateLabel,
             style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
@@ -1356,11 +1359,11 @@ internal fun HistoryEntryGroupHeader(
     appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
-    val dayFormatter = remember(appLocale) {
-        historyEntryGroupDayFormatter(appLocale)
+    val dateFormatter = remember(appLocale, today) {
+        historyEntryGroupDateFormatter(appLocale, today)
     }
     val isToday = date == today
-    val label = date.format(dayFormatter)
+    val label = dateFormatter(date)
     val weekdayLabelShort = remember(date, appLocale) {
         date.dayOfWeek.getDisplayName(TextStyle.SHORT, appLocale)
     }
@@ -1455,6 +1458,28 @@ fun historyEntryGroupDayFormatter(appLocale: Locale): DateTimeFormatter {
     }
 }
 
+internal fun historyEntryGroupDateFormatter(
+    appLocale: Locale,
+    today: LocalDate
+): (LocalDate) -> String {
+    val currentYearFormatter = historyEntryGroupDayFormatter(appLocale)
+    val otherYearFormatter = if (appLocale.language == Locale.CHINESE.language) {
+        DateTimeFormatter.ofPattern("yyyy年M月d日", appLocale)
+    } else {
+        DateTimeFormatter.ofPattern("MMM d, yyyy", appLocale)
+    }
+
+    return { date ->
+        date.format(
+            if (date.year == today.year) {
+                currentYearFormatter
+            } else {
+                otherYearFormatter
+            }
+        )
+    }
+}
+
 internal fun historyMonthLabelFormatter(appLocale: Locale): DateTimeFormatter {
     return if (appLocale.language == Locale.CHINESE.language) {
         DateTimeFormatter.ofPattern("M月", appLocale)
@@ -1463,11 +1488,25 @@ internal fun historyMonthLabelFormatter(appLocale: Locale): DateTimeFormatter {
     }
 }
 
-internal fun historyCalendarMonthTitleFormatter(appLocale: Locale): DateTimeFormatter {
-    return if (appLocale.language == Locale.CHINESE.language) {
+internal fun historyCalendarMonthTitleFormatter(
+    appLocale: Locale,
+    currentYear: Int
+): (LocalDate) -> String {
+    val currentYearFormatter = historyMonthLabelFormatter(appLocale)
+    val otherYearFormatter = if (appLocale.language == Locale.CHINESE.language) {
         DateTimeFormatter.ofPattern("yyyy年M月", appLocale)
     } else {
         DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
+    }
+
+    return { date ->
+        date.format(
+            if (date.year == currentYear) {
+                currentYearFormatter
+            } else {
+                otherYearFormatter
+            }
+        )
     }
 }
 

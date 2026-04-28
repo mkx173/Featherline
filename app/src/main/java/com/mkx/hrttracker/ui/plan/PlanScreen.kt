@@ -163,8 +163,11 @@ private fun PlanScreenContent(
             today = uiState.today
         )
     }
-    val monthFormatter = remember(appLocale) {
-        historyCalendarMonthTitleFormatter(appLocale)
+    val monthFormatter = remember(appLocale, uiState.today) {
+        historyCalendarMonthTitleFormatter(
+            appLocale = appLocale,
+            currentYear = uiState.today.year
+        )
     }
     val selection = uiState.selectedDate
     val daySchedule = uiState.daySchedule
@@ -382,7 +385,7 @@ private fun PlanWeekHeader(
     weekStartDate: LocalDate,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
-    monthFormatter: DateTimeFormatter,
+    monthFormatter: (LocalDate) -> String,
     hasSelection: Boolean,
     onPreviousClick: () -> Unit,
     onCurrentClick: () -> Unit,
@@ -448,10 +451,10 @@ private fun PlanWeekHeader(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy((-2).dp)
             ) {
-                val dateLabel = headerDate.format(monthFormatter)
+                val dateLabel = monthFormatter(headerDate)
                 val pageLabel = stringResource(pageLabelRes)
                 Text(
-                    text = headerDate.format(monthFormatter),
+                    text = dateLabel,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
