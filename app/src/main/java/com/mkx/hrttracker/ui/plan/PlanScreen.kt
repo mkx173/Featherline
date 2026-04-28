@@ -48,11 +48,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -71,7 +74,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
 import com.kizitonwose.calendar.compose.weekcalendar.rememberWeekCalendarState
@@ -87,6 +93,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -155,6 +162,11 @@ private fun PlanScreenContent(
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasNotificationAccess by remember(context) {
+        mutableStateOf(canPostNotifications(context))
+    }
     val timeFormatter = remember(appLocale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
     }
@@ -180,6 +192,18 @@ private fun PlanScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotificationAccess = canPostNotifications(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val state = rememberWeekCalendarState(
         startDate = uiState.calendarStartDate,
@@ -350,6 +374,7 @@ private fun PlanScreenContent(
                 RegimenSection(
                     groups = uiState.medicationGroups,
                     remindersEnabled = uiState.remindersEnabled,
+                    hasNotificationAccess = hasNotificationAccess,
                     appLocale = appLocale,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter,
@@ -536,6 +561,7 @@ private fun PlanWeekPageIndicator(pageIndex: Int) {
 private fun RegimenSection(
     groups: List<MedicationGroup>,
     remindersEnabled: Boolean,
+    hasNotificationAccess: Boolean,
     appLocale: Locale,
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
@@ -616,6 +642,7 @@ private fun RegimenSection(
                     RegimenGroupCard(
                         group = group,
                         remindersEnabled = remindersEnabled,
+                        hasNotificationAccess = hasNotificationAccess,
                         appLocale = appLocale,
                         dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,

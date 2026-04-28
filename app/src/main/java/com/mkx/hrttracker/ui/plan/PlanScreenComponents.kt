@@ -293,6 +293,7 @@ private fun SelectedDayRow(
 internal fun RegimenGroupCard(
     group: MedicationGroup,
     remindersEnabled: Boolean,
+    hasNotificationAccess: Boolean,
     appLocale: Locale,
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
@@ -417,8 +418,12 @@ internal fun RegimenGroupCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (remindersEnabled) {
-                        val notificationsEnabled = group.notificationsEnabled
+                    if (shouldShowRegimenNotificationIcon(remindersEnabled, hasNotificationAccess)) {
+                        val notificationsEnabled = isRegimenNotificationIconEnabled(
+                            remindersEnabled = remindersEnabled,
+                            hasNotificationAccess = hasNotificationAccess,
+                            groupNotificationsEnabled = group.notificationsEnabled
+                        )
                         Icon(
                             imageVector = if (notificationsEnabled) {
                                 Icons.Rounded.Notifications
@@ -497,6 +502,21 @@ internal fun RegimenGroupCard(
             }
         }
     }
+}
+
+internal fun shouldShowRegimenNotificationIcon(
+    remindersEnabled: Boolean,
+    hasNotificationAccess: Boolean
+): Boolean {
+    return remindersEnabled || !hasNotificationAccess
+}
+
+internal fun isRegimenNotificationIconEnabled(
+    remindersEnabled: Boolean,
+    hasNotificationAccess: Boolean,
+    groupNotificationsEnabled: Boolean
+): Boolean {
+    return remindersEnabled && hasNotificationAccess && groupNotificationsEnabled
 }
 
 private fun scheduleIntervalLabel(
@@ -783,6 +803,7 @@ private fun RegimenGroupCardPreview() {
         RegimenGroupCard(
             group = group,
             remindersEnabled = uiState.remindersEnabled,
+            hasNotificationAccess = true,
             appLocale = appLocale,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
