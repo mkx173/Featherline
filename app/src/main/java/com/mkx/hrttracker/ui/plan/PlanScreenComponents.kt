@@ -71,6 +71,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 @Composable
@@ -201,6 +202,33 @@ private fun SelectedDayRow(
         SelectedDayRowState.PLANNED -> stringResource(R.string.plan_schedule_entry_planned)
         SelectedDayRowState.MANUAL -> stringResource(R.string.plan_entry_label_manual)
     }
+    val loggedDayOffsetText = when (row) {
+        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
+            selectedDayLoggedDayOffsetDays(
+                scheduledDate = date,
+                loggedAt = row.entry.loggedAt
+            )?.let { dayOffset ->
+                val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
+                stringResource(
+                    if (dayOffset > 0) {
+                        R.string.plan_schedule_entry_logged_day_offset_later
+                    } else {
+                        R.string.plan_schedule_entry_logged_day_offset_earlier
+                    },
+                    absoluteDayOffset
+                )
+            }
+        } else {
+            null
+        }
+
+        is SelectedDayRowModel.Unplanned -> null
+    }
+    val labelDisplayText = if (loggedDayOffsetText == null) {
+        labelText.uppercase()
+    } else {
+        "${labelText.uppercase()} $loggedDayOffsetText"
+    }
     val labelColor = when (rowState) {
         SelectedDayRowState.LOGGED -> MaterialTheme.colorScheme.primary
         SelectedDayRowState.DUE -> MaterialTheme.colorScheme.tertiary
@@ -241,7 +269,7 @@ private fun SelectedDayRow(
                     textAlign = TextAlign.End
                 )
                 Text(
-                    text = labelText.uppercase(),
+                    text = labelDisplayText,
                     style = MaterialTheme.typography.labelMedium,
                     color = labelColor,
                     textAlign = TextAlign.End
@@ -280,6 +308,19 @@ private fun SelectedDayRow(
             }
         }
     }
+}
+
+internal fun selectedDayLoggedDayOffsetDays(
+    scheduledDate: LocalDate,
+    loggedAt: LocalDateTime?,
+): Long? {
+    val loggedDate = loggedAt?.toLocalDate() ?: return null
+    val dayOffset = ChronoUnit.DAYS.between(scheduledDate, loggedDate)
+    if (dayOffset == 0L) {
+        return null
+    }
+
+    return dayOffset
 }
 
 @Composable

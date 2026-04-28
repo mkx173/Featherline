@@ -62,6 +62,8 @@
     <string name="plan_selected_day_summary_empty_future">尚无计划</string>
     <string name="plan_schedule_entry_not_logged">尚未记录</string>
     <string name="plan_schedule_entry_logged">已记录</string>
+    <string name="plan_schedule_entry_logged_day_offset_later">+%1$d天</string>
+    <string name="plan_schedule_entry_logged_day_offset_earlier">-%1$d天</string>
     <string name="plan_schedule_entry_due_soon">即将到来</string>
     <string name="plan_schedule_entry_past_due">已逾期</string>
     <string name="plan_schedule_entry_missed">已错过</string>
