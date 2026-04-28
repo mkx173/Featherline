@@ -108,6 +108,7 @@ import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -515,10 +516,14 @@ private fun HistoryScreenContent(
                     onCancelSelectionClick = onCancelEntrySelectionClick,
                     onSelectAllClick = { onSelectAllEntriesClick(visibleEntryIds) },
                     onReverseSelectionClick = { onReverseEntrySelectionClick(visibleEntryIds) },
+                    onScrollToTop = { listState.animateScrollToItem(0) },
                     scrollBehavior = scrollBehavior,
                 )
             } else {
                 TopAppBar(
+                    modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                        listState.animateScrollToItem(0)
+                    },
                     title = { Text(text = stringResource(R.string.tab_history)) },
                     navigationIcon = {
                         if (onNavigateBack != null) {
@@ -707,9 +712,11 @@ private fun HistorySelectionTopAppBar(
     onCancelSelectionClick: () -> Unit,
     onSelectAllClick: () -> Unit,
     onReverseSelectionClick: () -> Unit,
+    onScrollToTop: suspend () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     TopAppBar(
+        modifier = Modifier.topAppBarScrollToTop(scrollBehavior, onScrollToTop),
         title = {
             Text(
                 text = pluralStringResource(

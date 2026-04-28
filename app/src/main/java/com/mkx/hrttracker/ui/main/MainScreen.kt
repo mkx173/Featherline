@@ -22,6 +22,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -58,6 +59,9 @@ fun MainScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             CenterAlignedTopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                    listState.animateScrollToItem(0)
+                },
                 title = { Text(text = stringResource(R.string.tab_main)) },
                 scrollBehavior = scrollBehavior
             )

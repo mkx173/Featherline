@@ -33,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.getSelectedEndDate
 import androidx.compose.material3.getSelectedStartDate
 import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +61,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -111,7 +113,11 @@ private fun PlanBatchAddScreenContent(
         mutableStateOf(canPostNotifications(context))
     }
     val listState = rememberLazyListState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
+        lazyListState = listState,
+        state = topAppBarState
+    )
     val timeFormatter = remember(appLocale) {
         localizedShortTimeFormatter(appLocale)
     }
@@ -214,6 +220,9 @@ private fun PlanBatchAddScreenContent(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
+                modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
+                    listState.animateScrollToItem(0)
+                },
                 title = { Text(text = stringResource(R.string.plan_batch_add_title)) },
                 navigationIcon = {
                     IconButton(
