@@ -39,10 +39,11 @@ fun buildPlanCalendarDayUiState(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     startDate: LocalDate,
-    endDate: LocalDate
+    endDate: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault()
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val entriesByDate = entries.groupBy { entry ->
-        entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate()
+        entry.planCalendarDate(zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, PlanCalendarDayUiState>()
@@ -87,6 +88,10 @@ fun buildPlanCalendarDayUiState(
     }
 
     return dayStates
+}
+
+internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
+    return scheduledFor?.toLocalDate() ?: appliedAt.atZone(zoneId).toLocalDate()
 }
 
 private fun isPlanOffPlanEntry(

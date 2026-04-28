@@ -7,6 +7,7 @@ import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
+import com.mkx.hrttracker.ui.plan.planCalendarDate
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -148,10 +149,11 @@ internal fun buildHistoryCalendarDayUiState(
         groups = groups,
         entries = entries,
         startDate = startDate,
-        endDate = endDate
+        endDate = endDate,
+        zoneId = zoneId
     )
     val entriesByDate = entries.groupBy { entry ->
-        entry.appliedAt.atZone(zoneId).toLocalDate()
+        entry.planCalendarDate(zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, HistoryCalendarDayUiState>()

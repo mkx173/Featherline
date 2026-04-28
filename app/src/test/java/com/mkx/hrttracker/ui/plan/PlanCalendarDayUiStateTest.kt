@@ -138,6 +138,49 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
+    fun buildPlanCalendarDayUiState_matches_planned_record_by_scheduled_date_when_applied_after_midnight() {
+        val scheduledDate = LocalDate.of(2026, 4, 16)
+        val group = medicationGroup(
+            uuid = UUID.fromString("fd53d9d9-fcf3-48f4-8392-a3d13395c220"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = setOf(scheduledDate.dayOfWeek),
+                times = listOf(LocalTime.of(23, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("5e9743c0-fd3f-48de-9de3-5741a57d54a3"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = group.uuid,
+                    details = group.medications.single().details,
+                    appliedAt = LocalDateTime.of(2026, 4, 17, 0, 15),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 23, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 17)
+        )
+
+        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
+        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+        assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 17)).hasOffPlanRecord)
+    }
+
+    @Test
     fun buildPlanCalendarDayUiState_counts_each_scheduled_slot_at_most_once() {
         val group = medicationGroup(
             uuid = UUID.fromString("9f532a81-f4b3-4927-9db1-0a86751df861"),

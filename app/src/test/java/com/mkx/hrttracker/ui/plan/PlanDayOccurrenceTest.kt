@@ -82,6 +82,40 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
+    fun buildPlanDaySchedule_matches_planned_record_when_applied_after_midnight() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(23, 0))
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 23, 0)
+        val fulfilledEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 19, 0, 15)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = scheduledFor
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(fulfilledEntry),
+            now = LocalDateTime.of(2026, 4, 19, 1, 0)
+        )
+
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertEquals(LocalDateTime.of(2026, 4, 19, 0, 15), schedule.scheduledEntries.single().loggedAt)
+        assertTrue(schedule.unplannedEntries.isEmpty())
+    }
+
+    @Test
     fun buildPlanDaySchedule_collapses_duplicate_matching_medications_into_one_counted_entry() {
         val sharedDetails = testCatalogMedicationDetails(
             key = MedicationKey.ESTRADIOL,
