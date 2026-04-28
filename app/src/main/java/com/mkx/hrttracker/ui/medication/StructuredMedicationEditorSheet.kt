@@ -1,5 +1,5 @@
 package com.mkx.hrttracker.ui.medication
-import android.text.format.DateFormat
+
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -97,12 +97,13 @@ import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -145,14 +146,15 @@ fun StructuredMedicationEditorSheet(
 ) {
     val context = LocalContext.current
     val appLocale = rememberAppLocale()
+    val today = remember { LocalDate.now() }
     val fieldErrors = remember(draft, errorMessageRes) {
         resolveMedicationEditorFieldErrors(draft, errorMessageRes)
     }
-    val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
     }
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
     val catalog = remember(draft.category, draft.applicationType) {
         MedicationCatalog.catalogFor(draft.category, draft.applicationType)
@@ -648,7 +650,7 @@ fun StructuredMedicationEditorSheet(
                         scheduledForText = stringResource(
                             R.string.medication_editor_original_schedule,
                             listOf(
-                                scheduledFor.toLocalDate().format(dateFormatter),
+                                dateFormatter(scheduledFor.toLocalDate()),
                                 scheduledFor.toLocalTime().format(timeFormatter)
                             ).joinToString(separator = " ")
                         ),
@@ -684,7 +686,7 @@ fun StructuredMedicationEditorSheet(
                 }
 
                 OutlinedTextField(
-                    value = appliedDate.format(dateFormatter),
+                    value = dateFormatter(appliedDate),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(stringResource(R.string.field_date_of_application)) },
@@ -721,7 +723,7 @@ fun StructuredMedicationEditorSheet(
                         },
                         onDismiss = { showTimePickerModal = false },
                         initialTime = appliedTime,
-                        is24Hour = DateFormat.is24HourFormat(context)
+                        is24Hour = context.uses24HourTimeFormat()
                     )
                 }
 

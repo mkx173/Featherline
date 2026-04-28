@@ -33,11 +33,13 @@ import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
 @Composable
@@ -46,7 +48,7 @@ internal fun DailyScheduleEditor(
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
     previewOccurrences: List<LocalDateTime>,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
@@ -60,7 +62,7 @@ internal fun DailyScheduleEditor(
     ) {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
-            value = sinceDate.format(dateFormatter),
+            value = dateFormatter(sinceDate),
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             index = 0,
@@ -220,7 +222,7 @@ internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount >
 internal fun ScheduleOccurrencesCard(
     title: String,
     occurrences: List<LocalDateTime>,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     index: Int = 0,
     count: Int = 1
@@ -243,7 +245,7 @@ internal fun ScheduleOccurrencesCard(
             occurrences.forEachIndexed { occurrenceIndex, occurrence ->
                 ScheduleOccurrenceRow(
                     formattedTime = occurrence.toLocalTime().format(timeFormatter),
-                    formattedDate = occurrence.toLocalDate().format(dateFormatter),
+                    formattedDate = dateFormatter(occurrence.toLocalDate()),
                     index = occurrenceIndex,
                     count = occurrences.size
                 )
@@ -308,10 +310,11 @@ private fun DailyScheduleEditorPreview() {
                 LocalDateTime.of(2026, 4, 28, 9, 0),
                 LocalDateTime.of(2026, 4, 28, 21, 30)
             ),
-            dateFormatter = medicationGroupScheduleDateFormatter(previewLocale),
-            timeFormatter = DateTimeFormatter
-                .ofLocalizedTime(FormatStyle.SHORT)
-                .withLocale(previewLocale),
+            dateFormatter = medicationGroupScheduleDateFormatter(
+                locale = previewLocale,
+                today = LocalDate.of(2026, 4, 22),
+            ),
+            timeFormatter = localizedShortTimeFormatter(previewLocale),
             onSinceDateChange = {},
             onIntervalChange = {},
             onAddTime = {},

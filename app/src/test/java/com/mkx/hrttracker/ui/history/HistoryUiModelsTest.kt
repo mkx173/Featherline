@@ -14,6 +14,10 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
+import com.mkx.hrttracker.util.calendarMonthTitleFormatter
+import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
+import com.mkx.hrttracker.util.historyEntryGroupDayFormatter
+import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -80,9 +84,9 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarMonthTitleFormatter_omits_year_for_current_year() {
-        val formatter = historyCalendarMonthTitleFormatter(
-            appLocale = Locale.US,
+    fun calendarMonthTitleFormatter_omits_year_for_current_year() {
+        val formatter = calendarMonthTitleFormatter(
+            locale = Locale.US,
             currentYear = 2026
         )
 
@@ -90,9 +94,9 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarMonthTitleFormatter_shows_year_for_different_year() {
-        val formatter = historyCalendarMonthTitleFormatter(
-            appLocale = Locale.US,
+    fun calendarMonthTitleFormatter_shows_year_for_different_year() {
+        val formatter = calendarMonthTitleFormatter(
+            locale = Locale.US,
             currentYear = 2026
         )
 
@@ -100,9 +104,9 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarMonthTitleFormatter_omits_year_for_current_year_in_chinese() {
-        val formatter = historyCalendarMonthTitleFormatter(
-            appLocale = Locale.SIMPLIFIED_CHINESE,
+    fun calendarMonthTitleFormatter_omits_year_for_current_year_in_chinese() {
+        val formatter = calendarMonthTitleFormatter(
+            locale = Locale.SIMPLIFIED_CHINESE,
             currentYear = 2026
         )
 
@@ -113,9 +117,9 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyCalendarMonthTitleFormatter_shows_year_for_different_year_in_chinese() {
-        val formatter = historyCalendarMonthTitleFormatter(
-            appLocale = Locale.SIMPLIFIED_CHINESE,
+    fun calendarMonthTitleFormatter_shows_year_for_different_year_in_chinese() {
+        val formatter = calendarMonthTitleFormatter(
+            locale = Locale.SIMPLIFIED_CHINESE,
             currentYear = 2026
         )
 

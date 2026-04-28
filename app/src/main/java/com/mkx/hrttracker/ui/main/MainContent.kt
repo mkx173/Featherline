@@ -57,6 +57,9 @@ import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
@@ -69,7 +72,6 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
@@ -84,11 +86,12 @@ fun MainContent(
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val today = uiState.now.toLocalDate()
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
     }
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
     if (uiState.isLoading) {
         Box(
@@ -132,8 +135,7 @@ fun MainContent(
                     card = card,
                     now = uiState.now,
                     dateFormatter = dateFormatter,
-                    timeFormatter = timeFormatter,
-                    appLocale = appLocale
+                    timeFormatter = timeFormatter
                 )
             }
         }
@@ -426,9 +428,8 @@ private fun MainE2ChartCard(
 private fun MainAntiandrogenCard(
     card: MainAntiandrogenCardUiState,
     now: LocalDateTime,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
     val displayedDetails = card.lastDoseDetails ?: card.medication.details
@@ -447,8 +448,7 @@ private fun MainAntiandrogenCard(
                 target = nextDoseAt,
                 now = now,
                 dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter,
-                appLocale = appLocale
+                timeFormatter = timeFormatter
             )
         )
     } ?: stringResource(R.string.main_antiandrogen_no_next_dose)
@@ -557,7 +557,7 @@ private fun MainAntiandrogenCard(
 @Composable
 private fun MainTodaySection(
     section: MainTodaySectionUiState,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
@@ -568,7 +568,7 @@ private fun MainTodaySection(
     ) {
         SectionHeader(
             title = stringResource(R.string.main_today_title),
-            subtitle = section.date.format(dateFormatter),
+            subtitle = dateFormatter(section.date),
             trailing = stringResource(
                 R.string.main_today_progress,
                 section.doneCount,
@@ -601,7 +601,7 @@ private fun MainTodaySection(
 @Composable
 private fun MainUpcomingSection(
     section: MainUpcomingSectionUiState,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     modifier: Modifier = Modifier
 ) {
@@ -610,7 +610,7 @@ private fun MainUpcomingSection(
         MainUpcomingSectionTitle.UPCOMING -> stringResource(R.string.main_upcoming_title)
     }
 
-    val subtitle = section.anchorDate?.format(dateFormatter).orEmpty()
+    val subtitle = section.anchorDate?.let(dateFormatter).orEmpty()
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -782,7 +782,7 @@ private fun MainTodayDoseRow(
 @Composable
 private fun MainUpcomingDoseRow(
     row: MainUpcomingDoseRowUiState,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     showDate: Boolean,
     modifier: Modifier = Modifier
@@ -793,7 +793,7 @@ private fun MainUpcomingDoseRow(
     val supportingText = supportingText(
         details = details,
         groupName = row.groupName,
-        includeDate = if (showDate) row.scheduledAt.toLocalDate().format(dateFormatter) else null,
+        includeDate = if (showDate) dateFormatter(row.scheduledAt.toLocalDate()) else null,
     )
 
     Row(
@@ -1074,9 +1074,8 @@ private fun mainElapsedDurationLabel(
 private fun mainRelativeDateTimeLabel(
     target: LocalDateTime,
     now: LocalDateTime,
-    dateFormatter: DateTimeFormatter,
-    timeFormatter: DateTimeFormatter,
-    appLocale: Locale
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter
 ): String {
     val timeText = target.toLocalTime().format(timeFormatter)
     return when (target.toLocalDate()) {
@@ -1084,7 +1083,7 @@ private fun mainRelativeDateTimeLabel(
         now.toLocalDate().plusDays(1) -> stringResource(R.string.main_relative_tomorrow_time, timeText)
         else -> stringResource(
             R.string.main_relative_date_time,
-            target.toLocalDate().format(dateFormatter.withLocale(appLocale)),
+            dateFormatter(target.toLocalDate()),
             timeText
         )
     }

@@ -64,12 +64,13 @@ import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
 @Composable
@@ -301,11 +302,8 @@ internal fun RegimenGroupCard(
     showUpcomingSection: Boolean = true,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
-    val startDateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
-    }
-    val groupStartDate = remember(group.schedule.since, startDateFormatter) {
-        group.schedule.since.format(startDateFormatter)
+    val groupStartDate = remember(group.schedule.since, dateFormatter) {
+        dateFormatter(group.schedule.since)
     }
     val grouStartDateText = stringResource(
         R.string.group_schedule_since_summary,
@@ -743,7 +741,7 @@ private enum class SelectedDayRowState {
 private fun SelectedDaySectionPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    val timeFormatter = localizedShortTimeFormatter(appLocale)
 
     PlanScreenComponentPreviewContainer {
         SelectedDaySection(
@@ -764,7 +762,7 @@ private fun SelectedDaySectionPreview() {
 @Composable
 private fun SelectedDayRowPreview() {
     val uiState = buildPlanPreviewUiState()
-    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.US)
+    val timeFormatter = localizedShortTimeFormatter(Locale.US)
     val row = SelectedDayRowModel.Scheduled(uiState.daySchedule.scheduledEntries.first())
 
     PlanScreenComponentPreviewContainer {
@@ -785,7 +783,7 @@ private fun SelectedDayRowPreview() {
 private fun SelectedDayManualRowPreview() {
     val uiState = buildPlanPreviewUiState()
     val entry = uiState.daySchedule.unplannedEntries.first()
-    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.US)
+    val timeFormatter = localizedShortTimeFormatter(Locale.US)
 
     PlanScreenComponentPreviewContainer {
         SelectedDayRow(
@@ -808,12 +806,10 @@ private fun SelectedDayManualRowPreview() {
 private fun RegimenGroupCardPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val dateFormatter = remember(appLocale) {
-        val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-            .withLocale(appLocale)
-        return@remember { date: LocalDate -> date.format(formatter) }
+    val dateFormatter = remember(appLocale, uiState.today) {
+        dateLabelFormatter(appLocale, uiState.today)
     }
-    val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+    val timeFormatter = localizedShortTimeFormatter(appLocale)
     val group = uiState.medicationGroups.last()
 
     PlanScreenComponentPreviewContainer {

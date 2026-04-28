@@ -19,6 +19,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.util.backupFileNameTimestampFormatter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -27,7 +28,6 @@ import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -376,11 +376,9 @@ class BackupExportService @Inject constructor(
             exportedAt: Instant,
             zoneId: ZoneId = ZoneId.systemDefault(),
         ): String {
-            return "hrttracker-backup-${BACKUP_FILE_NAME_FORMATTER.format(exportedAt.atZone(zoneId))}.hrtbackup"
+            val timestamp = backupFileNameTimestampFormatter().format(exportedAt.atZone(zoneId))
+            return "hrttracker-backup-$timestamp.hrtbackup"
         }
-
-        private val BACKUP_FILE_NAME_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")
 
         private const val BACKUP_MIME_TYPE = "application/octet-stream"
         private const val PREPARED_BACKUP_FILE_PREFIX = "prepared-backup-"

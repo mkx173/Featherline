@@ -23,12 +23,14 @@ import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -41,7 +43,7 @@ internal fun WeeklyScheduleEditor(
     time: LocalTime,
     previewOccurrences: List<LocalDateTime>,
     appLocale: Locale,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
@@ -54,7 +56,7 @@ internal fun WeeklyScheduleEditor(
     ) {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
-            value = sinceDate.format(dateFormatter),
+            value = dateFormatter(sinceDate),
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             index = 0,
@@ -147,10 +149,11 @@ private fun WeeklyScheduleEditorPreview() {
                 LocalDateTime.of(2026, 5, 1, 9, 30)
             ),
             appLocale = previewLocale,
-            dateFormatter = medicationGroupScheduleDateFormatter(previewLocale),
-            timeFormatter = DateTimeFormatter
-                .ofLocalizedTime(FormatStyle.SHORT)
-                .withLocale(previewLocale),
+            dateFormatter = medicationGroupScheduleDateFormatter(
+                locale = previewLocale,
+                today = LocalDate.of(2026, 4, 22),
+            ),
+            timeFormatter = localizedShortTimeFormatter(previewLocale),
             onSinceDateChange = {},
             onIntervalChange = {},
             onDayChange = {},

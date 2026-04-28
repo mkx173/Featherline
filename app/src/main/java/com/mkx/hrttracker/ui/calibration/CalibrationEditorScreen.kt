@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.calibration
 
-import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,12 +68,15 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
 
@@ -88,13 +90,14 @@ fun CalibrationEditorScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val appLocale = rememberAppLocale()
-    val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val today = remember { LocalDate.now() }
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
     }
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
-    val is24Hour = DateFormat.is24HourFormat(context)
+    val is24Hour = context.uses24HourTimeFormat()
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isAddAnalyteSheetVisible by rememberSaveable { mutableStateOf(false) }
@@ -244,7 +247,7 @@ fun CalibrationEditorScreen(
 @Composable
 private fun CalibrationEditorScreenContent(
     uiState: CalibrationEditorUiState,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onNavigateBack: () -> Unit,
     onDateClick: () -> Unit,
@@ -338,7 +341,7 @@ private fun CalibrationEditorScreenContent(
             ) {
                 item {
                     CalibrationDateTimeCard(
-                        dateLabel = uiState.collectedDate.format(dateFormatter),
+                        dateLabel = dateFormatter(uiState.collectedDate),
                         timeLabel = uiState.collectedTime.format(timeFormatter),
                         timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
                         onDateClick = onDateClick,
@@ -696,12 +699,15 @@ private fun CalibrationAddAnalyteSheetPreview() {
     }
 }
 
-private fun previewCalibrationEditorDateFormatter(): DateTimeFormatter {
-    return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.ENGLISH)
+private fun previewCalibrationEditorDateFormatter(): LocalDateFormatter {
+    return dateLabelFormatter(
+        locale = Locale.ENGLISH,
+        today = LocalDate.of(2026, 4, 24),
+    )
 }
 
 private fun previewCalibrationEditorTimeFormatter(): DateTimeFormatter {
-    return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(Locale.ENGLISH)
+    return localizedShortTimeFormatter(Locale.ENGLISH)
 }
 
 private fun previewCalibrationCustomAnalytes(): List<CustomBloodAnalyte> {

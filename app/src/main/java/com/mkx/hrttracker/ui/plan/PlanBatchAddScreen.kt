@@ -61,10 +61,11 @@ import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.UUID
 
 @Composable
@@ -115,10 +116,10 @@ private fun PlanBatchAddScreenContent(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
-    val dateFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(appLocale)
+    val dateFormatter = remember(appLocale, uiState.today) {
+        dateLabelFormatter(appLocale, uiState.today)
     }
     var isRangePickerVisible by remember {
         mutableStateOf(false)
@@ -275,7 +276,7 @@ private fun PlanBatchAddScreenContent(
                             remindersEnabled = uiState.remindersEnabled,
                             hasNotificationAccess = hasNotificationAccess,
                             appLocale = appLocale,
-                            dateFormatter = { date -> date.format(dateFormatter) },
+                            dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
                             today = uiState.today,
@@ -323,7 +324,7 @@ private fun PlanBatchAddRangeSelector(
     manualEntryCount: Int,
     canConfirm: Boolean,
     isSaving: Boolean,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     onDateRangeClick: () -> Unit,
     onConfirmClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -343,8 +344,8 @@ private fun PlanBatchAddRangeSelector(
             text = stringResource(R.string.plan_batch_add_date_range),
             supportingText = stringResource(
                 R.string.plan_batch_add_date_range_value,
-                startDate.format(dateFormatter),
-                endDate.format(dateFormatter),
+                dateFormatter(startDate),
+                dateFormatter(endDate),
             ),
             onClick = onDateRangeClick,
             modifier = Modifier.fillMaxWidth(),
@@ -455,7 +456,7 @@ private fun PlanBatchAddConfirmationDialog(
     endDate: LocalDate,
     entryCount: Int,
     manualEntryCount: Int,
-    dateFormatter: DateTimeFormatter,
+    dateFormatter: LocalDateFormatter,
     isSaving: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -475,8 +476,8 @@ private fun PlanBatchAddConfirmationDialog(
                         entryCount,
                         entryCount,
                         groupName,
-                        startDate.format(dateFormatter),
-                        endDate.format(dateFormatter),
+                        dateFormatter(startDate),
+                        dateFormatter(endDate),
                     )
                 )
                 if (manualEntryCount > 0) {

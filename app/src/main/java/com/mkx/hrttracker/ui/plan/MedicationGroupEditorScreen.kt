@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -112,17 +111,14 @@ import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeFormatterBuilder
-import java.time.format.FormatStyle
-import java.time.format.TextStyle
-import java.time.temporal.ChronoField
-import java.util.Locale
 import java.util.UUID
 
 @Composable
@@ -431,18 +427,20 @@ private fun MedicationGroupEditorScreenContent(
         skipPartiallyExpanded = true
     )
     val scope = rememberCoroutineScope()
+    val systemToday = remember { LocalDate.now() }
+    val currentDate = occurrenceReferenceTime?.toLocalDate() ?: systemToday
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
-    val dateFormatter = remember(appLocale) {
-        medicationGroupScheduleDateFormatter(appLocale)
+    val dateFormatter = remember(appLocale, currentDate) {
+        medicationGroupScheduleDateFormatter(appLocale, currentDate)
     }
     val notificationSupportState = resolveNotificationSupportState(
         hasNotificationAccess = hasNotificationAccess,
         remindersEnabled = uiState.remindersEnabled,
         showInexactReminderWarning = showInexactReminderWarning
     )
-    val is24Hour = DateFormat.is24HourFormat(context)
+    val is24Hour = context.uses24HourTimeFormat()
     val deleteRelatedEntriesSuccessMessage =
         stringResource(R.string.delete_group_related_records_success)
     val deleteRelatedEntriesFailureMessage =
@@ -1176,14 +1174,6 @@ internal fun medicationGroupEditorUpcomingOccurrenceLimit(
     }
 }
 
-internal fun medicationGroupScheduleDateFormatter(locale: Locale): DateTimeFormatter {
-    return DateTimeFormatterBuilder()
-        .appendLocalized(FormatStyle.MEDIUM, null)
-        .appendLiteral(' ')
-        .appendText(ChronoField.DAY_OF_WEEK, TextStyle.SHORT)
-        .toFormatter(locale)
-}
-
 private data class DailyTimeEditRequest(
     val localId: String,
     val initialTime: LocalTime,
@@ -1454,4 +1444,3 @@ private fun buildMedicationGroupEditorPreviewUiState(
         )
     )
 }
-

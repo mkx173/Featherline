@@ -81,13 +81,18 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.CalibrationPanelDateTimeFormatters
+import com.mkx.hrttracker.util.CalibrationPanelDateTimeLabels
+import com.mkx.hrttracker.util.LocalDateFormatter
+import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
+import com.mkx.hrttracker.util.calibrationPanelDateTimeFormatters
+import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.round
@@ -104,11 +109,15 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val appLocale = rememberAppLocale()
+    val today = remember { LocalDate.now() }
     val panelDateTimeFormatters = remember(appLocale) {
         calibrationPanelDateTimeFormatters(appLocale)
     }
-    val monthFormatter = remember(appLocale) {
-        calibrationMonthHeaderFormatter(appLocale)
+    val monthFormatter = remember(appLocale, today) {
+        calibrationMonthHeaderFormatter(
+            locale = appLocale,
+            currentYear = today.year,
+        )
     }
 
     CalibrationScreenContent(
@@ -130,7 +139,7 @@ fun CalibrationScreen(
 private fun CalibrationScreenContent(
     uiState: CalibrationUiState,
     panelDateTimeFormatters: CalibrationPanelDateTimeFormatters,
-    monthFormatter: DateTimeFormatter,
+    monthFormatter: LocalDateFormatter,
     onNavigateBack: () -> Unit,
     onDeleteAllCalibrationEntries: () -> Unit,
     onDeleteAllCalibrationEntriesResultConsumed: () -> Unit,
@@ -464,7 +473,7 @@ internal data class CalibrationPanelMonthGroup(
 
 internal fun groupCalibrationPanelsByMonth(
     panels: List<BloodTestPanel>,
-    monthFormatter: DateTimeFormatter,
+    monthFormatter: LocalDateFormatter,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<CalibrationPanelMonthGroup> {
     val groups = linkedMapOf<YearMonth, MutableList<BloodTestPanel>>()
@@ -476,56 +485,10 @@ internal fun groupCalibrationPanelsByMonth(
     return groups.map { (yearMonth, groupedPanels) ->
         CalibrationPanelMonthGroup(
             yearMonth = yearMonth,
-            monthLabel = yearMonth.atDay(1).format(monthFormatter),
+            monthLabel = monthFormatter(yearMonth.atDay(1)),
             panels = groupedPanels,
         )
     }
-}
-
-internal fun calibrationMonthHeaderFormatter(appLocale: Locale): DateTimeFormatter {
-    return if (appLocale.language == Locale.CHINESE.language) {
-        DateTimeFormatter.ofPattern("yyyy年M月", appLocale)
-    } else {
-        DateTimeFormatter.ofPattern("LLLL yyyy", appLocale)
-    }
-}
-
-internal data class CalibrationPanelDateTimeFormatters(
-    val monthFormatter: DateTimeFormatter,
-    val dayFormatter: DateTimeFormatter,
-    val timeFormatter: DateTimeFormatter,
-)
-
-internal data class CalibrationPanelDateTimeLabels(
-    val monthLabel: String,
-    val dayLabel: String,
-    val timeLabel: String,
-)
-
-internal fun calibrationPanelDateTimeFormatters(appLocale: Locale): CalibrationPanelDateTimeFormatters {
-    val monthPattern = if (appLocale.language == Locale.CHINESE.language) {
-        "M月"
-    } else {
-        "MMM"
-    }
-    return CalibrationPanelDateTimeFormatters(
-        monthFormatter = DateTimeFormatter.ofPattern(monthPattern, appLocale),
-        dayFormatter = DateTimeFormatter.ofPattern("d", appLocale),
-        timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale),
-    )
-}
-
-internal fun formatCalibrationPanelDateTimeLabels(
-    panel: BloodTestPanel,
-    dateTimeFormatters: CalibrationPanelDateTimeFormatters,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): CalibrationPanelDateTimeLabels {
-    val collectedAt = panel.collectedAt.atZone(zoneId)
-    return CalibrationPanelDateTimeLabels(
-        monthLabel = collectedAt.format(dateTimeFormatters.monthFormatter),
-        dayLabel = collectedAt.format(dateTimeFormatters.dayFormatter),
-        timeLabel = collectedAt.format(dateTimeFormatters.timeFormatter),
-    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -540,7 +503,7 @@ private fun CalibrationPanelRow(
 ) {
     val dateTimeLabels = remember(panel.collectedAt, dateTimeFormatters) {
         formatCalibrationPanelDateTimeLabels(
-            panel = panel,
+            collectedAt = panel.collectedAt,
             dateTimeFormatters = dateTimeFormatters,
         )
     }
@@ -1307,8 +1270,11 @@ private fun previewCalibrationPanelDateTimeFormatters(): CalibrationPanelDateTim
     return calibrationPanelDateTimeFormatters(Locale.ENGLISH)
 }
 
-private fun previewCalibrationMonthFormatter(): DateTimeFormatter {
-    return calibrationMonthHeaderFormatter(Locale.ENGLISH)
+private fun previewCalibrationMonthFormatter(): LocalDateFormatter {
+    return calibrationMonthHeaderFormatter(
+        locale = Locale.ENGLISH,
+        currentYear = 2026,
+    )
 }
 
 private fun previewCalibrationPanels(): List<BloodTestPanel> {

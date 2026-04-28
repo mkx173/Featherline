@@ -96,9 +96,10 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.history.historyCalendarMonthTitleFormatter
-import com.mkx.hrttracker.ui.history.historyEntryGroupDayFormatter
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.calendarMonthTitleFormatter
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.planUpcomingDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -109,7 +110,6 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -169,17 +169,17 @@ private fun PlanScreenContent(
         mutableStateOf(canPostNotifications(context))
     }
     val timeFormatter = remember(appLocale) {
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(appLocale)
+        localizedShortTimeFormatter(appLocale)
     }
     val dateFormatter = remember(appLocale, uiState.today) {
         planUpcomingDateFormatter(
-            appLocale = appLocale,
+            locale = appLocale,
             today = uiState.today
         )
     }
     val monthFormatter = remember(appLocale, uiState.today) {
-        historyCalendarMonthTitleFormatter(
-            appLocale = appLocale,
+        calendarMonthTitleFormatter(
+            locale = appLocale,
             currentYear = uiState.today.year
         )
     }
@@ -691,28 +691,6 @@ private fun remainingQuickLogCount(
     fulfilledCount: Int
 ): Int {
     return totalCount - fulfilledCount
-}
-
-private fun planUpcomingDateFormatter(
-    appLocale: Locale,
-    today: LocalDate
-): (LocalDate) -> String {
-    val currentYearFormatter = historyEntryGroupDayFormatter(appLocale)
-    val nextYearFormatter = if (appLocale.language == Locale.CHINESE.language) {
-        DateTimeFormatter.ofPattern("yyyy年M月d日", appLocale)
-    } else {
-        DateTimeFormatter.ofPattern("MMM d, yyyy", appLocale)
-    }
-
-    return { date ->
-        date.format(
-            if (date.year > today.year) {
-                nextYearFormatter
-            } else {
-                currentYearFormatter
-            }
-        )
-    }
 }
 
 @Composable

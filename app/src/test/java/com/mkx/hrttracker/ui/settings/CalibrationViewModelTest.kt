@@ -9,16 +9,17 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteAllEntriesResult
-import com.mkx.hrttracker.ui.calibration.CalibrationPanelDateTimeFormatters
 import com.mkx.hrttracker.ui.calibration.CalibrationPanelResultSummary
 import com.mkx.hrttracker.ui.calibration.CalibrationRangeStatus
 import com.mkx.hrttracker.ui.calibration.CalibrationViewModel
 import com.mkx.hrttracker.ui.calibration.calibrationRangeStatus
 import com.mkx.hrttracker.ui.calibration.calibrationValueInPreferredUnitLabel
-import com.mkx.hrttracker.ui.calibration.formatCalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.ui.calibration.formatCalibrationPanelValueSummary
 import com.mkx.hrttracker.ui.calibration.groupCalibrationPanelsByMonth
 import com.mkx.hrttracker.ui.calibration.parseCalibrationNumericInput
+import com.mkx.hrttracker.util.CalibrationPanelDateTimeFormatters
+import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
+import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -345,7 +346,10 @@ class CalibrationViewModelTest {
 
     @Test
     fun groupCalibrationPanelsByMonth_usesLocalDateAndPreservesPanelOrder() {
-        val formatter = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH)
+        val formatter = calibrationMonthHeaderFormatter(
+            locale = Locale.ENGLISH,
+            currentYear = 2026,
+        )
         val localZoneId = ZoneId.of("UTC")
         val localAprilPanel = testBloodTestPanel(
             uuid = UUID.fromString("fdc5a64f-3b29-4676-8d51-37976eb07b1d"),
@@ -371,10 +375,10 @@ class CalibrationViewModelTest {
 
         assertEquals(2, groups.size)
         assertEquals(YearMonth.of(2026, 4), groups[0].yearMonth)
-        assertEquals("April 2026", groups[0].monthLabel)
+        assertEquals("April", groups[0].monthLabel)
         assertEquals(listOf(localAprilPanel.uuid), groups[0].panels.map(BloodTestPanel::uuid))
         assertEquals(YearMonth.of(2026, 3), groups[1].yearMonth)
-        assertEquals("March 2026", groups[1].monthLabel)
+        assertEquals("March", groups[1].monthLabel)
         assertEquals(
             listOf(localMarchPanel.uuid, utcMarchPanel.uuid),
             groups[1].panels.map(BloodTestPanel::uuid),
@@ -394,7 +398,7 @@ class CalibrationViewModelTest {
         )
 
         val labels = formatCalibrationPanelDateTimeLabels(
-            panel = panel,
+            collectedAt = panel.collectedAt,
             dateTimeFormatters = formatters,
             zoneId = ZoneId.of("UTC"),
         )

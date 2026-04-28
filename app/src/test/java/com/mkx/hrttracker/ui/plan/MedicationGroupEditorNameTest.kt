@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -82,8 +83,22 @@ class MedicationGroupEditorNameTest {
     @Test
     fun medicationGroupScheduleDateFormatter_appends_weekday_after_date() {
         assertEquals(
-            "Apr 25, 2026 Sat",
-            LocalDate.of(2026, 4, 25).format(medicationGroupScheduleDateFormatter(Locale.US))
+            "Apr 25 Sat",
+            medicationGroupScheduleDateFormatter(
+                locale = Locale.US,
+                today = LocalDate.of(2026, 4, 28),
+            )(LocalDate.of(2026, 4, 25))
+        )
+    }
+
+    @Test
+    fun medicationGroupScheduleDateFormatter_shows_year_for_different_year() {
+        assertEquals(
+            "Jan 2, 2027 Sat",
+            medicationGroupScheduleDateFormatter(
+                locale = Locale.US,
+                today = LocalDate.of(2026, 4, 28),
+            )(LocalDate.of(2027, 1, 2))
         )
     }
 }
