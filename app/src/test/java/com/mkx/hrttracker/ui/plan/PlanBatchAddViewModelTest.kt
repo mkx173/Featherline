@@ -151,6 +151,41 @@ class PlanBatchAddViewModelTest {
         assertEquals(listOf(remainingSlot, remainingSlot), entries.map { entry -> entry.scheduledFor })
     }
 
+    @Test
+    fun planBatchAddUiState_disablesConfirmWhenNoGroupIsSelected() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+        val entry = buildPlanBatchAddEntries(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            zoneId = ZoneId.of("UTC"),
+        ).single()
+
+        assertEquals(
+            false,
+            PlanBatchAddUiState(
+                selectedGroupUuid = null,
+                entriesToAdd = listOf(entry),
+            ).canConfirm
+        )
+        assertEquals(
+            true,
+            PlanBatchAddUiState(
+                selectedGroupUuid = group.uuid,
+                entriesToAdd = listOf(entry),
+            ).canConfirm
+        )
+    }
+
     private fun medicationGroup(
         uuid: UUID = UUID.fromString("621f4792-93d2-4d42-aa86-fab9d5c968b1"),
         schedule: MedicationGroupSchedule,

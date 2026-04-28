@@ -85,7 +85,8 @@
     <string name="plan_batch_add_end_date">End date</string>
     <string name="plan_batch_add_date_range">Range</string>
     <string name="plan_batch_add_date_range_value">%1$s - %2$s</string>
-    <string name="plan_batch_add_no_entries">No matching doses in this range.</string>
+    <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
+    <string name="plan_batch_add_no_entries">No entries can be added in this range.</string>
     <string name="plan_batch_add_confirm_button">Add records</string>
     <string name="plan_batch_add_confirm_title">Add records?</string>
     <string name="plan_batch_add_manual_before_start_note">Records before the plan start date will be saved as manual entries.</string>

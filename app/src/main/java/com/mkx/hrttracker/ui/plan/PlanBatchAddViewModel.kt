@@ -49,9 +49,10 @@ class PlanBatchAddViewModel @Inject constructor(
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
             groups.firstOrNull { group -> group.uuid == groupUuid }
         }
-        val startDate = selection.startDate ?: selectedGroup?.schedule?.since
-        val endDate = selection.endDate ?: now.toLocalDate()
-        val entryPlan = if (selectedGroup != null && startDate != null && endDate != null) {
+        val today = now.toLocalDate()
+        val startDate = selection.startDate ?: selectedGroup?.schedule?.since ?: today
+        val endDate = selection.endDate ?: today
+        val entryPlan = if (selectedGroup != null) {
             buildPlanBatchAddEntryPlan(
                 group = selectedGroup,
                 existingEntries = entries,
@@ -69,7 +70,7 @@ class PlanBatchAddViewModel @Inject constructor(
             selectedGroupName = selectedGroup?.name.orEmpty(),
             startDate = startDate,
             endDate = endDate,
-            today = now.toLocalDate(),
+            today = today,
             remindersEnabled = settingsState.remindersEnabled,
             nextOccurrencesByGroup = buildNextOccurrencesByGroup(
                 groups = groups,
@@ -92,6 +93,10 @@ class PlanBatchAddViewModel @Inject constructor(
     )
 
     fun selectGroup(groupUuid: UUID) {
+        if (selectionState.value.isSaving) {
+            return
+        }
+
         if (selectionState.value.selectedGroupUuid == groupUuid) {
             clearSelection()
             return
@@ -101,8 +106,8 @@ class PlanBatchAddViewModel @Inject constructor(
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = groupUuid,
-                startDate = group.schedule.since,
-                endDate = LocalDate.now(),
+                startDate = state.startDate ?: group.schedule.since,
+                endDate = state.endDate ?: LocalDate.now(),
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
@@ -114,8 +119,6 @@ class PlanBatchAddViewModel @Inject constructor(
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = null,
-                startDate = null,
-                endDate = null,
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,
@@ -157,15 +160,17 @@ class PlanBatchAddViewModel @Inject constructor(
             return
         }
 
+        selectionState.update { state ->
+            state.copy(
+                selectedGroupUuid = null,
+                isSaving = true,
+                isSaved = false,
+                savedEntryCount = null,
+                saveResult = null,
+            )
+        }
+
         viewModelScope.launch {
-            selectionState.update { state ->
-                state.copy(
-                    isSaving = true,
-                    isSaved = false,
-                    savedEntryCount = null,
-                    saveResult = null,
-                )
-            }
             val saveResult = runCatching {
                 medicationLogRepository.saveNewEntries(entriesToSave)
             }.fold(
@@ -180,8 +185,6 @@ class PlanBatchAddViewModel @Inject constructor(
                 if (isSaved) {
                     state.copy(
                         selectedGroupUuid = null,
-                        startDate = null,
-                        endDate = null,
                         isSaving = false,
                         isSaved = true,
                         savedEntryCount = entriesToSave.size,
@@ -189,6 +192,7 @@ class PlanBatchAddViewModel @Inject constructor(
                     )
                 } else {
                     state.copy(
+                        selectedGroupUuid = null,
                         isSaving = false,
                         isSaved = false,
                         savedEntryCount = null,
@@ -217,8 +221,8 @@ data class PlanBatchAddUiState(
     val groups: List<MedicationGroup> = emptyList(),
     val selectedGroupUuid: UUID? = null,
     val selectedGroupName: String = "",
-    val startDate: LocalDate? = null,
-    val endDate: LocalDate? = null,
+    val startDate: LocalDate = LocalDate.now(),
+    val endDate: LocalDate = LocalDate.now(),
     val today: LocalDate = LocalDate.now(),
     val remindersEnabled: Boolean = true,
     val nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>> = emptyMap(),
@@ -234,7 +238,7 @@ data class PlanBatchAddUiState(
         get() = entriesToAdd.size
 
     val canConfirm: Boolean
-        get() = entryCount > 0 && !isSaving
+        get() = selectedGroupUuid != null && entryCount > 0 && !isSaving
 }
 
 enum class PlanBatchAddSaveResult {
