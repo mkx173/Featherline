@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
@@ -89,6 +90,8 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.ui.components.HrtDropdownMenu
+import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
@@ -120,6 +123,7 @@ fun PlanScreen(
     onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onBatchAddClick: () -> Unit,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
@@ -135,6 +139,7 @@ fun PlanScreen(
         onQuickLogClick = onQuickLogClick,
         onAddGroupClick = onAddGroupClick,
         onHistoryClick = onHistoryClick,
+        onBatchAddClick = onBatchAddClick,
         onDateSelected = viewModel::toggleSelectedDate,
         onDateSelectionReset = viewModel::clearSelectedDate,
         scrollToTopSignal = scrollToTopSignal,
@@ -151,6 +156,7 @@ private fun PlanScreenContent(
     onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onBatchAddClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
@@ -183,6 +189,7 @@ private fun PlanScreenContent(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
+    var isActionMenuExpanded by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
@@ -239,6 +246,24 @@ private fun PlanScreenContent(
                         Icon(
                             imageVector = Icons.Rounded.History,
                             contentDescription = stringResource(R.string.plan_open_history)
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { isActionMenuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.plan_more_options)
+                            )
+                        }
+                        HrtDropdownMenu(
+                            expanded = isActionMenuExpanded,
+                            onDismissRequest = { isActionMenuExpanded = false },
+                            items = listOf(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_batch_add_from_plan),
+                                    onClick = onBatchAddClick,
+                                ),
+                            ),
                         )
                     }
                 }
@@ -1040,6 +1065,7 @@ private fun PlanScreenPreview() {
             onQuickLogClick = { _, _, _, _ -> },
             onAddGroupClick = { },
             onHistoryClick = { },
+            onBatchAddClick = { },
             onDateSelected = { },
             onDateSelectionReset = { }
         )

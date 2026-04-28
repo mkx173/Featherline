@@ -76,6 +76,20 @@
     <string name="plan_regimen_title">用药方案</string>
     <string name="plan_open_history">打开历史</string>
     <string name="plan_more_options">更多选项</string>
+    <string name="plan_batch_add_from_plan">从计划批量添加</string>
+    <string name="plan_batch_add_title">从计划批量添加</string>
+    <string name="plan_batch_add_select_group">选择分组</string>
+    <string name="plan_batch_add_group_selected">已选择</string>
+    <string name="plan_batch_add_range_title">日期范围</string>
+    <string name="plan_batch_add_start_date">开始日期</string>
+    <string name="plan_batch_add_end_date">结束日期</string>
+    <string name="plan_batch_add_date_range">日期范围</string>
+    <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
+    <string name="plan_batch_add_no_entries">此范围内没有匹配的剂量。</string>
+    <string name="plan_batch_add_confirm_button">添加记录</string>
+    <string name="plan_batch_add_confirm_title">添加记录？</string>
+    <string name="plan_batch_add_manual_before_start_note">计划开始日期之前的记录会保存为手动记录</string>
+    <string name="plan_batch_add_failure">无法添加记录</string>
     <string name="plan_previous_week">上一周</string>
     <string name="plan_next_week">下一周</string>
     <string name="plan_week_previous">上一周</string>
@@ -444,6 +458,12 @@
     </plurals>
     <plurals name="plan_regimen_weekly_count">
         <item quantity="other">%1$d 每周</item>
+    </plurals>
+    <plurals name="plan_batch_add_entries_to_add">
+        <item quantity="other">将添加 %1$d 条记录</item>
+    </plurals>
+    <plurals name="plan_batch_add_confirm_message">
+        <item quantity="other">要为「%2$s」在 %3$s 至 %4$s 期间添加 %1$d 条记录吗？</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="other">条记录</item>

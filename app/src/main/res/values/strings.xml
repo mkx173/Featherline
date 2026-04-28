@@ -76,6 +76,20 @@
     <string name="plan_regimen_title">Regimen</string>
     <string name="plan_open_history">Open history</string>
     <string name="plan_more_options">More options</string>
+    <string name="plan_batch_add_from_plan">Batch add from plan</string>
+    <string name="plan_batch_add_title">Batch add from plan</string>
+    <string name="plan_batch_add_select_group">Select group</string>
+    <string name="plan_batch_add_group_selected">Selected</string>
+    <string name="plan_batch_add_range_title">Date range</string>
+    <string name="plan_batch_add_start_date">Start date</string>
+    <string name="plan_batch_add_end_date">End date</string>
+    <string name="plan_batch_add_date_range">Range</string>
+    <string name="plan_batch_add_date_range_value">%1$s - %2$s</string>
+    <string name="plan_batch_add_no_entries">No matching doses in this range.</string>
+    <string name="plan_batch_add_confirm_button">Add records</string>
+    <string name="plan_batch_add_confirm_title">Add records?</string>
+    <string name="plan_batch_add_manual_before_start_note">Records before the plan start date will be saved as manual entries.</string>
+    <string name="plan_batch_add_failure">Unable to add records.</string>
     <string name="plan_previous_week">Previous week</string>
     <string name="plan_next_week">Next week</string>
     <string name="plan_week_previous">Last week</string>
@@ -454,6 +468,14 @@
     <plurals name="plan_regimen_weekly_count">
         <item quantity="one">%1$d weekly</item>
         <item quantity="other">%1$d weekly</item>
+    </plurals>
+    <plurals name="plan_batch_add_entries_to_add">
+        <item quantity="one">%1$d record will be added</item>
+        <item quantity="other">%1$d records will be added</item>
+    </plurals>
+    <plurals name="plan_batch_add_confirm_message">
+        <item quantity="one">Add %1$d record for %2$s from %3$s to %4$s?</item>
+        <item quantity="other">Add %1$d records for %2$s from %3$s to %4$s?</item>
     </plurals>
     <plurals name="history_summary_logged_entries">
         <item quantity="one">entry logged</item>

@@ -47,6 +47,7 @@ import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
+import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.util.UUID
@@ -54,6 +55,16 @@ import java.util.UUID
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object Main : Screen("main", R.string.tab_main)
     data object Plan : Screen("plan", R.string.tab_plan)
+    data object PlanBatchAdd : Screen(
+        "plan_batch_add?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.plan_batch_add_title
+    ) {
+        const val baseRoute = "plan_batch_add"
+
+        fun createRoute(topLevelParentRoute: String = Plan.route): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
     data object History : Screen(
         "history?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.tab_history
@@ -338,7 +349,27 @@ fun HrtTrackerNavHost(
                         navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
                             launchSingleTop = true
                         }
+                    },
+                    onBatchAddClick = {
+                        navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
+                            launchSingleTop = true
+                        }
                     }
+                )
+            }
+            composable(
+                route = Screen.PlanBatchAdd.route,
+                arguments = listOf(
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Plan.route
+                    }
+                )
+            ) {
+                PlanBatchAddScreen(
+                    modifier = modifier.padding(innerPadding),
+                    onNavigateBack = { navController.popBackStack() },
+                    onEntriesSaved = { navController.popBackStack() },
                 )
             }
             composable(

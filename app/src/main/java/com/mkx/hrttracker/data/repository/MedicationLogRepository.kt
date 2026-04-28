@@ -167,6 +167,26 @@ class MedicationLogRepository @Inject constructor(
         )
     }
 
+    suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
+        if (entries.isEmpty()) {
+            return
+        }
+
+        databaseHolder.get().medicationLogDao().insertEntries(
+            entries.map { entry ->
+                buildEntryEntity(
+                    uuid = UUID.randomUUID(),
+                    medication = entry.medication,
+                    sourceGroupUuid = entry.sourceGroupUuid,
+                    appliedAt = entry.appliedAt,
+                    scheduledFor = entry.scheduledFor,
+                    count = entry.count,
+                    appliedAtTimeZoneId = entry.appliedAtTimeZoneId
+                )
+            }
+        )
+    }
+
     private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
         return MedicationLogEntry(
             uuid = UUID.fromString(uuid),
@@ -286,3 +306,12 @@ class MedicationLogRepository @Inject constructor(
         )
     }
 }
+
+data class MedicationLogEntryInput(
+    val medication: MedicationDetails,
+    val sourceGroupUuid: UUID?,
+    val appliedAt: Instant,
+    val scheduledFor: LocalDateTime? = null,
+    val count: Int = 1,
+    val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
+)

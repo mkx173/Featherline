@@ -41,6 +41,18 @@ class NavigationTransitionsTest {
     }
 
     @Test
+    fun resolveNavigationMotionPattern_returnsNestedForward_for_planBatchAdd_navigation() {
+        assertEquals(
+            NavigationMotionPattern.NESTED_FORWARD,
+            resolveNavigationMotionPattern(
+                initialRoute = Screen.Plan.route,
+                targetRoute = Screen.PlanBatchAdd.createRoute(Screen.Plan.route),
+                isPop = false,
+            )
+        )
+    }
+
+    @Test
     fun resolveNavigationMotionPattern_returnsNestedForward_for_in_section_navigation() {
         assertEquals(
             NavigationMotionPattern.NESTED_FORWARD,

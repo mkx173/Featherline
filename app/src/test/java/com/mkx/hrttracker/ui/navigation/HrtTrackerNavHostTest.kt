@@ -51,4 +51,16 @@ class HrtTrackerNavHostTest {
             )
         )
     }
+
+    @Test
+    fun topLevelNavigationTapAction_returnsPopToTopLevel_for_planBatchAdd_route() {
+        assertEquals(
+            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL,
+            topLevelNavigationTapAction(
+                tappedScreen = Screen.Plan,
+                selectedBottomScreen = Screen.Plan,
+                currentRoute = Screen.PlanBatchAdd.route,
+            )
+        )
+    }
 }

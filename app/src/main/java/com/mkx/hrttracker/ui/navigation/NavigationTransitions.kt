@@ -123,6 +123,7 @@ private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
     return when (route) {
         Screen.Main.route -> NavigationRouteContext(topLevelScreen = Screen.Main)
         Screen.Plan.route -> NavigationRouteContext(topLevelScreen = Screen.Plan)
+        Screen.PlanBatchAdd.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
         Screen.History.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
         Screen.Settings.route -> NavigationRouteContext(topLevelScreen = Screen.Settings)
         Screen.EditMedicationGroup.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)

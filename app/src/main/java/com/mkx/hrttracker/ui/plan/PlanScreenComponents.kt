@@ -295,6 +295,7 @@ internal fun RegimenGroupCard(
     onClick: () -> Unit,
     index: Int = 0,
     itemCount: Int = 1,
+    selected: Boolean = false,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
     val startDateFormatter = remember(appLocale) {
@@ -312,7 +313,12 @@ internal fun RegimenGroupCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         index = index,
-        count = itemCount
+        count = itemCount,
+        containerColor = if (selected) {
+            groupColorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        }
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -439,9 +445,17 @@ internal fun RegimenGroupCard(
                         )
                     }
                     Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = if (selected) Icons.Rounded.Check else Icons.Rounded.ChevronRight,
+                        contentDescription = if (selected) {
+                            stringResource(R.string.plan_batch_add_group_selected)
+                        } else {
+                            null
+                        },
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
