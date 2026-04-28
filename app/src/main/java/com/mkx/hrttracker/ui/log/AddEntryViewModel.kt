@@ -10,8 +10,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
-import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
+import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange

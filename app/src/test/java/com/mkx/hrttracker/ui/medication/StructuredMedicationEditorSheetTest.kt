@@ -1,10 +1,10 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.compose.ui.text.input.ImeAction
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import androidx.compose.ui.text.input.ImeAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

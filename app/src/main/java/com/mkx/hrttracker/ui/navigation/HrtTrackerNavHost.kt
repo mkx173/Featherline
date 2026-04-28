@@ -14,8 +14,6 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.ShortNavigationBar
@@ -40,6 +38,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
+import com.mkx.hrttracker.ui.calibration.CalibrationScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.log.QuickLogPlannedDoseSheet
@@ -47,10 +49,6 @@ import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanScreen
-import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
-import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
-import com.mkx.hrttracker.ui.calibration.CalibrationScreen
-import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
 import java.time.LocalDateTime
 import java.util.UUID
