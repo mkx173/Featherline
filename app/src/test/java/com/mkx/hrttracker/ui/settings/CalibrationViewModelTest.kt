@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
 import com.mkx.hrttracker.data.repository.BloodTestRepository
-import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestPanel
@@ -50,7 +49,6 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalibrationViewModelTest {
     private val repository: BloodTestRepository = mockk(relaxed = true)
-    private val medicationLogRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
     private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
@@ -60,7 +58,6 @@ class CalibrationViewModelTest {
         Dispatchers.setMain(dispatcher)
         settingsStateFlow = MutableStateFlow(SettingsState())
         every { settingsRepository.settingsState } returns settingsStateFlow
-        coEvery { medicationLogRepository.preloadRecentEstradiolEntries(any(), any()) } returns emptyList()
     }
 
     @After
@@ -83,12 +80,11 @@ class CalibrationViewModelTest {
         val panel = testBloodTestPanel()
         every { repository.observePanels() } returns flowOf(listOf(panel))
 
-        val viewModel = CalibrationViewModel(repository, medicationLogRepository, settingsRepository)
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
         advanceUntilIdle()
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
-        coVerify(exactly = 1) { medicationLogRepository.preloadRecentEstradiolEntries(any(), any()) }
     }
 
     @Test
@@ -102,7 +98,7 @@ class CalibrationViewModelTest {
         val flow = MutableStateFlow(listOf(initialPanel))
         every { repository.observePanels() } returns flow
 
-        val viewModel = CalibrationViewModel(repository, medicationLogRepository, settingsRepository)
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
         advanceUntilIdle()
         assertEquals(listOf(initialPanel), viewModel.uiState.value.panels)
 
@@ -118,7 +114,7 @@ class CalibrationViewModelTest {
         every { repository.observePanels() } returns flowOf(emptyList())
         coEvery { repository.deleteAllPanels() } returns Unit
 
-        val viewModel = CalibrationViewModel(repository, medicationLogRepository, settingsRepository)
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
         advanceUntilIdle()
 
         viewModel.deleteAllCalibrationEntries()

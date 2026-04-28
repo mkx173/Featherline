@@ -8,6 +8,8 @@ import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupExportedFile
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.backup.PreparedBackupExport
+import com.mkx.hrttracker.data.repository.BloodTestRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -26,12 +28,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val userProfileRepository: UserProfileRepository,
+    private val bloodTestRepository: BloodTestRepository,
+    private val medicationLogRepository: MedicationLogRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val backupExportService: BackupExportService,
@@ -58,6 +64,10 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = SettingsUiState()
     )
+
+    init {
+        preloadCalibrationData()
+    }
 
     fun setWeight(value: Double, unit: WeightUnit) {
         viewModelScope.launch {
@@ -195,7 +205,28 @@ class SettingsViewModel @Inject constructor(
             password = password,
         )
     }
+
+    private fun preloadCalibrationData() {
+        viewModelScope.launch {
+            runCatching {
+                bloodTestRepository.getPanels()
+                bloodTestRepository.preloadActiveCustomAnalytes()
+            }
+        }
+        viewModelScope.launch {
+            runCatching {
+                val preloadUntil = Instant.now().plus(calibrationMedicationPreloadLookAhead)
+                medicationLogRepository.preloadRecentEstradiolEntries(
+                    since = preloadUntil.minus(calibrationMedicationPreloadWindow),
+                    until = preloadUntil,
+                )
+            }
+        }
+    }
 }
+
+private val calibrationMedicationPreloadWindow: Duration = Duration.ofDays(45)
+private val calibrationMedicationPreloadLookAhead: Duration = Duration.ofDays(1)
 
 data class SettingsUiState(
     val settingsState: SettingsState = SettingsState(),
