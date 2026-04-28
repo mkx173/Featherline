@@ -76,6 +76,7 @@ class PlanDayOccurrenceTest {
         )
 
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertEquals(LocalDateTime.of(2026, 4, 18, 9, 3), schedule.scheduledEntries.single().loggedAt)
         assertFalse(schedule.scheduledEntries.single().isPastDue)
         assertFalse(schedule.scheduledEntries.single().isDueSoon)
     }
@@ -173,6 +174,7 @@ class PlanDayOccurrenceTest {
         val scheduledEntry = schedule.scheduledEntries.single()
         assertEquals(2, scheduledEntry.loggedCount)
         assertEquals(listOf(countedEntryId), scheduledEntry.fulfillingEntryUuids)
+        assertEquals(LocalDateTime.of(2026, 4, 18, 9, 3), scheduledEntry.loggedAt)
         assertTrue(scheduledEntry.isFulfilled)
     }
 

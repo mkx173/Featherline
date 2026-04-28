@@ -221,7 +221,12 @@ private fun SelectedDayRow(
         extraSupportingText = row.groupName
     )
     val timeLabel = when (row) {
-        is SelectedDayRowModel.Scheduled -> row.entry.scheduledTime.format(timeFormatter)
+        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
+            row.entry.loggedAt?.format(timeFormatter)
+                ?: row.entry.scheduledTime.format(timeFormatter)
+        } else {
+            row.entry.scheduledTime.format(timeFormatter)
+        }
         is SelectedDayRowModel.Unplanned -> row.entry.appliedAt
             .atZone(ZoneId.systemDefault())
             .format(timeFormatter)
@@ -293,7 +298,9 @@ internal fun RegimenGroupCard(
     timeFormatter: DateTimeFormatter,
     upcomingOccurrences: List<LocalDateTime>,
     today: LocalDate,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    index: Int = 0,
+    itemCount: Int = 1,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
     val startDateFormatter = remember(appLocale) {
@@ -310,8 +317,8 @@ internal fun RegimenGroupCard(
     EditorSegmentedListItem(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        index = 0,
-        count = 1
+        index = index,
+        count = itemCount
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)

@@ -609,9 +609,9 @@ private fun RegimenSection(
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
-                groups.forEach { group ->
+                groups.forEachIndexed { index, group ->
                     RegimenGroupCard(
                         group = group,
                         remindersEnabled = remindersEnabled,
@@ -620,7 +620,9 @@ private fun RegimenSection(
                         timeFormatter = timeFormatter,
                         upcomingOccurrences = nextOccurrencesByGroup[group.uuid].orEmpty(),
                         today = today,
-                        onClick = { onGroupClick(group.uuid) }
+                        onClick = { onGroupClick(group.uuid) },
+                        index = index,
+                        itemCount = groups.size
                     )
                 }
             }

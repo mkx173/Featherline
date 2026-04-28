@@ -18,6 +18,7 @@ data class PlanDayScheduleEntry(
     val scheduledTime: LocalTime,
     val medication: MedicationGroupMedication,
     val fulfillingEntryUuids: List<UUID>,
+    val loggedAt: LocalDateTime? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
@@ -63,6 +64,10 @@ fun buildPlanDaySchedule(
                         scheduledTime = time,
                         medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
+                        loggedAt = matchingLogs.lastOrNull()
+                            ?.appliedAt
+                            ?.atZone(zoneId)
+                            ?.toLocalDateTime(),
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,
