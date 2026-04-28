@@ -26,6 +26,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -58,6 +59,7 @@ class CalibrationViewModelTest {
         Dispatchers.setMain(dispatcher)
         settingsStateFlow = MutableStateFlow(SettingsState())
         every { settingsRepository.settingsState } returns settingsStateFlow
+        every { repository.getCachedPanels() } returns null
     }
 
     @After
@@ -84,6 +86,20 @@ class CalibrationViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(panel), viewModel.uiState.value.panels)
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun init_seedsUiStateFromCachedPanelsBeforeRepositoryEmits() = runTest {
+        val cachedPanel = testBloodTestPanel(
+            uuid = UUID.fromString("3f2e761b-9bfd-4dbf-8a12-a6016e8a60be")
+        )
+        every { repository.getCachedPanels() } returns listOf(cachedPanel)
+        every { repository.observePanels() } returns MutableSharedFlow<List<BloodTestPanel>>()
+
+        val viewModel = CalibrationViewModel(repository, settingsRepository)
+
+        assertEquals(listOf(cachedPanel), viewModel.uiState.value.panels)
         assertFalse(viewModel.uiState.value.isLoading)
     }
 

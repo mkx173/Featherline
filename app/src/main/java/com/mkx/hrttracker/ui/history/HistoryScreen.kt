@@ -581,44 +581,39 @@ private fun HistoryScreenContent(
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
         ) {
-            item(key = "summary") {
-                HistoryMonthSummaryStrip(summary = monthSummary)
-            }
-
-            item(key = "calendar") {
-                HistoryMonthCalendar(
-                    calendarState = calendarState,
-                    displayedMonth = displayedMonth.yearMonth,
-                    today = today,
-                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-                    dayStates = monthDayStates,
-                    appLocale = appLocale,
-                    selectedDate = displayedSelectedDate,
-                    hasSelection = uiState.selectedDate != null,
-                    onDayClick = onDayClick,
-                    onSelectionReset = {
-                        pendingSelectedDate.value = null
-                        uiState.selectedDate?.let(onDayClick)
-                    },
-                    onDeferredDaySelectionRequested = { pendingSelectedDate.value = it }
-                )
-            }
-
-            item(key = "calendar-divider") {
-                HorizontalDivider(
-                    modifier = Modifier.padding(top = 4.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                )
-            }
-
-            item(key = "entries-title") {
-                Text(
-                    text = entryListTitle.uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+            item(key = "history-header") {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
+                ) {
+                    HistoryMonthSummaryStrip(summary = monthSummary)
+                    HistoryMonthCalendar(
+                        calendarState = calendarState,
+                        displayedMonth = displayedMonth.yearMonth,
+                        today = today,
+                        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                        dayStates = monthDayStates,
+                        appLocale = appLocale,
+                        selectedDate = displayedSelectedDate,
+                        hasSelection = uiState.selectedDate != null,
+                        onDayClick = onDayClick,
+                        onSelectionReset = {
+                            pendingSelectedDate.value = null
+                            uiState.selectedDate?.let(onDayClick)
+                        },
+                        onDeferredDaySelectionRequested = { pendingSelectedDate.value = it }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = entryListTitle.uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
 
             if (visibleEntries.isEmpty()) {

@@ -33,6 +33,8 @@ class BloodTestRepository @Inject constructor(
     @Volatile
     private var cachedPanels: List<BloodTestPanel> = emptyList()
     @Volatile
+    private var hasCachedPanelList = false
+    @Volatile
     private var cachedActiveCustomAnalytes: List<CustomBloodAnalyte>? = null
 
     suspend fun getPanels(): List<BloodTestPanel> {
@@ -57,6 +59,10 @@ class BloodTestRepository @Inject constructor(
 
     fun getCachedPanel(uuid: UUID): BloodTestPanel? {
         return cachedPanels.firstOrNull { panel -> panel.uuid == uuid }
+    }
+
+    fun getCachedPanels(): List<BloodTestPanel>? {
+        return cachedPanels.takeIf { hasCachedPanelList }
     }
 
     suspend fun savePanel(
@@ -117,6 +123,7 @@ class BloodTestRepository @Inject constructor(
             dao.deleteAllPanels()
         }
         cachedPanels = emptyList()
+        hasCachedPanelList = true
     }
 
     suspend fun getActiveCustomAnalytes(): List<CustomBloodAnalyte> {
@@ -273,6 +280,7 @@ class BloodTestRepository @Inject constructor(
 
     private fun cachePanels(panels: List<BloodTestPanel>): List<BloodTestPanel> {
         cachedPanels = panels
+        hasCachedPanelList = true
         return panels
     }
 

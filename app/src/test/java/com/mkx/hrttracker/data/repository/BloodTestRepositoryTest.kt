@@ -223,6 +223,8 @@ class BloodTestRepositoryTest {
         assertEquals(listOf(firstResultUuid, secondResultUuid), panel.results.map { it.uuid })
         assertEquals(3_600_000L, panel.timeSinceLastEstradiolDoseMillis)
         assertNull(panel.timeSinceLastTestosteroneDoseMillis)
+        assertEquals(panelUuid, repository.getCachedPanel(panelUuid)?.uuid)
+        assertNull(repository.getCachedPanels())
         assertEquals(
             BloodTestResultAnalyte.Builtin(BloodAnalyteKey.E2),
             panel.results.first().analyte
@@ -271,6 +273,7 @@ class BloodTestRepositoryTest {
 
         assertEquals(panelUuid, panels.single().uuid)
         assertEquals(panelUuid, repository.getCachedPanel(panelUuid)?.uuid)
+        assertEquals(panels, repository.getCachedPanels())
     }
 
     @Test

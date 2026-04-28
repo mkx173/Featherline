@@ -23,6 +23,7 @@ class CalibrationViewModel @Inject constructor(
     private val isDeletingAllEntries = MutableStateFlow(false)
     private val deleteAllEntriesResult =
         MutableStateFlow<CalibrationDeleteAllEntriesResult?>(null)
+    private val cachedPanels = bloodTestRepository.getCachedPanels()
 
     val uiState: StateFlow<CalibrationUiState> = combine(
         bloodTestRepository.observePanels(),
@@ -40,7 +41,11 @@ class CalibrationViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = CalibrationUiState(isLoading = true),
+        initialValue = CalibrationUiState(
+            panels = cachedPanels.orEmpty(),
+            settingsState = settingsRepository.settingsState.value,
+            isLoading = cachedPanels == null,
+        ),
     )
 
     fun deleteAllCalibrationEntries() {
