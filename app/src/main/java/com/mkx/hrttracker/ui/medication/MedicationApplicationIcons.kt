@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -65,7 +66,7 @@ internal fun MedicationApplicationIcon(
         )
         if (applicationType == MedicationApplicationType.SUBLINGUAL) {
             Icon(
-                imageVector = Icons.Rounded.Schedule,
+                painter = painterResource(R.drawable.ic_timelapse),
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

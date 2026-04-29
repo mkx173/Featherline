@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -595,6 +597,7 @@ private fun SelectedDayMedicationIconSurface(
 ) {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
     val showDueBadge = state == SelectedDayRowState.DUE
+    val showPastDueBadge = state == SelectedDayRowState.PAST_DUE
     val useOutlinedIcon = state == SelectedDayRowState.PAST_DUE ||
         state == SelectedDayRowState.MISSED
 
@@ -614,7 +617,7 @@ private fun SelectedDayMedicationIconSurface(
             ) {
                 if (state == SelectedDayRowState.LOGGED) {
                     Icon(
-                        imageVector = Icons.Rounded.Check,
+                        painter = painterResource(R.drawable.ic_check_circle),
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
@@ -630,12 +633,25 @@ private fun SelectedDayMedicationIconSurface(
             }
         }
         if (showDueBadge) {
-            Badge(
-                containerColor = MaterialTheme.colorScheme.tertiary,
+            Icon(
+                painter = painterResource(R.drawable.ic_circle),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(8.dp)
-                    .offset(x = 1.dp, y = (-1).dp)
+                    .size(10.dp)
+                    .offset(x = 2.dp, y = (-2).dp)
+            )
+        }
+        if (showPastDueBadge) {
+            Icon(
+                imageVector = Icons.Rounded.Error,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(10.dp)
+                    .offset(x = 2.dp, y = (-2).dp)
             )
         }
     }
