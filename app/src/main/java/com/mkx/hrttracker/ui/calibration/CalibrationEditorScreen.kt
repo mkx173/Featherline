@@ -103,7 +103,9 @@ fun CalibrationEditorScreen(
     val is24Hour = context.uses24HourTimeFormat()
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
-    var isAddAnalyteSheetVisible by rememberSaveable { mutableStateOf(false) }
+    var addAnalyteSheetOptions by remember {
+        mutableStateOf<List<CalibrationAddAnalyteOption>?>(null)
+    }
     var isDeleteDialogVisible by rememberSaveable { mutableStateOf(false) }
     val saveEntryFailureMessage =
         stringResource(R.string.settings_calibration_save_entry_failure)
@@ -218,7 +220,9 @@ fun CalibrationEditorScreen(
         onBuiltinAnalyteUnitChange = viewModel::updateAnalyteUnit,
         onRemoveBuiltinAnalyteClick = viewModel::removeAnalyte,
         onRemoveCustomAnalyteClick = viewModel::removeCustomAnalyte,
-        onAddAnalyteClick = { isAddAnalyteSheetVisible = true },
+        onAddAnalyteClick = {
+            addAnalyteSheetOptions = calibrationAddAnalyteOptions(uiState)
+        },
         onDeleteClick = { isDeleteDialogVisible = true },
         onSaveClick = { notes ->
             viewModel.updateNotes(notes)
@@ -227,10 +231,10 @@ fun CalibrationEditorScreen(
         modifier = modifier,
     )
 
-    if (isAddAnalyteSheetVisible) {
+    addAnalyteSheetOptions?.let { availableAnalytes ->
         CalibrationAddAnalyteSheet(
-            availableAnalytes = calibrationAddAnalyteOptions(uiState),
-            onDismissRequest = { isAddAnalyteSheetVisible = false },
+            availableAnalytes = availableAnalytes,
+            onDismissRequest = { addAnalyteSheetOptions = null },
             onAnalyteClick = { option ->
                 when (option) {
                     is CalibrationAddAnalyteOption.Builtin -> {
