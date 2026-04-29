@@ -645,7 +645,7 @@ private fun SelectedDayMedicationIconSurface(
         }
         if (showPastDueBadge) {
             Icon(
-                imageVector = Icons.Rounded.Error,
+                painter = painterResource(R.drawable.ic_schedule_filled),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
