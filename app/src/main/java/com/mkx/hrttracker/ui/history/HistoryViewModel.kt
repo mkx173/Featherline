@@ -150,6 +150,13 @@ class HistoryViewModel @Inject constructor(
         }
     }
 
+    fun resetCalendarViewport() {
+        setDisplayedMonth(
+            YearMonth.from(currentDateTime.value.toLocalDate()),
+            clearSelection = true
+        )
+    }
+
     fun toggleSelectedDate(date: LocalDate) {
         if (!canSelectHistoryCalendarDate(date, uiState.value.today)) {
             return

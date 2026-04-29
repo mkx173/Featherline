@@ -298,6 +298,35 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun resetCalendarViewport_returnsToCurrentMonthAndClearsSelectedDate() = runTest {
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val today = appTimeSource.currentMinute.value.toLocalDate()
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.setDisplayedMonth(YearMonth.of(2026, 3), clearSelection = false)
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 3, 20))
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.of(2026, 3), viewModel.uiState.value.displayedMonth)
+        assertEquals(LocalDate.of(2026, 3, 20), viewModel.uiState.value.selectedDate)
+
+        viewModel.resetCalendarViewport()
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.from(today), viewModel.uiState.value.displayedMonth)
+        assertNull(viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
     fun clockTickAcrossMonth_updatesRangeWithoutMovingDisplayedMonthOrSelection() = runTest {
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())

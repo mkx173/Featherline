@@ -54,6 +54,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -145,6 +146,12 @@ fun HistoryScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DisposableEffect(viewModel) {
+        onDispose {
+            viewModel.resetCalendarViewport()
+        }
+    }
 
     HistoryScreenContent(
         uiState = uiState,
@@ -934,6 +941,12 @@ private fun HistoryMonthCalendar(
 ) {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val titleMonth = rememberMostVisibleHistoryCalendarMonth(calendarState).yearMonth
+
+    LaunchedEffect(titleMonth) {
+        if (navigationMonth != titleMonth) {
+            onNavigationMonthChange(titleMonth)
+        }
+    }
 
     fun animateToMonth(month: YearMonth) {
         val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
