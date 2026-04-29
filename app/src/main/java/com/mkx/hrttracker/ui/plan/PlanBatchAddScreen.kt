@@ -554,3 +554,21 @@ private fun PlanBatchAddScreenPreview() {
         )
     }
 }
+
+@Preview(
+    name = "Batch Add Date Range Picker",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 900
+)
+@Composable
+private fun PlanBatchDateRangePickerDialogPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        PlanBatchDateRangePickerDialog(
+            startDate = LocalDate.of(2026, 4, 20),
+            endDate = LocalDate.of(2026, 4, 26),
+            onDateRangeSelected = { _, _ -> },
+            onDismiss = { },
+        )
+    }
+}
