@@ -119,6 +119,7 @@ import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -232,6 +233,10 @@ private fun HistoryScreenContent(
         )
     }
     val displayedMonth = rememberFirstCompletelyVisibleMonth(calendarState)
+    val visibleCalendarMonths = rememberVisibleHistoryCalendarMonths(calendarState)
+    var calendarNavigationMonth by remember(calendarState) {
+        mutableStateOf(displayedMonth.yearMonth)
+    }
     val pendingSelectedDate = remember { mutableStateOf<LocalDate?>(null) }
     val effectiveSelectedDate = remember(
         displayedMonth.yearMonth,
@@ -259,6 +264,7 @@ private fun HistoryScreenContent(
     }
 
     LaunchedEffect(displayedMonth.yearMonth) {
+        calendarNavigationMonth = displayedMonth.yearMonth
         onDisplayedMonthChange(
             displayedMonth.yearMonth,
             shouldClearHistorySelectionOnMonthChange(
@@ -294,23 +300,37 @@ private fun HistoryScreenContent(
         }
     }
 
-    val monthDayStates = remember(
-        uiState.medicationGroups,
-        uiState.entries,
+    val dayStateMonthRanges = remember(
         displayedMonth.yearMonth,
+        visibleCalendarMonths,
+        calendarNavigationMonth,
         uiState.calendarStartMonth,
         uiState.calendarEndMonth
     ) {
-        val rangeStartMonth = displayedMonth.yearMonth.minusMonths(2)
-            .coerceAtLeast(uiState.calendarStartMonth)
-        val rangeEndMonth = displayedMonth.yearMonth.plusMonths(2)
-            .coerceAtMost(uiState.calendarEndMonth)
-        buildHistoryCalendarDayUiState(
-            groups = uiState.medicationGroups,
-            entries = uiState.entries,
-            startDate = rangeStartMonth.atDay(1),
-            endDate = rangeEndMonth.atEndOfMonth()
+        historyCalendarDayStateMonthRanges(
+            displayedMonth = displayedMonth.yearMonth,
+            visibleMonths = visibleCalendarMonths + calendarNavigationMonth,
+            calendarStartMonth = uiState.calendarStartMonth,
+            calendarEndMonth = uiState.calendarEndMonth
         )
+    }
+    val monthDayStates = remember(
+        uiState.medicationGroups,
+        uiState.entries,
+        dayStateMonthRanges,
+    ) {
+        dayStateMonthRanges.fold(linkedMapOf<LocalDate, HistoryCalendarDayUiState>()) { dayStates, range ->
+            dayStates.apply {
+                putAll(
+                    buildHistoryCalendarDayUiState(
+                        groups = uiState.medicationGroups,
+                        entries = uiState.entries,
+                        startDate = range.startMonth.atDay(1),
+                        endDate = range.endMonth.atEndOfMonth()
+                    )
+                )
+            }
+        }
     }
     val monthSummary = remember(uiState.entries, displayedMonth.yearMonth, monthDayStates, today) {
         buildHistoryMonthSummary(
@@ -589,6 +609,7 @@ private fun HistoryScreenContent(
                     HistoryMonthCalendar(
                         calendarState = calendarState,
                         displayedMonth = displayedMonth.yearMonth,
+                        navigationMonth = calendarNavigationMonth,
                         today = today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
@@ -600,7 +621,8 @@ private fun HistoryScreenContent(
                             pendingSelectedDate.value = null
                             uiState.selectedDate?.let(onDayClick)
                         },
-                        onDeferredDaySelectionRequested = { pendingSelectedDate.value = it }
+                        onDeferredDaySelectionRequested = { pendingSelectedDate.value = it },
+                        onNavigationMonthChange = { calendarNavigationMonth = it },
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(top = 4.dp),
@@ -880,6 +902,7 @@ private fun HistorySummaryIndicatorGlyph(
 private fun HistoryMonthCalendar(
     calendarState: CalendarState,
     displayedMonth: YearMonth,
+    navigationMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
@@ -889,9 +912,19 @@ private fun HistoryMonthCalendar(
     onDayClick: (LocalDate) -> Unit,
     onSelectionReset: () -> Unit,
     onDeferredDaySelectionRequested: (LocalDate) -> Unit,
+    onNavigationMonthChange: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val titleMonth = rememberMostVisibleHistoryCalendarMonth(calendarState).yearMonth
+
+    fun animateToMonth(month: YearMonth) {
+        val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
+        onNavigationMonthChange(targetMonth)
+        coroutineScope.launch {
+            calendarState.animateScrollToMonth(targetMonth)
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -902,26 +935,21 @@ private fun HistoryMonthCalendar(
         ) {
             HistoryCalendarTitle(
                 displayedMonth = displayedMonth,
+                titleMonth = titleMonth,
                 currentMonth = YearMonth.from(today),
                 appLocale = appLocale,
-                canGoToPrevious = displayedMonth > calendarState.startMonth,
-                canGoToNext = displayedMonth < calendarState.endMonth,
+                canGoToPrevious = navigationMonth > calendarState.startMonth,
+                canGoToNext = navigationMonth < calendarState.endMonth,
                 hasSelection = hasSelection,
                 onGoToPrevious = {
-                    coroutineScope.launch {
-                        calendarState.animateScrollToMonth(displayedMonth.minusMonths(1))
-                    }
+                    animateToMonth(navigationMonth.minusMonths(1))
                 },
                 onGoToCurrent = {
                     onSelectionReset()
-                    coroutineScope.launch {
-                        calendarState.animateScrollToMonth(YearMonth.from(today))
-                    }
+                    animateToMonth(YearMonth.from(today))
                 },
                 onGoToNext = {
-                    coroutineScope.launch {
-                        calendarState.animateScrollToMonth(displayedMonth.plusMonths(1))
-                    }
+                    animateToMonth(navigationMonth.plusMonths(1))
                 }
             )
             HistoryMonthHeader(
@@ -950,9 +978,7 @@ private fun HistoryMonthCalendar(
                                 onDayClick(date)
                             } else {
                                 onDeferredDaySelectionRequested(date)
-                                coroutineScope.launch {
-                                    calendarState.animateScrollToMonth(targetMonth)
-                                }
+                                animateToMonth(targetMonth)
                             }
                         }
                     )
@@ -1050,6 +1076,7 @@ private fun HistoryMonthHeader(
 @Composable
 private fun HistoryCalendarTitle(
     displayedMonth: YearMonth,
+    titleMonth: YearMonth,
     currentMonth: YearMonth,
     appLocale: Locale,
     canGoToPrevious: Boolean,
@@ -1103,7 +1130,7 @@ private fun HistoryCalendarTitle(
             }
         }
 
-        val dateLabel = monthFormatter(displayedMonth.atDay(1))
+        val dateLabel = monthFormatter(titleMonth.atDay(1))
         Text(
             text = dateLabel,
             style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
@@ -1891,6 +1918,90 @@ fun rememberFirstCompletelyVisibleMonth(state: CalendarState): CalendarMonth {
             .collect { month -> visibleMonth.value = month }
     }
     return visibleMonth.value
+}
+
+@Composable
+private fun rememberMostVisibleHistoryCalendarMonth(state: CalendarState): CalendarMonth {
+    val visibleMonth = remember(state) { mutableStateOf(state.firstVisibleMonth) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.layoutInfo.mostVisibleMonth() }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { month -> visibleMonth.value = month }
+    }
+    return visibleMonth.value
+}
+
+@Composable
+private fun rememberVisibleHistoryCalendarMonths(state: CalendarState): Set<YearMonth> {
+    val visibleMonths = remember(state) {
+        mutableStateOf(setOf(state.firstVisibleMonth.yearMonth))
+    }
+    LaunchedEffect(state) {
+        snapshotFlow {
+            state.layoutInfo.visibleMonthsInfo
+                .mapTo(linkedSetOf()) { monthInfo -> monthInfo.month.yearMonth }
+        }
+            .distinctUntilChanged()
+            .collect { months ->
+                if (months.isNotEmpty()) {
+                    visibleMonths.value = months
+                }
+            }
+    }
+    return visibleMonths.value
+}
+
+internal data class HistoryCalendarDayStateMonthRange(
+    val startMonth: YearMonth,
+    val endMonth: YearMonth,
+)
+
+internal fun historyCalendarDayStateMonthRanges(
+    displayedMonth: YearMonth,
+    visibleMonths: Collection<YearMonth>,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+    preloadMonths: Long = historyCalendarDayStatePreloadMonths,
+): List<HistoryCalendarDayStateMonthRange> {
+    val anchorMonths = (visibleMonths + displayedMonth)
+        .map { month -> month.coerceIn(calendarStartMonth, calendarEndMonth) }
+        .distinct()
+    val ranges = anchorMonths
+        .map { month ->
+            HistoryCalendarDayStateMonthRange(
+                startMonth = month.minusMonths(preloadMonths).coerceAtLeast(calendarStartMonth),
+                endMonth = month.plusMonths(preloadMonths).coerceAtMost(calendarEndMonth),
+            )
+        }
+        .sortedBy(HistoryCalendarDayStateMonthRange::startMonth)
+
+    return ranges.fold(emptyList()) { mergedRanges, range ->
+        val lastRange = mergedRanges.lastOrNull()
+        if (lastRange == null || range.startMonth.isAfter(lastRange.endMonth.plusMonths(1))) {
+            mergedRanges + range
+        } else {
+            mergedRanges.dropLast(1) + lastRange.copy(
+                endMonth = if (range.endMonth.isAfter(lastRange.endMonth)) {
+                    range.endMonth
+                } else {
+                    lastRange.endMonth
+                }
+            )
+        }
+    }
+}
+
+private const val historyCalendarDayStatePreloadMonths = 2L
+
+private fun CalendarLayoutInfo.mostVisibleMonth(): CalendarMonth? {
+    return visibleMonthsInfo
+        .maxByOrNull { itemInfo ->
+            val visibleStart = maxOf(itemInfo.offset, viewportStartOffset)
+            val visibleEnd = minOf(itemInfo.offset + itemInfo.size, viewportEndOffset)
+            (visibleEnd - visibleStart).coerceAtLeast(0)
+        }
+        ?.month
 }
 
 private val CalendarLayoutInfo.completelyVisibleMonths: List<CalendarMonth>

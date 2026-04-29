@@ -130,6 +130,46 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historyCalendarDayStateMonthRanges_tracksVisibleMonthWithoutLoadingGap() {
+        assertEquals(
+            listOf(
+                HistoryCalendarDayStateMonthRange(
+                    startMonth = YearMonth.of(2026, 1),
+                    endMonth = YearMonth.of(2026, 5),
+                ),
+                HistoryCalendarDayStateMonthRange(
+                    startMonth = YearMonth.of(2026, 7),
+                    endMonth = YearMonth.of(2026, 11),
+                ),
+            ),
+            historyCalendarDayStateMonthRanges(
+                displayedMonth = YearMonth.of(2026, 3),
+                visibleMonths = setOf(YearMonth.of(2026, 9)),
+                calendarStartMonth = YearMonth.of(2026, 1),
+                calendarEndMonth = YearMonth.of(2026, 12),
+            )
+        )
+    }
+
+    @Test
+    fun historyCalendarDayStateMonthRanges_mergesOverlappingWindows() {
+        assertEquals(
+            listOf(
+                HistoryCalendarDayStateMonthRange(
+                    startMonth = YearMonth.of(2026, 1),
+                    endMonth = YearMonth.of(2026, 7),
+                ),
+            ),
+            historyCalendarDayStateMonthRanges(
+                displayedMonth = YearMonth.of(2026, 3),
+                visibleMonths = setOf(YearMonth.of(2026, 5)),
+                calendarStartMonth = YearMonth.of(2026, 1),
+                calendarEndMonth = YearMonth.of(2026, 12),
+            )
+        )
+    }
+
+    @Test
     fun historyEntrySupportingText_includes_plain_count_text_between_primary_text_and_group_name() {
         assertEquals(
             "1mg \u00B7 2x \u00B7 Nightly estradiol",

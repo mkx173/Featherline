@@ -145,14 +145,18 @@ internal fun buildHistoryCalendarDayUiState(
     endDate: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): Map<LocalDate, HistoryCalendarDayUiState> {
+    val rangeEntries = entries.filter { entry ->
+        val entryDate = entry.planCalendarDate(zoneId)
+        !entryDate.isBefore(startDate) && !entryDate.isAfter(endDate)
+    }
     val planDayStates = buildPlanCalendarDayUiState(
         groups = groups,
-        entries = entries,
+        entries = rangeEntries,
         startDate = startDate,
         endDate = endDate,
         zoneId = zoneId
     )
-    val entriesByDate = entries.groupBy { entry ->
+    val entriesByDate = rangeEntries.groupBy { entry ->
         entry.planCalendarDate(zoneId)
     }
 
