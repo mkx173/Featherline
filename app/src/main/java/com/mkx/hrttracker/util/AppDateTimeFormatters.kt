@@ -34,6 +34,21 @@ fun dateLabelFormatter(
     }
 }
 
+fun dateRangeLabelFormatter(
+    locale: Locale,
+    today: LocalDate,
+    startDate: LocalDate,
+    endDate: LocalDate,
+): LocalDateFormatter {
+    val currentYearFormatter = currentYearDateFormatter(locale)
+    val otherYearFormatter = otherYearDateFormatter(locale)
+    val shouldShowYear = startDate.year != today.year || endDate.year != today.year
+
+    return { date ->
+        date.format(if (shouldShowYear) otherYearFormatter else currentYearFormatter)
+    }
+}
+
 fun medicationGroupScheduleDateFormatter(
     locale: Locale,
     today: LocalDate

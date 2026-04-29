@@ -103,11 +103,12 @@ class PlanBatchAddViewModel @Inject constructor(
         }
 
         val group = uiState.value.groups.firstOrNull { group -> group.uuid == groupUuid } ?: return
+        val today = uiState.value.today
         selectionState.update { state ->
             state.copy(
                 selectedGroupUuid = groupUuid,
-                startDate = state.startDate ?: group.schedule.since,
-                endDate = state.endDate ?: LocalDate.now(),
+                startDate = group.schedule.since,
+                endDate = today,
                 isSaved = false,
                 savedEntryCount = null,
                 saveResult = null,

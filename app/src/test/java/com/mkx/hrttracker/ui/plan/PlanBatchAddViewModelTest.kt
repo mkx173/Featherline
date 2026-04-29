@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
+import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -12,8 +15,23 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
@@ -23,7 +41,61 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlanBatchAddViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun selectGroup_resetsRangeToSelectedGroupDefault() = runTest {
+        val firstGroup = medicationGroup(
+            uuid = UUID.fromString("09b7f93e-0196-47f5-bb55-3581ee5d0ee7"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+        val secondGroup = medicationGroup(
+            uuid = UUID.fromString("99857191-b93d-4920-a06e-9dc44127e93a"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 20),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(21, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+        val viewModel = planBatchAddViewModel(groups = listOf(firstGroup, secondGroup))
+        advanceUntilIdle()
+
+        viewModel.selectGroup(firstGroup.uuid)
+        advanceUntilIdle()
+        viewModel.updateStartDate(LocalDate.of(2026, 4, 1))
+        viewModel.updateEndDate(LocalDate.of(2026, 4, 2))
+        advanceUntilIdle()
+
+        viewModel.selectGroup(secondGroup.uuid)
+        advanceUntilIdle()
+
+        assertEquals(secondGroup.uuid, viewModel.uiState.value.selectedGroupUuid)
+        assertEquals(secondGroup.schedule.since, viewModel.uiState.value.startDate)
+        assertEquals(viewModel.uiState.value.today, viewModel.uiState.value.endDate)
+    }
+
     @Test
     fun buildPlanBatchAddEntries_adds_beforePlanStartAsManual_and_afterPlanStartAsScheduled() {
         val groupUuid = UUID.fromString("3b877888-5d32-4b3a-86ab-422b9d29d5f1")
@@ -214,4 +286,23 @@ class PlanBatchAddViewModelTest {
         applicationType = MedicationApplicationType.ORAL,
         dose = MedicationDose.MgAsMedicine(100.0),
     )
+
+    private fun planBatchAddViewModel(groups: List<MedicationGroup>): PlanBatchAddViewModel {
+        val medicationGroupRepository = mockk<MedicationGroupRepository>()
+        val medicationLogRepository = mockk<MedicationLogRepository>()
+        val settingsRepository = mockk<SettingsRepository>()
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(groups)
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(remindersEnabled = true)
+        )
+
+        return PlanBatchAddViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = mockk<MedicationReminderScheduler>(relaxed = true),
+            settingsRepository = settingsRepository,
+        )
+    }
 }

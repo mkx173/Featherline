@@ -62,6 +62,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.dateRangeLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.LocalDate
@@ -120,6 +121,19 @@ private fun PlanBatchAddScreenContent(
     }
     val dateFormatter = remember(appLocale, uiState.today) {
         dateLabelFormatter(appLocale, uiState.today)
+    }
+    val rangeDateFormatter = remember(
+        appLocale,
+        uiState.today,
+        uiState.startDate,
+        uiState.endDate,
+    ) {
+        dateRangeLabelFormatter(
+            locale = appLocale,
+            today = uiState.today,
+            startDate = uiState.startDate,
+            endDate = uiState.endDate,
+        )
     }
     var isRangePickerVisible by remember {
         mutableStateOf(false)
@@ -203,7 +217,7 @@ private fun PlanBatchAddScreenContent(
             endDate = uiState.endDate,
             entryCount = uiState.entryCount,
             manualEntryCount = uiState.manualEntryCount,
-            dateFormatter = dateFormatter,
+            dateFormatter = rangeDateFormatter,
             onDismiss = { isConfirmationVisible = false },
             onConfirm = {
                 isConfirmationVisible = false
@@ -301,7 +315,7 @@ private fun PlanBatchAddScreenContent(
                     skippedEntryCount = uiState.skippedEntryCount,
                     canConfirm = uiState.canConfirm,
                     hasSelectedGroup = uiState.selectedGroupUuid != null,
-                    dateFormatter = dateFormatter,
+                    dateFormatter = rangeDateFormatter,
                     onDateRangeClick = { isRangePickerVisible = true },
                     onConfirmClick = { isConfirmationVisible = true },
                 )
