@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -38,6 +39,7 @@ import org.junit.Before
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
@@ -49,6 +51,7 @@ class MedicationGroupEditorLoadStateTest {
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val context: Context = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
+    private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 25, 10, 0))
     private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
     @Before
@@ -85,6 +88,7 @@ class MedicationGroupEditorLoadStateTest {
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
             ),
+            appTimeSource = appTimeSource,
         )
 
         assertEquals(groupUuid.toString(), viewModel.uiState.value.editingGroupId)
@@ -114,6 +118,7 @@ class MedicationGroupEditorLoadStateTest {
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
             ),
+            appTimeSource = appTimeSource,
         )
 
         assertEquals(groupUuid.toString(), viewModel.uiState.value.editingGroupId)

@@ -29,6 +29,7 @@ import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
@@ -51,8 +53,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
-    @ApplicationContext private val context: Context,
-    savedStateHandle: SavedStateHandle
+    @param:ApplicationContext private val context: Context,
+    savedStateHandle: SavedStateHandle,
+    appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val requestedEditingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
     private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
@@ -71,6 +74,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
+    val currentMinute: StateFlow<LocalDateTime> = appTimeSource.currentMinute
 
     init {
         viewModelScope.launch {

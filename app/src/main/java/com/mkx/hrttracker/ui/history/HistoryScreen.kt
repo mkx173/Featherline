@@ -201,7 +201,7 @@ private fun HistoryScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
-    val today = remember { LocalDate.now() }
+    val today = uiState.today
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }

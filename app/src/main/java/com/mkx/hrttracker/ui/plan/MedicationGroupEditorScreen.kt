@@ -132,6 +132,7 @@ fun MedicationGroupEditorScreen(
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -370,6 +371,7 @@ fun MedicationGroupEditorScreen(
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteGroup,
         onDeleteWithRecordsConfirm = viewModel::deleteGroupAndRelatedEntries,
+        occurrenceReferenceTime = currentMinute,
         modifier = modifier
     )
 }
@@ -430,8 +432,9 @@ private fun MedicationGroupEditorScreenContent(
         skipPartiallyExpanded = true
     )
     val scope = rememberCoroutineScope()
-    val systemToday = remember { LocalDate.now() }
-    val currentDate = occurrenceReferenceTime?.toLocalDate() ?: systemToday
+    val resolvedOccurrenceReferenceTime = occurrenceReferenceTime
+        ?: LocalDateTime.now().withSecond(0).withNano(0)
+    val currentDate = resolvedOccurrenceReferenceTime.toLocalDate()
     val timeFormatter = remember(appLocale) {
         localizedShortTimeFormatter(appLocale)
     }
@@ -474,9 +477,6 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isSaving &&
         !uiState.isDeleting &&
         !uiState.isDeletingRelatedEntries
-    val resolvedOccurrenceReferenceTime = remember(occurrenceReferenceTime) {
-        occurrenceReferenceTime ?: LocalDateTime.now().withSecond(0).withNano(0)
-    }
     val upcomingOccurrences = remember(
         uiState.scheduleType,
         uiState.sinceDate,

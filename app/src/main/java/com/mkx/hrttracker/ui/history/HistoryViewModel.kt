@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,8 @@ import javax.inject.Inject
 class HistoryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     medicationGroupRepository: MedicationGroupRepository,
-    private val medicationReminderScheduler: MedicationReminderScheduler
+    private val medicationReminderScheduler: MedicationReminderScheduler,
+    appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val selectedEntryIds = MutableStateFlow<Set<UUID>>(emptySet())
     private val isDeleteConfirmationVisible = MutableStateFlow(false)
@@ -34,8 +36,11 @@ class HistoryViewModel @Inject constructor(
     private val isDeletingAllEntries = MutableStateFlow(false)
     private val deleteSelectedEntriesResult = MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
     private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
-    private val displayedMonth = MutableStateFlow(YearMonth.now())
+    private val displayedMonth = MutableStateFlow(
+        YearMonth.from(appTimeSource.currentMinute.value.toLocalDate())
+    )
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
+    private val currentDateTime = appTimeSource.currentMinute
 
     val uiState: StateFlow<HistoryUiState> = combine(
         combine(
@@ -72,15 +77,18 @@ class HistoryViewModel @Inject constructor(
             selectedDate,
             ::Pair
         ),
+        currentDateTime,
     ) { entriesAndGroups,
         deletionUiState,
-        displayState ->
+        displayState,
+        now ->
         val (entriesOrNull, groupsOrNull) = entriesAndGroups
         val (month, selectedDay) = displayState
         val isLoading = entriesOrNull == null || groupsOrNull == null
         val entries = entriesOrNull.orEmpty()
         val groups = groupsOrNull.orEmpty()
-        val currentMonth = YearMonth.now()
+        val today = now.toLocalDate()
+        val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
         }
@@ -97,6 +105,7 @@ class HistoryViewModel @Inject constructor(
             .intersect(entries.mapTo(mutableSetOf()) { it.uuid })
         HistoryUiState(
             isLoading = isLoading,
+            today = today,
             entries = entries,
             medicationGroups = groups,
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
@@ -114,8 +123,8 @@ class HistoryViewModel @Inject constructor(
         )
     }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = HistoryUiState()
+            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
         )
 
     fun setDisplayedMonth(month: YearMonth, clearSelection: Boolean = true) {
@@ -136,7 +145,7 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun toggleSelectedDate(date: LocalDate) {
-        if (!canSelectHistoryCalendarDate(date, LocalDate.now())) {
+        if (!canSelectHistoryCalendarDate(date, uiState.value.today)) {
             return
         }
         selectedDate.value = if (selectedDate.value == date) {
@@ -254,10 +263,25 @@ class HistoryViewModel @Inject constructor(
     fun consumeDeleteSelectedEntriesResult() {
         deleteSelectedEntriesResult.value = null
     }
+
+    private companion object {
+        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
+    }
+}
+
+private fun initialHistoryUiState(today: LocalDate): HistoryUiState {
+    val currentMonth = YearMonth.from(today)
+    return HistoryUiState(
+        today = today,
+        calendarStartMonth = currentMonth,
+        calendarEndMonth = currentMonth,
+        displayedMonth = currentMonth,
+    )
 }
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
+    val today: LocalDate = LocalDate.now(),
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,

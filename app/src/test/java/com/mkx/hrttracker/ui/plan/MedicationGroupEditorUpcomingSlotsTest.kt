@@ -37,6 +37,40 @@ class MedicationGroupEditorUpcomingSlotsTest {
     }
 
     @Test
+    fun buildMedicationGroupEditorUpcomingOccurrences_usesUpdatedReferenceTime() {
+        val uiState = MedicationGroupEditorUiState(
+            scheduleType = MedicationGroupScheduleType.DAILY,
+            sinceDate = LocalDate.of(2026, 4, 1),
+            dailyIntervalDays = "1",
+            dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+        )
+
+        val beforeScheduledTime = buildMedicationGroupEditorUpcomingOccurrences(
+            uiState = uiState,
+            start = LocalDateTime.of(2026, 4, 18, 8, 59)
+        )
+        val afterScheduledTime = buildMedicationGroupEditorUpcomingOccurrences(
+            uiState = uiState,
+            start = LocalDateTime.of(2026, 4, 18, 9, 1)
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 18, 9, 0),
+                LocalDateTime.of(2026, 4, 19, 9, 0)
+            ),
+            beforeScheduledTime
+        )
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 19, 9, 0),
+                LocalDateTime.of(2026, 4, 20, 9, 0)
+            ),
+            afterScheduledTime
+        )
+    }
+
+    @Test
     fun buildMedicationGroupEditorUpcomingOccurrences_weeklyUsesSelectedWeekdayCountPlusOne() {
         val uiState = MedicationGroupEditorUiState(
             scheduleType = MedicationGroupScheduleType.WEEKLY,

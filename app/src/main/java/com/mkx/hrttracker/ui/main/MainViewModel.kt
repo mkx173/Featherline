@@ -4,12 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDateTime
 import javax.inject.Inject
@@ -17,14 +16,10 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
-    medicationLogRepository: MedicationLogRepository
+    medicationLogRepository: MedicationLogRepository,
+    appTimeSource: AppTimeSource
 ) : ViewModel() {
-    private val currentDateTime = flow {
-        while (true) {
-            emit(LocalDateTime.now())
-            delay(CURRENT_TIME_REFRESH_INTERVAL_MILLIS)
-        }
-    }
+    private val currentDateTime = appTimeSource.currentMinute
 
     val uiState: StateFlow<MainUiState> = combine(
         medicationGroupRepository.observeGroups(),
@@ -60,12 +55,12 @@ class MainViewModel @Inject constructor(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = MainUiState()
+        started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+        initialValue = MainUiState(now = currentDateTime.value)
     )
 
     private companion object {
-        const val CURRENT_TIME_REFRESH_INTERVAL_MILLIS = 60_000L
+        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

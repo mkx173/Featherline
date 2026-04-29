@@ -45,6 +45,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -208,12 +209,18 @@ private fun PlanScreenContent(
         }
     }
 
-    val state = rememberWeekCalendarState(
-        startDate = uiState.calendarStartDate,
-        endDate = uiState.calendarEndDate,
-        firstVisibleWeekDate = uiState.today,
-        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
-    )
+    val state = key(
+        uiState.calendarStartDate,
+        uiState.calendarEndDate,
+        uiState.calendarFirstDayOfWeek,
+    ) {
+        rememberWeekCalendarState(
+            startDate = uiState.calendarStartDate,
+            endDate = uiState.calendarEndDate,
+            firstVisibleWeekDate = uiState.today,
+            firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+        )
+    }
     val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)

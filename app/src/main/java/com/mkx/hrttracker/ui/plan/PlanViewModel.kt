@@ -8,13 +8,12 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -26,15 +25,11 @@ import javax.inject.Inject
 class PlanViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     medicationLogRepository: MedicationLogRepository,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
-    private val currentDateTime = flow {
-        while (true) {
-            emit(LocalDateTime.now())
-            delay(CURRENT_TIME_REFRESH_INTERVAL_MILLIS)
-        }
-    }
+    private val currentDateTime = appTimeSource.currentMinute
 
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
@@ -88,8 +83,8 @@ class PlanViewModel @Inject constructor(
     }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = PlanUiState()
+            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            initialValue = PlanUiState(today = currentDateTime.value.toLocalDate())
         )
 
     fun toggleSelectedDate(date: LocalDate) {
@@ -108,7 +103,7 @@ class PlanViewModel @Inject constructor(
 
     private companion object {
         const val UPCOMING_OCCURRENCES_LIMIT = 3
-        const val CURRENT_TIME_REFRESH_INTERVAL_MILLIS = 60_000L
+        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

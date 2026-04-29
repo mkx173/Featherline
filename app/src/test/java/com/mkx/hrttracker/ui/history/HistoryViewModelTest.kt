@@ -8,14 +8,18 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -29,6 +33,7 @@ import org.junit.Before
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.YearMonth
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,6 +42,7 @@ class HistoryViewModelTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
+    private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 10, 0))
 
     @Before
     fun setUp() {
@@ -71,7 +77,9 @@ class HistoryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.deleteAllEntries()
@@ -114,7 +122,9 @@ class HistoryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.deleteAllEntries()
@@ -149,7 +159,9 @@ class HistoryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.toggleEntrySelection(entry.uuid)
@@ -192,7 +204,9 @@ class HistoryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.toggleEntrySelection(entry.uuid)
@@ -229,7 +243,9 @@ class HistoryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.toggleEntrySelection(entry.uuid)
@@ -257,13 +273,15 @@ class HistoryViewModelTest {
     fun setDisplayedMonth_withSameMonthAndClearSelection_clearsSelectedDate() = runTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        val today = LocalDate.now()
+        val today = appTimeSource.currentMinute.value.toLocalDate()
 
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
         )
+        startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         viewModel.toggleSelectedDate(today)
@@ -275,5 +293,36 @@ class HistoryViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.uiState.value.selectedDate)
+    }
+
+    @Test
+    fun clockTickAcrossMonth_updatesTodayAndCalendarEndMonth() = runTest {
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.today)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.calendarEndMonth)
+
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 5, 1, 0, 0))
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.today)
+        assertEquals(YearMonth.of(2026, 5), viewModel.uiState.value.calendarEndMonth)
+    }
+
+    private fun TestScope.startUiStateCollection(viewModel: HistoryViewModel) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect { }
+        }
     }
 }
