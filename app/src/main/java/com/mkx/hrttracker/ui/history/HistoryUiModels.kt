@@ -85,9 +85,14 @@ internal fun resolveHistoryDisplayedSelectedDate(
 
 internal fun shouldClearHistorySelectionOnMonthChange(
     displayedMonth: YearMonth,
-    pendingSelectedDate: LocalDate?
+    pendingSelectedDate: LocalDate?,
+    selectedDate: LocalDate?,
 ): Boolean {
-    return pendingSelectedDate?.let { YearMonth.from(it) != displayedMonth } ?: true
+    return when {
+        pendingSelectedDate != null -> YearMonth.from(pendingSelectedDate) != displayedMonth
+        selectedDate != null -> YearMonth.from(selectedDate) != displayedMonth
+        else -> true
+    }
 }
 
 internal fun buildHistoryMonthSummary(

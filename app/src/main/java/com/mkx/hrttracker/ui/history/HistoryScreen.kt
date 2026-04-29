@@ -251,16 +251,11 @@ private fun HistoryScreenContent(
     }
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllConfirmationVisible by rememberSaveable { mutableStateOf(false) }
-    val displayedSelectedDate = remember(
-        displayedMonth.yearMonth,
+    val calendarSelectedDate = remember(
         pendingSelectedDate.value,
         uiState.selectedDate
     ) {
-        resolveHistoryDisplayedSelectedDate(
-            displayedMonth = displayedMonth.yearMonth,
-            pendingSelectedDate = pendingSelectedDate.value,
-            selectedDate = uiState.selectedDate
-        )
+        pendingSelectedDate.value ?: uiState.selectedDate
     }
 
     LaunchedEffect(displayedMonth.yearMonth) {
@@ -269,7 +264,8 @@ private fun HistoryScreenContent(
             displayedMonth.yearMonth,
             shouldClearHistorySelectionOnMonthChange(
                 displayedMonth = displayedMonth.yearMonth,
-                pendingSelectedDate = pendingSelectedDate.value
+                pendingSelectedDate = pendingSelectedDate.value,
+                selectedDate = uiState.selectedDate
             )
         )
     }
@@ -614,7 +610,7 @@ private fun HistoryScreenContent(
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
                         appLocale = appLocale,
-                        selectedDate = displayedSelectedDate,
+                        selectedDate = calendarSelectedDate,
                         hasSelection = uiState.selectedDate != null,
                         onDayClick = onDayClick,
                         onSelectionReset = {

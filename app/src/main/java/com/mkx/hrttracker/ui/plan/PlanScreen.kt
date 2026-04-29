@@ -218,12 +218,6 @@ private fun PlanScreenContent(
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)
 
-    LaunchedEffect(selection) {
-        if (selection != null && visibleWeek.days.none { it.date == selection }) {
-            state.animateScrollToWeek(selection)
-        }
-    }
-
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {

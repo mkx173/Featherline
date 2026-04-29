@@ -290,26 +290,37 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun shouldClearHistorySelectionOnMonthChange_preserves_selection_only_for_pending_date_in_target_month() {
+    fun shouldClearHistorySelectionOnMonthChange_preserves_selection_for_pending_or_selected_date_in_target_month() {
         assertEquals(
             false,
             shouldClearHistorySelectionOnMonthChange(
                 displayedMonth = YearMonth.of(2026, 4),
-                pendingSelectedDate = LocalDate.of(2026, 4, 2)
+                pendingSelectedDate = LocalDate.of(2026, 4, 2),
+                selectedDate = LocalDate.of(2026, 3, 31)
             )
         )
         assertEquals(
             true,
             shouldClearHistorySelectionOnMonthChange(
                 displayedMonth = YearMonth.of(2026, 4),
-                pendingSelectedDate = LocalDate.of(2026, 5, 1)
+                pendingSelectedDate = LocalDate.of(2026, 5, 1),
+                selectedDate = LocalDate.of(2026, 4, 2)
+            )
+        )
+        assertEquals(
+            false,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 4, 2)
             )
         )
         assertEquals(
             true,
             shouldClearHistorySelectionOnMonthChange(
                 displayedMonth = YearMonth.of(2026, 4),
-                pendingSelectedDate = null
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31)
             )
         )
     }
