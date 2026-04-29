@@ -190,7 +190,6 @@ private fun PlanScreenContent(
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     var isActionMenuExpanded by remember { mutableStateOf(false) }
-    val lastVisibleWeek = remember { PlanVisibleWeekMemory() }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
@@ -212,10 +211,11 @@ private fun PlanScreenContent(
         uiState.calendarStartDate,
         uiState.calendarEndDate,
         uiState.calendarFirstDayOfWeek,
+        uiState.today,
     ) {
         val initialVisibleWeekDate = remember {
             resolvePlanInitialVisibleWeekDate(
-                previousVisibleWeekDate = lastVisibleWeek.startDate,
+                selectedDate = selection,
                 calendarStartDate = uiState.calendarStartDate,
                 calendarEndDate = uiState.calendarEndDate,
                 today = uiState.today,
@@ -231,10 +231,6 @@ private fun PlanScreenContent(
     val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)
-
-    LaunchedEffect(visibleWeekStartDate) {
-        lastVisibleWeek.startDate = visibleWeekStartDate
-    }
 
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
@@ -993,24 +989,23 @@ internal fun planWeekHeaderMonthLabel(
 }
 
 internal fun resolvePlanInitialVisibleWeekDate(
-    previousVisibleWeekDate: LocalDate?,
+    selectedDate: LocalDate?,
     calendarStartDate: LocalDate,
     calendarEndDate: LocalDate,
     today: LocalDate,
 ): LocalDate {
-    val requestedDate = previousVisibleWeekDate ?: today
+    if (selectedDate == null) {
+        return today.coerceIn(calendarStartDate, calendarEndDate)
+    }
+
     return if (
-        !requestedDate.isBefore(calendarStartDate) &&
-        !requestedDate.isAfter(calendarEndDate)
+        !selectedDate.isBefore(calendarStartDate) &&
+        !selectedDate.isAfter(calendarEndDate)
     ) {
-        requestedDate
+        selectedDate
     } else {
         calendarStartDate
     }
-}
-
-private class PlanVisibleWeekMemory {
-    var startDate: LocalDate? = null
 }
 
 @Composable

@@ -10,43 +10,43 @@ class PlanWeekCalendarStateTest {
     private val monthFormatter = DateTimeFormatter.ofPattern("MMMM", Locale.US)
 
     @Test
-    fun resolvePlanInitialVisibleWeekDate_preservesVisibleWeekInsideNewRange() {
-        val visibleWeekDate = LocalDate.of(2026, 4, 27)
+    fun resolvePlanInitialVisibleWeekDate_usesTodayWithoutSelection() {
+        val today = LocalDate.of(2026, 4, 27)
 
         val initialDate = resolvePlanInitialVisibleWeekDate(
-            previousVisibleWeekDate = visibleWeekDate,
+            selectedDate = null,
             calendarStartDate = LocalDate.of(2026, 4, 20),
             calendarEndDate = LocalDate.of(2026, 5, 10),
-            today = LocalDate.of(2026, 4, 27),
+            today = today,
         )
 
-        assertEquals(visibleWeekDate, initialDate)
+        assertEquals(today, initialDate)
     }
 
     @Test
-    fun resolvePlanInitialVisibleWeekDate_usesLastWeekWhenPreviousVisibleWeekFallsOutOfRange() {
+    fun resolvePlanInitialVisibleWeekDate_usesSelectedDateWhenSelectionIsInsideRange() {
+        val selectedDate = LocalDate.of(2026, 4, 26)
+
         val initialDate = resolvePlanInitialVisibleWeekDate(
-            previousVisibleWeekDate = LocalDate.of(2026, 4, 13),
+            selectedDate = selectedDate,
+            calendarStartDate = LocalDate.of(2026, 4, 13),
+            calendarEndDate = LocalDate.of(2026, 5, 3),
+            today = LocalDate.of(2026, 4, 27),
+        )
+
+        assertEquals(selectedDate, initialDate)
+    }
+
+    @Test
+    fun resolvePlanInitialVisibleWeekDate_usesLastWeekWhenSelectedDateFallsOutOfRange() {
+        val initialDate = resolvePlanInitialVisibleWeekDate(
+            selectedDate = LocalDate.of(2026, 4, 13),
             calendarStartDate = LocalDate.of(2026, 4, 20),
             calendarEndDate = LocalDate.of(2026, 5, 10),
             today = LocalDate.of(2026, 4, 27),
         )
 
         assertEquals(LocalDate.of(2026, 4, 20), initialDate)
-    }
-
-    @Test
-    fun resolvePlanInitialVisibleWeekDate_usesTodayForInitialLoad() {
-        val today = LocalDate.of(2026, 4, 26)
-
-        val initialDate = resolvePlanInitialVisibleWeekDate(
-            previousVisibleWeekDate = null,
-            calendarStartDate = LocalDate.of(2026, 4, 13),
-            calendarEndDate = LocalDate.of(2026, 5, 3),
-            today = today,
-        )
-
-        assertEquals(today, initialDate)
     }
 
     @Test
