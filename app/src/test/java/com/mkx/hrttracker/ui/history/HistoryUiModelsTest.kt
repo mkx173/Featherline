@@ -768,6 +768,52 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun canSelectHistoryCalendarDate_disallows_adjacent_month_outside_calendar_range() {
+        val today = LocalDate.of(2026, 4, 20)
+
+        assertEquals(
+            true,
+            canSelectHistoryCalendarDate(
+                date = LocalDate.of(2026, 3, 31),
+                today = today,
+                targetMonth = YearMonth.of(2026, 3),
+                calendarStartMonth = YearMonth.of(2026, 3),
+                calendarEndMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            false,
+            canSelectHistoryCalendarDate(
+                date = LocalDate.of(2026, 3, 31),
+                today = today,
+                targetMonth = YearMonth.of(2026, 3),
+                calendarStartMonth = YearMonth.of(2026, 4),
+                calendarEndMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            false,
+            canSelectHistoryCalendarDate(
+                date = LocalDate.of(2026, 5, 1),
+                today = today,
+                targetMonth = YearMonth.of(2026, 5),
+                calendarStartMonth = YearMonth.of(2026, 4),
+                calendarEndMonth = YearMonth.of(2026, 5)
+            )
+        )
+        assertEquals(
+            true,
+            canSelectHistoryCalendarDate(
+                date = LocalDate.of(2026, 4, 20),
+                today = today,
+                targetMonth = null,
+                calendarStartMonth = YearMonth.of(2026, 4),
+                calendarEndMonth = YearMonth.of(2026, 4)
+            )
+        )
+    }
+
+    @Test
     fun historyCalendarIndicatorStatus_uses_none_for_future_dates() {
         val today = LocalDate.of(2026, 4, 20)
 

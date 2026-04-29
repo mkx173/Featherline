@@ -23,12 +23,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Badge
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,7 +92,6 @@ import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtButton
-import com.mkx.hrttracker.ui.components.HrtOutlinedButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -384,27 +381,6 @@ private fun PlanScreenContent(
                             onEntryClick(unplannedEntryEditorIds(entry))
                         }
                     )
-                    if (selection != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            HrtOutlinedButton(
-                                text = stringResource(R.string.history_clear_selection),
-                                onClick = onDateSelectionReset,
-                                icon = Icons.Rounded.Close,
-                                iconModifier = Modifier.size(14.dp),
-                                iconSpacing = 6.dp,
-                                compact = true,
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary,
-                                )
-                            )
-                        }
-                    }
                 }
             }
 

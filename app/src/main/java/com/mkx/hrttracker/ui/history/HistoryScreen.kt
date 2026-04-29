@@ -981,6 +981,10 @@ private fun HistoryMonthCalendar(
                 monthHeader = { _ -> },
                 dayContent = { day ->
                     val dayState = dayStates[day.date] ?: HistoryCalendarDayUiState()
+                    val targetMonth = historyCalendarDayClickTargetMonth(
+                        position = day.position,
+                        date = day.date
+                    )
                     HistoryCalendarDay(
                         day = day,
                         today = today,
@@ -988,11 +992,14 @@ private fun HistoryMonthCalendar(
                         hasOffPlanRecord = dayState.hasOffPlanRecord,
                         isSelected = day.date == selectedDate &&
                                 day.position == DayPosition.MonthDate,
+                        isSelectable = canSelectHistoryCalendarDate(
+                            date = day.date,
+                            today = today,
+                            targetMonth = targetMonth,
+                            calendarStartMonth = calendarState.startMonth,
+                            calendarEndMonth = calendarState.endMonth
+                        ),
                         onClick = { date ->
-                            val targetMonth = historyCalendarDayClickTargetMonth(
-                                position = day.position,
-                                date = date
-                            )
                             if (targetMonth == null) {
                                 onDayClick(date)
                             } else {
@@ -1194,6 +1201,7 @@ private fun HistoryCalendarDay(
     dayStatus: PlanCalendarDayStatus,
     hasOffPlanRecord: Boolean,
     isSelected: Boolean,
+    isSelectable: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1202,11 +1210,6 @@ private fun HistoryCalendarDay(
         isFuture = day.date.isAfter(today),
         isSelected = isSelected,
         isToday = day.date == today
-    )
-    val isFuture = day.date.isAfter(today)
-    val isSelectable = canSelectHistoryCalendarDate(
-        date = day.date,
-        today = today
     )
     val isToday = day.date == today
     val containerColor = when {

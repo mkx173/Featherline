@@ -14,10 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -33,18 +30,6 @@ class PlanViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
     private val currentDateTime = appTimeSource.currentMinute
-    private var currentImplicitDate = currentDateTime.value.toLocalDate()
-
-    init {
-        viewModelScope.launch {
-            currentDateTime
-                .map { now -> now.toLocalDate() }
-                .distinctUntilChanged()
-                .collect { today ->
-                    selectPreviousImplicitDateOnDayChange(today)
-                }
-        }
-    }
 
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
@@ -114,18 +99,6 @@ class PlanViewModel @Inject constructor(
         if (selectedDate.value != null) {
             selectedDate.value = null
         }
-    }
-
-    private fun selectPreviousImplicitDateOnDayChange(today: LocalDate) {
-        val previousDate = currentImplicitDate
-        if (today == previousDate) {
-            return
-        }
-
-        if (selectedDate.value == null) {
-            selectedDate.value = previousDate
-        }
-        currentImplicitDate = today
     }
 
     private companion object {

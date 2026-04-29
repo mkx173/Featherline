@@ -56,6 +56,21 @@ internal fun canSelectHistoryCalendarDate(
     return !date.isAfter(today)
 }
 
+internal fun canSelectHistoryCalendarDate(
+    date: LocalDate,
+    today: LocalDate,
+    targetMonth: YearMonth?,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): Boolean {
+    if (!canSelectHistoryCalendarDate(date = date, today = today)) {
+        return false
+    }
+    val adjacentTargetMonth = targetMonth ?: return true
+    return !adjacentTargetMonth.isBefore(calendarStartMonth) &&
+        !adjacentTargetMonth.isAfter(calendarEndMonth)
+}
+
 internal fun resolveHistoryEffectiveSelectedDate(
     displayedMonth: YearMonth,
     pendingSelectedDate: LocalDate?,
