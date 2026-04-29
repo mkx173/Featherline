@@ -107,6 +107,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -312,7 +313,7 @@ private fun PlanScreenContent(
                         today = uiState.today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         monthFormatter = monthFormatter,
-                        hasSelection = selection != null,
+                        selectedDate = selection,
                         pageProgress = weekPageProgress,
                         onPreviousClick = {
                             scope.launch {
@@ -320,9 +321,9 @@ private fun PlanScreenContent(
                             }
                         },
                         onCurrentClick = {
-                            onDateSelectionReset()
                             scope.launch {
                                 state.animateScrollToWeek(uiState.today)
+                                onDateSelectionReset()
                             }
                         },
                         onNextClick = {
@@ -428,7 +429,7 @@ private fun PlanWeekHeader(
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     monthFormatter: (LocalDate) -> String,
-    hasSelection: Boolean,
+    selectedDate: LocalDate?,
     pageProgress: Float,
     onPreviousClick: () -> Unit,
     onCurrentClick: () -> Unit,
@@ -444,7 +445,11 @@ private fun PlanWeekHeader(
         1 -> R.string.plan_week_current
         else -> R.string.plan_week_next
     }
-    val headerDate = weekStartDate.plusDays(3)
+    val monthLabel = planWeekHeaderMonthLabel(
+        weekStartDate = weekStartDate,
+        selectedDate = selectedDate,
+        monthFormatter = monthFormatter
+    )
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -472,7 +477,7 @@ private fun PlanWeekHeader(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlanWeekNavigationButton(
                         imageVector = Icons.Rounded.RestartAlt,
-                        enabled = pageIndex != 1 || hasSelection,
+                        enabled = pageIndex != 1 || selectedDate != null,
                         contentDescription = stringResource(R.string.plan_week_current),
                         onClick = onCurrentClick,
                         modifier = Modifier.offset(x = 8.dp),
@@ -494,15 +499,14 @@ private fun PlanWeekHeader(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy((-2).dp)
             ) {
-                val dateLabel = monthFormatter(headerDate)
                 val pageLabel = stringResource(pageLabelRes)
                 Text(
-                    text = dateLabel,
+                    text = monthLabel,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.cjkTextOffset(dateLabel)
+                    modifier = Modifier.cjkTextOffset(monthLabel)
                 )
                 Text(
                     text = pageLabel,
@@ -969,6 +973,23 @@ private fun currentWeekPageIndex(
     val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
     val weeksFromCurrent = ChronoUnit.WEEKS.between(currentWeekStart, weekStartDate).toInt()
     return (weeksFromCurrent + 1).coerceIn(0, 2)
+}
+
+internal fun planWeekHeaderMonthLabel(
+    weekStartDate: LocalDate,
+    selectedDate: LocalDate?,
+    monthFormatter: (LocalDate) -> String,
+): String {
+    selectedDate?.let(monthFormatter)?.let { selectedMonth ->
+        return selectedMonth
+    }
+
+    val weekEndDate = weekStartDate.plusDays(6)
+    return if (YearMonth.from(weekStartDate) == YearMonth.from(weekEndDate)) {
+        monthFormatter(weekStartDate)
+    } else {
+        "${monthFormatter(weekStartDate)} / ${monthFormatter(weekEndDate)}"
+    }
 }
 
 internal fun resolvePlanInitialVisibleWeekDate(

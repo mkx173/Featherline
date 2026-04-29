@@ -621,14 +621,14 @@ private fun HistoryScreenContent(
                     HistoryMonthSummaryStrip(summary = monthSummary)
                     HistoryMonthCalendar(
                         calendarState = calendarState,
-                        displayedMonth = displayedMonth.yearMonth,
                         navigationMonth = calendarNavigationMonth,
                         today = today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
                         appLocale = appLocale,
                         selectedDate = calendarSelectedDate,
-                        hasSelection = uiState.selectedDate != null,
+                        hasResettableSelection = uiState.selectedDate != null &&
+                            pendingSelectionResetTargetMonth.value == null,
                         onDayClick = onDayClick,
                         onSelectionReset = { targetMonth ->
                             pendingSelectedDate.value = null
@@ -919,14 +919,13 @@ private fun HistorySummaryIndicatorGlyph(
 @Composable
 private fun HistoryMonthCalendar(
     calendarState: CalendarState,
-    displayedMonth: YearMonth,
     navigationMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
     appLocale: Locale,
     selectedDate: LocalDate?,
-    hasSelection: Boolean,
+    hasResettableSelection: Boolean,
     onDayClick: (LocalDate) -> Unit,
     onSelectionReset: (YearMonth) -> Unit,
     onDeferredDaySelectionRequested: (LocalDate) -> Unit,
@@ -952,13 +951,16 @@ private fun HistoryMonthCalendar(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             HistoryCalendarTitle(
-                displayedMonth = displayedMonth,
                 titleMonth = titleMonth,
                 currentMonth = YearMonth.from(today),
                 appLocale = appLocale,
                 canGoToPrevious = navigationMonth > calendarState.startMonth,
+                canGoToCurrent = canResetHistoryCalendar(
+                    navigationMonth = navigationMonth,
+                    currentMonth = YearMonth.from(today),
+                    hasResettableSelection = hasResettableSelection,
+                ),
                 canGoToNext = navigationMonth < calendarState.endMonth,
-                hasSelection = hasSelection,
                 onGoToPrevious = {
                     animateToMonth(navigationMonth.minusMonths(1))
                 },
@@ -1101,13 +1103,12 @@ private fun HistoryMonthHeader(
 
 @Composable
 private fun HistoryCalendarTitle(
-    displayedMonth: YearMonth,
     titleMonth: YearMonth,
     currentMonth: YearMonth,
     appLocale: Locale,
     canGoToPrevious: Boolean,
+    canGoToCurrent: Boolean,
     canGoToNext: Boolean,
-    hasSelection: Boolean,
     onGoToPrevious: () -> Unit,
     onGoToCurrent: () -> Unit,
     onGoToNext: () -> Unit
@@ -1139,7 +1140,7 @@ private fun HistoryCalendarTitle(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 HistoryCalendarNavigationButton(
                     imageVector = Icons.Rounded.RestartAlt,
-                    enabled = displayedMonth != currentMonth || hasSelection,
+                    enabled = canGoToCurrent,
                     contentDescription = stringResource(R.string.history_current_month),
                     onClick = onGoToCurrent,
                     modifier = Modifier.offset(x = 8.dp),

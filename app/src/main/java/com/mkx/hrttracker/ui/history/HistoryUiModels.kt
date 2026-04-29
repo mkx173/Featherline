@@ -118,6 +118,14 @@ internal fun shouldClearHistorySelectionOnMonthChange(
     }
 }
 
+internal fun canResetHistoryCalendar(
+    navigationMonth: YearMonth,
+    currentMonth: YearMonth,
+    hasResettableSelection: Boolean,
+): Boolean {
+    return navigationMonth != currentMonth || hasResettableSelection
+}
+
 internal fun buildHistoryMonthSummary(
     entries: List<MedicationLogEntry>,
     displayedMonth: YearMonth,

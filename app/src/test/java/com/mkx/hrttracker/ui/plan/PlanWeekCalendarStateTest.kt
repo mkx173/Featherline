@@ -3,8 +3,12 @@ package com.mkx.hrttracker.ui.plan
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class PlanWeekCalendarStateTest {
+    private val monthFormatter = DateTimeFormatter.ofPattern("MMMM", Locale.US)
+
     @Test
     fun resolvePlanInitialVisibleWeekDate_preservesVisibleWeekInsideNewRange() {
         val visibleWeekDate = LocalDate.of(2026, 4, 27)
@@ -43,5 +47,41 @@ class PlanWeekCalendarStateTest {
         )
 
         assertEquals(today, initialDate)
+    }
+
+    @Test
+    fun planWeekHeaderMonthLabel_usesWeekStartMonthWhenWeekIsInOneMonth() {
+        assertEquals(
+            "April",
+            planWeekHeaderMonthLabel(
+                weekStartDate = LocalDate.of(2026, 4, 20),
+                selectedDate = null,
+                monthFormatter = { date -> date.format(monthFormatter) }
+            )
+        )
+    }
+
+    @Test
+    fun planWeekHeaderMonthLabel_showsBothMonthsWhenWeekCrossesMonth() {
+        assertEquals(
+            "April / May",
+            planWeekHeaderMonthLabel(
+                weekStartDate = LocalDate.of(2026, 4, 27),
+                selectedDate = null,
+                monthFormatter = { date -> date.format(monthFormatter) }
+            )
+        )
+    }
+
+    @Test
+    fun planWeekHeaderMonthLabel_usesSelectedDateMonthWhenSelected() {
+        assertEquals(
+            "May",
+            planWeekHeaderMonthLabel(
+                weekStartDate = LocalDate.of(2026, 4, 27),
+                selectedDate = LocalDate.of(2026, 5, 1),
+                monthFormatter = { date -> date.format(monthFormatter) }
+            )
+        )
     }
 }

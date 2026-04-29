@@ -393,6 +393,34 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun canResetHistoryCalendar_usesImmediateNavigationMonthAndResettableSelection() {
+        assertEquals(
+            true,
+            canResetHistoryCalendar(
+                navigationMonth = YearMonth.of(2026, 3),
+                currentMonth = YearMonth.of(2026, 4),
+                hasResettableSelection = false
+            )
+        )
+        assertEquals(
+            true,
+            canResetHistoryCalendar(
+                navigationMonth = YearMonth.of(2026, 4),
+                currentMonth = YearMonth.of(2026, 4),
+                hasResettableSelection = true
+            )
+        )
+        assertEquals(
+            false,
+            canResetHistoryCalendar(
+                navigationMonth = YearMonth.of(2026, 4),
+                currentMonth = YearMonth.of(2026, 4),
+                hasResettableSelection = false
+            )
+        )
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_logged_on_track_partial_missed_and_off_plan_days() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(
