@@ -45,21 +45,6 @@ interface MedicationLogDao {
         """
         SELECT * FROM medication_log_entries
         WHERE category = :category
-          AND appliedAtEpochMillis >= :sinceEpochMillis
-          AND appliedAtEpochMillis <= :untilEpochMillis
-        ORDER BY appliedAtEpochMillis DESC
-        """
-    )
-    suspend fun getEntriesByCategoryBetween(
-        category: String,
-        sinceEpochMillis: Long,
-        untilEpochMillis: Long,
-    ): List<MedicationLogEntryEntity>
-
-    @Query(
-        """
-        SELECT * FROM medication_log_entries
-        WHERE category = :category
           AND appliedAtEpochMillis <= :onOrBeforeEpochMillis
         ORDER BY appliedAtEpochMillis DESC
         LIMIT 1

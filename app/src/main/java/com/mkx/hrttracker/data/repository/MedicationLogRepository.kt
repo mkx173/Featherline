@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.util.concurrent.atomic.AtomicLong
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,10 +36,6 @@ class MedicationLogRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     @AppScope appScope: CoroutineScope,
 ) {
-    @Volatile
-    private var cachedRecentEstradiolEntries: RecentEstradiolEntriesCache? = null
-    private val recentEstradiolCacheVersion = AtomicLong(0L)
-
     @OptIn(ExperimentalCoroutinesApi::class)
     private val entriesFlow: StateFlow<List<MedicationLogEntry>?> =
         databaseHolder.databaseFlow
@@ -61,43 +56,30 @@ class MedicationLogRepository @Inject constructor(
                 initialValue = null
             )
 
+    private val estradiolEntriesFlow: StateFlow<List<MedicationLogEntry>?> =
+        entriesFlow
+            .map { entries ->
+                entries?.filter { entry ->
+                    entry.category == MedicationCategory.ESTRADIOL
+                }
+            }
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = null
+            )
+
     fun observeEntries(): Flow<List<MedicationLogEntry>?> = entriesFlow
 
-    fun getCachedRecentEstradiolEntries(onOrBefore: Instant): List<MedicationLogEntry>? {
-        val cache = cachedRecentEstradiolEntries ?: return null
-        return cache.entries.takeIf {
-            !onOrBefore.isBefore(cache.since) && !onOrBefore.isAfter(cache.until)
-        }
-    }
-
-    suspend fun preloadRecentEstradiolEntries(
-        since: Instant,
-        until: Instant,
-    ): List<MedicationLogEntry> {
-        val cacheVersion = recentEstradiolCacheVersion.get()
-        val dao = databaseHolder.get().medicationLogDao()
-        val recentEntries = dao.getEntriesByCategoryBetween(
-            category = MedicationCategory.ESTRADIOL.name,
-            sinceEpochMillis = since.toEpochMilli(),
-            untilEpochMillis = until.toEpochMilli(),
+    fun getObservedLatestEstradiolEntryOnOrBefore(
+        onOrBefore: Instant,
+    ): ObservedEstradiolEntryLookup {
+        val entries = estradiolEntriesFlow.value ?: return ObservedEstradiolEntryLookup.NotLoaded
+        return ObservedEstradiolEntryLookup.Loaded(
+            entry = entries.firstOrNull { entry ->
+                !entry.appliedAt.isAfter(onOrBefore)
+            }
         )
-        val carryEntry = dao.getLatestEntryByCategoryOnOrBefore(
-            category = MedicationCategory.ESTRADIOL.name,
-            onOrBeforeEpochMillis = since.toEpochMilli(),
-        )
-        val entries = (recentEntries + listOfNotNull(carryEntry))
-            .distinctBy(MedicationLogEntryEntity::uuid)
-            .map { entry -> entry.toModel() }
-            .sortedByDescending(MedicationLogEntry::appliedAt)
-
-        if (recentEstradiolCacheVersion.get() == cacheVersion) {
-            cachedRecentEstradiolEntries = RecentEstradiolEntriesCache(
-                since = since,
-                until = until,
-                entries = entries,
-            )
-        }
-        return entries
     }
 
     suspend fun getEntries(): List<MedicationLogEntry> {
@@ -145,21 +127,18 @@ class MedicationLogRepository @Inject constructor(
         }
 
         databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
-        invalidateRecentEstradiolCache()
     }
 
     suspend fun deleteAllEntries() {
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteAllEntries()
         }
-        invalidateRecentEstradiolCache()
     }
 
     suspend fun deleteEntriesForGroup(groupUuid: UUID) {
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
         }
-        invalidateRecentEstradiolCache()
     }
 
     suspend fun saveEntry(
@@ -182,7 +161,6 @@ class MedicationLogRepository @Inject constructor(
                 appliedAtTimeZoneId = appliedAtTimeZoneId
             )
         )
-        invalidateRecentEstradiolCache()
     }
 
     suspend fun saveEntries(
@@ -221,7 +199,6 @@ class MedicationLogRepository @Inject constructor(
                 )
             }
         )
-        invalidateRecentEstradiolCache()
     }
 
     suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
@@ -242,12 +219,6 @@ class MedicationLogRepository @Inject constructor(
                 )
             }
         )
-        invalidateRecentEstradiolCache()
-    }
-
-    private fun invalidateRecentEstradiolCache() {
-        recentEstradiolCacheVersion.incrementAndGet()
-        cachedRecentEstradiolEntries = null
     }
 
     private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
@@ -370,11 +341,13 @@ class MedicationLogRepository @Inject constructor(
     }
 }
 
-private data class RecentEstradiolEntriesCache(
-    val since: Instant,
-    val until: Instant,
-    val entries: List<MedicationLogEntry>,
-)
+sealed interface ObservedEstradiolEntryLookup {
+    data object NotLoaded : ObservedEstradiolEntryLookup
+
+    data class Loaded(
+        val entry: MedicationLogEntry?,
+    ) : ObservedEstradiolEntryLookup
+}
 
 data class MedicationLogEntryInput(
     val medication: MedicationDetails,

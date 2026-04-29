@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.settings
 import androidx.lifecycle.SavedStateHandle
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestResult
@@ -64,7 +65,9 @@ class CalibrationEditorViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        every { medicationLogRepository.getCachedRecentEstradiolEntries(any()) } returns null
+        every {
+            medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(any())
+        } returns ObservedEstradiolEntryLookup.NotLoaded
         coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         coEvery { repository.getActiveCustomAnalytes() } returns emptyList()
         every { repository.getCachedPanel(any()) } returns null
@@ -144,8 +147,8 @@ class CalibrationEditorViewModelTest {
     }
 
     @Test
-    fun init_usesCachedMedicationEntriesForInitialElapsedDose() = runTest {
-        val cachedEntry = testMedicationLogEntry(
+    fun init_usesObservedMedicationEntriesForInitialElapsedDose() = runTest {
+        val observedEntry = testMedicationLogEntry(
             details = testCatalogMedicationDetails(
                 key = MedicationKey.ESTRADIOL,
                 applicationType = MedicationApplicationType.ORAL,
@@ -155,8 +158,8 @@ class CalibrationEditorViewModelTest {
             appliedAt = Instant.EPOCH,
         )
         every {
-            medicationLogRepository.getCachedRecentEstradiolEntries(any())
-        } returns listOf(cachedEntry)
+            medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(any())
+        } returns ObservedEstradiolEntryLookup.Loaded(observedEntry)
 
         val viewModel = CalibrationEditorViewModel(
             repository,
@@ -171,9 +174,27 @@ class CalibrationEditorViewModelTest {
             initialState.collectedTime,
         ).atZone(ZoneId.systemDefault()).toInstant()
         assertEquals(
-            targetCollectedAt.toEpochMilli() - cachedEntry.appliedAt.toEpochMilli(),
+            targetCollectedAt.toEpochMilli() - observedEntry.appliedAt.toEpochMilli(),
             initialState.timeSinceLastEstradiolDoseMillis,
         )
+        coVerify(exactly = 0) { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) }
+    }
+
+    @Test
+    fun init_doesNotQueryDatabaseWhenObservedMedicationEntriesLoadedWithoutMatch() = runTest {
+        every {
+            medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(any())
+        } returns ObservedEstradiolEntryLookup.Loaded(null)
+
+        val viewModel = CalibrationEditorViewModel(
+            repository,
+            medicationLogRepository,
+            settingsRepository,
+            SavedStateHandle()
+        )
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.timeSinceLastEstradiolDoseMillis)
         coVerify(exactly = 0) { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) }
     }
 

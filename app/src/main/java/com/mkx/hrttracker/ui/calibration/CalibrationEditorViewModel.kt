@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.ObservedEstradiolEntryLookup
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -14,7 +15,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -74,13 +74,17 @@ class CalibrationEditorViewModel @Inject constructor(
                 isLoading = editingPanelUuid != null,
                 collectedDate = collectedDate,
                 collectedTime = collectedTime,
-                timeSinceLastEstradiolDoseMillis = medicationLogRepository
-                    .getCachedRecentEstradiolEntries(collectedAt)?.let { entries ->
+                timeSinceLastEstradiolDoseMillis = when (
+                    val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(collectedAt)
+                ) {
+                    is ObservedEstradiolEntryLookup.Loaded ->
                         resolveTimeSinceLastEstradiolDoseMillis(
-                            entries = entries,
+                            lastEntry = lookup.entry,
                             targetCollectedAt = collectedAt,
                         )
-                    },
+
+                    ObservedEstradiolEntryLookup.NotLoaded -> null
+                },
                 customAnalytes = cachedCustomAnalytes.orEmpty(),
                 drafts = defaultCalibrationDrafts(latestSettingsState),
             )
@@ -413,16 +417,21 @@ class CalibrationEditorViewModel @Inject constructor(
     private fun refreshTimeSinceLastEstradiolDose() {
         val targetState = uiState.value
         val targetCollectedAt = targetState.toCollectedAtInstant(defaultZoneId)
-        medicationLogRepository
-            .getCachedRecentEstradiolEntries(targetCollectedAt)?.let { cachedEntries ->
-            updateTimeSinceLastEstradiolDose(
-                targetCollectedAt = targetCollectedAt,
-                elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
-                    entries = cachedEntries,
+        when (
+            val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(targetCollectedAt)
+        ) {
+            is ObservedEstradiolEntryLookup.Loaded -> {
+                updateTimeSinceLastEstradiolDose(
                     targetCollectedAt = targetCollectedAt,
-                ),
-            )
-            return
+                    elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
+                        lastEntry = lookup.entry,
+                        targetCollectedAt = targetCollectedAt,
+                    ),
+                )
+                return
+            }
+
+            ObservedEstradiolEntryLookup.NotLoaded -> Unit
         }
 
         viewModelScope.launch {
@@ -448,19 +457,6 @@ class CalibrationEditorViewModel @Inject constructor(
             } else {
                 state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
             }
-        }
-    }
-
-    private fun resolveTimeSinceLastEstradiolDoseMillis(
-        entries: List<MedicationLogEntry>,
-        targetCollectedAt: Instant,
-    ): Long? {
-        return findLastEstradiolEntry(
-            entries = entries,
-            onOrBefore = targetCollectedAt,
-        )?.let { lastEntry ->
-            (targetCollectedAt.toEpochMilli() - lastEntry.appliedAt.toEpochMilli())
-                .coerceAtLeast(0L)
         }
     }
 
