@@ -9,7 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class StructuredMedicationEditorSheetTest {
+class MedicationEditorSheetsTest {
     @Test
     fun resolve_medication_editor_field_errors_marks_multiple_invalid_fields() {
         val draft = defaultMedicationDraft(category = MedicationCategory.CUSTOM)

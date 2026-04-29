@@ -59,8 +59,12 @@ internal fun canSelectHistoryCalendarDate(
 internal fun resolveHistoryEffectiveSelectedDate(
     displayedMonth: YearMonth,
     pendingSelectedDate: LocalDate?,
-    selectedDate: LocalDate?
+    selectedDate: LocalDate?,
+    pendingSelectionResetTargetMonth: YearMonth? = null,
 ): LocalDate? {
+    if (pendingSelectionResetTargetMonth == displayedMonth) {
+        return null
+    }
     return if (
         pendingSelectedDate != null &&
         YearMonth.from(pendingSelectedDate) == displayedMonth
@@ -71,23 +75,27 @@ internal fun resolveHistoryEffectiveSelectedDate(
     }
 }
 
-internal fun resolveHistoryDisplayedSelectedDate(
+internal fun resolveHistoryCalendarSelectedDate(
     displayedMonth: YearMonth,
     pendingSelectedDate: LocalDate?,
-    selectedDate: LocalDate?
+    selectedDate: LocalDate?,
+    pendingSelectionResetTargetMonth: YearMonth? = null,
 ): LocalDate? {
-    return if (pendingSelectedDate != null) {
-        pendingSelectedDate.takeIf { YearMonth.from(it) == displayedMonth }
-    } else {
-        selectedDate?.takeIf { YearMonth.from(it) == displayedMonth }
+    if (pendingSelectionResetTargetMonth == displayedMonth) {
+        return null
     }
+    return pendingSelectedDate ?: selectedDate
 }
 
 internal fun shouldClearHistorySelectionOnMonthChange(
     displayedMonth: YearMonth,
     pendingSelectedDate: LocalDate?,
     selectedDate: LocalDate?,
+    pendingSelectionResetTargetMonth: YearMonth? = null,
 ): Boolean {
+    if (pendingSelectionResetTargetMonth != null) {
+        return displayedMonth == pendingSelectionResetTargetMonth
+    }
     return when {
         pendingSelectedDate != null -> YearMonth.from(pendingSelectedDate) != displayedMonth
         selectedDate != null -> YearMonth.from(selectedDate) != displayedMonth

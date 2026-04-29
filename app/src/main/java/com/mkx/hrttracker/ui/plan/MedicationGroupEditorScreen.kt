@@ -105,8 +105,8 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
-import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
 import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
@@ -1091,7 +1091,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     uiState.editingMedication?.let { medication ->
-        StructuredMedicationEditorSheet(
+        MedicationDefinitionEditorSheet(
             modifier = Modifier,
             title = stringResource(
                 if (uiState.medications.any { it.localId == medication.localId }) {

@@ -238,34 +238,45 @@ private fun HistoryScreenContent(
         mutableStateOf(displayedMonth.yearMonth)
     }
     val pendingSelectedDate = remember { mutableStateOf<LocalDate?>(null) }
+    val pendingSelectionResetTargetMonth = remember { mutableStateOf<YearMonth?>(null) }
     val effectiveSelectedDate = remember(
         displayedMonth.yearMonth,
         pendingSelectedDate.value,
+        pendingSelectionResetTargetMonth.value,
         uiState.selectedDate
     ) {
         resolveHistoryEffectiveSelectedDate(
             displayedMonth = displayedMonth.yearMonth,
             pendingSelectedDate = pendingSelectedDate.value,
-            selectedDate = uiState.selectedDate
+            selectedDate = uiState.selectedDate,
+            pendingSelectionResetTargetMonth = pendingSelectionResetTargetMonth.value
         )
     }
     var isActionMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var isDeleteAllConfirmationVisible by rememberSaveable { mutableStateOf(false) }
     val calendarSelectedDate = remember(
+        displayedMonth.yearMonth,
         pendingSelectedDate.value,
+        pendingSelectionResetTargetMonth.value,
         uiState.selectedDate
     ) {
-        pendingSelectedDate.value ?: uiState.selectedDate
+        resolveHistoryCalendarSelectedDate(
+            displayedMonth = displayedMonth.yearMonth,
+            pendingSelectedDate = pendingSelectedDate.value,
+            selectedDate = uiState.selectedDate,
+            pendingSelectionResetTargetMonth = pendingSelectionResetTargetMonth.value
+        )
     }
 
-    LaunchedEffect(displayedMonth.yearMonth) {
+    LaunchedEffect(displayedMonth.yearMonth, pendingSelectionResetTargetMonth.value) {
         calendarNavigationMonth = displayedMonth.yearMonth
         onDisplayedMonthChange(
             displayedMonth.yearMonth,
             shouldClearHistorySelectionOnMonthChange(
                 displayedMonth = displayedMonth.yearMonth,
                 pendingSelectedDate = pendingSelectedDate.value,
-                selectedDate = uiState.selectedDate
+                selectedDate = uiState.selectedDate,
+                pendingSelectionResetTargetMonth = pendingSelectionResetTargetMonth.value
             )
         )
     }
@@ -284,6 +295,12 @@ private fun HistoryScreenContent(
         val pendingDate = pendingSelectedDate.value ?: return@LaunchedEffect
         if (uiState.selectedDate == pendingDate) {
             pendingSelectedDate.value = null
+        }
+    }
+
+    LaunchedEffect(uiState.selectedDate, pendingSelectionResetTargetMonth.value) {
+        if (uiState.selectedDate == null) {
+            pendingSelectionResetTargetMonth.value = null
         }
     }
 
@@ -613,11 +630,16 @@ private fun HistoryScreenContent(
                         selectedDate = calendarSelectedDate,
                         hasSelection = uiState.selectedDate != null,
                         onDayClick = onDayClick,
-                        onSelectionReset = {
+                        onSelectionReset = { targetMonth ->
                             pendingSelectedDate.value = null
-                            uiState.selectedDate?.let(onDayClick)
+                            if (uiState.selectedDate != null) {
+                                pendingSelectionResetTargetMonth.value = targetMonth
+                            }
                         },
-                        onDeferredDaySelectionRequested = { pendingSelectedDate.value = it },
+                        onDeferredDaySelectionRequested = {
+                            pendingSelectionResetTargetMonth.value = null
+                            pendingSelectedDate.value = it
+                        },
                         onNavigationMonthChange = { calendarNavigationMonth = it },
                     )
                     HorizontalDivider(
@@ -906,7 +928,7 @@ private fun HistoryMonthCalendar(
     selectedDate: LocalDate?,
     hasSelection: Boolean,
     onDayClick: (LocalDate) -> Unit,
-    onSelectionReset: () -> Unit,
+    onSelectionReset: (YearMonth) -> Unit,
     onDeferredDaySelectionRequested: (LocalDate) -> Unit,
     onNavigationMonthChange: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
@@ -941,8 +963,9 @@ private fun HistoryMonthCalendar(
                     animateToMonth(navigationMonth.minusMonths(1))
                 },
                 onGoToCurrent = {
-                    onSelectionReset()
-                    animateToMonth(YearMonth.from(today))
+                    val currentMonth = YearMonth.from(today)
+                    onSelectionReset(currentMonth)
+                    animateToMonth(currentMonth)
                 },
                 onGoToNext = {
                     animateToMonth(navigationMonth.plusMonths(1))

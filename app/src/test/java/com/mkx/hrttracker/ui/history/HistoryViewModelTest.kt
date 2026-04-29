@@ -28,6 +28,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModelTest {
@@ -249,5 +251,29 @@ class HistoryViewModelTest {
         assertNull(viewModel.uiState.value.deleteSelectedEntriesResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(setOf(entry.uuid)) }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun setDisplayedMonth_withSameMonthAndClearSelection_clearsSelectedDate() = runTest {
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        val today = LocalDate.now()
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleSelectedDate(today)
+        advanceUntilIdle()
+
+        assertEquals(today, viewModel.uiState.value.selectedDate)
+
+        viewModel.setDisplayedMonth(YearMonth.from(today), clearSelection = true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.selectedDate)
     }
 }

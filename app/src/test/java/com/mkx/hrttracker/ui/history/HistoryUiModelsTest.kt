@@ -254,10 +254,32 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun resolveHistoryDisplayedSelectedDate_clears_old_highlight_during_cross_month_handoff() {
+    fun resolveHistoryEffectiveSelectedDate_keeps_selection_until_reset_target_month() {
+        assertEquals(
+            LocalDate.of(2026, 3, 31),
+            resolveHistoryEffectiveSelectedDate(
+                displayedMonth = YearMonth.of(2026, 2),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
+            )
+        )
         assertEquals(
             null,
-            resolveHistoryDisplayedSelectedDate(
+            resolveHistoryEffectiveSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
+            )
+        )
+    }
+
+    @Test
+    fun resolveHistoryCalendarSelectedDate_uses_pending_date_immediately() {
+        assertEquals(
+            LocalDate.of(2026, 4, 2),
+            resolveHistoryCalendarSelectedDate(
                 displayedMonth = YearMonth.of(2026, 3),
                 pendingSelectedDate = LocalDate.of(2026, 4, 2),
                 selectedDate = LocalDate.of(2026, 3, 31)
@@ -265,7 +287,7 @@ class HistoryUiModelsTest {
         )
         assertEquals(
             LocalDate.of(2026, 4, 2),
-            resolveHistoryDisplayedSelectedDate(
+            resolveHistoryCalendarSelectedDate(
                 displayedMonth = YearMonth.of(2026, 4),
                 pendingSelectedDate = LocalDate.of(2026, 4, 2),
                 selectedDate = LocalDate.of(2026, 3, 31)
@@ -273,18 +295,32 @@ class HistoryUiModelsTest {
         )
         assertEquals(
             LocalDate.of(2026, 3, 31),
-            resolveHistoryDisplayedSelectedDate(
-                displayedMonth = YearMonth.of(2026, 3),
+            resolveHistoryCalendarSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
                 pendingSelectedDate = null,
                 selectedDate = LocalDate.of(2026, 3, 31)
             )
         )
+    }
+
+    @Test
+    fun resolveHistoryCalendarSelectedDate_clears_highlight_in_reset_target_month() {
+        assertEquals(
+            LocalDate.of(2026, 3, 31),
+            resolveHistoryCalendarSelectedDate(
+                displayedMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
+            )
+        )
         assertEquals(
             null,
-            resolveHistoryDisplayedSelectedDate(
+            resolveHistoryCalendarSelectedDate(
                 displayedMonth = YearMonth.of(2026, 4),
                 pendingSelectedDate = null,
-                selectedDate = LocalDate.of(2026, 3, 31)
+                selectedDate = LocalDate.of(2026, 4, 2),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
             )
         )
     }
@@ -321,6 +357,37 @@ class HistoryUiModelsTest {
                 displayedMonth = YearMonth.of(2026, 4),
                 pendingSelectedDate = null,
                 selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+    }
+
+    @Test
+    fun shouldClearHistorySelectionOnMonthChange_delays_reset_until_target_month() {
+        assertEquals(
+            false,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            false,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 2),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            true,
+            shouldClearHistorySelectionOnMonthChange(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31),
+                pendingSelectionResetTargetMonth = YearMonth.of(2026, 4)
             )
         )
     }

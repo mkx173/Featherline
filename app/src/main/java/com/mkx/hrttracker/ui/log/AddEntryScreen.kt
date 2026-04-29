@@ -23,7 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
-import com.mkx.hrttracker.ui.medication.StructuredMedicationEditorSheet
+import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
 import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
@@ -143,7 +143,7 @@ private fun AddEntryScreenContent(
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
 
-    StructuredMedicationEditorSheet(
+    MedicationLogEntryEditorSheet(
         modifier = modifier,
         sheetState = sheetState,
         title = stringResource(if (uiState.isEditing) R.string.edit_entry else R.string.add_entry),
@@ -151,7 +151,7 @@ private fun AddEntryScreenContent(
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         draft = uiState.medicationDraft,
-        isMedicationIdentityEditable = uiState.canEditMedicationIdentity,
+        canEditMedicationIdentity = uiState.canEditMedicationIdentity,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,
@@ -195,7 +195,6 @@ private fun AddEntryScreenContent(
         appliedTime = uiState.appliedTime,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
-        showAppliedAtFields = true,
         errorMessageRes = uiState.errorMessageRes,
         isSaving = uiState.isLoading || uiState.isSaving || uiState.isDeleting,
         destructiveButtonText = if (uiState.canDelete) {
