@@ -6,9 +6,11 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -110,6 +112,47 @@ class MedicationLogRepositoryTest {
         assertEquals(entries, repository.getCachedRecentEstradiolEntries(since.plus(Duration.ofDays(1))))
         assertNull(repository.getCachedRecentEstradiolEntries(since.minusMillis(1)))
         assertNull(repository.getCachedRecentEstradiolEntries(until.plusMillis(1)))
+    }
+
+    @Test
+    fun preloadRecentEstradiolEntries_doesNotPublishCacheAfterConcurrentMutation() = runTest {
+        val since = Instant.parse("2026-04-01T00:00:00Z")
+        val until = Instant.parse("2026-04-30T00:00:00Z")
+        val staleEntry = testMedicationLogEntryEntity(
+            uuid = "8bbef05b-368d-4ae4-9e9d-4a83e35f8d9c",
+            appliedAt = since.plus(Duration.ofDays(1)),
+        )
+        coEvery {
+            dao.getEntriesByCategoryBetween(
+                MedicationCategory.ESTRADIOL.name,
+                since.toEpochMilli(),
+                until.toEpochMilli(),
+            )
+        } returns listOf(staleEntry)
+        coEvery {
+            dao.getLatestEntryByCategoryOnOrBefore(
+                MedicationCategory.ESTRADIOL.name,
+                since.toEpochMilli(),
+            )
+        } coAnswers {
+            repository.saveEntry(
+                uuid = null,
+                medication = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceGroupUuid = null,
+                appliedAt = since.plus(Duration.ofDays(2)),
+            )
+            null
+        }
+        coEvery { dao.insertEntry(any()) } returns Unit
+
+        val entries = repository.preloadRecentEstradiolEntries(since, until)
+
+        assertEquals(listOf(staleEntry.uuid), entries.map { entry -> entry.uuid.toString() })
+        assertNull(repository.getCachedRecentEstradiolEntries(since.plus(Duration.ofDays(3))))
     }
 
     private fun testMedicationLogEntryEntity(

@@ -43,6 +43,7 @@ class BloodTestRepositoryTest {
     fun setUp() {
         every { databaseHolder.get() } returns database
         every { database.bloodTestDao() } returns dao
+        coEvery { dao.getPanel(any()) } returns null
 
         repository = BloodTestRepository(databaseHolder, medicationLogRepository)
     }
@@ -277,6 +278,63 @@ class BloodTestRepositoryTest {
     }
 
     @Test
+    fun savePanel_updatesWarmPanelListCache() = runTest {
+        val editedPanelUuid = UUID.fromString("4add0f27-0729-45cc-840d-8970c1ff8bfd")
+        val otherPanelUuid = UUID.fromString("198fcb60-4a1e-4a3f-af61-3df66b3cc939")
+        every { dao.observePanels() } returns flowOf(
+            listOf(
+                bloodTestPanelWithResult(
+                    panelUuid = otherPanelUuid,
+                    collectedAtEpochMillis = 2_000L,
+                    notes = "other",
+                ),
+                bloodTestPanelWithResult(
+                    panelUuid = editedPanelUuid,
+                    collectedAtEpochMillis = 1_000L,
+                    notes = "stale",
+                )
+            )
+        )
+        coEvery { dao.getPanel(editedPanelUuid.toString()) } returnsMany listOf(
+            bloodTestPanelWithResult(
+                panelUuid = editedPanelUuid,
+                collectedAtEpochMillis = 1_000L,
+                notes = "stale",
+            ),
+            bloodTestPanelWithResult(
+                panelUuid = editedPanelUuid,
+                collectedAtEpochMillis = 3_000L,
+                notes = "updated",
+            )
+        )
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { dao.upsertPanelWithResults(any(), any()) } returns Unit
+
+        repository.observePanels().first()
+
+        repository.savePanel(
+            uuid = editedPanelUuid,
+            collectedAt = Instant.ofEpochMilli(3_000L),
+            collectedAtTimeZoneId = "Asia/Tokyo",
+            notes = "updated",
+            results = listOf(
+                BloodTestResultInput.Builtin(
+                    analyteKey = BloodAnalyteKey.E2,
+                    unit = com.mkx.hrttracker.model.bloodtest.BloodUnitKey.PG_ML,
+                    value = 100.0
+                )
+            ),
+            now = Instant.ofEpochMilli(4_000L),
+        )
+
+        assertEquals(
+            listOf(editedPanelUuid, otherPanelUuid),
+            repository.getCachedPanels()?.map { panel -> panel.uuid },
+        )
+        assertEquals("updated", repository.getCachedPanel(editedPanelUuid)?.notes)
+    }
+
+    @Test
     fun saveCustomAnalyte_normalizes_fields_and_preserves_existing_timestamps() = runTest {
         val analyteUuid = UUID.randomUUID()
         val captured = slot<CustomBloodAnalyteEntity>()
@@ -475,6 +533,39 @@ class BloodTestRepositoryTest {
             createdAtEpochMillis = createdAtEpochMillis,
             updatedAtEpochMillis = updatedAtEpochMillis,
             archivedAtEpochMillis = archivedAtEpochMillis
+        )
+    }
+
+    private fun bloodTestPanelWithResult(
+        panelUuid: UUID,
+        collectedAtEpochMillis: Long,
+        notes: String?,
+    ): BloodTestPanelWithResultsEntity {
+        val resultUuid = UUID.nameUUIDFromBytes(panelUuid.toString().encodeToByteArray())
+        return BloodTestPanelWithResultsEntity(
+            panel = BloodTestPanelEntity(
+                uuid = panelUuid.toString(),
+                collectedAtInstantEpochMillis = collectedAtEpochMillis,
+                collectedAtTimeZoneId = "Asia/Tokyo",
+                notes = notes,
+                timeSinceLastEstradiolDoseMillis = null,
+                timeSinceLastTestosteroneDoseMillis = null,
+                createdAtEpochMillis = collectedAtEpochMillis,
+                updatedAtEpochMillis = collectedAtEpochMillis,
+            ),
+            results = listOf(
+                BloodTestResultEntity(
+                    uuid = resultUuid.toString(),
+                    panelUuid = panelUuid.toString(),
+                    createdAtEpochMillis = collectedAtEpochMillis,
+                    displayOrder = 0,
+                    builtinAnalyteKey = "e2",
+                    customAnalyteUuid = null,
+                    value = 100.0,
+                    unitSnapshot = "pg_ml",
+                    canonicalValue = 100.0,
+                )
+            )
         )
     }
 }

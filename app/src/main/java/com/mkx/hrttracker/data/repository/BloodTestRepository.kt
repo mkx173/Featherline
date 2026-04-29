@@ -108,6 +108,9 @@ class BloodTestRepository @Inject constructor(
             ),
             results = normalizedResults,
         )
+        dao.getPanel(panelUuid.toString())?.let { panel ->
+            mapPanels(panels = listOf(panel), dao = dao).firstOrNull()?.also(::cachePanel)
+        }
         return panelUuid
     }
 
@@ -285,8 +288,9 @@ class BloodTestRepository @Inject constructor(
     }
 
     private fun cachePanel(panel: BloodTestPanel) {
-        cachedPanels = cachedPanels
-            .filterNot { cachedPanel -> cachedPanel.uuid == panel.uuid } + panel
+        val updatedPanels =
+            cachedPanels.filterNot { cachedPanel -> cachedPanel.uuid == panel.uuid } + panel
+        cachedPanels = updatedPanels.sortedByDescending(BloodTestPanel::collectedAt)
     }
 
     private fun cacheActiveCustomAnalytes(
