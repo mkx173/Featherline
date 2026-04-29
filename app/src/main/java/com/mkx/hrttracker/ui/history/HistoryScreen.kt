@@ -60,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -120,6 +121,7 @@ import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -276,7 +278,6 @@ private fun HistoryScreenContent(
     }
 
     LaunchedEffect(displayedMonth.yearMonth, pendingSelectionResetTargetMonth.value) {
-        calendarNavigationMonth = displayedMonth.yearMonth
         onDisplayedMonthChange(
             displayedMonth.yearMonth,
             shouldClearHistorySelectionOnMonthChange(
@@ -628,7 +629,6 @@ private fun HistoryScreenContent(
                     HistoryMonthSummaryStrip(summary = monthSummary)
                     HistoryMonthCalendar(
                         calendarState = calendarState,
-                        navigationMonth = calendarNavigationMonth,
                         today = today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
@@ -926,7 +926,6 @@ private fun HistorySummaryIndicatorGlyph(
 @Composable
 private fun HistoryMonthCalendar(
     calendarState: CalendarState,
-    navigationMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
@@ -939,20 +938,43 @@ private fun HistoryMonthCalendar(
     onNavigationMonthChange: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
     val titleMonth = rememberMostVisibleHistoryCalendarMonth(calendarState).yearMonth
+    var navigationTargetMonth by remember(calendarState) { mutableStateOf<YearMonth?>(null) }
+    var navigationJob by remember(calendarState) { mutableStateOf<Job?>(null) }
+    val navigationMonth = navigationTargetMonth ?: titleMonth
 
-    LaunchedEffect(titleMonth) {
-        if (navigationMonth != titleMonth) {
+    LaunchedEffect(titleMonth, navigationTargetMonth) {
+        if (navigationTargetMonth == titleMonth) {
+            navigationTargetMonth = null
+        }
+        if (navigationTargetMonth == null) {
             onNavigationMonthChange(titleMonth)
         }
     }
 
     fun animateToMonth(month: YearMonth) {
         val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
+        navigationTargetMonth = targetMonth
         onNavigationMonthChange(targetMonth)
-        coroutineScope.launch {
-            calendarState.animateScrollToMonth(targetMonth)
+        navigationJob?.cancel()
+        navigationJob = coroutineScope.launch {
+            try {
+                calendarState.animateScrollToMonth(targetMonth)
+                if (calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth) {
+                    calendarState.scrollToMonth(targetMonth)
+                }
+            } finally {
+                // The LaunchedEffect above clears navigationTargetMonth on the success path
+                // (titleMonth catches up). This branch covers scrolls that bailed out — cancelled,
+                // hit calendar bounds, or otherwise didn't land — so the target doesn't stick.
+                if (
+                    navigationTargetMonth == targetMonth &&
+                    calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth
+                ) {
+                    navigationTargetMonth = null
+                }
+            }
         }
     }
 
