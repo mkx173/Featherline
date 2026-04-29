@@ -36,11 +36,11 @@ class HistoryViewModel @Inject constructor(
     private val isDeletingAllEntries = MutableStateFlow(false)
     private val deleteSelectedEntriesResult = MutableStateFlow<HistoryDeleteSelectedEntriesResult?>(null)
     private val deleteAllEntriesResult = MutableStateFlow<HistoryDeleteAllEntriesResult?>(null)
+    private val currentDateTime = appTimeSource.currentMinute
     private val displayedMonth = MutableStateFlow(
-        YearMonth.from(appTimeSource.currentMinute.value.toLocalDate())
+        YearMonth.from(currentDateTime.value.toLocalDate())
     )
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
-    private val currentDateTime = appTimeSource.currentMinute
 
     val uiState: StateFlow<HistoryUiState> = combine(
         combine(
@@ -95,7 +95,13 @@ class HistoryViewModel @Inject constructor(
         val earliestGroupMonth = groups.minOfOrNull { group ->
             YearMonth.from(group.schedule.since)
         }
-        val calendarStartMonth = listOfNotNull(earliestEntryMonth, earliestGroupMonth)
+        val selectedMonth = selectedDay?.let(YearMonth::from)
+        val calendarStartMonth = listOfNotNull(
+            earliestEntryMonth,
+            earliestGroupMonth,
+            month,
+            selectedMonth,
+        )
             .minOrNull()
             ?.coerceAtMost(currentMonth)
             ?: currentMonth
@@ -123,7 +129,7 @@ class HistoryViewModel @Inject constructor(
         )
     }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(UI_STATE_STOP_TIMEOUT_MILLIS),
+            started = SharingStarted.Eagerly,
             initialValue = initialHistoryUiState(today = currentDateTime.value.toLocalDate())
         )
 
@@ -262,10 +268,6 @@ class HistoryViewModel @Inject constructor(
 
     fun consumeDeleteSelectedEntriesResult() {
         deleteSelectedEntriesResult.value = null
-    }
-
-    private companion object {
-        const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 

@@ -192,6 +192,7 @@ private fun PlanScreenContent(
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     var isActionMenuExpanded by remember { mutableStateOf(false) }
+    val lastVisibleWeek = remember { PlanVisibleWeekMemory() }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
@@ -214,16 +215,28 @@ private fun PlanScreenContent(
         uiState.calendarEndDate,
         uiState.calendarFirstDayOfWeek,
     ) {
+        val initialVisibleWeekDate = remember {
+            resolvePlanInitialVisibleWeekDate(
+                previousVisibleWeekDate = lastVisibleWeek.startDate,
+                calendarStartDate = uiState.calendarStartDate,
+                calendarEndDate = uiState.calendarEndDate,
+                today = uiState.today,
+            )
+        }
         rememberWeekCalendarState(
             startDate = uiState.calendarStartDate,
             endDate = uiState.calendarEndDate,
-            firstVisibleWeekDate = uiState.today,
+            firstVisibleWeekDate = initialVisibleWeekDate,
             firstDayOfWeek = uiState.calendarFirstDayOfWeek,
         )
     }
     val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)
+
+    LaunchedEffect(visibleWeekStartDate) {
+        lastVisibleWeek.startDate = visibleWeekStartDate
+    }
 
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
@@ -980,6 +993,27 @@ private fun currentWeekPageIndex(
     val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
     val weeksFromCurrent = ChronoUnit.WEEKS.between(currentWeekStart, weekStartDate).toInt()
     return (weeksFromCurrent + 1).coerceIn(0, 2)
+}
+
+internal fun resolvePlanInitialVisibleWeekDate(
+    previousVisibleWeekDate: LocalDate?,
+    calendarStartDate: LocalDate,
+    calendarEndDate: LocalDate,
+    today: LocalDate,
+): LocalDate {
+    val requestedDate = previousVisibleWeekDate ?: today
+    return if (
+        !requestedDate.isBefore(calendarStartDate) &&
+        !requestedDate.isAfter(calendarEndDate)
+    ) {
+        requestedDate
+    } else {
+        calendarStartDate
+    }
+}
+
+private class PlanVisibleWeekMemory {
+    var startDate: LocalDate? = null
 }
 
 @Composable

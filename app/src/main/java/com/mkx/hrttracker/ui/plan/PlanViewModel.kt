@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -30,6 +33,18 @@ class PlanViewModel @Inject constructor(
 ) : ViewModel() {
     private val selectedDate = MutableStateFlow<LocalDate?>(null)
     private val currentDateTime = appTimeSource.currentMinute
+    private var currentImplicitDate = currentDateTime.value.toLocalDate()
+
+    init {
+        viewModelScope.launch {
+            currentDateTime
+                .map { now -> now.toLocalDate() }
+                .distinctUntilChanged()
+                .collect { today ->
+                    selectPreviousImplicitDateOnDayChange(today)
+                }
+        }
+    }
 
     val uiState: StateFlow<PlanUiState> = combine(
         medicationGroupRepository.observeGroups(),
@@ -46,8 +61,7 @@ class PlanViewModel @Inject constructor(
             today = today,
             firstDayOfWeek = DayOfWeek.MONDAY
         )
-        val clampedSelection = selection?.coerceIn(calendarRange.startDate, calendarRange.endDate)
-        val displayedDate = clampedSelection ?: today
+        val displayedDate = selection ?: today
         val daySchedule = buildPlanDaySchedule(
             date = displayedDate,
             groups = groups,
@@ -67,15 +81,16 @@ class PlanViewModel @Inject constructor(
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
             calendarEndDate = calendarRange.endDate,
-            selectedDate = clampedSelection,
+            selectedDate = selection,
             entries = entries,
             medicationGroups = groups,
             remindersEnabled = settingsState.remindersEnabled,
-            calendarDays = buildPlanCalendarDayUiState(
+            calendarDays = buildPlanCalendarDayUiStateIncludingDisplayedDate(
                 groups = groups,
                 entries = entries,
                 startDate = calendarRange.startDate,
-                endDate = calendarRange.endDate
+                endDate = calendarRange.endDate,
+                displayedDate = displayedDate,
             ),
             daySchedule = daySchedule,
             nextOccurrencesByGroup = nextOccurrencesByGroup
@@ -101,6 +116,18 @@ class PlanViewModel @Inject constructor(
         }
     }
 
+    private fun selectPreviousImplicitDateOnDayChange(today: LocalDate) {
+        val previousDate = currentImplicitDate
+        if (today == previousDate) {
+            return
+        }
+
+        if (selectedDate.value == null) {
+            selectedDate.value = previousDate
+        }
+        currentImplicitDate = today
+    }
+
     private companion object {
         const val UPCOMING_OCCURRENCES_LIMIT = 3
         const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
@@ -111,6 +138,32 @@ internal fun sortPlanMedicationGroups(groups: List<MedicationGroup>): List<Medic
     return groups.sortedWith(
         compareBy<MedicationGroup> { it.createdAt }
             .thenBy { it.uuid }
+    )
+}
+
+private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    startDate: LocalDate,
+    endDate: LocalDate,
+    displayedDate: LocalDate,
+): Map<LocalDate, PlanCalendarDayUiState> {
+    val calendarDays = buildPlanCalendarDayUiState(
+        groups = groups,
+        entries = entries,
+        startDate = startDate,
+        endDate = endDate,
+    )
+
+    if (displayedDate in calendarDays) {
+        return calendarDays
+    }
+
+    return calendarDays + buildPlanCalendarDayUiState(
+        groups = groups,
+        entries = entries,
+        startDate = displayedDate,
+        endDate = displayedDate,
     )
 }
 

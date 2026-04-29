@@ -15,11 +15,13 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -296,7 +298,7 @@ class HistoryViewModelTest {
     }
 
     @Test
-    fun clockTickAcrossMonth_updatesTodayAndCalendarEndMonth() = runTest {
+    fun clockTickAcrossMonth_updatesRangeWithoutMovingDisplayedMonthOrSelection() = runTest {
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
@@ -312,16 +314,54 @@ class HistoryViewModelTest {
 
         assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.today)
         assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.calendarEndMonth)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.displayedMonth)
+
+        viewModel.toggleSelectedDate(LocalDate.of(2026, 4, 30))
+        advanceUntilIdle()
+        assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.selectedDate)
 
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 5, 1, 0, 0))
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.today)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.calendarStartMonth)
         assertEquals(YearMonth.of(2026, 5), viewModel.uiState.value.calendarEndMonth)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.displayedMonth)
+        assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.selectedDate)
     }
 
-    private fun TestScope.startUiStateCollection(viewModel: HistoryViewModel) {
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+    @Test
+    fun clockTickAcrossMonthWithoutUiCollector_updatesRangeWithoutMovingDisplayedMonth() = runTest {
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        val collectionJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.displayedMonth)
+
+        collectionJob.cancel()
+        advanceTimeBy(5_000)
+        advanceUntilIdle()
+
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 5, 1, 0, 0))
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.today)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.calendarStartMonth)
+        assertEquals(YearMonth.of(2026, 5), viewModel.uiState.value.calendarEndMonth)
+        assertEquals(YearMonth.of(2026, 4), viewModel.uiState.value.displayedMonth)
+    }
+
+    private fun TestScope.startUiStateCollection(viewModel: HistoryViewModel): Job {
+        return backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
         }
     }

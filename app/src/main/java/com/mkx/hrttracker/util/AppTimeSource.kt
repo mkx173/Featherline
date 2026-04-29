@@ -12,6 +12,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 interface AppTimeSource {
@@ -41,7 +42,9 @@ internal fun currentMinuteTicker(clock: Clock): Flow<LocalDateTime> {
 }
 
 internal fun currentMinute(clock: Clock): LocalDateTime {
-    return LocalDateTime.now(clock).truncatedTo(ChronoUnit.MINUTES)
+    return LocalDateTime
+        .ofInstant(clock.instant(), ZoneId.systemDefault())
+        .truncatedTo(ChronoUnit.MINUTES)
 }
 
 internal fun millisUntilNextMinuteBoundary(clock: Clock): Long {

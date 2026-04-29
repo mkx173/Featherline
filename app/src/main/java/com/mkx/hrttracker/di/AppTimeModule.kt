@@ -16,7 +16,7 @@ object AppTimeModule {
     @Provides
     @Singleton
     fun provideClock(): Clock {
-        return Clock.systemDefaultZone()
+        return Clock.systemUTC()
     }
 
     @Provides

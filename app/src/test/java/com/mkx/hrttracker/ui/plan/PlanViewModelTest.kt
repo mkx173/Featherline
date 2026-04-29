@@ -61,7 +61,9 @@ class PlanViewModelTest {
     @Test
     fun clockTickAcrossWeekBoundary_updatesCalendarRange() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 23, 59))
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(medicationGroup(times = listOf(LocalTime.of(8, 0))))
+        )
 
         val viewModel = PlanViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -74,12 +76,17 @@ class PlanViewModelTest {
 
         assertEquals(LocalDate.of(2026, 4, 13), viewModel.uiState.value.calendarStartDate)
         assertEquals(LocalDate.of(2026, 5, 3), viewModel.uiState.value.calendarEndDate)
+        assertEquals(null, viewModel.uiState.value.selectedDate)
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.daySchedule.date)
 
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 27, 0, 0))
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.calendarStartDate)
         assertEquals(LocalDate.of(2026, 5, 10), viewModel.uiState.value.calendarEndDate)
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.selectedDate)
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.daySchedule.date)
+        assertEquals(1, viewModel.uiState.value.daySchedule.scheduledEntries.size)
     }
 
     @Test
@@ -104,6 +111,40 @@ class PlanViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.daySchedule.scheduledEntries.single().isPastDue)
+    }
+
+    @Test
+    fun clockTickAcrossWeekBoundary_keepsSelectionOutsideNewCalendarRange() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 23, 59))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(medicationGroup(times = listOf(LocalTime.of(8, 0))))
+        )
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val selectedDate = LocalDate.of(2026, 4, 13)
+        viewModel.toggleSelectedDate(selectedDate)
+        advanceUntilIdle()
+
+        assertEquals(selectedDate, viewModel.uiState.value.selectedDate)
+        assertEquals(selectedDate, viewModel.uiState.value.daySchedule.date)
+
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 27, 0, 0))
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.calendarStartDate)
+        assertEquals(LocalDate.of(2026, 5, 10), viewModel.uiState.value.calendarEndDate)
+        assertEquals(selectedDate, viewModel.uiState.value.selectedDate)
+        assertEquals(selectedDate, viewModel.uiState.value.daySchedule.date)
+        assertEquals(1, viewModel.uiState.value.daySchedule.scheduledEntries.size)
+        assertEquals(PlanCalendarDayStatus.MISSED, viewModel.uiState.value.calendarDays[selectedDate]?.status)
     }
 
     private fun TestScope.startUiStateCollection(viewModel: PlanViewModel) {
