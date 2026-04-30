@@ -66,6 +66,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -133,8 +134,10 @@ import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -147,6 +150,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
+
+private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
 
 @Composable
 fun HistoryScreen(
@@ -243,11 +248,14 @@ private fun HistoryScreenContent(
         uiState.calendarFirstDayOfWeek
     ) {
         // rememberCalendarState keeps its initial bounds, so recreate it when the available
-        // month range expands or contracts after the underlying history data changes.
+        // month range expands or contracts after the underlying history data changes. Keep the
+        // first visible month stable inside that range; rememberCalendarState uses it as an input
+        // and would otherwise recreate the calendar on every displayed-month update.
+        val initialVisibleMonth = remember { uiState.displayedMonth }
         rememberCalendarState(
             startMonth = uiState.calendarStartMonth,
             endMonth = uiState.calendarEndMonth,
-            firstVisibleMonth = uiState.displayedMonth,
+            firstVisibleMonth = initialVisibleMonth,
             firstDayOfWeek = uiState.calendarFirstDayOfWeek,
             outDateStyle = OutDateStyle.EndOfGrid
         )
@@ -994,61 +1002,88 @@ private fun HistoryMonthCalendar(
 ) {
     val coroutineScope = rememberCoroutineScope()
     var navigationTargetMonth by remember(calendarState) { mutableStateOf<YearMonth?>(null) }
+    var navigationRequestId by remember(calendarState) { mutableIntStateOf(0) }
     var navigationJob by remember(calendarState) { mutableStateOf<Job?>(null) }
     val navigationMonth = navigationTargetMonth ?: displayedMonth
 
     LaunchedEffect(displayedMonth, navigationTargetMonth) {
-        if (navigationTargetMonth == displayedMonth) {
-            navigationTargetMonth = null
-        }
         if (navigationTargetMonth == null) {
             onNavigationMonthChange(displayedMonth)
         }
     }
 
-    fun animateToMonth(month: YearMonth) {
+    suspend fun awaitNavigationSettled(targetMonth: YearMonth) {
+        val visibleMonth = calendarState.layoutInfo.mostVisibleMonth()?.yearMonth
+        if (visibleMonth == targetMonth) {
+            return
+        }
+
+        withTimeoutOrNull(HistoryCalendarNavigationSettleTimeoutMillis) {
+            snapshotFlow { calendarState.layoutInfo.mostVisibleMonth()?.yearMonth }
+                .first { month -> month == targetMonth }
+        }
+    }
+
+    suspend fun scrollToNavigationTarget(
+        targetMonth: YearMonth,
+        animate: Boolean,
+    ) {
+        if (animate) {
+            calendarState.animateScrollToMonth(targetMonth)
+        } else {
+            calendarState.scrollToMonth(targetMonth)
+        }
+
+        if (calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth) {
+            calendarState.scrollToMonth(targetMonth)
+        }
+
+        awaitNavigationSettled(targetMonth)
+    }
+
+    fun navigateToMonth(month: YearMonth, animate: Boolean) {
         val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
+        if (navigationTargetMonth == targetMonth && navigationJob?.isActive == true) {
+            return
+        }
+
         navigationTargetMonth = targetMonth
+        navigationRequestId += 1
+        val requestId = navigationRequestId
         onNavigationMonthChange(targetMonth)
-        navigationJob?.cancel()
+
+        if (navigationJob?.isActive == true) {
+            navigationJob?.cancel()
+        }
+
         navigationJob = coroutineScope.launch {
             try {
-                calendarState.animateScrollToMonth(targetMonth)
-                if (calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth) {
-                    calendarState.scrollToMonth(targetMonth)
-                }
+                scrollToNavigationTarget(
+                    targetMonth = targetMonth,
+                    animate = animate,
+                )
             } finally {
-                // The LaunchedEffect above clears navigationTargetMonth on the success path
-                // (displayedMonth catches up). This branch covers scrolls that bailed out:
-                // cancelled, hit calendar bounds, or otherwise didn't land, so the target
-                // doesn't stick.
-                if (
-                    navigationTargetMonth == targetMonth &&
-                    calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth
-                ) {
+                val superseded = navigationRequestId != requestId
+                val shouldClearTarget = !superseded && navigationTargetMonth == targetMonth
+                if (shouldClearTarget) {
                     navigationTargetMonth = null
                 }
             }
         }
     }
 
+    fun latestNavigationMonth(): YearMonth {
+        return navigationTargetMonth
+            ?: calendarState.layoutInfo.mostVisibleMonth()?.yearMonth
+            ?: displayedMonth
+    }
+
+    fun animateToMonth(month: YearMonth) {
+        navigateToMonth(month = month, animate = true)
+    }
+
     fun jumpToMonth(month: YearMonth) {
-        val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
-        navigationTargetMonth = targetMonth
-        onNavigationMonthChange(targetMonth)
-        navigationJob?.cancel()
-        navigationJob = coroutineScope.launch {
-            try {
-                calendarState.scrollToMonth(targetMonth)
-            } finally {
-                if (
-                    navigationTargetMonth == targetMonth &&
-                    calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth
-                ) {
-                    navigationTargetMonth = null
-                }
-            }
-        }
+        navigateToMonth(month = month, animate = false)
     }
 
     Column(
@@ -1072,13 +1107,15 @@ private fun HistoryMonthCalendar(
                 ),
                 canGoToNext = navigationMonth < calendarState.endMonth,
                 onGoToPrevious = {
-                    animateToMonth(navigationMonth.minusMonths(1))
+                    val baseMonth = latestNavigationMonth()
+                    animateToMonth(baseMonth.minusMonths(1))
                 },
                 onGoToCurrent = {
                     val currentMonth = YearMonth.from(today)
+                    val baseMonth = latestNavigationMonth()
                     onSelectionReset(currentMonth)
                     if (shouldAnimateHistoryCalendarReset(
-                            navigationMonth = navigationMonth,
+                            navigationMonth = baseMonth,
                             currentMonth = currentMonth,
                         )
                     ) {
@@ -1091,7 +1128,8 @@ private fun HistoryMonthCalendar(
                     jumpToMonth(month)
                 },
                 onGoToNext = {
-                    animateToMonth(navigationMonth.plusMonths(1))
+                    val baseMonth = latestNavigationMonth()
+                    animateToMonth(baseMonth.plusMonths(1))
                 }
             )
             HistoryMonthHeader(
