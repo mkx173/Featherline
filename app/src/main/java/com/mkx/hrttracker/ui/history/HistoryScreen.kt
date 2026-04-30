@@ -241,7 +241,8 @@ private fun HistoryScreenContent(
             outDateStyle = OutDateStyle.EndOfGrid
         )
     }
-    val displayedMonth = rememberFirstCompletelyVisibleMonth(calendarState)
+    val displayedMonth = rememberMostVisibleHistoryCalendarMonth(calendarState)
+    val settledDisplayedMonth = rememberSettledHistoryCalendarMonth(calendarState)
     val visibleCalendarMonths = rememberVisibleHistoryCalendarMonths(calendarState)
     var calendarNavigationMonth by remember(calendarState) {
         mutableStateOf(displayedMonth.yearMonth)
@@ -277,11 +278,11 @@ private fun HistoryScreenContent(
         )
     }
 
-    LaunchedEffect(displayedMonth.yearMonth, pendingSelectionResetTargetMonth.value) {
+    LaunchedEffect(settledDisplayedMonth.yearMonth, pendingSelectionResetTargetMonth.value) {
         onDisplayedMonthChange(
-            displayedMonth.yearMonth,
+            settledDisplayedMonth.yearMonth,
             shouldClearHistorySelectionOnMonthChange(
-                displayedMonth = displayedMonth.yearMonth,
+                displayedMonth = settledDisplayedMonth.yearMonth,
                 pendingSelectedDate = pendingSelectedDate.value,
                 selectedDate = uiState.selectedDate,
                 pendingSelectionResetTargetMonth = pendingSelectionResetTargetMonth.value
@@ -629,6 +630,7 @@ private fun HistoryScreenContent(
                     HistoryMonthSummaryStrip(summary = monthSummary)
                     HistoryMonthCalendar(
                         calendarState = calendarState,
+                        displayedMonth = displayedMonth.yearMonth,
                         today = today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
@@ -718,7 +720,7 @@ private fun HistoryScreenContent(
                 }
             }
 
-            if (uiState.selectedDate != null) {
+            if (uiState.selectedDate != null && effectiveSelectedDate != null) {
                 item(key = "clear-selection") {
                     Row(
                         modifier = Modifier
@@ -926,6 +928,7 @@ private fun HistorySummaryIndicatorGlyph(
 @Composable
 private fun HistoryMonthCalendar(
     calendarState: CalendarState,
+    displayedMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
@@ -939,17 +942,16 @@ private fun HistoryMonthCalendar(
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val titleMonth = rememberMostVisibleHistoryCalendarMonth(calendarState).yearMonth
     var navigationTargetMonth by remember(calendarState) { mutableStateOf<YearMonth?>(null) }
     var navigationJob by remember(calendarState) { mutableStateOf<Job?>(null) }
-    val navigationMonth = navigationTargetMonth ?: titleMonth
+    val navigationMonth = navigationTargetMonth ?: displayedMonth
 
-    LaunchedEffect(titleMonth, navigationTargetMonth) {
-        if (navigationTargetMonth == titleMonth) {
+    LaunchedEffect(displayedMonth, navigationTargetMonth) {
+        if (navigationTargetMonth == displayedMonth) {
             navigationTargetMonth = null
         }
         if (navigationTargetMonth == null) {
-            onNavigationMonthChange(titleMonth)
+            onNavigationMonthChange(displayedMonth)
         }
     }
 
@@ -966,8 +968,9 @@ private fun HistoryMonthCalendar(
                 }
             } finally {
                 // The LaunchedEffect above clears navigationTargetMonth on the success path
-                // (titleMonth catches up). This branch covers scrolls that bailed out — cancelled,
-                // hit calendar bounds, or otherwise didn't land — so the target doesn't stick.
+                // (displayedMonth catches up). This branch covers scrolls that bailed out:
+                // cancelled, hit calendar bounds, or otherwise didn't land, so the target
+                // doesn't stick.
                 if (
                     navigationTargetMonth == targetMonth &&
                     calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth
@@ -986,7 +989,7 @@ private fun HistoryMonthCalendar(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             HistoryCalendarTitle(
-                titleMonth = titleMonth,
+                titleMonth = displayedMonth,
                 currentMonth = YearMonth.from(today),
                 appLocale = appLocale,
                 canGoToPrevious = navigationMonth > calendarState.startMonth,
@@ -1966,23 +1969,22 @@ private fun previewInstant(
 }
 
 @Composable
-fun rememberFirstCompletelyVisibleMonth(state: CalendarState): CalendarMonth {
+private fun rememberMostVisibleHistoryCalendarMonth(state: CalendarState): CalendarMonth {
     val visibleMonth = remember(state) { mutableStateOf(state.firstVisibleMonth) }
-    // Only take non-null values as null will be produced when the
-    // list is mid-scroll as no index will be completely visible.
     LaunchedEffect(state) {
-        snapshotFlow { state.layoutInfo.completelyVisibleMonths.firstOrNull() }
+        snapshotFlow { state.layoutInfo.mostVisibleMonth() }
             .filterNotNull()
+            .distinctUntilChanged()
             .collect { month -> visibleMonth.value = month }
     }
     return visibleMonth.value
 }
 
 @Composable
-private fun rememberMostVisibleHistoryCalendarMonth(state: CalendarState): CalendarMonth {
+private fun rememberSettledHistoryCalendarMonth(state: CalendarState): CalendarMonth {
     val visibleMonth = remember(state) { mutableStateOf(state.firstVisibleMonth) }
     LaunchedEffect(state) {
-        snapshotFlow { state.layoutInfo.mostVisibleMonth() }
+        snapshotFlow { state.layoutInfo.completelyVisibleMonths.firstOrNull() }
             .filterNotNull()
             .distinctUntilChanged()
             .collect { month -> visibleMonth.value = month }

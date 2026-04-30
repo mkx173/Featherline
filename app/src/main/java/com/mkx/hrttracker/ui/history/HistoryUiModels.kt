@@ -80,14 +80,17 @@ internal fun resolveHistoryEffectiveSelectedDate(
     if (pendingSelectionResetTargetMonth == displayedMonth) {
         return null
     }
-    return if (
-        pendingSelectedDate != null &&
-        YearMonth.from(pendingSelectedDate) == displayedMonth
-    ) {
-        pendingSelectedDate
-    } else {
-        selectedDate
+    if (pendingSelectionResetTargetMonth != null) {
+        return selectedDate
     }
+    if (pendingSelectedDate != null) {
+        return if (YearMonth.from(pendingSelectedDate) == displayedMonth) {
+            pendingSelectedDate
+        } else {
+            selectedDate
+        }
+    }
+    return selectedDate?.takeIf { date -> YearMonth.from(date) == displayedMonth }
 }
 
 internal fun resolveHistoryCalendarSelectedDate(

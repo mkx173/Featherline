@@ -276,6 +276,18 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun resolveHistoryEffectiveSelectedDate_clears_out_of_month_selection_without_pending_transition() {
+        assertEquals(
+            null,
+            resolveHistoryEffectiveSelectedDate(
+                displayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = null,
+                selectedDate = LocalDate.of(2026, 3, 31)
+            )
+        )
+    }
+
+    @Test
     fun resolveHistoryCalendarSelectedDate_uses_pending_date_immediately() {
         assertEquals(
             LocalDate.of(2026, 4, 2),
