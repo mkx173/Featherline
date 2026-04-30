@@ -105,6 +105,25 @@ internal fun resolveHistoryCalendarSelectedDate(
     return pendingSelectedDate ?: selectedDate
 }
 
+internal fun shouldCommitPendingHistorySelection(
+    settledDisplayedMonth: YearMonth,
+    pendingSelectedDate: LocalDate?,
+    selectedDate: LocalDate?,
+): Boolean {
+    val pendingDate = pendingSelectedDate ?: return false
+    return YearMonth.from(pendingDate) == settledDisplayedMonth &&
+        selectedDate != pendingDate
+}
+
+internal fun shouldClearPendingHistorySelection(
+    settledDisplayedMonth: YearMonth,
+    navigationMonth: YearMonth,
+    pendingSelectedDate: LocalDate?,
+): Boolean {
+    val targetMonth = pendingSelectedDate?.let(YearMonth::from) ?: return false
+    return targetMonth != settledDisplayedMonth && targetMonth != navigationMonth
+}
+
 internal fun shouldClearHistorySelectionOnMonthChange(
     displayedMonth: YearMonth,
     pendingSelectedDate: LocalDate?,

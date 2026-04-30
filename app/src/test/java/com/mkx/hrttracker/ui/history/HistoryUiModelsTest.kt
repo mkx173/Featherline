@@ -338,6 +338,62 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun shouldCommitPendingHistorySelection_waits_for_settled_target_month() {
+        assertEquals(
+            false,
+            shouldCommitPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1),
+                selectedDate = null
+            )
+        )
+        assertEquals(
+            true,
+            shouldCommitPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1),
+                selectedDate = null
+            )
+        )
+        assertEquals(
+            false,
+            shouldCommitPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1),
+                selectedDate = LocalDate.of(2026, 4, 1)
+            )
+        )
+    }
+
+    @Test
+    fun shouldClearPendingHistorySelection_clears_after_navigation_settles_elsewhere() {
+        assertEquals(
+            false,
+            shouldClearPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 3),
+                navigationMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1)
+            )
+        )
+        assertEquals(
+            false,
+            shouldClearPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 4),
+                navigationMonth = YearMonth.of(2026, 4),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1)
+            )
+        )
+        assertEquals(
+            true,
+            shouldClearPendingHistorySelection(
+                settledDisplayedMonth = YearMonth.of(2026, 3),
+                navigationMonth = YearMonth.of(2026, 3),
+                pendingSelectedDate = LocalDate.of(2026, 4, 1)
+            )
+        )
+    }
+
+    @Test
     fun shouldClearHistorySelectionOnMonthChange_preserves_selection_for_pending_or_selected_date_in_target_month() {
         assertEquals(
             false,

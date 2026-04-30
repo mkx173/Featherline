@@ -290,13 +290,34 @@ private fun HistoryScreenContent(
         )
     }
 
-    LaunchedEffect(displayedMonth.yearMonth, pendingSelectedDate.value, uiState.selectedDate) {
-        val pendingDate = pendingSelectedDate.value ?: return@LaunchedEffect
-        if (
-            YearMonth.from(pendingDate) == displayedMonth.yearMonth &&
-            uiState.selectedDate != pendingDate
-        ) {
-            onDayClick(pendingDate)
+    LaunchedEffect(
+        settledDisplayedMonth.yearMonth,
+        pendingSelectedDate.value,
+        uiState.selectedDate
+    ) {
+        val pendingDate = pendingSelectedDate.value
+        val shouldCommitPendingSelection = shouldCommitPendingHistorySelection(
+            settledDisplayedMonth = settledDisplayedMonth.yearMonth,
+            pendingSelectedDate = pendingDate,
+            selectedDate = uiState.selectedDate,
+        )
+        if (shouldCommitPendingSelection) {
+            onDayClick(pendingDate ?: return@LaunchedEffect)
+        }
+    }
+
+    LaunchedEffect(
+        settledDisplayedMonth.yearMonth,
+        calendarNavigationMonth,
+        pendingSelectedDate.value
+    ) {
+        val shouldClearPendingSelection = shouldClearPendingHistorySelection(
+            settledDisplayedMonth = settledDisplayedMonth.yearMonth,
+            navigationMonth = calendarNavigationMonth,
+            pendingSelectedDate = pendingSelectedDate.value,
+        )
+        if (shouldClearPendingSelection) {
+            pendingSelectedDate.value = null
         }
     }
 
@@ -631,6 +652,7 @@ private fun HistoryScreenContent(
                     HistoryMonthCalendar(
                         calendarState = calendarState,
                         displayedMonth = displayedMonth.yearMonth,
+                        settledDisplayedMonth = settledDisplayedMonth.yearMonth,
                         today = today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         dayStates = monthDayStates,
@@ -638,7 +660,17 @@ private fun HistoryScreenContent(
                         selectedDate = calendarSelectedDate,
                         hasResettableSelection = uiState.selectedDate != null &&
                             pendingSelectionResetTargetMonth.value == null,
-                        onDayClick = onDayClick,
+                        onDayClick = { date ->
+                            pendingSelectionResetTargetMonth.value = null
+                            val selectedMonth = YearMonth.from(date)
+                            if (selectedMonth == settledDisplayedMonth.yearMonth) {
+                                pendingSelectedDate.value = null
+                                onDayClick(date)
+                            } else {
+                                calendarNavigationMonth = selectedMonth
+                                pendingSelectedDate.value = date
+                            }
+                        },
                         onSelectionReset = { targetMonth ->
                             pendingSelectedDate.value = null
                             if (uiState.selectedDate != null) {
@@ -929,6 +961,7 @@ private fun HistorySummaryIndicatorGlyph(
 private fun HistoryMonthCalendar(
     calendarState: CalendarState,
     displayedMonth: YearMonth,
+    settledDisplayedMonth: YearMonth,
     today: LocalDate,
     firstDayOfWeek: DayOfWeek,
     dayStates: Map<LocalDate, HistoryCalendarDayUiState>,
@@ -1025,6 +1058,8 @@ private fun HistoryMonthCalendar(
                         position = day.position,
                         date = day.date
                     )
+                    val isSettledMonthDate = day.position != DayPosition.MonthDate ||
+                        YearMonth.from(day.date) == settledDisplayedMonth
                     HistoryCalendarDay(
                         day = day,
                         today = today,
@@ -1038,7 +1073,7 @@ private fun HistoryMonthCalendar(
                             targetMonth = targetMonth,
                             calendarStartMonth = calendarState.startMonth,
                             calendarEndMonth = calendarState.endMonth
-                        ),
+                        ) && isSettledMonthDate,
                         onClick = { date ->
                             if (targetMonth == null) {
                                 onDayClick(date)
