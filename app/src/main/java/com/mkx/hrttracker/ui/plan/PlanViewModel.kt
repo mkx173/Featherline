@@ -45,6 +45,11 @@ class PlanViewModel @Inject constructor(
         val allGroups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
         val groups = allGroups.filter(MedicationGroup::isActive)
         val archivedGroups = allGroups.filter(MedicationGroup::isArchived)
+        val scheduleGroups = if (settingsState.showArchivedGroupRecords) {
+            allGroups
+        } else {
+            groups
+        }
         val entries = visibleMedicationEntries(
             entries = entriesOrNull.orEmpty(),
             groups = allGroups,
@@ -58,7 +63,7 @@ class PlanViewModel @Inject constructor(
         val displayedDate = selection ?: today
         val daySchedule = buildPlanDaySchedule(
             date = displayedDate,
-            groups = groups,
+            groups = scheduleGroups,
             entries = entries,
             now = now
         )
@@ -82,7 +87,7 @@ class PlanViewModel @Inject constructor(
             showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
             remindersEnabled = settingsState.remindersEnabled,
             calendarDays = buildPlanCalendarDayUiStateIncludingDisplayedDate(
-                groups = groups,
+                groups = scheduleGroups,
                 entries = entries,
                 startDate = calendarRange.startDate,
                 endDate = calendarRange.endDate,

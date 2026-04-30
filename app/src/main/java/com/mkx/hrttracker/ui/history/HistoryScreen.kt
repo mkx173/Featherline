@@ -378,7 +378,7 @@ private fun HistoryScreenContent(
         )
     }
     val monthDayStates = remember(
-        uiState.activeMedicationGroups,
+        uiState.calendarMedicationGroups,
         uiState.entries,
         dayStateMonthRanges,
     ) {
@@ -386,10 +386,10 @@ private fun HistoryScreenContent(
             dayStates.apply {
                 putAll(
                     buildHistoryCalendarDayUiState(
-                        groups = uiState.activeMedicationGroups,
+                        groups = uiState.calendarMedicationGroups,
                         entries = uiState.entries,
                         startDate = range.startMonth.atDay(1),
-                        endDate = range.endMonth.atEndOfMonth()
+                        endDate = range.endMonth.atEndOfMonth(),
                     )
                 )
             }

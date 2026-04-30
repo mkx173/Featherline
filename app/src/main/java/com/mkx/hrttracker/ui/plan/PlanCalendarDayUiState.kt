@@ -56,14 +56,21 @@ fun buildPlanCalendarDayUiState(
             isPlanOffPlanEntry(
                 entry = entry,
                 scheduledGroups = scheduledGroups,
-                date = currentDate
+                date = currentDate,
+                zoneId = zoneId,
             )
         }
         val expectedOccurrenceCount = scheduledGroups.sumOf { group ->
-            group.schedule.times.size
+            group.scheduledTimesInPlanWindow(
+                date = currentDate,
+                zoneId = zoneId,
+            ).size
         }
         val hasMatchingScheduledRecord = scheduledGroups.any { group ->
-            group.schedule.times.any { time ->
+            group.scheduledTimesInPlanWindow(
+                date = currentDate,
+                zoneId = zoneId,
+            ).any { time ->
                 hasMatchingSlotRecord(
                     group = group,
                     date = currentDate,
@@ -73,7 +80,10 @@ fun buildPlanCalendarDayUiState(
             }
         }
         val matchedOccurrenceCount = scheduledGroups.sumOf { group ->
-            group.schedule.times.count { time ->
+            group.scheduledTimesInPlanWindow(
+                date = currentDate,
+                zoneId = zoneId,
+            ).count { time ->
                 isSlotFulfilled(group, currentDate, time, dayEntries)
             }
         }.coerceAtMost(expectedOccurrenceCount)
@@ -98,6 +108,7 @@ internal fun isPlanOffPlanEntry(
     entry: MedicationLogEntry,
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return true
     val scheduledFor = entry.scheduledFor ?: return true
@@ -107,7 +118,7 @@ internal fun isPlanOffPlanEntry(
 
     val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
         ?: return true
-    if (scheduledFor.toLocalTime() !in group.schedule.times) {
+    if (scheduledFor.toLocalTime() !in group.scheduledTimesInPlanWindow(date, zoneId)) {
         return true
     }
 
@@ -115,6 +126,33 @@ internal fun isPlanOffPlanEntry(
         .groupBy(MedicationSignature::fromGroupMedication)
         .keys
     return MedicationSignature.fromLogEntry(entry) !in requiredSignatures
+}
+
+internal fun MedicationGroup.scheduledTimesInPlanWindow(
+    date: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): List<LocalTime> {
+    if (!schedule.isScheduledOn(date)) {
+        return emptyList()
+    }
+
+    return schedule.times.filter { time ->
+        isMedicationGroupSlotInPlanWindow(
+            group = this,
+            slotDateTime = LocalDateTime.of(date, time),
+            zoneId = zoneId,
+        )
+    }
+}
+
+private fun isMedicationGroupSlotInPlanWindow(
+    group: MedicationGroup,
+    slotDateTime: LocalDateTime,
+    zoneId: ZoneId,
+): Boolean {
+    val archivedAt = group.archivedAt ?: return true
+    val archivedAtLocal = archivedAt.atZone(zoneId).toLocalDateTime()
+    return !slotDateTime.isAfter(archivedAtLocal)
 }
 
 internal fun isSlotFulfilled(

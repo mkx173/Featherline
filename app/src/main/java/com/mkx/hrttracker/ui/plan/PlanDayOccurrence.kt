@@ -43,7 +43,10 @@ fun buildPlanDaySchedule(
         .flatMap { group ->
             val medicationsBySignature = group.medications
                 .groupBy(MedicationSignature::fromGroupMedication)
-            group.schedule.times.sorted().flatMap { time ->
+            group.scheduledTimesInPlanWindow(
+                date = date,
+                zoneId = zoneId,
+            ).sorted().flatMap { time ->
                 val slotDateTime = LocalDateTime.of(date, time)
                 val slotLogs = entries.filter { entry ->
                     entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
@@ -85,6 +88,7 @@ fun buildPlanDaySchedule(
                     entry = entry,
                     scheduledGroups = scheduledGroups,
                     date = date,
+                    zoneId = zoneId,
                 )
         }
         .sortedByDescending { it.appliedAt }

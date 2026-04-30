@@ -232,6 +232,95 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
+    fun buildPlanCalendarDayUiState_countsArchivedLinkedRecordWithoutFuturePlan() {
+        val archivedGroup = medicationGroup(
+            uuid = UUID.fromString("64bc428f-5cf1-4505-b68a-aa5579c1d75d"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("9433009b-cc88-4712-8d60-29d59d50864f"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        ).copy(
+            archivedAt = Instant.parse("2026-04-16T10:00:00Z")
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(archivedGroup),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = archivedGroup.uuid,
+                    details = archivedGroup.medications.single().details,
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 4),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 17)
+        )
+
+        assertEquals(PlanCalendarDayStatus.FULFILLED, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
+        assertEquals(PlanCalendarDayStatus.NONE, dayStates.getValue(LocalDate.of(2026, 4, 17)).status)
+    }
+
+    @Test
+    fun buildPlanCalendarDayUiState_marksArchivedLinkedRecordPartialBeforeArchive() {
+        val archivedGroup = medicationGroup(
+            uuid = UUID.fromString("ed3ce972-41e2-4593-b290-e21d5afdb31b"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("a5c93f56-4210-43e4-a675-54daf0464c72"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                ),
+                medication(
+                    uuid = UUID.fromString("302e017a-e85d-4596-b497-78a0657b10b4"),
+                    details = progesteroneDetails(100.0)
+                )
+            )
+        ).copy(
+            archivedAt = Instant.parse("2026-04-16T10:00:00Z")
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(archivedGroup),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = archivedGroup.uuid,
+                    details = archivedGroup.medications.first().details,
+                    appliedAt = LocalDateTime.of(2026, 4, 16, 9, 4),
+                    scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 16)
+        )
+
+        assertEquals(PlanCalendarDayStatus.PARTIAL, dayStates.getValue(LocalDate.of(2026, 4, 16)).status)
+        assertEquals(false, dayStates.getValue(LocalDate.of(2026, 4, 16)).hasOffPlanRecord)
+    }
+
+    @Test
     fun buildPlanCalendarDayUiState_does_not_treat_manual_entries_as_fulfillment() {
         val group = medicationGroup(
             uuid = UUID.fromString("bb94b15b-35fe-4f9d-a8ba-3b423480e2ca"),

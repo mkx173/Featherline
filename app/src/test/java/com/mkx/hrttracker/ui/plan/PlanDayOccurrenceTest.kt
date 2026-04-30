@@ -116,6 +116,45 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
+    fun buildPlanDaySchedule_shows_archived_linked_record_as_group_logged_entry() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        ).copy(
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z")
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val linkedEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 18, 9, 4)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = scheduledFor
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(linkedEntry),
+            now = LocalDateTime.of(2026, 4, 18, 10, 0)
+        )
+
+        assertTrue(schedule.unplannedEntries.isEmpty())
+        assertEquals(1, schedule.scheduledEntries.size)
+        assertEquals(group.name, schedule.scheduledEntries.single().groupName)
+        assertEquals(group.colorKey, schedule.scheduledEntries.single().groupColorKey)
+        assertEquals(listOf(linkedEntry.uuid), schedule.scheduledEntries.single().fulfillingEntryUuids)
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+    }
+
+    @Test
     fun buildPlanDaySchedule_collapses_duplicate_matching_medications_into_one_counted_entry() {
         val sharedDetails = testCatalogMedicationDetails(
             key = MedicationKey.ESTRADIOL,

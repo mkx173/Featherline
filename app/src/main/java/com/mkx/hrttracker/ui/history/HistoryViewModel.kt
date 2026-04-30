@@ -99,6 +99,11 @@ class HistoryViewModel @Inject constructor(
             showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
         )
         val activeGroups = allGroups.filter(MedicationGroup::isActive)
+        val calendarGroups = if (settingsState.showArchivedGroupRecords) {
+            allGroups
+        } else {
+            activeGroups
+        }
         val today = now.toLocalDate()
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
@@ -127,6 +132,7 @@ class HistoryViewModel @Inject constructor(
             entries = entries,
             medicationGroups = allGroups,
             activeMedicationGroups = activeGroups,
+            calendarMedicationGroups = calendarGroups,
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
@@ -307,6 +313,7 @@ data class HistoryUiState(
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val activeMedicationGroups: List<MedicationGroup> = emptyList(),
+    val calendarMedicationGroups: List<MedicationGroup> = activeMedicationGroups,
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartMonth: YearMonth = YearMonth.now(),
     val calendarEndMonth: YearMonth = YearMonth.now(),

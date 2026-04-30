@@ -8,6 +8,7 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.planCalendarDate
+import com.mkx.hrttracker.ui.plan.scheduledTimesInPlanWindow
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -285,6 +286,7 @@ internal fun buildHistoryCalendarDayUiState(
                     entry = entry,
                     scheduledGroups = scheduledGroups,
                     date = currentDate,
+                    zoneId = zoneId,
                 )
             }
         )
@@ -346,6 +348,7 @@ private fun isHistoryOffPlanEntry(
     entry: MedicationLogEntry,
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     val sourceGroupUuid = entry.sourceGroupUuid ?: return true
     val scheduledFor = entry.scheduledFor ?: return true
@@ -355,7 +358,7 @@ private fun isHistoryOffPlanEntry(
 
     val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
         ?: return true
-    if (scheduledFor.toLocalTime() !in group.schedule.times) {
+    if (scheduledFor.toLocalTime() !in group.scheduledTimesInPlanWindow(date, zoneId)) {
         return true
     }
 
