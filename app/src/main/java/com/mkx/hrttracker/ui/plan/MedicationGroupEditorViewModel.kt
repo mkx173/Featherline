@@ -550,7 +550,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun showDeleteConfirmation() {
-        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
+        if (_uiState.value.isEditing) {
             _uiState.update {
                 it.copy(isDeleteConfirmationVisible = true)
             }

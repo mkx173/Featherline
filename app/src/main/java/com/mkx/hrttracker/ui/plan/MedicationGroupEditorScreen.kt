@@ -510,8 +510,7 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isDeleting &&
         !uiState.isArchiving &&
         !uiState.isRecreatingAfterArchive &&
-        !uiState.isDeletingRelatedEntries &&
-        !uiState.isArchived
+        !uiState.isDeletingRelatedEntries
     val upcomingOccurrences = remember(
         uiState.scheduleType,
         uiState.sinceDate,
@@ -1188,88 +1187,95 @@ private fun MedicationGroupEditorScreenContent(
                 }
             }
 
-            item {
-                EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                ) {
-                    NotificationsCard(
-                        enabled = uiState.notificationsEnabled,
-                        toggleEnabled = notificationsToggleEnabled,
-                        onToggle = onNotificationsEnabledChange,
-                        index = 0,
-                        count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2,
-                    )
-                    when (notificationSupportState) {
-                        NotificationSupportState.ACCESS_OFF -> {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                icon = Icons.Rounded.ErrorOutline,
-                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                leadingIconSize = 24.dp,
-                                onClick = onRecoverMasterReminders,
-                                showChevron = true,
-                                index = 1,
-                                count = 2,
-                            )
-                        }
+            if (!uiState.isArchived) {
+                item {
+                    EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                    ) {
+                        NotificationsCard(
+                            enabled = uiState.notificationsEnabled,
+                            toggleEnabled = notificationsToggleEnabled,
+                            onToggle = onNotificationsEnabledChange,
+                            index = 0,
+                            count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2,
+                        )
+                        when (notificationSupportState) {
+                            NotificationSupportState.ACCESS_OFF -> {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.settings_reminders_permission_off_summary),
+                                    icon = Icons.Rounded.ErrorOutline,
+                                    leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                    leadingIconSize = 24.dp,
+                                    onClick = onRecoverMasterReminders,
+                                    showChevron = true,
+                                    index = 1,
+                                    count = 2,
+                                )
+                            }
 
-                        NotificationSupportState.MASTER_OFF -> {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.group_notifications_master_disabled),
-                                icon = Icons.Rounded.ErrorOutline,
-                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                leadingIconSize = 24.dp,
-                                onClick = { isMasterReminderRecoveryDialogVisible = true },
-                                showChevron = true,
-                                index = 1,
-                                count = 2,
-                            )
-                        }
+                            NotificationSupportState.MASTER_OFF -> {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.group_notifications_master_disabled),
+                                    icon = Icons.Rounded.ErrorOutline,
+                                    leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                    leadingIconSize = 24.dp,
+                                    onClick = { isMasterReminderRecoveryDialogVisible = true },
+                                    showChevron = true,
+                                    index = 1,
+                                    count = 2,
+                                )
+                            }
 
-                        NotificationSupportState.INEXACT -> {
-                            SupportMessageListItem(
-                                text = stringResource(R.string.group_notifications_inexact_warning),
-                                icon = Icons.Rounded.ErrorOutline,
-                                leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                                leadingIconSize = 24.dp,
-                                onClick = onRequestExactAlarmAccess,
-                                showChevron = true,
-                                index = 1,
-                                count = 2,
-                            )
-                        }
+                            NotificationSupportState.INEXACT -> {
+                                SupportMessageListItem(
+                                    text = stringResource(R.string.group_notifications_inexact_warning),
+                                    icon = Icons.Rounded.ErrorOutline,
+                                    leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                                    leadingIconSize = 24.dp,
+                                    onClick = onRequestExactAlarmAccess,
+                                    showChevron = true,
+                                    index = 1,
+                                    count = 2,
+                                )
+                            }
 
-                        NotificationSupportState.NONE -> Unit
+                            NotificationSupportState.NONE -> Unit
+                        }
                     }
                 }
             }
 
-            if (uiState.isEditing && !uiState.isArchived) {
+            if (uiState.isEditing) {
                 item {
+                    val dangerZoneItemCount = if (uiState.isArchived) 2 else 3
+                    val deleteRecordsIndex = if (uiState.isArchived) 0 else 1
+                    val deleteGroupIndex = if (uiState.isArchived) 1 else 2
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))
                     Column(
                         verticalArrangement = Arrangement.spacedBy(
                             dimensionResource(R.dimen.list_segment_gap)
                         )
                     ) {
-                        ArchiveMedicationGroupCard(
-                            enabled = dangerZoneActionEnabled,
-                            onClick = onArchiveClick,
-                            index = 0,
-                            count = 3,
-                        )
+                        if (!uiState.isArchived) {
+                            ArchiveMedicationGroupCard(
+                                enabled = dangerZoneActionEnabled,
+                                onClick = onArchiveClick,
+                                index = 0,
+                                count = dangerZoneItemCount,
+                            )
+                        }
                         DeleteMedicationGroupRecordsCard(
                             enabled = dangerZoneActionEnabled && uiState.relatedEntryCount > 0,
                             onClick = onDeleteRelatedEntriesClick,
-                            index = 1,
-                            count = 3,
+                            index = deleteRecordsIndex,
+                            count = dangerZoneItemCount,
                         )
                         DeleteMedicationGroupCard(
                             enabled = dangerZoneActionEnabled,
                             onClick = onDeleteClick,
-                            index = 2,
-                            count = 3,
+                            index = deleteGroupIndex,
+                            count = dangerZoneItemCount,
                         )
                     }
                 }

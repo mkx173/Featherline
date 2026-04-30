@@ -27,7 +27,6 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Badge
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +35,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -126,6 +124,7 @@ fun PlanScreen(
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
+    onArchivedGroupsClick: () -> Unit,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
@@ -142,6 +141,7 @@ fun PlanScreen(
         onAddGroupClick = onAddGroupClick,
         onHistoryClick = onHistoryClick,
         onBatchAddClick = onBatchAddClick,
+        onArchivedGroupsClick = onArchivedGroupsClick,
         onDateSelected = viewModel::toggleSelectedDate,
         onDateSelectionReset = viewModel::clearSelectedDate,
         scrollToTopSignal = scrollToTopSignal,
@@ -159,6 +159,7 @@ private fun PlanScreenContent(
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
+    onArchivedGroupsClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
@@ -192,7 +193,6 @@ private fun PlanScreenContent(
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     var isActionMenuExpanded by remember { mutableStateOf(false) }
-    var isArchivedGroupsDialogVisible by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
         lazyListState = listState,
         state = topAppBarState
@@ -277,14 +277,12 @@ private fun PlanScreenContent(
                                     onClick = onBatchAddClick,
                                 )
                             )
-                            if (uiState.archivedMedicationGroups.isNotEmpty()) {
-                                add(
-                                    HrtDropdownMenuItem(
-                                        text = stringResource(R.string.plan_archived_groups),
-                                        onClick = { isArchivedGroupsDialogVisible = true },
-                                    )
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.plan_archived_groups),
+                                    onClick = onArchivedGroupsClick,
                                 )
-                            }
+                            )
                         }
                         HrtDropdownMenu(
                             expanded = isActionMenuExpanded,
@@ -424,80 +422,6 @@ private fun PlanScreenContent(
         }
     }
 
-    if (isArchivedGroupsDialogVisible) {
-        ArchivedGroupsDialog(
-            groups = uiState.archivedMedicationGroups,
-            appLocale = appLocale,
-            dateFormatter = dateFormatter,
-            onGroupClick = { groupUuid ->
-                isArchivedGroupsDialogVisible = false
-                onGroupClick(groupUuid)
-            },
-            onDismiss = { isArchivedGroupsDialogVisible = false }
-        )
-    }
-}
-
-@Composable
-private fun ArchivedGroupsDialog(
-    groups: List<MedicationGroup>,
-    appLocale: Locale,
-    dateFormatter: (LocalDate) -> String,
-    onGroupClick: (UUID) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.plan_archived_groups)) },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (groups.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.plan_archived_groups_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    groups.forEach { group ->
-                        val archivedDate = group.archivedAt
-                            ?.atZone(ZoneId.systemDefault())
-                            ?.toLocalDate()
-                        TextButton(
-                            onClick = { onGroupClick(group.uuid) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.Start,
-                            ) {
-                                Text(
-                                    text = group.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                Text(
-                                    text = archivedDate?.let { date ->
-                                        stringResource(
-                                            R.string.plan_archived_groups_archived_at,
-                                            dateFormatter(date)
-                                        )
-                                    } ?: group.schedule.type.name.lowercase(appLocale),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.confirm))
-            }
-        }
-    )
 }
 
 internal fun plannedEntryEditorIds(scheduled: PlanDayScheduleEntry): Set<UUID> {
@@ -1164,6 +1088,7 @@ private fun PlanScreenPreview() {
             onAddGroupClick = { },
             onHistoryClick = { },
             onBatchAddClick = { },
+            onArchivedGroupsClick = { },
             onDateSelected = { },
             onDateSelectionReset = { }
         )

@@ -244,6 +244,7 @@
     <string name="archive">归档</string>
     <string name="plan_archived_groups">已归档分组</string>
     <string name="plan_archived_groups_empty">暂无已归档分组</string>
+    <string name="plan_archived_groups_created_at">创建于 %1$s</string>
     <string name="plan_archived_groups_archived_at">归档于 %1$s</string>
     <string name="medication_source_catalog">内置</string>
     <string name="medication_source_custom">自定义名称</string>

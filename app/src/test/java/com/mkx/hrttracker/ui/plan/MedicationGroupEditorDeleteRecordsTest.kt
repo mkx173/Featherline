@@ -273,6 +273,48 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun deleteGroup_allowsArchivedGroupDeletion() = runTest {
+        val groupUuid = UUID.fromString("d461a04b-0319-4daa-9ee7-42f87b91fd49")
+        val group = testMedicationGroup(groupUuid).copy(
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationGroupRepository.deleteGroup(groupUuid) } returns Unit
+        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.isArchived)
+
+        viewModel.showDeleteConfirmation()
+        assertEquals(true, viewModel.uiState.value.isDeleteConfirmationVisible)
+
+        viewModel.deleteGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertFalse(viewModel.uiState.value.isDeleteConfirmationVisible)
+        assertEquals(true, viewModel.uiState.value.isDeleted)
+
+        coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
+        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+    }
+
+    @Test
     fun deleteGroup_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
         val groupUuid = UUID.fromString("853c2f2c-016a-4dbb-9048-d198ad65ce25")
         val group = testMedicationGroup(groupUuid)

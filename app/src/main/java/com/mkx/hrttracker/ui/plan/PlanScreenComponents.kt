@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -343,6 +344,8 @@ internal fun RegimenGroupCard(
     showNotificationIcon: Boolean = true,
     showChevron: Boolean = true,
     showUpcomingSection: Boolean = true,
+    showStartDate: Boolean = true,
+    metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
@@ -437,25 +440,16 @@ internal fun RegimenGroupCard(
                             softWrap = true
                         )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Event,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
+                    if (showStartDate) {
+                        RegimenGroupCardMetadataRow(
+                            metadata = RegimenGroupCardMetadata(
+                                icon = Icons.Rounded.Event,
+                                text = grouStartDateText,
+                            ),
                         )
-                        Text(
-                            text = grouStartDateText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f).cjkTextOffset(grouStartDateText),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    }
+                    metadataRows.forEach { metadata ->
+                        RegimenGroupCardMetadataRow(metadata = metadata)
                     }
                 }
                 Row(
@@ -559,6 +553,37 @@ internal fun RegimenGroupCard(
                 }
             }
         }
+    }
+}
+
+internal data class RegimenGroupCardMetadata(
+    val icon: ImageVector,
+    val text: String,
+)
+
+@Composable
+private fun RegimenGroupCardMetadataRow(
+    metadata: RegimenGroupCardMetadata,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = metadata.icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = metadata.text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f).cjkTextOffset(metadata.text),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

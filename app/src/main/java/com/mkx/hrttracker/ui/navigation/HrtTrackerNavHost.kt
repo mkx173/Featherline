@@ -45,6 +45,7 @@ import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainScreen
+import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
@@ -60,6 +61,16 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.plan_batch_add_title
     ) {
         const val baseRoute = "plan_batch_add"
+
+        fun createRoute(topLevelParentRoute: String = Plan.route): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+    data object PlanArchivedGroups : Screen(
+        "plan_archived_groups?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.plan_archived_groups
+    ) {
+        const val baseRoute = "plan_archived_groups"
 
         fun createRoute(topLevelParentRoute: String = Plan.route): String {
             return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
@@ -354,6 +365,11 @@ fun HrtTrackerNavHost(
                         navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
                             launchSingleTop = true
                         }
+                    },
+                    onArchivedGroupsClick = {
+                        navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
+                            launchSingleTop = true
+                        }
                     }
                 )
             }
@@ -369,6 +385,28 @@ fun HrtTrackerNavHost(
                 PlanBatchAddScreen(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = Screen.PlanArchivedGroups.route,
+                arguments = listOf(
+                    navArgument(TOP_LEVEL_PARENT_ARG) {
+                        type = NavType.StringType
+                        defaultValue = Screen.Plan.route
+                    }
+                )
+            ) {
+                ArchivedMedicationGroupsScreen(
+                    modifier = modifier.padding(innerPadding),
+                    onNavigateBack = { navController.popBackStack() },
+                    onGroupClick = { groupId ->
+                        navController.navigate(
+                            Screen.EditMedicationGroup.createRoute(
+                                topLevelParentRoute = Screen.Plan.route,
+                                groupId = groupId.toString()
+                            )
+                        )
+                    }
                 )
             }
             composable(

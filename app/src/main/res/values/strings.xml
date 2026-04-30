@@ -247,7 +247,8 @@
     <string name="archive">Archive</string>
     <string name="plan_archived_groups">Archived groups</string>
     <string name="plan_archived_groups_empty">No archived groups.</string>
-    <string name="plan_archived_groups_archived_at">Archived %1$s</string>
+    <string name="plan_archived_groups_created_at">Created at %1$s</string>
+    <string name="plan_archived_groups_archived_at">Archived at %1$s</string>
     <string name="medication_source_catalog">Built-in</string>
     <string name="medication_source_custom">Custom name</string>
     <string name="dose_type_mg_as_medicine">Dose in mg</string>
