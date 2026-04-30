@@ -884,12 +884,16 @@ private fun MedicationLogAppliedAtFields(
     onAppliedTimeChange: (LocalTime) -> Unit,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var showDatePickerModal by remember { mutableStateOf(false) }
 
     if (showDatePickerModal) {
         DatePickerModal(
             onDateSelected = onAppliedDateChange,
-            onDismiss = { showDatePickerModal = false },
+            onDismiss = {
+                showDatePickerModal = false
+                focusManager.clearFocus()
+            },
             initialSelectedDate = appliedDate
         )
     }
@@ -928,7 +932,10 @@ private fun MedicationLogAppliedAtFields(
                 onAppliedTimeChange(selectedTime)
                 true
             },
-            onDismiss = { showTimePickerModal = false },
+            onDismiss = {
+                showTimePickerModal = false
+                focusManager.clearFocus()
+            },
             initialTime = appliedTime,
             is24Hour = context.uses24HourTimeFormat()
         )
