@@ -5,8 +5,14 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -39,7 +45,9 @@ import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
+import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModelTest {
@@ -339,6 +347,72 @@ class HistoryViewModelTest {
     }
 
     @Test
+    fun hiddenArchivedGroupRecords_areCountedForDeleteAllWarning() = runTest {
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false))
+        every { settingsRepository.settingsState } returns settingsState
+        val archivedGroup = testGroup(
+            uuid = UUID.fromString("5130b7b7-50dd-4a62-bd08-15f35b7863de"),
+            since = LocalDate.of(2026, 3, 1),
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+        val visibleEntry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+        )
+        val hiddenEntry = testMedicationLogEntry(
+            details = archivedGroup.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = archivedGroup.uuid,
+            appliedAt = Instant.parse("2026-04-19T00:00:00Z"),
+            scheduledFor = LocalDateTime.of(2026, 4, 19, 9, 0),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(visibleEntry, hiddenEntry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(listOf(visibleEntry), viewModel.uiState.value.entries)
+        assertEquals(2, viewModel.uiState.value.allEntryCount)
+        assertEquals(1, viewModel.uiState.value.hiddenArchivedGroupRecordCount)
+    }
+
+    @Test
+    fun calendarRange_includesArchivedGroupStartWhenArchivedRecordsAreShown() = runTest {
+        val archivedGroup = testGroup(
+            uuid = UUID.fromString("38685781-560d-4a70-b53d-b50e939df536"),
+            since = LocalDate.of(2026, 3, 1),
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(YearMonth.of(2026, 3), viewModel.uiState.value.calendarStartMonth)
+    }
+
+    @Test
     fun clockTickAcrossMonth_updatesRangeWithoutMovingDisplayedMonthOrSelection() = runTest {
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 30, 23, 59))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
@@ -407,5 +481,36 @@ class HistoryViewModelTest {
         return backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
         }
+    }
+
+    private fun testGroup(
+        uuid: UUID,
+        since: LocalDate,
+        archivedAt: Instant?,
+    ): MedicationGroup {
+        return MedicationGroup(
+            uuid = uuid,
+            name = "Archived group",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0),
+                    ),
+                )
+            ),
+            createdAt = testInstant(since.atStartOfDay()),
+            updatedAt = testInstant(since.atStartOfDay()),
+            archivedAt = archivedAt,
+        )
     }
 }

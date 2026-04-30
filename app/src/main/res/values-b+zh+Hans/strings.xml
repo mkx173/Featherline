@@ -139,6 +139,9 @@
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="other">要删除全部 %1$d 条记录吗？</item>
     </plurals>
+    <plurals name="history_delete_all_entries_hidden_archived_warning">
+        <item quantity="other">这也会删除 %1$d 条已在设置中隐藏的归档分组记录。</item>
+    </plurals>
     <plurals name="history_selected_entries_title">
         <item quantity="other">已选择 %1$d 项</item>
     </plurals>

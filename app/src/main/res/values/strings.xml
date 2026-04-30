@@ -140,6 +140,10 @@
         <item quantity="one">Delete all %1$d record?</item>
         <item quantity="other">Delete all %1$d records?</item>
     </plurals>
+    <plurals name="history_delete_all_entries_hidden_archived_warning">
+        <item quantity="one">This includes %1$d archived group record hidden by your settings.</item>
+        <item quantity="other">This includes %1$d archived group records hidden by your settings.</item>
+    </plurals>
     <plurals name="history_selected_entries_title">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>

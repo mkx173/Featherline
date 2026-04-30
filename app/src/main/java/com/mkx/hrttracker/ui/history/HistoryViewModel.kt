@@ -93,11 +93,13 @@ class HistoryViewModel @Inject constructor(
         val (month, selectedDay) = displayState
         val isLoading = entriesOrNull == null || groupsOrNull == null
         val allGroups = groupsOrNull.orEmpty()
+        val allEntries = entriesOrNull.orEmpty()
         val entries = visibleMedicationEntries(
-            entries = entriesOrNull.orEmpty(),
+            entries = allEntries,
             groups = allGroups,
             showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
         )
+        val hiddenArchivedGroupRecordCount = allEntries.size - entries.size
         val activeGroups = allGroups.filter(MedicationGroup::isActive)
         val calendarGroups = if (settingsState.showArchivedGroupRecords) {
             allGroups
@@ -109,7 +111,7 @@ class HistoryViewModel @Inject constructor(
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
         }
-        val earliestGroupMonth = activeGroups.minOfOrNull { group ->
+        val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
             YearMonth.from(group.schedule.since)
         }
         val selectedMonth = selectedDay?.let(YearMonth::from)
@@ -130,6 +132,8 @@ class HistoryViewModel @Inject constructor(
             isLoading = isLoading,
             today = today,
             entries = entries,
+            allEntryCount = allEntries.size,
+            hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
             medicationGroups = allGroups,
             activeMedicationGroups = activeGroups,
             calendarMedicationGroups = calendarGroups,
@@ -311,6 +315,8 @@ data class HistoryUiState(
     val isLoading: Boolean = true,
     val today: LocalDate = LocalDate.now(),
     val entries: List<MedicationLogEntry> = emptyList(),
+    val allEntryCount: Int = entries.size,
+    val hiddenArchivedGroupRecordCount: Int = 0,
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val activeMedicationGroups: List<MedicationGroup> = emptyList(),
     val calendarMedicationGroups: List<MedicationGroup> = activeMedicationGroups,

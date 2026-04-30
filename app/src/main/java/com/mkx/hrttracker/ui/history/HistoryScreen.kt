@@ -546,13 +546,27 @@ private fun HistoryScreenContent(
                 Text(text = stringResource(R.string.history_delete_all_entries_title))
             },
             text = {
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.history_delete_all_entries_confirmation,
-                        uiState.entries.size,
-                        uiState.entries.size,
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.history_delete_all_entries_confirmation,
+                            uiState.allEntryCount,
+                            uiState.allEntryCount,
+                        )
                     )
-                )
+                    if (uiState.hiddenArchivedGroupRecordCount > 0) {
+                        Text(
+                            text = pluralStringResource(
+                                R.plurals.history_delete_all_entries_hidden_archived_warning,
+                                uiState.hiddenArchivedGroupRecordCount,
+                                uiState.hiddenArchivedGroupRecordCount,
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
