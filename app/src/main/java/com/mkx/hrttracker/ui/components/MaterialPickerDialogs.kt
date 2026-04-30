@@ -1,8 +1,14 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -12,6 +18,7 @@ import androidx.compose.material3.TimePickerDisplayMode
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
 import java.time.Instant
@@ -61,6 +68,7 @@ fun TimePickerModal(
     onDismiss: () -> Unit,
     initialTime: LocalTime,
     is24Hour: Boolean,
+    onRemove: (() -> Unit)? = null,
 ) {
     val timePickerState = rememberTimePickerState(
         initialHour = initialTime.hour,
@@ -71,23 +79,54 @@ fun TimePickerModal(
     TimePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
-                onClick = {
-                    val shouldDismiss = onTimeSelected(
-                        LocalTime.of(timePickerState.hour, timePickerState.minute)
-                    )
-                    if (shouldDismiss) {
-                        onDismiss()
+            val confirmTime = {
+                val shouldDismiss = onTimeSelected(
+                    LocalTime.of(timePickerState.hour, timePickerState.minute)
+                )
+                if (shouldDismiss) {
+                    onDismiss()
+                }
+            }
+            if (onRemove != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    TextButton(
+                        onClick = {
+                            onRemove()
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                    ) {
+                        Text(stringResource(R.string.remove_time))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                    TextButton(onClick = confirmTime) {
+                        Text(stringResource(R.string.confirm))
                     }
                 }
-            ) {
-                Text(stringResource(R.string.confirm))
+            } else {
+                TextButton(
+                    onClick = confirmTime
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+        dismissButton = if (onRemove == null) {
+            {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
+        } else {
+            null
         },
         title = {
             TimePickerDialogDefaults.Title(

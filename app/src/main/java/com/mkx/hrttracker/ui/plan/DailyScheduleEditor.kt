@@ -8,25 +8,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.AddChip
@@ -54,11 +50,11 @@ internal fun DailyScheduleEditor(
     onIntervalChange: (String) -> Unit,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
-    onRemoveTime: (String) -> Unit,
     sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     addRemoveTimeEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
+    shapeLocked: Boolean = false,
 ) {
     val totalCount = if (previewOccurrences.isNotEmpty()) 4 else 3
     Column(
@@ -70,6 +66,7 @@ internal fun DailyScheduleEditor(
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             enabled = sinceEnabled,
+            locked = shapeLocked,
             index = 0,
             count = totalCount
         )
@@ -85,6 +82,7 @@ internal fun DailyScheduleEditor(
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
             enabled = intervalEnabled,
+            locked = shapeLocked,
             index = 1,
             count = totalCount
         )
@@ -94,7 +92,6 @@ internal fun DailyScheduleEditor(
             timeFormatter = timeFormatter,
             onAddTime = onAddTime,
             onTimeClick = onTimeClick,
-            onRemoveTime = onRemoveTime,
             addRemoveTimeEnabled = addRemoveTimeEnabled,
             timeEditEnabled = timeEditEnabled,
             index = 2,
@@ -121,7 +118,6 @@ private fun DailyTimesCard(
     timeFormatter: DateTimeFormatter,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
-    onRemoveTime: (String) -> Unit,
     addRemoveTimeEnabled: Boolean,
     timeEditEnabled: Boolean,
     index: Int = 0,
@@ -156,14 +152,11 @@ private fun DailyTimesCard(
                     AddChip(onClick = onAddTime)
                 }
             }
-            val removeEnabled = addRemoveTimeEnabled && canRemoveDailyTime(times.size)
             times.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),
                     onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
                     enabled = timeEditEnabled,
-                    removeEnabled = removeEnabled,
-                    onRemoveClick = { onRemoveTime(dailyTime.localId) },
                     index = index,
                     count = times.size
                 )
@@ -178,8 +171,6 @@ private fun DailyTimeRow(
     formattedTime: String,
     onClick: () -> Unit,
     enabled: Boolean,
-    removeEnabled: Boolean,
-    onRemoveClick: () -> Unit,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -193,26 +184,16 @@ private fun DailyTimeRow(
             )
         },
         trailingContent = {
-            CompositionLocalProvider(
-                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-            ) {
-                IconButton(
-                    onClick = onRemoveClick,
-                    enabled = removeEnabled,
-                    modifier = Modifier.size(20.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Delete,
-                        contentDescription = stringResource(R.string.remove_time),
-                        tint = if (removeEnabled) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                modifier = Modifier.size(20.dp)
+            )
         },
         onClick = onClick,
         enabled = enabled,
@@ -334,7 +315,6 @@ private fun DailyScheduleEditorPreview() {
             onIntervalChange = {},
             onAddTime = {},
             onTimeClick = { _, _ -> },
-            onRemoveTime = {}
         )
     }
 }

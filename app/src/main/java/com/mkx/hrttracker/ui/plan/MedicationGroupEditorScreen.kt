@@ -122,6 +122,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @Composable
@@ -381,8 +382,6 @@ fun MedicationGroupEditorScreen(
         onArchiveDismiss = viewModel::dismissArchiveConfirmation,
         onArchiveConfirm = viewModel::archiveGroup,
         onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
-        onArchiveAndRecreateClick = viewModel::showArchiveAndRecreateConfirmation,
-        onArchiveAndRecreateDismiss = viewModel::dismissArchiveAndRecreateConfirmation,
         onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
         onArchiveAndRecreateMedicationGroupResultConsumed =
             viewModel::consumeArchiveAndRecreateMedicationGroupResult,
@@ -437,8 +436,6 @@ private fun MedicationGroupEditorScreenContent(
     onArchiveDismiss: () -> Unit,
     onArchiveConfirm: () -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
-    onArchiveAndRecreateClick: () -> Unit,
-    onArchiveAndRecreateDismiss: () -> Unit,
     onArchiveAndRecreateConfirm: () -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -665,24 +662,50 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     pendingDailyTimeEdit?.let { dailyTimeEdit ->
+        val lockedTimeEditRange = if (uiState.isLocked) {
+            dailyTimeEditRange(
+                dailyTimes = uiState.dailyTimes,
+                localId = dailyTimeEdit.localId,
+            )
+        } else {
+            null
+        }
         TimePickerModal(
             onTimeSelected = { selectedTime ->
-                if (hasDuplicateDailyTime(
+                val normalizedSelectedTime = selectedTime.withSecond(0).withNano(0)
+                if (lockedTimeEditRange != null &&
+                    !lockedTimeEditRange.contains(normalizedSelectedTime)
+                ) {
+                    Toast.makeText(
+                        context,
+                        lockedTimeEditRange.formatForToast(context, timeFormatter),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    false
+                } else if (hasDuplicateDailyTime(
                         dailyTimes = uiState.dailyTimes,
-                        time = selectedTime,
+                        time = normalizedSelectedTime,
                         excludingLocalId = dailyTimeEdit.localId
                     )
                 ) {
                     Toast.makeText(context, duplicateDailyTimeMessage, Toast.LENGTH_SHORT).show()
                     false
                 } else {
-                    onDailyTimeChange(dailyTimeEdit.localId, selectedTime)
+                    onDailyTimeChange(dailyTimeEdit.localId, normalizedSelectedTime)
                     true
                 }
             },
             onDismiss = { pendingDailyTimeEdit = null },
             initialTime = dailyTimeEdit.initialTime,
-            is24Hour = is24Hour
+            is24Hour = is24Hour,
+            onRemove = if (
+                !uiState.areScheduleShapeFieldsLocked &&
+                canRemoveDailyTime(uiState.dailyTimes.size)
+            ) {
+                { onRemoveDailyTime(dailyTimeEdit.localId) }
+            } else {
+                null
+            },
         )
     }
 
@@ -748,58 +771,39 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isArchiveConfirmationVisible) {
+        val isArchiveActionInProgress = uiState.isArchiving || uiState.isRecreatingAfterArchive
         AlertDialog(
             onDismissRequest = {
-                if (!uiState.isArchiving) {
+                if (!isArchiveActionInProgress) {
                     onArchiveDismiss()
                 }
             },
             title = { Text(text = stringResource(R.string.archive_medication_group_title)) },
             text = { Text(text = stringResource(R.string.archive_medication_group_confirmation)) },
             confirmButton = {
-                TextButton(
-                    enabled = !uiState.isArchiving,
-                    onClick = onArchiveConfirm,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(text = stringResource(R.string.archive))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !uiState.isArchiving,
-                    onClick = onArchiveDismiss,
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
-    if (uiState.isArchiveAndRecreateConfirmationVisible) {
-        AlertDialog(
-            onDismissRequest = {
-                if (!uiState.isRecreatingAfterArchive) {
-                    onArchiveAndRecreateDismiss()
-                }
-            },
-            title = { Text(text = stringResource(R.string.archive_and_recreate_medication_group_title)) },
-            text = {
-                Text(text = stringResource(R.string.archive_and_recreate_medication_group_confirmation))
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !uiState.isRecreatingAfterArchive,
-                    onClick = onArchiveAndRecreateConfirm,
-                ) {
-                    Text(text = stringResource(R.string.archive_and_recreate))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !uiState.isRecreatingAfterArchive,
-                    onClick = onArchiveAndRecreateDismiss,
-                ) {
-                    Text(text = stringResource(R.string.cancel))
+                    TextButton(
+                        enabled = !isArchiveActionInProgress,
+                        onClick = onArchiveAndRecreateConfirm,
+                    ) {
+                        Text(text = stringResource(R.string.archive_and_recreate))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(
+                        enabled = !isArchiveActionInProgress,
+                        onClick = onArchiveDismiss,
+                    ) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = !isArchiveActionInProgress,
+                        onClick = onArchiveConfirm,
+                    ) {
+                        Text(text = stringResource(R.string.archive))
+                    }
                 }
             }
         )
@@ -1065,6 +1069,11 @@ private fun MedicationGroupEditorScreenContent(
                                     } else {
                                         null
                                     },
+                                    trailingContent = if (uiState.isLocked) {
+                                        { LockedFieldIcon() }
+                                    } else {
+                                        null
+                                    },
                                     enabled = medicationEditable,
                                     index = index,
                                     itemCount = uiState.medications.size,
@@ -1138,6 +1147,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
                             daySelectionEnabled = !uiState.areScheduleShapeFieldsLocked,
                             timeEditEnabled = !uiState.isArchived,
+                            shapeLocked = uiState.isLocked,
                         )
                     } else {
                         DailyScheduleEditor(
@@ -1160,28 +1170,18 @@ private fun MedicationGroupEditorScreenContent(
                                     initialTime = currentTime
                                 )
                             },
-                            onRemoveTime = onRemoveDailyTime,
                             sinceEnabled = !uiState.areScheduleShapeFieldsLocked,
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
                             addRemoveTimeEnabled = !uiState.areScheduleShapeFieldsLocked,
                             timeEditEnabled = !uiState.isArchived,
+                            shapeLocked = uiState.isLocked,
                         )
                     }
                     if (uiState.isLocked) {
                         SupportMessageListItem(
-                            text = stringResource(
-                                if (uiState.scheduleTimeOrderError) {
-                                    R.string.group_locked_slot_order_error
-                                } else {
-                                    R.string.group_locked_time_note
-                                }
-                            ),
+                            text = stringResource(R.string.group_locked_time_note),
                             icon = Icons.Rounded.ErrorOutline,
-                            leadingIconTint = if (uiState.scheduleTimeOrderError) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.tertiary
-                            },
+                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
                             leadingIconSize = 24.dp,
                         )
                     }
@@ -1257,25 +1257,19 @@ private fun MedicationGroupEditorScreenContent(
                             enabled = dangerZoneActionEnabled,
                             onClick = onArchiveClick,
                             index = 0,
-                            count = 4,
-                        )
-                        ArchiveAndRecreateMedicationGroupCard(
-                            enabled = dangerZoneActionEnabled,
-                            onClick = onArchiveAndRecreateClick,
-                            index = 1,
-                            count = 4,
+                            count = 3,
                         )
                         DeleteMedicationGroupRecordsCard(
                             enabled = dangerZoneActionEnabled && uiState.relatedEntryCount > 0,
                             onClick = onDeleteRelatedEntriesClick,
-                            index = 2,
-                            count = 4,
+                            index = 1,
+                            count = 3,
                         )
                         DeleteMedicationGroupCard(
                             enabled = dangerZoneActionEnabled,
                             onClick = onDeleteClick,
-                            index = 3,
-                            count = 4,
+                            index = 2,
+                            count = 3,
                         )
                     }
                 }
@@ -1383,6 +1377,55 @@ private data class DailyTimeEditRequest(
     val localId: String,
     val initialTime: LocalTime,
 )
+
+private data class DailyTimeEditRange(
+    val lowerExclusive: LocalTime?,
+    val upperExclusive: LocalTime?,
+) {
+    fun contains(time: LocalTime): Boolean {
+        return (lowerExclusive == null || time.isAfter(lowerExclusive)) &&
+            (upperExclusive == null || time.isBefore(upperExclusive))
+    }
+
+    fun formatForToast(
+        context: android.content.Context,
+        timeFormatter: DateTimeFormatter,
+    ): String {
+        return when {
+            lowerExclusive != null && upperExclusive != null -> context.getString(
+                R.string.group_schedule_time_range_between,
+                lowerExclusive.format(timeFormatter),
+                upperExclusive.format(timeFormatter),
+            )
+
+            lowerExclusive != null -> context.getString(
+                R.string.group_schedule_time_range_after,
+                lowerExclusive.format(timeFormatter),
+            )
+
+            upperExclusive != null -> context.getString(
+                R.string.group_schedule_time_range_before,
+                upperExclusive.format(timeFormatter),
+            )
+
+            else -> ""
+        }
+    }
+}
+
+private fun dailyTimeEditRange(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    localId: String,
+): DailyTimeEditRange? {
+    val index = dailyTimes.indexOfFirst { dailyTime -> dailyTime.localId == localId }
+    if (index < 0 || dailyTimes.size <= 1) {
+        return null
+    }
+    return DailyTimeEditRange(
+        lowerExclusive = dailyTimes.getOrNull(index - 1)?.time,
+        upperExclusive = dailyTimes.getOrNull(index + 1)?.time,
+    )
+}
 
 private data class MedicationRemovalRequest(
     val localId: String,
@@ -1510,8 +1553,6 @@ private fun MedicationGroupEditorDailyPreview() {
             onArchiveDismiss = { },
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
-            onArchiveAndRecreateClick = { },
-            onArchiveAndRecreateDismiss = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -1579,8 +1620,6 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onArchiveDismiss = { },
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
-            onArchiveAndRecreateClick = { },
-            onArchiveAndRecreateDismiss = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -1590,6 +1629,113 @@ private fun MedicationGroupEditorWeeklyPreview() {
             occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
         )
     }
+}
+
+@Preview(
+    name = "Group Editor Daily Locked",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun MedicationGroupEditorDailyLockedPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicationGroupEditorPreviewContent(
+            uiState = buildMedicationGroupEditorPreviewUiState(
+                scheduleType = MedicationGroupScheduleType.DAILY,
+                editingGroupId = "preview-locked-daily-group",
+                remindersEnabled = true,
+                notificationsEnabled = true,
+            ).copy(
+                plannedEntryCount = 12,
+                relatedEntryCount = 16,
+            ),
+            hasNotificationAccess = true,
+            notificationsToggleEnabled = true,
+        )
+    }
+}
+
+@Preview(
+    name = "Group Editor Weekly Locked",
+    showBackground = true,
+    widthDp = 420,
+    heightDp = 920
+)
+@Composable
+private fun MedicationGroupEditorWeeklyLockedPreview() {
+    HrtTrackerTheme(dynamicColor = false) {
+        MedicationGroupEditorPreviewContent(
+            uiState = buildMedicationGroupEditorPreviewUiState(
+                scheduleType = MedicationGroupScheduleType.WEEKLY,
+                editingGroupId = "preview-locked-weekly-group",
+                remindersEnabled = true,
+                notificationsEnabled = true,
+            ).copy(
+                plannedEntryCount = 6,
+                relatedEntryCount = 8,
+            ),
+            hasNotificationAccess = true,
+            notificationsToggleEnabled = true,
+        )
+    }
+}
+
+@Composable
+private fun MedicationGroupEditorPreviewContent(
+    uiState: MedicationGroupEditorUiState,
+    hasNotificationAccess: Boolean,
+    notificationsToggleEnabled: Boolean,
+    showInexactReminderWarning: Boolean = false,
+) {
+    MedicationGroupEditorScreenContent(
+        uiState = uiState,
+        onNavigateBack = { },
+        onGroupNameChange = { },
+        onScheduleTypeChange = { },
+        onSinceDateChange = { },
+        onNotificationsEnabledChange = { },
+        onRequestExactAlarmAccess = { },
+        onRecoverMasterReminders = { },
+        hasNotificationAccess = hasNotificationAccess,
+        notificationsToggleEnabled = notificationsToggleEnabled,
+        showInexactReminderWarning = showInexactReminderWarning,
+        onWeeklyIntervalChange = { },
+        onWeeklyDayChange = { },
+        onWeeklyTimeChange = { },
+        onDailyIntervalChange = { },
+        onAddDailyTime = { },
+        onDailyTimeChange = { _, _ -> },
+        onRemoveDailyTime = { },
+        onAddMedication = { },
+        onMedicationClick = { },
+        onRemoveMedication = { },
+        onDismissMedicationEditor = { },
+        onConsumeMedicationEditorSaved = { },
+        onMedicationDraftChange = { },
+        onEditingMedicationCountTextChange = { },
+        onDecreaseEditingMedicationCount = { },
+        onIncreaseEditingMedicationCount = { },
+        onSaveMedicationClick = { },
+        onSaveClick = { },
+        onSaveMedicationGroupResultConsumed = { },
+        onDeleteRelatedEntriesClick = { },
+        onDeleteRelatedEntriesDismiss = { },
+        onDeleteRelatedEntriesConfirm = { },
+        onDeleteRelatedEntriesResultConsumed = { },
+        onDeleteMedicationGroupResultConsumed = { },
+        onArchiveClick = { },
+        onArchiveDismiss = { },
+        onArchiveConfirm = { },
+        onArchiveMedicationGroupResultConsumed = { },
+        onArchiveAndRecreateConfirm = { },
+        onArchiveAndRecreateMedicationGroupResultConsumed = { },
+        onDeleteClick = { },
+        onDeleteDismiss = { },
+        onDeleteConfirm = { },
+        onDeleteWithRecordsConfirm = { },
+        occurrenceReferenceTime = LocalDateTime.of(2026, 4, 25, 10, 0)
+    )
 }
 
 private fun buildMedicationGroupEditorPreviewUiState(

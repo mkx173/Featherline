@@ -10,6 +10,7 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -44,6 +45,7 @@ internal fun IntervalStepperCard(
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
     enabled: Boolean = true,
+    locked: Boolean = false,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -67,10 +69,13 @@ internal fun IntervalStepperCard(
                     )
         },
         trailingContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
+            if (locked) {
+                LockedFieldIcon()
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
                     StepperCircleButton(
                         icon = Icons.Rounded.Remove,
                         contentDescription = stringResource(R.string.decrease_schedule_interval),
@@ -83,6 +88,7 @@ internal fun IntervalStepperCard(
                         enabled = enabled,
                         onClick = onIncreaseClick
                     )
+                }
             }
         },
     ) {
@@ -138,6 +144,7 @@ internal fun EditorFieldRow(
     icon: ImageVector,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    locked: Boolean = false,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -162,11 +169,15 @@ internal fun EditorFieldRow(
             )
         },
         trailingContent = {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (locked) {
+                LockedFieldIcon()
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         },
     ) {
         Text(
@@ -174,6 +185,18 @@ internal fun EditorFieldRow(
             style = MaterialTheme.typography.titleMedium
         )
     }
+}
+
+@Composable
+internal fun LockedFieldIcon(
+    modifier: Modifier = Modifier,
+) {
+    Icon(
+        imageVector = Icons.Rounded.Lock,
+        contentDescription = stringResource(R.string.group_field_locked),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.size(24.dp)
+    )
 }
 
 internal fun parseScheduleInterval(value: String): Int {
@@ -259,24 +282,6 @@ internal fun ArchiveMedicationGroupCard(
 ) {
     DangerZoneListItem(
         label = stringResource(R.string.archive_medication_group),
-        enabled = enabled,
-        onClick = onClick,
-        icon = Icons.Rounded.Archive,
-        index = index,
-        count = count,
-    )
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun ArchiveAndRecreateMedicationGroupCard(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    index: Int = 0,
-    count: Int = 1,
-) {
-    DangerZoneListItem(
-        label = stringResource(R.string.archive_and_recreate),
         enabled = enabled,
         onClick = onClick,
         icon = Icons.Rounded.Archive,

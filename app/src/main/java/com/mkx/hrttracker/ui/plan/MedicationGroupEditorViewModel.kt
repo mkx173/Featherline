@@ -251,19 +251,21 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (currentState.isArchived) {
                 return@update currentState
             }
+            val normalizedTime = time.withSecond(0).withNano(0)
             val updatedState = currentState.copy(
                 dailyTimes = currentState.dailyTimes.map { dailyTime ->
                     if (dailyTime.localId == localId) {
-                        dailyTime.copy(time = time.withSecond(0).withNano(0))
+                        dailyTime.copy(time = normalizedTime)
                     } else {
                         dailyTime
                     }
                 }
             )
-            updatedState.copy(
-                scheduleTimeOrderError = updatedState.isLocked &&
-                    !areScheduleTimesInLockedOrder(scheduleTimesForSave(updatedState))
-            )
+            if (updatedState.isLocked && !areScheduleTimesInLockedOrder(scheduleTimesForSave(updatedState))) {
+                currentState.copy(scheduleTimeOrderError = false)
+            } else {
+                updatedState.copy(scheduleTimeOrderError = false)
+            }
         }
     }
 
@@ -564,7 +566,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun showArchiveConfirmation() {
         if (_uiState.value.isEditing && !_uiState.value.isArchived) {
             _uiState.update {
-                it.copy(isArchiveConfirmationVisible = true)
+                it.copy(
+                    isArchiveConfirmationVisible = true,
+                    archiveMedicationGroupResult = null,
+                    archiveAndRecreateMedicationGroupResult = null,
+                )
             }
         }
     }
@@ -572,20 +578,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun dismissArchiveConfirmation() {
         _uiState.update {
             it.copy(isArchiveConfirmationVisible = false)
-        }
-    }
-
-    fun showArchiveAndRecreateConfirmation() {
-        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
-            _uiState.update {
-                it.copy(isArchiveAndRecreateConfirmationVisible = true)
-            }
-        }
-    }
-
-    fun dismissArchiveAndRecreateConfirmation() {
-        _uiState.update {
-            it.copy(isArchiveAndRecreateConfirmationVisible = false)
         }
     }
 
@@ -633,7 +625,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isRecreatingAfterArchive = true,
-                    isArchiveAndRecreateConfirmationVisible = false,
+                    isArchiveConfirmationVisible = false,
                     archiveAndRecreateMedicationGroupResult = null,
                     recreatedGroupId = null,
                 )
@@ -1065,7 +1057,6 @@ data class MedicationGroupEditorUiState(
     val originalDailyTimes: List<LocalTime> = emptyList(),
     val originalMedications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val isArchiveConfirmationVisible: Boolean = false,
-    val isArchiveAndRecreateConfirmationVisible: Boolean = false,
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val recreatedGroupId: String? = null,

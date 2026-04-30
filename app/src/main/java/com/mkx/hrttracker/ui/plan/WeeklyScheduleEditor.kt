@@ -2,7 +2,9 @@ package com.mkx.hrttracker.ui.plan
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
@@ -53,6 +55,7 @@ internal fun WeeklyScheduleEditor(
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
+    shapeLocked: Boolean = false,
 ) {
     val totalCount = if (previewOccurrences.isNotEmpty()) 5 else 4
     Column(
@@ -64,6 +67,7 @@ internal fun WeeklyScheduleEditor(
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
             enabled = sinceEnabled,
+            locked = shapeLocked,
             index = 0,
             count = totalCount
         )
@@ -79,6 +83,7 @@ internal fun WeeklyScheduleEditor(
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
             enabled = intervalEnabled,
+            locked = shapeLocked,
             index = 1,
             count = totalCount
         )
@@ -92,11 +97,20 @@ internal fun WeeklyScheduleEditor(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.group_schedule_days_of_week).uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.group_schedule_days_of_week).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (shapeLocked) {
+                        LockedFieldIcon(modifier = Modifier.size(20.dp))
+                    }
+                }
                 ConnectedButtonGroup(
                     modifier = Modifier.fillMaxWidth(),
                     options = DayOfWeek.entries.toList(),
