@@ -752,7 +752,7 @@ private fun HistoryScreenContent(
                 }
             }
 
-            if (uiState.selectedDate != null && effectiveSelectedDate != null) {
+            if (effectiveSelectedDate != null) {
                 item(key = "clear-selection") {
                     Row(
                         modifier = Modifier
@@ -762,7 +762,14 @@ private fun HistoryScreenContent(
                     ) {
                         HrtOutlinedButton(
                             text = stringResource(R.string.history_clear_selection),
-                            onClick = { onDayClick(uiState.selectedDate) },
+                            onClick = {
+                                val selectedDate = uiState.selectedDate
+                                pendingSelectedDate.value = null
+                                pendingSelectionResetTargetMonth.value = null
+                                if (selectedDate != null) {
+                                    onDayClick(selectedDate)
+                                }
+                            },
                             icon = Icons.Rounded.Close,
                             iconModifier = Modifier.size(14.dp),
                             iconSpacing = 6.dp,
