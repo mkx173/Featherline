@@ -128,6 +128,7 @@ import java.util.UUID
 fun MedicationGroupEditorScreen(
     onNavigateBack: () -> Unit,
     onGroupSaved: () -> Unit,
+    onGroupRecreated: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
@@ -257,6 +258,15 @@ fun MedicationGroupEditorScreen(
         }
     }
 
+    LaunchedEffect(uiState.recreatedGroupId) {
+        val recreatedGroupUuid = uiState.recreatedGroupId
+            ?.let { groupId -> runCatching { UUID.fromString(groupId) }.getOrNull() }
+        if (recreatedGroupUuid != null) {
+            viewModel.consumeRecreatedGroupId()
+            onGroupRecreated(recreatedGroupUuid)
+        }
+    }
+
     LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled) {
         if (!hasNotificationAccess) {
             pendingNotificationEnableRequest = null
@@ -341,7 +351,7 @@ fun MedicationGroupEditorScreen(
         },
         onRecoverMasterReminders = enableMasterReminders,
         hasNotificationAccess = hasNotificationAccess,
-        notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
+        notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess && !uiState.isArchived,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::toggleWeeklyDayOfWeek,
@@ -367,6 +377,15 @@ fun MedicationGroupEditorScreen(
         onDeleteRelatedEntriesConfirm = viewModel::deleteRelatedEntries,
         onDeleteRelatedEntriesResultConsumed = viewModel::consumeDeleteRelatedEntriesResult,
         onDeleteMedicationGroupResultConsumed = viewModel::consumeDeleteMedicationGroupResult,
+        onArchiveClick = viewModel::showArchiveConfirmation,
+        onArchiveDismiss = viewModel::dismissArchiveConfirmation,
+        onArchiveConfirm = viewModel::archiveGroup,
+        onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
+        onArchiveAndRecreateClick = viewModel::showArchiveAndRecreateConfirmation,
+        onArchiveAndRecreateDismiss = viewModel::dismissArchiveAndRecreateConfirmation,
+        onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
+        onArchiveAndRecreateMedicationGroupResultConsumed =
+            viewModel::consumeArchiveAndRecreateMedicationGroupResult,
         onDeleteClick = viewModel::showDeleteConfirmation,
         onDeleteDismiss = viewModel::dismissDeleteConfirmation,
         onDeleteConfirm = viewModel::deleteGroup,
@@ -414,6 +433,14 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteRelatedEntriesConfirm: () -> Unit,
     onDeleteRelatedEntriesResultConsumed: () -> Unit,
     onDeleteMedicationGroupResultConsumed: () -> Unit,
+    onArchiveClick: () -> Unit,
+    onArchiveDismiss: () -> Unit,
+    onArchiveConfirm: () -> Unit,
+    onArchiveMedicationGroupResultConsumed: () -> Unit,
+    onArchiveAndRecreateClick: () -> Unit,
+    onArchiveAndRecreateDismiss: () -> Unit,
+    onArchiveAndRecreateConfirm: () -> Unit,
+    onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
     onDeleteDismiss: () -> Unit,
     onDeleteConfirm: () -> Unit,
@@ -453,6 +480,10 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_failure)
     val saveMedicationGroupFailureMessage =
         stringResource(R.string.save_medication_group_failure)
+    val archiveMedicationGroupFailureMessage =
+        stringResource(R.string.archive_medication_group_failure)
+    val archiveAndRecreateMedicationGroupFailureMessage =
+        stringResource(R.string.archive_and_recreate_medication_group_failure)
     val deleteMedicationGroupFailureMessage =
         stringResource(R.string.delete_medication_group_failure)
     val scheduleOptions = remember {
@@ -472,11 +503,18 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isLoadingGroupForEditing &&
         !uiState.isSaving &&
         !uiState.isDeleting &&
-        !uiState.isDeletingRelatedEntries
+        !uiState.isArchiving &&
+        !uiState.isRecreatingAfterArchive &&
+        !uiState.isDeletingRelatedEntries &&
+        !uiState.isArchived &&
+        !uiState.scheduleTimeOrderError
     val dangerZoneActionEnabled = !uiState.isLoadingGroupForEditing &&
         !uiState.isSaving &&
         !uiState.isDeleting &&
-        !uiState.isDeletingRelatedEntries
+        !uiState.isArchiving &&
+        !uiState.isRecreatingAfterArchive &&
+        !uiState.isDeletingRelatedEntries &&
+        !uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.scheduleType,
         uiState.sinceDate,
@@ -553,6 +591,36 @@ private fun MedicationGroupEditorScreenContent(
                     Toast.LENGTH_SHORT,
                 ).show()
                 onDeleteMedicationGroupResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(uiState.archiveMedicationGroupResult) {
+        when (uiState.archiveMedicationGroupResult) {
+            ArchiveMedicationGroupResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    archiveMedicationGroupFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onArchiveMedicationGroupResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(uiState.archiveAndRecreateMedicationGroupResult) {
+        when (uiState.archiveAndRecreateMedicationGroupResult) {
+            ArchiveAndRecreateMedicationGroupResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    archiveAndRecreateMedicationGroupFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onArchiveAndRecreateMedicationGroupResultConsumed()
             }
 
             null -> Unit
@@ -674,6 +742,64 @@ private fun MedicationGroupEditorScreenContent(
                             )
                         )
                     }
+                }
+            }
+        )
+    }
+
+    if (uiState.isArchiveConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isArchiving) {
+                    onArchiveDismiss()
+                }
+            },
+            title = { Text(text = stringResource(R.string.archive_medication_group_title)) },
+            text = { Text(text = stringResource(R.string.archive_medication_group_confirmation)) },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isArchiving,
+                    onClick = onArchiveConfirm,
+                ) {
+                    Text(text = stringResource(R.string.archive))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isArchiving,
+                    onClick = onArchiveDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.isArchiveAndRecreateConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isRecreatingAfterArchive) {
+                    onArchiveAndRecreateDismiss()
+                }
+            },
+            title = { Text(text = stringResource(R.string.archive_and_recreate_medication_group_title)) },
+            text = {
+                Text(text = stringResource(R.string.archive_and_recreate_medication_group_confirmation))
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isRecreatingAfterArchive,
+                    onClick = onArchiveAndRecreateConfirm,
+                ) {
+                    Text(text = stringResource(R.string.archive_and_recreate))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isRecreatingAfterArchive,
+                    onClick = onArchiveAndRecreateDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
                 }
             }
         )
@@ -845,6 +971,17 @@ private fun MedicationGroupEditorScreenContent(
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (uiState.isLocked) {
+                item {
+                    SupportMessageListItem(
+                        text = stringResource(R.string.group_locked_banner),
+                        icon = Icons.Rounded.ErrorOutline,
+                        leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                        leadingIconSize = 24.dp,
+                    )
+                }
+            }
+
             item {
                 val focusManager = LocalFocusManager.current
                 Column(
@@ -860,7 +997,7 @@ private fun MedicationGroupEditorScreenContent(
                                 contentDescription = null
                             )
                         },
-                        trailingIcon = if (shouldShowGroupNameClearAction(uiState.groupName)) {
+                        trailingIcon = if (!uiState.isArchived && shouldShowGroupNameClearAction(uiState.groupName)) {
                             {
                                 IconButton(
                                     onClick = {
@@ -882,6 +1019,7 @@ private fun MedicationGroupEditorScreenContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(groupNameFocusRequester),
+                        enabled = !uiState.isArchived,
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(
@@ -907,38 +1045,50 @@ private fun MedicationGroupEditorScreenContent(
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
                                 val medicationName = medicationDisplayName(medication.details)
+                                val medicationEditable = !uiState.areMedicationsLocked
                                 MedicationCard(
                                     details = medication.details,
                                     medicationCount = medication.count,
                                     groupColorKey = uiState.groupColorKey,
-                                    onClick = { onMedicationClick(medication.localId) },
-                                    onDeleteClick = {
-                                        pendingMedicationRemoval = MedicationRemovalRequest(
-                                            localId = medication.localId,
-                                            medicationName = medicationName
-                                        )
+                                    onClick = {
+                                        if (medicationEditable) {
+                                            onMedicationClick(medication.localId)
+                                        }
                                     },
+                                    onDeleteClick = if (medicationEditable) {
+                                        {
+                                            pendingMedicationRemoval = MedicationRemovalRequest(
+                                                localId = medication.localId,
+                                                medicationName = medicationName
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    enabled = medicationEditable,
                                     index = index,
                                     itemCount = uiState.medications.size,
                                 )
                             }
                         }
                     }
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.add),
-                        onClick = onAddMedication,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        icon = Icons.Rounded.Add,
-                        iconModifier = Modifier.size(
-                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                        ),
-                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                        compact = true,
-                        contentPadding = ButtonDefaults.contentPaddingFor(
-                            ButtonDefaults.MinHeight,
-                            hasStartIcon = true
-                        ),
-                    )
+                    if (!uiState.areMedicationsLocked) {
+                        HrtFilledTonalButton(
+                            text = stringResource(R.string.add),
+                            onClick = onAddMedication,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            icon = Icons.Rounded.Add,
+                            iconModifier = Modifier.size(
+                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                            ),
+                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                            compact = true,
+                            contentPadding = ButtonDefaults.contentPaddingFor(
+                                ButtonDefaults.MinHeight,
+                                hasStartIcon = true
+                            ),
+                        )
+                    }
                 }
             }
 
@@ -964,6 +1114,7 @@ private fun MedicationGroupEditorScreenContent(
                                 )
                             },
                             onOptionSelected = onScheduleTypeChange,
+                            enabled = !uiState.areScheduleShapeFieldsLocked,
                             layout = ConnectedButtonGroupLayout.ROW,
                             expandOptions = true,
                         )
@@ -982,7 +1133,11 @@ private fun MedicationGroupEditorScreenContent(
                             onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
                             onIntervalChange = onWeeklyIntervalChange,
                             onDayChange = onWeeklyDayChange,
-                            onTimeChange = { currentTime -> pendingWeeklyTime = currentTime }
+                            onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
+                            sinceEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            daySelectionEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            timeEditEnabled = !uiState.isArchived,
                         )
                     } else {
                         DailyScheduleEditor(
@@ -1005,7 +1160,29 @@ private fun MedicationGroupEditorScreenContent(
                                     initialTime = currentTime
                                 )
                             },
-                            onRemoveTime = onRemoveDailyTime
+                            onRemoveTime = onRemoveDailyTime,
+                            sinceEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            addRemoveTimeEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            timeEditEnabled = !uiState.isArchived,
+                        )
+                    }
+                    if (uiState.isLocked) {
+                        SupportMessageListItem(
+                            text = stringResource(
+                                if (uiState.scheduleTimeOrderError) {
+                                    R.string.group_locked_slot_order_error
+                                } else {
+                                    R.string.group_locked_time_note
+                                }
+                            ),
+                            icon = Icons.Rounded.ErrorOutline,
+                            leadingIconTint = if (uiState.scheduleTimeOrderError) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.tertiary
+                            },
+                            leadingIconSize = 24.dp,
                         )
                     }
                 }
@@ -1068,7 +1245,7 @@ private fun MedicationGroupEditorScreenContent(
                 }
             }
 
-            if (uiState.isEditing) {
+            if (uiState.isEditing && !uiState.isArchived) {
                 item {
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))
                     Column(
@@ -1076,13 +1253,29 @@ private fun MedicationGroupEditorScreenContent(
                             dimensionResource(R.dimen.list_segment_gap)
                         )
                     ) {
+                        ArchiveMedicationGroupCard(
+                            enabled = dangerZoneActionEnabled,
+                            onClick = onArchiveClick,
+                            index = 0,
+                            count = 4,
+                        )
+                        ArchiveAndRecreateMedicationGroupCard(
+                            enabled = dangerZoneActionEnabled,
+                            onClick = onArchiveAndRecreateClick,
+                            index = 1,
+                            count = 4,
+                        )
                         DeleteMedicationGroupRecordsCard(
                             enabled = dangerZoneActionEnabled && uiState.relatedEntryCount > 0,
                             onClick = onDeleteRelatedEntriesClick,
+                            index = 2,
+                            count = 4,
                         )
                         DeleteMedicationGroupCard(
                             enabled = dangerZoneActionEnabled,
-                            onClick = onDeleteClick
+                            onClick = onDeleteClick,
+                            index = 3,
+                            count = 4,
                         )
                     }
                 }
@@ -1313,6 +1506,14 @@ private fun MedicationGroupEditorDailyPreview() {
             onDeleteRelatedEntriesConfirm = { },
             onDeleteRelatedEntriesResultConsumed = { },
             onDeleteMedicationGroupResultConsumed = { },
+            onArchiveClick = { },
+            onArchiveDismiss = { },
+            onArchiveConfirm = { },
+            onArchiveMedicationGroupResultConsumed = { },
+            onArchiveAndRecreateClick = { },
+            onArchiveAndRecreateDismiss = { },
+            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },
@@ -1374,6 +1575,14 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDeleteRelatedEntriesConfirm = { },
             onDeleteRelatedEntriesResultConsumed = { },
             onDeleteMedicationGroupResultConsumed = { },
+            onArchiveClick = { },
+            onArchiveDismiss = { },
+            onArchiveConfirm = { },
+            onArchiveMedicationGroupResultConsumed = { },
+            onArchiveAndRecreateClick = { },
+            onArchiveAndRecreateDismiss = { },
+            onArchiveAndRecreateConfirm = { },
+            onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
             onDeleteDismiss = { },
             onDeleteConfirm = { },

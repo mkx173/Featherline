@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +45,7 @@ class PlanBatchAddViewModel @Inject constructor(
         selectionState,
     ) { groupsOrNull, entriesOrNull, settingsState, selection ->
         val now = LocalDateTime.now()
-        val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
+        val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty().filter(MedicationGroup::isActive))
         val entries = entriesOrNull.orEmpty()
         val selectedGroup = selection.selectedGroupUuid?.let { groupUuid ->
             groups.firstOrNull { group -> group.uuid == groupUuid }

@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +30,7 @@ import javax.inject.Inject
 class HistoryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     medicationGroupRepository: MedicationGroupRepository,
+    settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     appTimeSource: AppTimeSource
 ) : ViewModel() {
@@ -46,7 +50,8 @@ class HistoryViewModel @Inject constructor(
         combine(
             medicationLogRepository.observeEntries(),
             medicationGroupRepository.observeGroups(),
-            ::Pair
+            settingsRepository.settingsState,
+            ::Triple,
         ),
         combine(
             combine(
@@ -82,17 +87,24 @@ class HistoryViewModel @Inject constructor(
         deletionUiState,
         displayState,
         now ->
-        val (entriesOrNull, groupsOrNull) = entriesAndGroups
+        val entriesOrNull = entriesAndGroups.first
+        val groupsOrNull = entriesAndGroups.second
+        val settingsState = entriesAndGroups.third
         val (month, selectedDay) = displayState
         val isLoading = entriesOrNull == null || groupsOrNull == null
-        val entries = entriesOrNull.orEmpty()
-        val groups = groupsOrNull.orEmpty()
+        val allGroups = groupsOrNull.orEmpty()
+        val entries = visibleMedicationEntries(
+            entries = entriesOrNull.orEmpty(),
+            groups = allGroups,
+            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
+        )
+        val activeGroups = allGroups.filter(MedicationGroup::isActive)
         val today = now.toLocalDate()
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
             YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
         }
-        val earliestGroupMonth = groups.minOfOrNull { group ->
+        val earliestGroupMonth = activeGroups.minOfOrNull { group ->
             YearMonth.from(group.schedule.since)
         }
         val selectedMonth = selectedDay?.let(YearMonth::from)
@@ -113,7 +125,8 @@ class HistoryViewModel @Inject constructor(
             isLoading = isLoading,
             today = today,
             entries = entries,
-            medicationGroups = groups,
+            medicationGroups = allGroups,
+            activeMedicationGroups = activeGroups,
             calendarFirstDayOfWeek = DayOfWeek.MONDAY,
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
@@ -293,6 +306,7 @@ data class HistoryUiState(
     val today: LocalDate = LocalDate.now(),
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
+    val activeMedicationGroups: List<MedicationGroup> = emptyList(),
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartMonth: YearMonth = YearMonth.now(),
     val calendarEndMonth: YearMonth = YearMonth.now(),

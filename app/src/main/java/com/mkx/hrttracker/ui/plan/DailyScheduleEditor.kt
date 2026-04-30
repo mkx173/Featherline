@@ -54,7 +54,11 @@ internal fun DailyScheduleEditor(
     onIntervalChange: (String) -> Unit,
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
-    onRemoveTime: (String) -> Unit
+    onRemoveTime: (String) -> Unit,
+    sinceEnabled: Boolean = true,
+    intervalEnabled: Boolean = true,
+    addRemoveTimeEnabled: Boolean = true,
+    timeEditEnabled: Boolean = true,
 ) {
     val totalCount = if (previewOccurrences.isNotEmpty()) 4 else 3
     Column(
@@ -65,6 +69,7 @@ internal fun DailyScheduleEditor(
             value = dateFormatter(sinceDate),
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
+            enabled = sinceEnabled,
             index = 0,
             count = totalCount
         )
@@ -79,6 +84,7 @@ internal fun DailyScheduleEditor(
             ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalDays)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalDays)) },
+            enabled = intervalEnabled,
             index = 1,
             count = totalCount
         )
@@ -89,6 +95,8 @@ internal fun DailyScheduleEditor(
             onAddTime = onAddTime,
             onTimeClick = onTimeClick,
             onRemoveTime = onRemoveTime,
+            addRemoveTimeEnabled = addRemoveTimeEnabled,
+            timeEditEnabled = timeEditEnabled,
             index = 2,
             count = totalCount
         )
@@ -114,6 +122,8 @@ private fun DailyTimesCard(
     onAddTime: () -> Unit,
     onTimeClick: (String, LocalTime) -> Unit,
     onRemoveTime: (String) -> Unit,
+    addRemoveTimeEnabled: Boolean,
+    timeEditEnabled: Boolean,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -142,13 +152,16 @@ private fun DailyTimesCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                AddChip(onClick = onAddTime)
+                if (addRemoveTimeEnabled) {
+                    AddChip(onClick = onAddTime)
+                }
             }
-            val removeEnabled = canRemoveDailyTime(times.size)
+            val removeEnabled = addRemoveTimeEnabled && canRemoveDailyTime(times.size)
             times.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),
                     onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
+                    enabled = timeEditEnabled,
                     removeEnabled = removeEnabled,
                     onRemoveClick = { onRemoveTime(dailyTime.localId) },
                     index = index,
@@ -164,6 +177,7 @@ private fun DailyTimesCard(
 private fun DailyTimeRow(
     formattedTime: String,
     onClick: () -> Unit,
+    enabled: Boolean,
     removeEnabled: Boolean,
     onRemoveClick: () -> Unit,
     index: Int = 0,
@@ -201,6 +215,7 @@ private fun DailyTimeRow(
             }
         },
         onClick = onClick,
+        enabled = enabled,
         shapes = segmentedListItemShapes(
             index = index,
             count = count,

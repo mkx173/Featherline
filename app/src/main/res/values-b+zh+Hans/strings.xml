@@ -214,6 +214,17 @@
     </plurals>
     <string name="delete_group_medication_title">删除药物</string>
     <string name="delete_group_medication_confirmation">要将 %1$s 从这个分组中移除吗？</string>
+    <string name="archive_medication_group">归档分组</string>
+    <string name="archive_medication_group_title">归档分组</string>
+    <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它会从当前计划中移除，提醒会停止，现有记录会保留。</string>
+    <string name="archive_medication_group_failure">无法归档分组</string>
+    <string name="archive_and_recreate">归档并重建</string>
+    <string name="archive_and_recreate_medication_group_title">归档并重建分组</string>
+    <string name="archive_and_recreate_medication_group_confirmation">要归档这个分组，并创建一个从今天开始的新活跃副本吗？现有记录会保留在归档分组下。</string>
+    <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
+    <string name="group_locked_banner">这个分组已有计划记录。为了保持历史准确，计划和药物变更已锁定。使用“归档并重建”来开始新的方案。</string>
+    <string name="group_locked_time_note">这个时段的历史记录会跟随新的时间；每次实际用药时间不会改变。</string>
+    <string name="group_locked_slot_order_error">时间顺序必须保持不变。使用“归档并重建”来重新排序时段。</string>
     <string name="add">添加</string>
     <string name="add_medication_to_group">添加药物</string>
     <string name="edit_time">编辑</string>
@@ -230,6 +241,9 @@
     <string name="cancel">取消</string>
     <string name="save">保存</string>
     <string name="archive">归档</string>
+    <string name="plan_archived_groups">已归档分组</string>
+    <string name="plan_archived_groups_empty">暂无已归档分组</string>
+    <string name="plan_archived_groups_archived_at">归档于 %1$s</string>
     <string name="medication_source_catalog">内置</string>
     <string name="medication_source_custom">自定义名称</string>
     <string name="dose_type_mg_as_medicine">mg 剂量</string>
@@ -380,6 +394,9 @@
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 目标范围</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
     <string name="settings_backup_restore">备份与恢复</string>
+    <string name="settings_plan_history">计划与历史</string>
+    <string name="settings_show_archived_group_records">显示归档分组记录</string>
+    <string name="settings_show_archived_group_records_summary">在计划和历史中包含已归档分组的记录。</string>
     <string name="settings_backup_to_file">备份到文件</string>
     <string name="settings_restore_from_file">从备份恢复</string>
     <string name="settings_backup_export_success">备份已保存为 %1$s</string>

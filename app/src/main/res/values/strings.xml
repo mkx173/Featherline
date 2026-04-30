@@ -217,6 +217,17 @@
     </plurals>
     <string name="delete_group_medication_title">Delete medication</string>
     <string name="delete_group_medication_confirmation">Remove %1$s from this group?</string>
+    <string name="archive_medication_group">Archive group</string>
+    <string name="archive_medication_group_title">Archive group</string>
+    <string name="archive_medication_group_confirmation">Archive this medication group? It will leave the active Plan schedule, reminders will stop, and existing records will be kept.</string>
+    <string name="archive_medication_group_failure">Unable to archive group.</string>
+    <string name="archive_and_recreate">Archive and recreate</string>
+    <string name="archive_and_recreate_medication_group_title">Archive and recreate group</string>
+    <string name="archive_and_recreate_medication_group_confirmation">Archive this group and create a new active copy starting today? Existing records stay with the archived group.</string>
+    <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
+    <string name="group_locked_banner">This group has planned records. Schedule and medication changes are locked to keep history accurate. Use Archive and recreate to start a different regimen.</string>
+    <string name="group_locked_time_note">Past records for this slot will follow the new time. The time each dose was taken is unchanged.</string>
+    <string name="group_locked_slot_order_error">Slot order must stay the same. Use Archive and recreate to reorder slots.</string>
     <string name="add">Add</string>
     <string name="add_medication_to_group">Add medication</string>
     <string name="edit_time">Edit</string>
@@ -233,6 +244,9 @@
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="archive">Archive</string>
+    <string name="plan_archived_groups">Archived groups</string>
+    <string name="plan_archived_groups_empty">No archived groups.</string>
+    <string name="plan_archived_groups_archived_at">Archived %1$s</string>
     <string name="medication_source_catalog">Built-in</string>
     <string name="medication_source_custom">Custom name</string>
     <string name="dose_type_mg_as_medicine">Dose in mg</string>
@@ -386,6 +400,9 @@
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
+    <string name="settings_plan_history">Plan &amp; history</string>
+    <string name="settings_show_archived_group_records">Show archived group records</string>
+    <string name="settings_show_archived_group_records_summary">Include records from archived groups in Plan and History.</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
     <string name="settings_backup_export_success">Backup saved as %1$s</string>

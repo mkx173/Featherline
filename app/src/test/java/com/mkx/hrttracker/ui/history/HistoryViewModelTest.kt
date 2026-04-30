@@ -2,11 +2,13 @@ package com.mkx.hrttracker.ui.history
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
@@ -19,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -42,6 +45,7 @@ import java.time.YearMonth
 class HistoryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val dispatcher = StandardTestDispatcher()
     private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 26, 10, 0))
@@ -49,6 +53,7 @@ class HistoryViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
     }
 
     @After
@@ -78,6 +83,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -123,6 +129,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -160,6 +167,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -205,6 +213,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -244,6 +253,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -280,6 +290,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -306,6 +317,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -335,6 +347,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )
@@ -368,6 +381,7 @@ class HistoryViewModelTest {
         val viewModel = HistoryViewModel(
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             appTimeSource = appTimeSource,
         )

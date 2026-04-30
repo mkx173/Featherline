@@ -86,6 +86,121 @@ class MedicationGroupRepository @Inject constructor(
         deleteGroupInternal(uuid, deleteRelatedEntries = true)
     }
 
+    suspend fun archiveGroup(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        val nowEpochMillis = now.toEpochMilli()
+        databaseHolder.withTransaction { database ->
+            database.medicationGroupDao().updateGroupArchiveState(
+                uuid = uuid.toString(),
+                archivedAtEpochMillis = nowEpochMillis,
+                updatedAtEpochMillis = nowEpochMillis,
+                notificationsEnabled = false,
+            )
+        }
+    }
+
+    suspend fun archiveAndRecreateGroup(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+        today: LocalDate = LocalDate.now(),
+    ): UUID {
+        val nowEpochMillis = now.toEpochMilli()
+        val originalUuid = uuid.toString()
+        val newGroupUuid = UUID.randomUUID().toString()
+        return databaseHolder.withTransaction { database ->
+            val groupDao = database.medicationGroupDao()
+            val existingGroup = groupDao.getGroup(originalUuid)
+                ?: throw MedicationGroupNotFoundException(uuid)
+
+            groupDao.updateGroupArchiveState(
+                uuid = originalUuid,
+                archivedAtEpochMillis = nowEpochMillis,
+                updatedAtEpochMillis = nowEpochMillis,
+                notificationsEnabled = false,
+            )
+            groupDao.upsertGroupWithItems(
+                group = existingGroup.group.copy(
+                    uuid = newGroupUuid,
+                    scheduleSinceEpochDay = today.toEpochDay(),
+                    createdAtEpochMillis = nowEpochMillis,
+                    updatedAtEpochMillis = nowEpochMillis,
+                    archivedAtEpochMillis = null,
+                ),
+                items = existingGroup.items.map { item ->
+                    item.copy(
+                        uuid = UUID.randomUUID().toString(),
+                        groupUuid = newGroupUuid,
+                    )
+                },
+                scheduleTimes = existingGroup.scheduleTimes.map { scheduleTime ->
+                    scheduleTime.copy(groupUuid = newGroupUuid)
+                },
+                weeklyDays = existingGroup.weeklyDays.map { weeklyDay ->
+                    weeklyDay.copy(groupUuid = newGroupUuid)
+                },
+            )
+            UUID.fromString(newGroupUuid)
+        }
+    }
+
+    suspend fun updateScheduleTimes(
+        groupUuid: UUID,
+        newTimes: List<LocalTime>,
+        now: Instant = Instant.now(),
+    ) {
+        databaseHolder.withTransaction { database ->
+            val groupDao = database.medicationGroupDao()
+            val logDao = database.medicationLogDao()
+            val existingGroup = groupDao.getGroup(groupUuid.toString())
+                ?: throw MedicationGroupNotFoundException(groupUuid)
+            val oldTimes = existingGroup.scheduleTimes
+                .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
+                .map { time -> LocalTime.of(time.hourOfDay, time.minuteOfHour) }
+            val normalizedNewTimes = newTimes.map { time ->
+                time.withSecond(0).withNano(0)
+            }
+
+            validateScheduleTimeMigration(oldTimes, normalizedNewTimes)
+
+            val entryIdsBySlot = oldTimes.mapIndexed { index, oldTime ->
+                if (oldTime == normalizedNewTimes[index]) {
+                    emptyList()
+                } else {
+                    logDao.getPlannedEntryIdsForGroupSlotTime(
+                        groupUuid = groupUuid.toString(),
+                        oldTimeIso = oldTime.toScheduleTimeIso(),
+                    )
+                }
+            }
+
+            groupDao.updateGroupUpdatedAt(
+                uuid = groupUuid.toString(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
+            groupDao.deleteScheduleTimesForGroup(groupUuid.toString())
+            groupDao.insertScheduleTimes(
+                normalizedNewTimes.mapIndexed { index, time ->
+                    MedicationGroupScheduleTimeEntity(
+                        groupUuid = groupUuid.toString(),
+                        sortOrder = index,
+                        hourOfDay = time.hour,
+                        minuteOfHour = time.minute,
+                    )
+                }
+            )
+            entryIdsBySlot.forEachIndexed { index, entryUuids ->
+                if (entryUuids.isNotEmpty()) {
+                    logDao.updateScheduledForTimeForEntries(
+                        entryUuids = entryUuids,
+                        newTimeIso = normalizedNewTimes[index].toScheduleTimeIso(),
+                    )
+                }
+            }
+        }
+    }
+
     suspend fun saveGroup(
         uuid: UUID?,
         name: String,
@@ -272,6 +387,34 @@ class MedicationGroupRepository @Inject constructor(
             database.medicationGroupDao().deleteGroup(groupUuid)
         }
     }
+}
+
+class MedicationGroupNotFoundException(
+    uuid: UUID,
+) : NoSuchElementException("Medication group $uuid was not found.")
+
+class ScheduleTimeCountMismatchException : IllegalArgumentException(
+    "Schedule time count cannot change in locked mode."
+)
+
+class ScheduleTimeReorderNotAllowedException : IllegalArgumentException(
+    "Slot order must stay the same. Use archive to reorder slots."
+)
+
+internal fun validateScheduleTimeMigration(
+    oldTimes: List<LocalTime>,
+    newTimes: List<LocalTime>,
+) {
+    if (oldTimes.size != newTimes.size) {
+        throw ScheduleTimeCountMismatchException()
+    }
+    if (newTimes.zipWithNext().any { (first, second) -> !first.isBefore(second) }) {
+        throw ScheduleTimeReorderNotAllowedException()
+    }
+}
+
+private fun LocalTime.toScheduleTimeIso(): String {
+    return withSecond(0).withNano(0).toString()
 }
 
 data class MedicationGroupMedicationInput(

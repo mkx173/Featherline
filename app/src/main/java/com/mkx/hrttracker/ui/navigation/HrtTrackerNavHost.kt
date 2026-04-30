@@ -484,7 +484,20 @@ fun HrtTrackerNavHost(
                 MedicationGroupEditorScreen(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
-                    onGroupSaved = { navController.popBackStack() }
+                    onGroupSaved = { navController.popBackStack() },
+                    onGroupRecreated = { recreatedGroupId ->
+                        navController.navigate(
+                            Screen.EditMedicationGroup.createRoute(
+                                topLevelParentRoute = Screen.Plan.route,
+                                groupId = recreatedGroupId.toString()
+                            )
+                        ) {
+                            popUpTo(Screen.Plan.route) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
         }

@@ -2,6 +2,7 @@ package com.mkx.hrttracker.reminder
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDateTime
@@ -20,6 +21,7 @@ internal fun buildNextMedicationReminderPlans(
     lookaheadDays: Long = 90L
 ): List<MedicationReminderPlan> {
     return groups.asSequence()
+        .filter(MedicationGroup::isActive)
         .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
         .mapNotNull { group ->
             group.schedule

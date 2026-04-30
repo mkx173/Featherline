@@ -99,6 +99,31 @@ interface MedicationLogDao {
     )
     suspend fun reclassifyEntriesForDeletedGroup(groupUuid: String)
 
+    @Query(
+        """
+        SELECT uuid FROM medication_log_entries
+        WHERE sourceGroupUuid = :groupUuid
+          AND scheduledForIso IS NOT NULL
+          AND substr(scheduledForIso, 12) = :oldTimeIso
+        """
+    )
+    suspend fun getPlannedEntryIdsForGroupSlotTime(
+        groupUuid: String,
+        oldTimeIso: String,
+    ): List<String>
+
+    @Query(
+        """
+        UPDATE medication_log_entries
+        SET scheduledForIso = substr(scheduledForIso, 1, 11) || :newTimeIso
+        WHERE uuid IN (:entryUuids)
+        """
+    )
+    suspend fun updateScheduledForTimeForEntries(
+        entryUuids: List<String>,
+        newTimeIso: String,
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: MedicationLogEntryEntity)
 

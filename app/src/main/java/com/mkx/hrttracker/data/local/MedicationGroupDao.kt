@@ -86,6 +86,34 @@ interface MedicationGroupDao {
 
     @Query(
         """
+        UPDATE medication_groups
+        SET archivedAtEpochMillis = :archivedAtEpochMillis,
+            updatedAtEpochMillis = :updatedAtEpochMillis,
+            notificationsEnabled = :notificationsEnabled
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateGroupArchiveState(
+        uuid: String,
+        archivedAtEpochMillis: Long?,
+        updatedAtEpochMillis: Long,
+        notificationsEnabled: Boolean,
+    )
+
+    @Query(
+        """
+        UPDATE medication_groups
+        SET updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE uuid = :uuid
+        """
+    )
+    suspend fun updateGroupUpdatedAt(
+        uuid: String,
+        updatedAtEpochMillis: Long,
+    )
+
+    @Query(
+        """
         DELETE FROM medication_groups
         """
     )

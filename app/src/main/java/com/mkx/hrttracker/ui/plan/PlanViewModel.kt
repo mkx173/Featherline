@@ -7,7 +7,10 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +42,14 @@ class PlanViewModel @Inject constructor(
         currentDateTime
     ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
-        val groups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
-        val entries = entriesOrNull.orEmpty()
+        val allGroups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
+        val groups = allGroups.filter(MedicationGroup::isActive)
+        val archivedGroups = allGroups.filter(MedicationGroup::isArchived)
+        val entries = visibleMedicationEntries(
+            entries = entriesOrNull.orEmpty(),
+            groups = allGroups,
+            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
+        )
         val today = now.toLocalDate()
         val calendarRange = buildPlanCalendarRange(
             today = today,
@@ -69,6 +78,8 @@ class PlanViewModel @Inject constructor(
             selectedDate = selection,
             entries = entries,
             medicationGroups = groups,
+            archivedMedicationGroups = archivedGroups,
+            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
             remindersEnabled = settingsState.remindersEnabled,
             calendarDays = buildPlanCalendarDayUiStateIncludingDisplayedDate(
                 groups = groups,
@@ -185,6 +196,8 @@ data class PlanUiState(
     val selectedDate: LocalDate? = null,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
+    val archivedMedicationGroups: List<MedicationGroup> = emptyList(),
+    val showArchivedGroupRecords: Boolean = true,
     val remindersEnabled: Boolean = true,
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
     val daySchedule: PlanDaySchedule = PlanDaySchedule(

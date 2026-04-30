@@ -48,7 +48,11 @@ internal fun WeeklyScheduleEditor(
     onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
-    onTimeChange: (LocalTime) -> Unit
+    onTimeChange: (LocalTime) -> Unit,
+    sinceEnabled: Boolean = true,
+    intervalEnabled: Boolean = true,
+    daySelectionEnabled: Boolean = true,
+    timeEditEnabled: Boolean = true,
 ) {
     val totalCount = if (previewOccurrences.isNotEmpty()) 5 else 4
     Column(
@@ -59,6 +63,7 @@ internal fun WeeklyScheduleEditor(
             value = dateFormatter(sinceDate),
             icon = Icons.Rounded.Event,
             onClick = { onSinceDateChange(sinceDate) },
+            enabled = sinceEnabled,
             index = 0,
             count = totalCount
         )
@@ -73,6 +78,7 @@ internal fun WeeklyScheduleEditor(
             ),
             onDecreaseClick = { onIntervalChange(decrementScheduleInterval(intervalWeeks)) },
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
+            enabled = intervalEnabled,
             index = 1,
             count = totalCount
         )
@@ -81,6 +87,7 @@ internal fun WeeklyScheduleEditor(
             index = 2,
             count = totalCount,
             onClick = {},
+            enabled = daySelectionEnabled,
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -98,6 +105,7 @@ internal fun WeeklyScheduleEditor(
                         weekday.getDisplayName(TextStyle.NARROW, appLocale)
                     },
                     onOptionToggled = onDayChange,
+                    enabled = daySelectionEnabled,
                     layout = ConnectedButtonGroupLayout.ROW,
                     expandOptions = true,
                     colors = ToggleButtonDefaults.toggleButtonColors(
@@ -112,6 +120,7 @@ internal fun WeeklyScheduleEditor(
             value = time.format(timeFormatter),
             icon = Icons.Rounded.Schedule,
             onClick = { onTimeChange(time) },
+            enabled = timeEditEnabled,
             index = 3,
             count = totalCount
         )

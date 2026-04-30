@@ -46,6 +46,7 @@ class SettingsRepository @Inject constructor(
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
@@ -108,6 +109,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setShowArchivedGroupRecords(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[showArchivedGroupRecordsKey] = enabled
+        }
+    }
+
     suspend fun setScreenLockProtectionEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[screenLockProtectionKey] = enabled
@@ -136,6 +143,7 @@ class SettingsRepository @Inject constructor(
         darkModeOption: DarkModeOption,
         adaptiveColorEnabled: Boolean,
         remindersEnabled: Boolean,
+        showArchivedGroupRecords: Boolean,
         appLockGracePeriodOption: AppLockGracePeriodOption,
         hideScreenContentEnabled: Boolean,
         onboardingCompleted: Boolean,
@@ -152,6 +160,7 @@ class SettingsRepository @Inject constructor(
             preferences[darkModeKey] = darkModeOption.name
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[remindersEnabledKey] = remindersEnabled
+            preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
             preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
             preferences[hideScreenContentKey] = hideScreenContentEnabled
             preferences[onboardingCompletedKey] = onboardingCompleted
@@ -187,6 +196,7 @@ class SettingsRepository @Inject constructor(
                     ?.let { unit -> analyteKey to unit }
             }.toMap(),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
+            showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
                 preferences[appLockGracePeriodKey]
             ),

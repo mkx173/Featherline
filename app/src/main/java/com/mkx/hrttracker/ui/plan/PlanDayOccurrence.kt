@@ -38,8 +38,8 @@ fun buildPlanDaySchedule(
     now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault()
 ): PlanDaySchedule {
-    val scheduledEntries = groups
-        .filter { group -> group.schedule.isScheduledOn(date) }
+    val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(date) }
+    val scheduledEntries = scheduledGroups
         .flatMap { group ->
             val medicationsBySignature = group.medications
                 .groupBy(MedicationSignature::fromGroupMedication)
@@ -80,8 +80,12 @@ fun buildPlanDaySchedule(
 
     val unplannedEntries = entries
         .filter { entry ->
-            entry.scheduledFor == null &&
-                entry.appliedAt.atZone(zoneId).toLocalDate() == date
+            entry.planCalendarDate(zoneId) == date &&
+                isPlanOffPlanEntry(
+                    entry = entry,
+                    scheduledGroups = scheduledGroups,
+                    date = date,
+                )
         }
         .sortedByDescending { it.appliedAt }
 

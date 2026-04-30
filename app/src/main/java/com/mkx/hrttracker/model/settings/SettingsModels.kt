@@ -109,6 +109,7 @@ data class SettingsState(
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val remindersEnabled: Boolean = true,
+    val showArchivedGroupRecords: Boolean = true,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
         AppLockGracePeriodOption.IMMEDIATELY,

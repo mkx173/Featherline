@@ -7,6 +7,7 @@ import android.content.Intent
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -60,7 +61,7 @@ class MedicationReminderScheduler @Inject constructor(
         }
 
         val group = medicationGroupRepository.getGroup(groupUuid) ?: return
-        if (!group.notificationsEnabled) {
+        if (group.isArchived() || !group.notificationsEnabled) {
             return
         }
 

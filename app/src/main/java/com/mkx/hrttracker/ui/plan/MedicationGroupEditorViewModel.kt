@@ -67,7 +67,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         cachedEditingGroup?.toEditorState(
             remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
-            relatedEntryCount = 0
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
         ) ?: MedicationGroupEditorUiState(
             editingGroupId = editingGroupId,
             isLoadingGroupForEditing = editingGroupUuid != null
@@ -123,13 +124,23 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 .combine(
                     _uiState.map { it.editingGroupId }.distinctUntilChanged(),
                 ) { entriesOrNull, currentEditingGroupId ->
-                    relatedEntryCountForGroup(
+                    entryCountsForGroup(
                         entries = entriesOrNull.orEmpty(),
                         groupId = currentEditingGroupId,
                     )
                 }
-                .collect { count ->
-                    _uiState.update { it.copy(relatedEntryCount = count) }
+                .collect { counts ->
+                    _uiState.update {
+                        it.copy(
+                            relatedEntryCount = counts.relatedEntryCount,
+                            plannedEntryCount = counts.plannedEntryCount,
+                            scheduleTimeOrderError = if (counts.plannedEntryCount == 0) {
+                                false
+                            } else {
+                                it.scheduleTimeOrderError
+                            },
+                        )
+                    }
                 }
         }
 
@@ -149,37 +160,64 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateScheduleType(scheduleType: MedicationGroupScheduleType) {
         _uiState.update {
-            it.copy(scheduleType = scheduleType)
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(scheduleType = scheduleType)
+            }
         }
     }
 
     fun updateWeeklyIntervalWeeks(intervalWeeks: String) {
         _uiState.update {
-            it.copy(weeklyIntervalWeeks = parseScheduleInterval(intervalWeeks).toString())
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(weeklyIntervalWeeks = parseScheduleInterval(intervalWeeks).toString())
+            }
         }
     }
 
     fun toggleWeeklyDayOfWeek(dayOfWeek: DayOfWeek) {
         _uiState.update {
-            it.copy(weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek))
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek))
+            }
         }
     }
 
     fun updateWeeklyTime(time: LocalTime) {
         _uiState.update {
-            it.copy(weeklyTime = time.withSecond(0).withNano(0))
+            if (it.isArchived) {
+                it
+            } else {
+                it.copy(
+                    weeklyTime = time.withSecond(0).withNano(0),
+                    scheduleTimeOrderError = false,
+                )
+            }
         }
     }
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            it.copy(sinceDate = date)
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(sinceDate = date)
+            }
         }
     }
 
     fun updateDailyIntervalDays(intervalDays: String) {
         _uiState.update {
-            it.copy(dailyIntervalDays = parseScheduleInterval(intervalDays).toString())
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(dailyIntervalDays = parseScheduleInterval(intervalDays).toString())
+            }
         }
     }
 
@@ -198,15 +236,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun addDailyTime(time: LocalTime) {
         _uiState.update {
-            it.copy(
-                dailyTimes = appendDailyTime(it.dailyTimes, time)
-            )
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(
+                    dailyTimes = appendDailyTime(it.dailyTimes, time)
+                )
+            }
         }
     }
 
     fun updateDailyTime(localId: String, time: LocalTime) {
         _uiState.update { currentState ->
-            currentState.copy(
+            if (currentState.isArchived) {
+                return@update currentState
+            }
+            val updatedState = currentState.copy(
                 dailyTimes = currentState.dailyTimes.map { dailyTime ->
                     if (dailyTime.localId == localId) {
                         dailyTime.copy(time = time.withSecond(0).withNano(0))
@@ -215,12 +260,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     }
                 }
             )
+            updatedState.copy(
+                scheduleTimeOrderError = updatedState.isLocked &&
+                    !areScheduleTimesInLockedOrder(scheduleTimesForSave(updatedState))
+            )
         }
     }
 
     fun removeDailyTime(localId: String) {
         _uiState.update { currentState ->
-            if (currentState.dailyTimes.size <= 1) {
+            if (currentState.areScheduleShapeFieldsLocked || currentState.dailyTimes.size <= 1) {
                 currentState
             } else {
                 currentState.copy(
@@ -234,23 +283,31 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun showAddMedicationEditor() {
         _uiState.update {
-            it.copy(
-                editingMedication = MedicationGroupMedicationEditorUiState(),
-                isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null,
-                medicationEditorInfoMessageRes = null,
-            )
+            if (it.areMedicationsLocked) {
+                it
+            } else {
+                it.copy(
+                    editingMedication = MedicationGroupMedicationEditorUiState(),
+                    isMedicationEditorSaved = false,
+                    medicationEditorErrorMessageRes = null,
+                    medicationEditorInfoMessageRes = null,
+                )
+            }
         }
     }
 
     fun removeMedication(localId: String) {
         _uiState.update {
-            it.copy(
-                medications = removeMedicationItem(
-                    medications = it.medications,
-                    localId = localId
+            if (it.areMedicationsLocked) {
+                it
+            } else {
+                it.copy(
+                    medications = removeMedicationItem(
+                        medications = it.medications,
+                        localId = localId
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -288,14 +345,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun showMedicationEditor(localId: String) {
         _uiState.update { currentState ->
-            currentState.copy(
-                editingMedication = currentState.medications
-                    .firstOrNull { it.localId == localId }
-                    ?.toEditorUiState(),
-                isMedicationEditorSaved = false,
-                medicationEditorErrorMessageRes = null,
-                medicationEditorInfoMessageRes = null,
-            )
+            if (currentState.areMedicationsLocked) {
+                currentState
+            } else {
+                currentState.copy(
+                    editingMedication = currentState.medications
+                        .firstOrNull { it.localId == localId }
+                        ?.toEditorUiState(),
+                    isMedicationEditorSaved = false,
+                    medicationEditorErrorMessageRes = null,
+                    medicationEditorInfoMessageRes = null,
+                )
+            }
         }
     }
 
@@ -337,6 +398,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveEditingMedication() {
         val currentState = _uiState.value
+        if (currentState.areMedicationsLocked) {
+            return
+        }
         val editingMedication = currentState.editingMedication ?: return
         val errorRes = editingMedication.draft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
@@ -389,7 +453,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
         if (
             currentState.isSaving ||
             currentState.isDeleting ||
+            currentState.isArchiving ||
+            currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries ||
+            currentState.isArchived ||
+            currentState.scheduleTimeOrderError ||
             !hasSaveableMedicationGroupContent(currentState)
         ) {
             return
@@ -415,6 +483,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             val savedGroupUuidResult = runCatching {
+                if (currentState.isLocked && lockedScheduleTimesChanged(currentState)) {
+                    medicationGroupRepository.updateScheduleTimes(
+                        groupUuid = UUID.fromString(checkNotNull(currentState.editingGroupId)),
+                        newTimes = scheduleTimesForSave(currentState),
+                    )
+                }
                 medicationGroupRepository.saveGroup(
                     uuid = currentState.editingGroupId?.let(UUID::fromString),
                     name = resolvedGroupName,
@@ -474,7 +548,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun showDeleteConfirmation() {
-        if (_uiState.value.isEditing) {
+        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
             _uiState.update {
                 it.copy(isDeleteConfirmationVisible = true)
             }
@@ -484,6 +558,111 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun dismissDeleteConfirmation() {
         _uiState.update {
             it.copy(isDeleteConfirmationVisible = false)
+        }
+    }
+
+    fun showArchiveConfirmation() {
+        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
+            _uiState.update {
+                it.copy(isArchiveConfirmationVisible = true)
+            }
+        }
+    }
+
+    fun dismissArchiveConfirmation() {
+        _uiState.update {
+            it.copy(isArchiveConfirmationVisible = false)
+        }
+    }
+
+    fun showArchiveAndRecreateConfirmation() {
+        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
+            _uiState.update {
+                it.copy(isArchiveAndRecreateConfirmationVisible = true)
+            }
+        }
+    }
+
+    fun dismissArchiveAndRecreateConfirmation() {
+        _uiState.update {
+            it.copy(isArchiveAndRecreateConfirmationVisible = false)
+        }
+    }
+
+    fun archiveGroup() {
+        val groupId = _uiState.value.editingGroupId ?: return
+        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isArchiving = true,
+                    isArchiveConfirmationVisible = false,
+                    archiveMedicationGroupResult = null,
+                )
+            }
+
+            val archiveResult = runCatching {
+                medicationGroupRepository.archiveGroup(uuid)
+            }.fold(
+                onSuccess = { null },
+                onFailure = { ArchiveMedicationGroupResult.FAILURE },
+            )
+            val archived = archiveResult == null
+
+            if (archived) {
+                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isArchiving = false,
+                    isDeleted = archived,
+                    archiveMedicationGroupResult = archiveResult,
+                )
+            }
+        }
+    }
+
+    fun archiveAndRecreateGroup() {
+        val groupId = _uiState.value.editingGroupId ?: return
+        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isRecreatingAfterArchive = true,
+                    isArchiveAndRecreateConfirmationVisible = false,
+                    archiveAndRecreateMedicationGroupResult = null,
+                    recreatedGroupId = null,
+                )
+            }
+
+            val recreatedGroupUuidResult = runCatching {
+                medicationGroupRepository.archiveAndRecreateGroup(
+                    uuid = uuid,
+                    today = currentMinute.value.toLocalDate(),
+                )
+            }
+            val recreateResult = recreatedGroupUuidResult.fold(
+                onSuccess = { null },
+                onFailure = { ArchiveAndRecreateMedicationGroupResult.FAILURE },
+            )
+            val recreatedGroupUuid = recreatedGroupUuidResult.getOrNull()
+
+            if (recreatedGroupUuid != null) {
+                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                runCatching { medicationReminderScheduler.rescheduleAll() }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isRecreatingAfterArchive = false,
+                    recreatedGroupId = recreatedGroupUuid?.toString(),
+                    archiveAndRecreateMedicationGroupResult = recreateResult,
+                )
+            }
         }
     }
 
@@ -570,6 +749,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(deleteMedicationGroupResult = null) }
     }
 
+    fun consumeArchiveMedicationGroupResult() {
+        _uiState.update { it.copy(archiveMedicationGroupResult = null) }
+    }
+
+    fun consumeArchiveAndRecreateMedicationGroupResult() {
+        _uiState.update { it.copy(archiveAndRecreateMedicationGroupResult = null) }
+    }
+
+    fun consumeRecreatedGroupId() {
+        _uiState.update { it.copy(recreatedGroupId = null) }
+    }
+
     private fun loadGroupForEditing(uuid: UUID) {
         viewModelScope.launch {
             val group = medicationGroupRepository.getGroup(uuid)
@@ -583,6 +774,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 group.toEditorState(
                     remindersEnabled = remindersEnabled,
                     relatedEntryCount = currentState.relatedEntryCount,
+                    plannedEntryCount = currentState.plannedEntryCount,
                 )
             }
         }
@@ -647,7 +839,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
 private fun MedicationGroup.toEditorState(
     remindersEnabled: Boolean,
     relatedEntryCount: Int,
+    plannedEntryCount: Int,
 ): MedicationGroupEditorUiState {
+    val normalizedScheduleTimes = schedule.times
+        .ifEmpty { listOf(LocalTime.of(9, 0)) }
+        .sorted()
+    val editorMedications = medications.map { medication ->
+        MedicationGroupMedicationItemUiState(
+            localId = medication.uuid.toString(),
+            persistedMedicationId = medication.uuid.toString(),
+            details = medication.details,
+            count = normalizeMedicationCount(
+                medication.details.applicationType,
+                medication.count
+            )
+        )
+    }
     return MedicationGroupEditorUiState(
         editingGroupId = uuid.toString(),
         groupName = name,
@@ -670,10 +877,7 @@ private fun MedicationGroup.toEditorState(
             "1"
         },
         dailyTimes = if (schedule.type == MedicationGroupScheduleType.DAILY) {
-            schedule.times
-                .ifEmpty { listOf(LocalTime.of(9, 0)) }
-                .sorted()
-                .map { time -> MedicationGroupScheduleTimeUiState(time = time) }
+            normalizedScheduleTimes.map { time -> MedicationGroupScheduleTimeUiState(time = time) }
         } else {
             listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
         },
@@ -683,18 +887,30 @@ private fun MedicationGroup.toEditorState(
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
         isLoadingGroupForEditing = false,
-        medications = medications.map { medication ->
-            MedicationGroupMedicationItemUiState(
-                localId = medication.uuid.toString(),
-                persistedMedicationId = medication.uuid.toString(),
-                details = medication.details,
-                count = normalizeMedicationCount(
-                    medication.details.applicationType,
-                    medication.count
-                )
-            )
-        },
+        medications = editorMedications,
         relatedEntryCount = relatedEntryCount,
+        plannedEntryCount = plannedEntryCount,
+        isArchived = archivedAt != null,
+        originalScheduleType = schedule.type,
+        originalSinceDate = schedule.since,
+        originalWeeklyIntervalWeeks = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
+            parseScheduleInterval(schedule.interval.toString()).toString()
+        } else {
+            "1"
+        },
+        originalWeeklyDaysOfWeek = schedule.weeklyDaysOfWeek,
+        originalWeeklyTime = schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
+        originalDailyIntervalDays = if (schedule.type == MedicationGroupScheduleType.DAILY) {
+            parseScheduleInterval(schedule.interval.toString()).toString()
+        } else {
+            "1"
+        },
+        originalDailyTimes = if (schedule.type == MedicationGroupScheduleType.DAILY) {
+            normalizedScheduleTimes
+        } else {
+            listOf(LocalTime.of(9, 0))
+        },
+        originalMedications = editorMedications,
     )
 }
 
@@ -829,19 +1045,46 @@ data class MedicationGroupEditorUiState(
     val medicationEditorInfoMessageRes: Int? = null,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
+    val isArchiving: Boolean = false,
+    val isRecreatingAfterArchive: Boolean = false,
     val isDeletingRelatedEntries: Boolean = false,
     val isLoadingGroupForEditing: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val isArchived: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
+    val plannedEntryCount: Int = 0,
+    val scheduleTimeOrderError: Boolean = false,
+    val originalScheduleType: MedicationGroupScheduleType? = null,
+    val originalSinceDate: LocalDate? = null,
+    val originalWeeklyIntervalWeeks: String = "1",
+    val originalWeeklyDaysOfWeek: Set<DayOfWeek> = emptySet(),
+    val originalWeeklyTime: LocalTime = LocalTime.of(9, 0),
+    val originalDailyIntervalDays: String = "1",
+    val originalDailyTimes: List<LocalTime> = emptyList(),
+    val originalMedications: List<MedicationGroupMedicationItemUiState> = emptyList(),
+    val isArchiveConfirmationVisible: Boolean = false,
+    val isArchiveAndRecreateConfirmationVisible: Boolean = false,
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
+    val recreatedGroupId: String? = null,
+    val archiveMedicationGroupResult: ArchiveMedicationGroupResult? = null,
+    val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
     val deleteMedicationGroupResult: DeleteMedicationGroupResult? = null,
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null
+
+    val isLocked: Boolean
+        get() = isEditing && !isArchived && plannedEntryCount > 0
+
+    val areScheduleShapeFieldsLocked: Boolean
+        get() = isLocked || isArchived
+
+    val areMedicationsLocked: Boolean
+        get() = isLocked || isArchived
 }
 
 enum class SaveMedicationGroupResult {
@@ -854,6 +1097,14 @@ enum class DeleteRelatedEntriesResult {
 }
 
 enum class DeleteMedicationGroupResult {
+    FAILURE,
+}
+
+enum class ArchiveMedicationGroupResult {
+    FAILURE,
+}
+
+enum class ArchiveAndRecreateMedicationGroupResult {
     FAILURE,
 }
 
@@ -934,16 +1185,53 @@ internal fun resolveMedicationGroupColorKey(
     }
 }
 
+internal data class MedicationGroupEntryCounts(
+    val relatedEntryCount: Int,
+    val plannedEntryCount: Int,
+)
+
+internal fun entryCountsForGroup(
+    entries: List<MedicationLogEntry>,
+    groupId: String?,
+): MedicationGroupEntryCounts {
+    if (groupId == null) {
+        return MedicationGroupEntryCounts(relatedEntryCount = 0, plannedEntryCount = 0)
+    }
+
+    val groupUuid = runCatching { UUID.fromString(groupId) }.getOrNull()
+        ?: return MedicationGroupEntryCounts(relatedEntryCount = 0, plannedEntryCount = 0)
+    val relatedEntries = entries.filter { entry -> entry.sourceGroupUuid == groupUuid }
+    return MedicationGroupEntryCounts(
+        relatedEntryCount = relatedEntries.size,
+        plannedEntryCount = relatedEntries.count { entry -> entry.scheduledFor != null },
+    )
+}
+
 internal fun relatedEntryCountForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
-): Int {
-    if (groupId == null) {
-        return 0
-    }
+): Int = entryCountsForGroup(entries, groupId).relatedEntryCount
 
-    val groupUuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return 0
-    return entries.count { entry -> entry.sourceGroupUuid == groupUuid }
+internal fun scheduleTimesForSave(uiState: MedicationGroupEditorUiState): List<LocalTime> {
+    return when (uiState.scheduleType) {
+        MedicationGroupScheduleType.WEEKLY -> listOf(uiState.weeklyTime.withSecond(0).withNano(0))
+        MedicationGroupScheduleType.DAILY -> uiState.dailyTimes
+            .ifEmpty { listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))) }
+            .map { dailyTime -> dailyTime.time.withSecond(0).withNano(0) }
+    }
+}
+
+internal fun lockedScheduleTimesChanged(uiState: MedicationGroupEditorUiState): Boolean {
+    val originalTimes = when (uiState.originalScheduleType) {
+        MedicationGroupScheduleType.WEEKLY -> listOf(uiState.originalWeeklyTime)
+        MedicationGroupScheduleType.DAILY -> uiState.originalDailyTimes
+        null -> emptyList()
+    }
+    return scheduleTimesForSave(uiState) != originalTimes
+}
+
+internal fun areScheduleTimesInLockedOrder(times: List<LocalTime>): Boolean {
+    return times.zipWithNext().all { (first, second) -> first.isBefore(second) }
 }
 
 data class MedicationGroupMedicationItemUiState(

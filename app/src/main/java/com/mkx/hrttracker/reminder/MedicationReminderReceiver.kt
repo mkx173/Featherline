@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -53,7 +54,7 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                 }
 
                 val group = medicationGroupRepository.getGroup(groupUuid)
-                if (group != null && group.notificationsEnabled) {
+                if (group != null && group.isActive() && group.notificationsEnabled) {
                     val entries = medicationLogRepository.getScheduledGroupEntriesSince(scheduledAt)
                     val isCurrentSlotFulfilled = isSlotFulfilled(
                         group = group,

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,7 +29,7 @@ class MainViewModel @Inject constructor(
         currentDateTime
     ) { groupsOrNull, entriesOrNull, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
-        val groups = groupsOrNull.orEmpty()
+        val groups = groupsOrNull.orEmpty().filter(MedicationGroup::isActive)
         val entries = entriesOrNull.orEmpty()
 
         MainUiState(

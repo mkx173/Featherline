@@ -96,6 +96,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setShowArchivedGroupRecords(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setShowArchivedGroupRecords(enabled)
+        }
+    }
+
     fun setAppLanguageOption(option: AppLanguageOption) {
         settingsRepository.setAppLanguageOption(option)
     }

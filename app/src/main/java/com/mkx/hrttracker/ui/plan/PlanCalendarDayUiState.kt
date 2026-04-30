@@ -94,7 +94,7 @@ internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
     return scheduledFor?.toLocalDate() ?: appliedAt.atZone(zoneId).toLocalDate()
 }
 
-private fun isPlanOffPlanEntry(
+internal fun isPlanOffPlanEntry(
     entry: MedicationLogEntry,
     scheduledGroups: List<MedicationGroup>,
     date: LocalDate,

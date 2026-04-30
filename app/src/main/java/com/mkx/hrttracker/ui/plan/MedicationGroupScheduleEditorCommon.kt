@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -42,6 +43,7 @@ internal fun IntervalStepperCard(
     unit: String,
     onDecreaseClick: () -> Unit,
     onIncreaseClick: () -> Unit,
+    enabled: Boolean = true,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -50,6 +52,7 @@ internal fun IntervalStepperCard(
         index = index,
         count = count,
         onClick = { },
+        enabled = enabled,
         overlineContent = {
             Text(
                 text = label.uppercase(),
@@ -58,28 +61,28 @@ internal fun IntervalStepperCard(
             )
         },
         leadingContent = {
-            Icon(
-                imageVector = Icons.Rounded.Sync,
-                contentDescription = null
-            )
+                    Icon(
+                        imageVector = Icons.Rounded.Sync,
+                        contentDescription = null
+                    )
         },
         trailingContent = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                StepperCircleButton(
-                    icon = Icons.Rounded.Remove,
-                    contentDescription = stringResource(R.string.decrease_schedule_interval),
-                    enabled = value > 1,
-                    onClick = onDecreaseClick
-                )
-                StepperCircleButton(
-                    icon = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.increase_schedule_interval),
-                    enabled = true,
-                    onClick = onIncreaseClick
-                )
+                    StepperCircleButton(
+                        icon = Icons.Rounded.Remove,
+                        contentDescription = stringResource(R.string.decrease_schedule_interval),
+                        enabled = enabled && value > 1,
+                        onClick = onDecreaseClick
+                    )
+                    StepperCircleButton(
+                        icon = Icons.Rounded.Add,
+                        contentDescription = stringResource(R.string.increase_schedule_interval),
+                        enabled = enabled,
+                        onClick = onIncreaseClick
+                    )
             }
         },
     ) {
@@ -134,6 +137,7 @@ internal fun EditorFieldRow(
     value: String,
     icon: ImageVector,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -141,6 +145,7 @@ internal fun EditorFieldRow(
         index = index,
         count = count,
         onClick = onClick,
+        enabled = enabled,
         leadingContent = {
             Icon(
                 imageVector = icon,
@@ -230,15 +235,53 @@ internal fun NotificationsCard(
 internal fun DeleteMedicationGroupRecordsCard(
     enabled: Boolean,
     onClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 2,
 ) {
     DangerZoneListItem(
         label = stringResource(R.string.delete_group_related_records),
         enabled = enabled,
         onClick = onClick,
         icon = Icons.Rounded.PlaylistRemove,
-        index = 0,
-        count = 2,
+        index = index,
+        count = count,
         supportText = if (!enabled) stringResource(R.string.delete_group_related_records_disabled) else null
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun ArchiveMedicationGroupCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    DangerZoneListItem(
+        label = stringResource(R.string.archive_medication_group),
+        enabled = enabled,
+        onClick = onClick,
+        icon = Icons.Rounded.Archive,
+        index = index,
+        count = count,
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun ArchiveAndRecreateMedicationGroupCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    DangerZoneListItem(
+        label = stringResource(R.string.archive_and_recreate),
+        enabled = enabled,
+        onClick = onClick,
+        icon = Icons.Rounded.Archive,
+        index = index,
+        count = count,
     )
 }
 
@@ -247,13 +290,15 @@ internal fun DeleteMedicationGroupRecordsCard(
 internal fun DeleteMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
+    index: Int = 1,
+    count: Int = 2,
 ) {
     DangerZoneListItem(
         label = stringResource(R.string.delete_medication_group),
         enabled = enabled,
         onClick = onClick,
-        index = 1,
-        count = 2
+        index = index,
+        count = count
     )
 }
 
