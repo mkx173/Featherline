@@ -93,6 +93,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.CalendarLayoutInfo
@@ -1380,6 +1381,7 @@ private fun HistoryMonthPickerDialog(
             calendarEndMonth = calendarEndMonth
         )
     }
+    var expandedDropdown by remember { mutableStateOf<HistoryMonthPickerDropdownKind?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1394,6 +1396,14 @@ private fun HistoryMonthPickerDialog(
                 HistoryMonthPickerDropdown(
                     label = stringResource(R.string.history_month_picker_month),
                     value = historyMonthPickerMonthLabel(pickerMonth.monthValue, appLocale),
+                    expanded = expandedDropdown == HistoryMonthPickerDropdownKind.MONTH,
+                    onExpandedChange = { expanded ->
+                        expandedDropdown = if (expanded) {
+                            HistoryMonthPickerDropdownKind.MONTH
+                        } else {
+                            null
+                        }
+                    },
                     items = monthOptions.map { monthValue ->
                         HrtDropdownMenuItem(
                             text = historyMonthPickerMonthLabel(monthValue, appLocale),
@@ -1412,6 +1422,14 @@ private fun HistoryMonthPickerDialog(
                 HistoryMonthPickerDropdown(
                     label = stringResource(R.string.history_month_picker_year),
                     value = pickerMonth.year.toString(),
+                    expanded = expandedDropdown == HistoryMonthPickerDropdownKind.YEAR,
+                    onExpandedChange = { expanded ->
+                        expandedDropdown = if (expanded) {
+                            HistoryMonthPickerDropdownKind.YEAR
+                        } else {
+                            null
+                        }
+                    },
                     items = yearOptions.map { year ->
                         HrtDropdownMenuItem(
                             text = year.toString(),
@@ -1442,15 +1460,20 @@ private fun HistoryMonthPickerDialog(
     )
 }
 
+private enum class HistoryMonthPickerDropdownKind {
+    MONTH,
+    YEAR,
+}
+
 @Composable
 private fun HistoryMonthPickerDropdown(
     label: String,
     value: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     items: List<HrtDropdownMenuItem>,
     modifier: Modifier = Modifier,
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val menuWidth = maxWidth
         OutlinedTextField(
@@ -1474,18 +1497,19 @@ private fun HistoryMonthPickerDropdown(
                         awaitFirstDown(pass = PointerEventPass.Initial)
                         val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
                         if (upEvent != null) {
-                            isExpanded = true
+                            onExpandedChange(true)
                         }
                     }
                 },
         )
         HrtDropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = { isExpanded = false },
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
             items = items,
             modifier = Modifier
                 .width(menuWidth)
-                .heightIn(max = 320.dp)
+                .heightIn(max = 320.dp),
+            properties = PopupProperties(focusable = false),
         )
     }
 }

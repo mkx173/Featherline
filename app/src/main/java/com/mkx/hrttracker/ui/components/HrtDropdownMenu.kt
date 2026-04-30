@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.window.PopupProperties
 
 data class HrtDropdownMenuItem(
     val text: String,
@@ -29,6 +30,7 @@ fun HrtDropdownMenu(
     items: List<HrtDropdownMenuItem>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuGroupContentPadding,
+    properties: PopupProperties = PopupProperties(focusable = true),
 ) {
     if (items.isEmpty()) {
         return
@@ -39,6 +41,7 @@ fun HrtDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
+        properties = properties,
     ) {
         DropdownMenuGroup(
             modifier = Modifier.verticalScroll(scrollState),
