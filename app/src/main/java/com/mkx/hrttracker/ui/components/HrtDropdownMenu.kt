@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
@@ -31,6 +33,7 @@ fun HrtDropdownMenu(
     if (items.isEmpty()) {
         return
     }
+    val scrollState = rememberScrollState()
 
     DropdownMenuPopup(
         expanded = expanded,
@@ -38,6 +41,7 @@ fun HrtDropdownMenu(
         modifier = modifier,
     ) {
         DropdownMenuGroup(
+            modifier = Modifier.verticalScroll(scrollState),
             shapes = MenuDefaults.groupShapes(),
             contentPadding = contentPadding,
         ) {

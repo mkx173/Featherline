@@ -110,6 +110,10 @@
     <string name="history_previous_month">上个月</string>
     <string name="history_current_month">当前月份</string>
     <string name="history_next_month">下个月</string>
+    <string name="history_select_month">选择月份</string>
+    <string name="history_month_picker_title">跳转到月份</string>
+    <string name="history_month_picker_month">月份</string>
+    <string name="history_month_picker_year">年份</string>
     <string name="history_month_summary_title">%1$s 概览</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
     <string name="history_summary_logged">已记录</string>

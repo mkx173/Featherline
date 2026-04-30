@@ -489,6 +489,101 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun shouldAnimateHistoryCalendarReset_uses_six_month_threshold() {
+        assertEquals(
+            true,
+            shouldAnimateHistoryCalendarReset(
+                navigationMonth = YearMonth.of(2025, 10),
+                currentMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            false,
+            shouldAnimateHistoryCalendarReset(
+                navigationMonth = YearMonth.of(2025, 9),
+                currentMonth = YearMonth.of(2026, 4)
+            )
+        )
+        assertEquals(
+            false,
+            shouldAnimateHistoryCalendarReset(
+                navigationMonth = YearMonth.of(2025, 8),
+                currentMonth = YearMonth.of(2026, 4)
+            )
+        )
+    }
+
+    @Test
+    fun historyMonthPickerYearOptions_uses_calendar_range_years() {
+        assertEquals(
+            listOf(2024, 2025, 2026),
+            historyMonthPickerYearOptions(
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+    }
+
+    @Test
+    fun historyMonthPickerMonthOptions_filters_boundary_years() {
+        assertEquals(
+            listOf(11, 12),
+            historyMonthPickerMonthOptions(
+                selectedYear = 2024,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+        assertEquals(
+            (1..12).toList(),
+            historyMonthPickerMonthOptions(
+                selectedYear = 2025,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+        assertEquals(
+            listOf(1, 2),
+            historyMonthPickerMonthOptions(
+                selectedYear = 2026,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+    }
+
+    @Test
+    fun coerceHistoryMonthPickerSelection_keeps_selection_in_calendar_range() {
+        assertEquals(
+            YearMonth.of(2024, 11),
+            coerceHistoryMonthPickerSelection(
+                selectedYear = 2024,
+                selectedMonthValue = 1,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+        assertEquals(
+            YearMonth.of(2026, 2),
+            coerceHistoryMonthPickerSelection(
+                selectedYear = 2027,
+                selectedMonthValue = 12,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+        assertEquals(
+            YearMonth.of(2025, 6),
+            coerceHistoryMonthPickerSelection(
+                selectedYear = 2025,
+                selectedMonthValue = 6,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
+            )
+        )
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_logged_on_track_partial_missed_and_off_plan_days() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(

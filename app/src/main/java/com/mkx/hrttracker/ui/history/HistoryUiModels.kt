@@ -11,6 +11,7 @@ import com.mkx.hrttracker.ui.plan.planCalendarDate
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 data class HistoryCalendarDayUiState(
@@ -147,6 +148,58 @@ internal fun canResetHistoryCalendar(
 ): Boolean {
     return navigationMonth != currentMonth || hasResettableSelection
 }
+
+internal fun shouldAnimateHistoryCalendarReset(
+    navigationMonth: YearMonth,
+    currentMonth: YearMonth,
+    animationThresholdMonths: Long = historyCalendarResetAnimationThresholdMonths,
+): Boolean {
+    return kotlin.math.abs(ChronoUnit.MONTHS.between(navigationMonth, currentMonth)) <=
+        animationThresholdMonths
+}
+
+internal fun historyMonthPickerYearOptions(
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): List<Int> {
+    return (calendarStartMonth.year..calendarEndMonth.year).toList()
+}
+
+internal fun historyMonthPickerMonthOptions(
+    selectedYear: Int,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): List<Int> {
+    val firstMonth = if (selectedYear == calendarStartMonth.year) {
+        calendarStartMonth.monthValue
+    } else {
+        1
+    }
+    val lastMonth = if (selectedYear == calendarEndMonth.year) {
+        calendarEndMonth.monthValue
+    } else {
+        12
+    }
+    return if (firstMonth <= lastMonth) {
+        (firstMonth..lastMonth).toList()
+    } else {
+        emptyList()
+    }
+}
+
+internal fun coerceHistoryMonthPickerSelection(
+    selectedYear: Int,
+    selectedMonthValue: Int,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): YearMonth {
+    return YearMonth.of(
+        selectedYear.coerceIn(calendarStartMonth.year, calendarEndMonth.year),
+        selectedMonthValue.coerceIn(1, 12)
+    ).coerceIn(calendarStartMonth, calendarEndMonth)
+}
+
+private const val historyCalendarResetAnimationThresholdMonths = 6L
 
 internal fun buildHistoryMonthSummary(
     entries: List<MedicationLogEntry>,

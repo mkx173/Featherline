@@ -6,8 +6,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,9 +20,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
@@ -44,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -71,6 +79,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -130,6 +140,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.Month
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1021,6 +1032,25 @@ private fun HistoryMonthCalendar(
         }
     }
 
+    fun jumpToMonth(month: YearMonth) {
+        val targetMonth = month.coerceIn(calendarState.startMonth, calendarState.endMonth)
+        navigationTargetMonth = targetMonth
+        onNavigationMonthChange(targetMonth)
+        navigationJob?.cancel()
+        navigationJob = coroutineScope.launch {
+            try {
+                calendarState.scrollToMonth(targetMonth)
+            } finally {
+                if (
+                    navigationTargetMonth == targetMonth &&
+                    calendarState.layoutInfo.mostVisibleMonth()?.yearMonth != targetMonth
+                ) {
+                    navigationTargetMonth = null
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1031,6 +1061,8 @@ private fun HistoryMonthCalendar(
             HistoryCalendarTitle(
                 titleMonth = displayedMonth,
                 currentMonth = YearMonth.from(today),
+                calendarStartMonth = calendarState.startMonth,
+                calendarEndMonth = calendarState.endMonth,
                 appLocale = appLocale,
                 canGoToPrevious = navigationMonth > calendarState.startMonth,
                 canGoToCurrent = canResetHistoryCalendar(
@@ -1045,7 +1077,18 @@ private fun HistoryMonthCalendar(
                 onGoToCurrent = {
                     val currentMonth = YearMonth.from(today)
                     onSelectionReset(currentMonth)
-                    animateToMonth(currentMonth)
+                    if (shouldAnimateHistoryCalendarReset(
+                            navigationMonth = navigationMonth,
+                            currentMonth = currentMonth,
+                        )
+                    ) {
+                        animateToMonth(currentMonth)
+                    } else {
+                        jumpToMonth(currentMonth)
+                    }
+                },
+                onGoToMonth = { month ->
+                    jumpToMonth(month)
                 },
                 onGoToNext = {
                     animateToMonth(navigationMonth.plusMonths(1))
@@ -1185,18 +1228,36 @@ private fun HistoryMonthHeader(
 private fun HistoryCalendarTitle(
     titleMonth: YearMonth,
     currentMonth: YearMonth,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
     appLocale: Locale,
     canGoToPrevious: Boolean,
     canGoToCurrent: Boolean,
     canGoToNext: Boolean,
     onGoToPrevious: () -> Unit,
     onGoToCurrent: () -> Unit,
+    onGoToMonth: (YearMonth) -> Unit,
     onGoToNext: () -> Unit
 ) {
+    var isMonthPickerVisible by remember { mutableStateOf(false) }
     val monthFormatter = remember(appLocale, currentMonth) {
         calendarMonthTitleFormatter(
             locale = appLocale,
             currentYear = currentMonth.year
+        )
+    }
+
+    if (isMonthPickerVisible) {
+        HistoryMonthPickerDialog(
+            selectedMonth = titleMonth,
+            calendarStartMonth = calendarStartMonth,
+            calendarEndMonth = calendarEndMonth,
+            appLocale = appLocale,
+            onDismiss = { isMonthPickerVisible = false },
+            onConfirm = { month ->
+                isMonthPickerVisible = false
+                onGoToMonth(month)
+            }
         )
     }
 
@@ -1243,9 +1304,159 @@ private fun HistoryCalendarTitle(
             style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.Center).cjkTextOffset(dateLabel)
+            modifier = Modifier
+                .align(Alignment.Center)
+                .clip(MaterialTheme.shapes.small)
+                .combinedClickable(
+                    onClickLabel = stringResource(R.string.history_select_month),
+                    onClick = { isMonthPickerVisible = true }
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .cjkTextOffset(dateLabel)
         )
     }
+}
+
+@Composable
+private fun HistoryMonthPickerDialog(
+    selectedMonth: YearMonth,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+    appLocale: Locale,
+    onDismiss: () -> Unit,
+    onConfirm: (YearMonth) -> Unit,
+) {
+    var pickerMonth by remember(selectedMonth, calendarStartMonth, calendarEndMonth) {
+        mutableStateOf(selectedMonth.coerceIn(calendarStartMonth, calendarEndMonth))
+    }
+    val yearOptions = remember(calendarStartMonth, calendarEndMonth) {
+        historyMonthPickerYearOptions(
+            calendarStartMonth = calendarStartMonth,
+            calendarEndMonth = calendarEndMonth
+        )
+    }
+    val monthOptions = remember(pickerMonth.year, calendarStartMonth, calendarEndMonth) {
+        historyMonthPickerMonthOptions(
+            selectedYear = pickerMonth.year,
+            calendarStartMonth = calendarStartMonth,
+            calendarEndMonth = calendarEndMonth
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(R.string.history_month_picker_title))
+        },
+        text = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                HistoryMonthPickerDropdown(
+                    label = stringResource(R.string.history_month_picker_month),
+                    value = historyMonthPickerMonthLabel(pickerMonth.monthValue, appLocale),
+                    items = monthOptions.map { monthValue ->
+                        HrtDropdownMenuItem(
+                            text = historyMonthPickerMonthLabel(monthValue, appLocale),
+                            onClick = {
+                                pickerMonth = coerceHistoryMonthPickerSelection(
+                                    selectedYear = pickerMonth.year,
+                                    selectedMonthValue = monthValue,
+                                    calendarStartMonth = calendarStartMonth,
+                                    calendarEndMonth = calendarEndMonth
+                                )
+                            }
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                HistoryMonthPickerDropdown(
+                    label = stringResource(R.string.history_month_picker_year),
+                    value = pickerMonth.year.toString(),
+                    items = yearOptions.map { year ->
+                        HrtDropdownMenuItem(
+                            text = year.toString(),
+                            onClick = {
+                                pickerMonth = coerceHistoryMonthPickerSelection(
+                                    selectedYear = year,
+                                    selectedMonthValue = pickerMonth.monthValue,
+                                    calendarStartMonth = calendarStartMonth,
+                                    calendarEndMonth = calendarEndMonth
+                                )
+                            }
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(pickerMonth) }) {
+                Text(text = stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun HistoryMonthPickerDropdown(
+    label: String,
+    value: String,
+    items: List<HrtDropdownMenuItem>,
+    modifier: Modifier = Modifier,
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val menuWidth = maxWidth
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(text = label) },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.ArrowDropDown,
+                    contentDescription = null,
+                )
+            },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(value) {
+                    awaitEachGesture {
+                        // Modifier.clickable doesn't work for text fields, so observe pointer
+                        // events before the text field consumes them in the Main pass.
+                        awaitFirstDown(pass = PointerEventPass.Initial)
+                        val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                        if (upEvent != null) {
+                            isExpanded = true
+                        }
+                    }
+                },
+        )
+        HrtDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false },
+            items = items,
+            modifier = Modifier
+                .width(menuWidth)
+                .heightIn(max = 320.dp)
+        )
+    }
+}
+
+private fun historyMonthPickerMonthLabel(
+    monthValue: Int,
+    locale: Locale,
+): String {
+    return Month.of(monthValue).getDisplayName(TextStyle.FULL_STANDALONE, locale)
 }
 
 @Composable
