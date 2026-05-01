@@ -167,7 +167,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun unarchiveGroup_throwsWhenReplacementGroupIsStillActive() = runTest {
+    fun unarchiveGroup_allowsActiveReplacement() = runTest {
         val groupUuid = UUID.fromString("a3a16c10-e9c3-4f4a-9ddf-1e8b4d3aa01d")
         val replacementUuid = UUID.fromString("be3eaa20-6e2c-4cc4-8a5b-5b9a8a8e0c10")
         val now = Instant.parse("2026-04-30T09:00:00Z")
@@ -182,17 +182,22 @@ class MedicationGroupRepositoryTest {
             archivedAtEpochMillis = 1L,
             replacedByGroupUuid = replacementUuid.toString(),
         )
-        coEvery { medicationGroupDao.getGroup(replacementUuid.toString()) } returns testGroupEntity(
-            groupUuid = replacementUuid,
-            times = listOf(LocalTime.of(8, 0)),
-        )
+        coEvery {
+            medicationGroupDao.clearGroupArchive(
+                uuid = groupUuid.toString(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
+        } returns Unit
 
-        assertThrows(MedicationGroupReplacedByActiveSuccessorException::class.java) {
-            kotlinx.coroutines.runBlocking { repository.unarchiveGroup(groupUuid, now) }
+        repository.unarchiveGroup(groupUuid, now)
+
+        coVerify(exactly = 1) {
+            medicationGroupDao.clearGroupArchive(
+                uuid = groupUuid.toString(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
         }
-        coVerify(exactly = 0) {
-            medicationGroupDao.clearGroupArchive(any(), any())
-        }
+        coVerify(exactly = 0) { medicationGroupDao.getGroup(replacementUuid.toString()) }
     }
 
     @Test

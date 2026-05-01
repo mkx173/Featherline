@@ -107,12 +107,7 @@ class MedicationGroupRepository @Inject constructor(
         val nowEpochMillis = now.toEpochMilli()
         databaseHolder.withTransaction { database ->
             val groupDao = database.medicationGroupDao()
-            val existingGroup = groupDao.getGroup(uuid.toString())
-                ?: throw MedicationGroupNotFoundException(uuid)
-            val replacementUuid = existingGroup.group.replacedByGroupUuid
-            if (replacementUuid != null && groupDao.getGroup(replacementUuid) != null) {
-                throw MedicationGroupReplacedByActiveSuccessorException(uuid)
-            }
+            groupDao.getGroup(uuid.toString()) ?: throw MedicationGroupNotFoundException(uuid)
             groupDao.clearGroupArchive(
                 uuid = uuid.toString(),
                 updatedAtEpochMillis = nowEpochMillis,
@@ -380,12 +375,6 @@ class MedicationGroupRepository @Inject constructor(
 class MedicationGroupNotFoundException(
     uuid: UUID,
 ) : NoSuchElementException("Medication group $uuid was not found.")
-
-class MedicationGroupReplacedByActiveSuccessorException(
-    uuid: UUID,
-) : IllegalStateException(
-    "Medication group $uuid cannot be unarchived because it has an active replacement."
-)
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(
     "Schedule time count cannot change in locked mode."

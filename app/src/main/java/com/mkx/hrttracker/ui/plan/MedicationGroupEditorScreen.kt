@@ -884,7 +884,16 @@ private fun MedicationGroupEditorScreenContent(
             },
             title = { Text(text = stringResource(R.string.unarchive_medication_group_title)) },
             text = {
-                Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
+                    if (uiState.hasActiveReplacement) {
+                        Text(
+                            text = stringResource(R.string.unarchive_medication_group_replaced),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
@@ -1365,7 +1374,7 @@ private fun MedicationGroupEditorScreenContent(
                     ) {
                         if (uiState.isArchived) {
                             UnarchiveMedicationGroupCard(
-                                enabled = dangerZoneActionEnabled && !uiState.hasActiveReplacement,
+                                enabled = dangerZoneActionEnabled,
                                 onClick = onUnarchiveClick,
                                 index = 0,
                                 count = dangerZoneItemCount,
