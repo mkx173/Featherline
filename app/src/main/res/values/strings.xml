@@ -211,6 +211,7 @@
     <string name="save_medication_group_failure">Unable to save group.</string>
     <string name="delete_medication_group_failure">Unable to delete group.</string>
     <string name="delete_group_related_records">Delete records</string>
+    <string name="delete_group_also_related_records">Also delete related records</string>
     <string name="delete_group_related_records_disabled">No related records yet.</string>
     <string name="delete_group_related_records_title">Delete related records</string>
     <string name="delete_group_related_records_success">Deleted related records.</string>

@@ -208,6 +208,7 @@
     <string name="save_medication_group_failure">无法保存分组</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
+    <string name="delete_group_also_related_records">同时删除相关记录</string>
     <string name="delete_group_related_records_disabled">暂无相关记录</string>
     <string name="delete_group_related_records_title">删除相关记录</string>
     <string name="delete_group_related_records_success">已删除相关记录</string>

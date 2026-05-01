@@ -746,6 +746,7 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     if (uiState.isDeleteConfirmationVisible) {
+        var shouldDeleteRelatedEntriesWithGroup by remember { mutableStateOf(false) }
         val hasRelatedEntries = uiState.relatedEntryCount > 0
         val deleteGroupConfirmationText = if (hasRelatedEntries) {
             pluralStringResource(
@@ -763,44 +764,54 @@ private fun MedicationGroupEditorScreenContent(
                 }
             },
             title = { Text(text = stringResource(R.string.delete_medication_group_title)) },
-            text = { Text(text = deleteGroupConfirmationText) },
-            confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))) {
+                    Text(text = deleteGroupConfirmationText)
                     if (hasRelatedEntries) {
-                        TextButton(
+                        Spacer(modifier = Modifier.height(12.dp))
+                        PreferenceSegmentedListItem(
+                            title = stringResource(R.string.delete_group_also_related_records),
+                            index = 0,
+                            count = 1,
+                            onClick = {
+                                shouldDeleteRelatedEntriesWithGroup =
+                                    !shouldDeleteRelatedEntriesWithGroup
+                            },
                             enabled = !uiState.isDeleting,
-                            onClick = onDeleteWithRecordsConfirm,
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            ),
-                        ) {
-                            Text(text = stringResource(R.string.delete_group_related_records))
-                        }
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        enabled = !uiState.isDeleting,
-                        onClick = onDeleteDismiss,
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    TextButton(
-                        enabled = !uiState.isDeleting,
-                        onClick = onDeleteConfirm,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (hasRelatedEntries) {
-                                    R.string.delete_medication_group_keep_records
-                                } else {
-                                    R.string.delete_entries_confirm
-                                }
-                            )
+                            trailingContent = {
+                                Switch(
+                                    checked = shouldDeleteRelatedEntriesWithGroup,
+                                    onCheckedChange = {
+                                        shouldDeleteRelatedEntriesWithGroup = it
+                                    },
+                                    enabled = !uiState.isDeleting,
+                                )
+                            },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         )
                     }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isDeleting,
+                    onClick = {
+                        if (hasRelatedEntries && shouldDeleteRelatedEntriesWithGroup) {
+                            onDeleteWithRecordsConfirm()
+                        } else {
+                            onDeleteConfirm()
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.delete_entries_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isDeleting,
+                    onClick = onDeleteDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
                 }
             }
         )
