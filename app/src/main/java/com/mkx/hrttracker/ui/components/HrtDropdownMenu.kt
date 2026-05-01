@@ -20,6 +20,7 @@ data class HrtDropdownMenuItem(
     val onClick: () -> Unit,
     val enabled: Boolean = true,
     val supportingText: String? = null,
+    val trailingIcon: (@Composable () -> Unit)? = null,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -60,6 +61,7 @@ fun HrtDropdownMenu(
                     supportingText = item.supportingText?.let { supportingText ->
                         { Text(text = supportingText) }
                     },
+                    trailingIcon = item.trailingIcon,
                 )
             }
         }

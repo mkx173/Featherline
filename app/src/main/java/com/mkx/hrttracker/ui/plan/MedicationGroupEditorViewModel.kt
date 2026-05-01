@@ -44,6 +44,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
@@ -120,20 +121,23 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            medicationLogRepository.observeEntries()
-                .combine(
-                    _uiState.map { it.editingGroupId }.distinctUntilChanged(),
-                ) { entriesOrNull, currentEditingGroupId ->
-                    entryCountsForGroup(
-                        entries = entriesOrNull.orEmpty(),
-                        groupId = currentEditingGroupId,
-                    )
-                }
+            combine(
+                medicationLogRepository.observeEntries(),
+                _uiState.map { it.editingGroupId }.distinctUntilChanged(),
+                currentMinute.map { it.toLocalDate() }.distinctUntilChanged(),
+            ) { entriesOrNull, currentEditingGroupId, today ->
+                entryCountsForGroup(
+                    entries = entriesOrNull.orEmpty(),
+                    groupId = currentEditingGroupId,
+                    today = today,
+                )
+            }
                 .collect { counts ->
                     _uiState.update {
                         it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
+                            todayRelatedEntryCount = counts.todayRelatedEntryCount,
                             scheduleTimeOrderError = if (counts.plannedEntryCount == 0) {
                                 false
                             } else {
@@ -618,8 +622,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun archiveAndRecreateGroup() {
-        val groupId = _uiState.value.editingGroupId ?: return
+        val currentState = _uiState.value
+        val groupId = currentState.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+        val recreateScheduleStartDate = currentMinute.value.toLocalDate().let { today ->
+            if (currentState.todayRelatedEntryCount > 0) {
+                today.plusDays(1)
+            } else {
+                today
+            }
+        }
 
         viewModelScope.launch {
             _uiState.update {
@@ -634,7 +646,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             val recreatedGroupUuidResult = runCatching {
                 medicationGroupRepository.archiveAndRecreateGroup(
                     uuid = uuid,
-                    today = currentMinute.value.toLocalDate(),
+                    today = recreateScheduleStartDate,
                 )
             }
             val recreateResult = recreatedGroupUuidResult.fold(
@@ -1047,6 +1059,7 @@ data class MedicationGroupEditorUiState(
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
+    val todayRelatedEntryCount: Int = 0,
     val scheduleTimeOrderError: Boolean = false,
     val originalScheduleType: MedicationGroupScheduleType? = null,
     val originalSinceDate: LocalDate? = null,
@@ -1076,6 +1089,9 @@ data class MedicationGroupEditorUiState(
 
     val areMedicationsLocked: Boolean
         get() = isLocked || isArchived
+
+    val willRecreateAfterArchiveStartTomorrow: Boolean
+        get() = todayRelatedEntryCount > 0
 }
 
 enum class SaveMedicationGroupResult {
@@ -1179,22 +1195,38 @@ internal fun resolveMedicationGroupColorKey(
 internal data class MedicationGroupEntryCounts(
     val relatedEntryCount: Int,
     val plannedEntryCount: Int,
+    val todayRelatedEntryCount: Int,
 )
 
 internal fun entryCountsForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
+    today: LocalDate? = null,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): MedicationGroupEntryCounts {
     if (groupId == null) {
-        return MedicationGroupEntryCounts(relatedEntryCount = 0, plannedEntryCount = 0)
+        return MedicationGroupEntryCounts(
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            todayRelatedEntryCount = 0,
+        )
     }
 
     val groupUuid = runCatching { UUID.fromString(groupId) }.getOrNull()
-        ?: return MedicationGroupEntryCounts(relatedEntryCount = 0, plannedEntryCount = 0)
+        ?: return MedicationGroupEntryCounts(
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            todayRelatedEntryCount = 0,
+        )
     val relatedEntries = entries.filter { entry -> entry.sourceGroupUuid == groupUuid }
     return MedicationGroupEntryCounts(
         relatedEntryCount = relatedEntries.size,
         plannedEntryCount = relatedEntries.count { entry -> entry.scheduledFor != null },
+        todayRelatedEntryCount = if (today == null) {
+            0
+        } else {
+            relatedEntries.count { entry -> entry.planCalendarDate(zoneId) == today }
+        },
     )
 }
 

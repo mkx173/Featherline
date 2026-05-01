@@ -805,6 +805,66 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun buildHistoryCalendarDayUiState_keepsArchiveDayLinkedRecordPlannedAfterArchiveTime() {
+        val archivedGroup = MedicationGroup(
+            uuid = UUID.fromString("d97acf5c-cc7f-4e29-8124-51f53a9d29f0"),
+            name = "Archived evening estradiol",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("d2f9a642-05d7-4935-94e2-92ec5f55fc28"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            ),
+            createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
+            updatedAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
+            archivedAt = testInstant(LocalDateTime.of(2026, 4, 10, 10, 0)),
+        )
+
+        val dayStates = buildHistoryCalendarDayUiState(
+            groups = listOf(archivedGroup),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("9dfc0850-a576-459c-ace3-e189b71105d8"),
+                    details = archivedGroup.medications.single().details,
+                    dosageMgAsEstradiol = 2.0,
+                    sourceGroupUuid = archivedGroup.uuid,
+                    appliedAt = testInstant(LocalDateTime.of(2026, 4, 10, 20, 5)),
+                    scheduledFor = LocalDateTime.of(2026, 4, 10, 20, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 11)
+        )
+
+        assertEquals(
+            HistoryCalendarDayUiState(
+                status = PlanCalendarDayStatus.FULFILLED,
+                hasOffPlanRecord = false
+            ),
+            dayStates.getValue(LocalDate.of(2026, 4, 10))
+        )
+        assertEquals(
+            HistoryCalendarDayUiState(
+                status = PlanCalendarDayStatus.NONE,
+                hasOffPlanRecord = false
+            ),
+            dayStates.getValue(LocalDate.of(2026, 4, 11))
+        )
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_persisted_counted_rows_as_one_logged_entry() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(

@@ -30,7 +30,7 @@ import javax.inject.Inject
 class HistoryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     medicationGroupRepository: MedicationGroupRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     appTimeSource: AppTimeSource
 ) : ViewModel() {
@@ -134,6 +134,7 @@ class HistoryViewModel @Inject constructor(
             entries = entries,
             allEntryCount = allEntries.size,
             hiddenArchivedGroupRecordCount = hiddenArchivedGroupRecordCount,
+            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
             medicationGroups = allGroups,
             activeMedicationGroups = activeGroups,
             calendarMedicationGroups = calendarGroups,
@@ -241,6 +242,14 @@ class HistoryViewModel @Inject constructor(
         isDeleteConfirmationVisible.value = false
     }
 
+    fun setShowArchivedGroupRecords(enabled: Boolean) {
+        selectedEntryIds.value = emptySet()
+        isDeleteConfirmationVisible.value = false
+        viewModelScope.launch {
+            settingsRepository.setShowArchivedGroupRecords(enabled)
+        }
+    }
+
     fun deleteSelectedEntries() {
         val entryIdsToDelete = selectedEntryIds.value
         if (entryIdsToDelete.isEmpty() || isDeletingSelectedEntries.value) {
@@ -269,7 +278,7 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun deleteAllEntries() {
-        if (isDeletingAllEntries.value || uiState.value.entries.isEmpty()) {
+        if (isDeletingAllEntries.value || uiState.value.allEntryCount <= 0) {
             return
         }
 
@@ -317,6 +326,7 @@ data class HistoryUiState(
     val entries: List<MedicationLogEntry> = emptyList(),
     val allEntryCount: Int = entries.size,
     val hiddenArchivedGroupRecordCount: Int = 0,
+    val showArchivedGroupRecords: Boolean = true,
     val medicationGroups: List<MedicationGroup> = emptyList(),
     val activeMedicationGroups: List<MedicationGroup> = emptyList(),
     val calendarMedicationGroups: List<MedicationGroup> = activeMedicationGroups,

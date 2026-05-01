@@ -32,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
@@ -339,7 +338,6 @@ fun SettingsScreen(
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
         onRemindersEnabledChange = onRemindersEnabledChange,
-        onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onRequestExactAlarmAccess = {
             requestExactAlarmAccess(context, exactAlarmAccessLauncher::launch)
         },
@@ -484,7 +482,6 @@ private fun SettingsScreenContent(
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
     onRemindersEnabledChange: (Boolean) -> Unit,
-    onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onScreenLockProtectionToggle: (Boolean) -> Unit,
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
@@ -653,39 +650,6 @@ private fun SettingsScreenContent(
                         count = 2
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-
-            SettingsSectionTitle(
-                text = stringResource(R.string.settings_plan_history)
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_show_archived_group_records),
-                    supportingText = stringResource(R.string.settings_show_archived_group_records_summary),
-                    index = 0,
-                    count = 1,
-                    onClick = {
-                        onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.History
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.showArchivedGroupRecords,
-                            onCheckedChange = onShowArchivedGroupRecordsChange
-                        )
-                    },
-                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1287,7 +1251,6 @@ private fun SettingsScreenPreview() {
             onWeightSave = { _, _ -> },
             onWeightClear = { },
             onRemindersEnabledChange = { },
-            onShowArchivedGroupRecordsChange = { },
             onRequestExactAlarmAccess = { },
             onScreenLockProtectionToggle = { },
             onAppLockGracePeriodOptionChange = { },

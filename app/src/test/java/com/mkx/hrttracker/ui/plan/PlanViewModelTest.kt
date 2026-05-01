@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -145,6 +146,44 @@ class PlanViewModelTest {
         assertEquals(selectedDate, viewModel.uiState.value.daySchedule.date)
         assertEquals(1, viewModel.uiState.value.daySchedule.scheduledEntries.size)
         assertEquals(PlanCalendarDayStatus.MISSED, viewModel.uiState.value.calendarDays[selectedDate]?.status)
+    }
+
+    @Test
+    fun archivedRecordsAreHiddenFromPlanEvenWhenArchivedHistoryRecordsAreShown() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = true))
+        every { settingsRepository.settingsState } returns settingsState
+        val archivedGroup = medicationGroup(times = listOf(LocalTime.of(8, 0))).copy(
+            archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
+        )
+        val archivedEntry = testMedicationLogEntry(
+            details = archivedGroup.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = archivedGroup.uuid,
+            appliedAt = Instant.parse("2026-04-18T00:05:00Z"),
+            scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(archivedEntry))
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val uiState = viewModel.uiState.value
+        assertTrue(uiState.entries.isEmpty())
+        assertTrue(uiState.medicationGroups.isEmpty())
+        assertTrue(uiState.daySchedule.scheduledEntries.isEmpty())
+        assertTrue(uiState.daySchedule.unplannedEntries.isEmpty())
+        assertEquals(
+            PlanCalendarDayStatus.NONE,
+            uiState.calendarDays.getValue(LocalDate.of(2026, 4, 18)).status,
+        )
     }
 
     private fun TestScope.startUiStateCollection(viewModel: PlanViewModel) {

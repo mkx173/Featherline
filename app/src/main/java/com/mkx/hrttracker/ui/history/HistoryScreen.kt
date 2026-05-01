@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -195,6 +196,7 @@ fun HistoryScreen(
         onDeleteAllClick = viewModel::deleteAllEntries,
         onDeleteSelectedResultConsumed = viewModel::consumeDeleteSelectedEntriesResult,
         onDeleteAllResultConsumed = viewModel::consumeDeleteAllEntriesResult,
+        onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onDisplayedMonthChange = { month, clearSelection ->
             viewModel.setDisplayedMonth(month, clearSelection)
         },
@@ -220,6 +222,7 @@ private fun HistoryScreenContent(
     onDeleteAllClick: () -> Unit,
     onDeleteSelectedResultConsumed: () -> Unit,
     onDeleteAllResultConsumed: () -> Unit,
+    onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
     scrollToTopSignal: Int = 0,
@@ -645,8 +648,22 @@ private fun HistoryScreenContent(
                                 onDismissRequest = { isActionMenuExpanded = false },
                                 items = listOf(
                                     HrtDropdownMenuItem(
+                                        text = stringResource(R.string.history_show_archived_group_records),
+                                        onClick = {
+                                            onShowArchivedGroupRecordsChange(
+                                                !uiState.showArchivedGroupRecords
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            Checkbox(
+                                                checked = uiState.showArchivedGroupRecords,
+                                                onCheckedChange = null,
+                                            )
+                                        },
+                                    ),
+                                    HrtDropdownMenuItem(
                                         text = stringResource(R.string.history_delete_all_entries),
-                                        enabled = uiState.entries.isNotEmpty() && !uiState.isDeletingAllEntries,
+                                        enabled = uiState.allEntryCount > 0 && !uiState.isDeletingAllEntries,
                                         onClick = { isDeleteAllConfirmationVisible = true },
                                     )
                                 ),
@@ -2058,6 +2075,7 @@ private fun HistoryScreenMonthPreview() {
             onDeleteAllClick = { },
             onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
+            onShowArchivedGroupRecordsChange = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }
@@ -2096,6 +2114,7 @@ private fun HistoryScreenSelectedDayPreview() {
             onDeleteAllClick = { },
             onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
+            onShowArchivedGroupRecordsChange = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }
@@ -2126,6 +2145,7 @@ private fun HistoryScreenSelectedDayEmptyPreview() {
             onDeleteAllClick = { },
             onDeleteSelectedResultConsumed = { },
             onDeleteAllResultConsumed = { },
+            onShowArchivedGroupRecordsChange = { },
             onDisplayedMonthChange = { _, _ -> }
         )
     }

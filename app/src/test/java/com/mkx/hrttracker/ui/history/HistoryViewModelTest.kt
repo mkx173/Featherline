@@ -387,6 +387,76 @@ class HistoryViewModelTest {
         assertEquals(listOf(visibleEntry), viewModel.uiState.value.entries)
         assertEquals(2, viewModel.uiState.value.allEntryCount)
         assertEquals(1, viewModel.uiState.value.hiddenArchivedGroupRecordCount)
+        assertFalse(viewModel.uiState.value.showArchivedGroupRecords)
+    }
+
+    @Test
+    fun deleteAllEntries_deletesHiddenArchivedOnlyRecords() = runTest {
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false))
+        every { settingsRepository.settingsState } returns settingsState
+        val archivedGroup = testGroup(
+            uuid = UUID.fromString("0e26438c-d4b6-4ee0-a4e9-91f9affebf11"),
+            since = LocalDate.of(2026, 3, 1),
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+        val hiddenEntry = testMedicationLogEntry(
+            details = archivedGroup.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = archivedGroup.uuid,
+            appliedAt = Instant.parse("2026-04-19T00:00:00Z"),
+            scheduledFor = LocalDateTime.of(2026, 4, 19, 9, 0),
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(hiddenEntry))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
+        coEvery { medicationLogRepository.deleteAllEntries() } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.entries.isEmpty())
+        assertEquals(1, viewModel.uiState.value.allEntryCount)
+        assertEquals(1, viewModel.uiState.value.hiddenArchivedGroupRecordCount)
+
+        viewModel.deleteAllEntries()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isDeletingAllEntries)
+        assertEquals(
+            HistoryDeleteAllEntriesResult.SUCCESS,
+            viewModel.uiState.value.deleteAllEntriesResult,
+        )
+        coVerify(exactly = 1) { medicationLogRepository.deleteAllEntries() }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun setShowArchivedGroupRecords_persistsHistoryMenuOption() = runTest {
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { settingsRepository.setShowArchivedGroupRecords(false) } returns Unit
+
+        val viewModel = HistoryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        viewModel.setShowArchivedGroupRecords(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setShowArchivedGroupRecords(false) }
     }
 
     @Test

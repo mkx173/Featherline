@@ -778,7 +778,21 @@ private fun MedicationGroupEditorScreenContent(
                 }
             },
             title = { Text(text = stringResource(R.string.archive_medication_group_title)) },
-            text = { Text(text = stringResource(R.string.archive_medication_group_confirmation)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = stringResource(R.string.archive_medication_group_confirmation))
+                    Text(
+                        text = stringResource(
+                            if (uiState.willRecreateAfterArchiveStartTomorrow) {
+                                R.string.archive_and_recreate_starts_tomorrow
+                            } else {
+                                R.string.archive_and_recreate_starts_today
+                            }
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
             confirmButton = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

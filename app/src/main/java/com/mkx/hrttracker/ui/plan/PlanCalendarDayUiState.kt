@@ -151,8 +151,8 @@ private fun isMedicationGroupSlotInPlanWindow(
     zoneId: ZoneId,
 ): Boolean {
     val archivedAt = group.archivedAt ?: return true
-    val archivedAtLocal = archivedAt.atZone(zoneId).toLocalDateTime()
-    return !slotDateTime.isAfter(archivedAtLocal)
+    val archivedDate = archivedAt.atZone(zoneId).toLocalDate()
+    return !slotDateTime.toLocalDate().isAfter(archivedDate)
 }
 
 internal fun isSlotFulfilled(

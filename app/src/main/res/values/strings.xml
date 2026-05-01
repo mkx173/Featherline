@@ -136,13 +136,14 @@
     <string name="history_delete_all_entries_failure">Unable to delete records.</string>
     <string name="history_delete_selected_entries_success">Deleted selected records.</string>
     <string name="history_delete_selected_entries_failure">Unable to delete selected records.</string>
+    <string name="history_show_archived_group_records">Show archived group records</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="one">Delete all %1$d record?</item>
         <item quantity="other">Delete all %1$d records?</item>
     </plurals>
     <plurals name="history_delete_all_entries_hidden_archived_warning">
-        <item quantity="one">This includes %1$d archived group record hidden by your settings.</item>
-        <item quantity="other">This includes %1$d archived group records hidden by your settings.</item>
+        <item quantity="one">This includes %1$d archived group record currently hidden.</item>
+        <item quantity="other">This includes %1$d archived group records currently hidden.</item>
     </plurals>
     <plurals name="history_selected_entries_title">
         <item quantity="one">%1$d selected</item>
@@ -223,9 +224,11 @@
     <string name="delete_group_medication_confirmation">Remove %1$s from this group?</string>
     <string name="archive_medication_group">Archive group</string>
     <string name="archive_medication_group_title">Archive group</string>
-    <string name="archive_medication_group_confirmation">Archive this medication group? It will leave the active Plan schedule, reminders will stop, and existing records will be kept. You can also create a new active copy starting today.</string>
+    <string name="archive_medication_group_confirmation">Archive this medication group? It will leave the active Plan schedule, reminders will stop, and existing records will be kept.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
     <string name="archive_and_recreate">Archive and recreate</string>
+    <string name="archive_and_recreate_starts_today">Archive and recreate will create a new active copy starting today.</string>
+    <string name="archive_and_recreate_starts_tomorrow">Because this group has records today, Archive and recreate will create a new active copy starting tomorrow to avoid duplicate records for today.</string>
     <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
     <string name="group_locked_banner">This group has planned records. Schedule and medication changes are locked to keep history accurate. Use Archive and recreate to start a different regimen.</string>
     <string name="group_locked_time_note">Past records for this slot will follow the new time. The time each dose was taken is unchanged.</string>
@@ -406,9 +409,6 @@
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
-    <string name="settings_plan_history">Plan &amp; history</string>
-    <string name="settings_show_archived_group_records">Show archived group records</string>
-    <string name="settings_show_archived_group_records_summary">Include records from archived groups in Plan and History.</string>
     <string name="settings_backup_to_file">Backup to file</string>
     <string name="settings_restore_from_file">Restore from backup</string>
     <string name="settings_backup_export_success">Backup saved as %1$s</string>
