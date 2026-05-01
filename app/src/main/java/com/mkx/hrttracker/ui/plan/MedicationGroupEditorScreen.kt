@@ -139,7 +139,6 @@ import androidx.core.net.toUri
 fun MedicationGroupEditorScreen(
     onNavigateBack: () -> Unit,
     onGroupSaved: () -> Unit,
-    onGroupRecreated: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
@@ -155,9 +154,6 @@ fun MedicationGroupEditorScreen(
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
-    val archiveAndRecreateMedicationGroupSuccessMessage =
-        stringResource(R.string.archive_and_recreate_medication_group_success)
-
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -268,20 +264,6 @@ fun MedicationGroupEditorScreen(
         if (uiState.isDeleted) {
             viewModel.consumeDeletedState()
             onGroupSaved()
-        }
-    }
-
-    LaunchedEffect(uiState.recreatedGroupId) {
-        val recreatedGroupUuid = uiState.recreatedGroupId
-            ?.let { groupId -> runCatching { UUID.fromString(groupId) }.getOrNull() }
-        if (recreatedGroupUuid != null) {
-            Toast.makeText(
-                context,
-                archiveAndRecreateMedicationGroupSuccessMessage,
-                Toast.LENGTH_SHORT
-            ).show()
-            viewModel.consumeRecreatedGroupId()
-            onGroupRecreated(recreatedGroupUuid)
         }
     }
 
@@ -506,6 +488,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.unarchive_medication_group_failure)
     val archiveAndRecreateMedicationGroupFailureMessage =
         stringResource(R.string.archive_and_recreate_medication_group_failure)
+    val archiveAndRecreateMedicationGroupSuccessMessage =
+        stringResource(R.string.archive_and_recreate_medication_group_success)
     val deleteMedicationGroupFailureMessage =
         stringResource(R.string.delete_medication_group_failure)
     val scheduleOptions = remember {
@@ -652,6 +636,15 @@ private fun MedicationGroupEditorScreenContent(
 
     LaunchedEffect(uiState.archiveAndRecreateMedicationGroupResult) {
         when (uiState.archiveAndRecreateMedicationGroupResult) {
+            ArchiveAndRecreateMedicationGroupResult.SUCCESS -> {
+                Toast.makeText(
+                    context,
+                    archiveAndRecreateMedicationGroupSuccessMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onArchiveAndRecreateMedicationGroupResultConsumed()
+            }
+
             ArchiveAndRecreateMedicationGroupResult.FAILURE -> {
                 Toast.makeText(
                     context,

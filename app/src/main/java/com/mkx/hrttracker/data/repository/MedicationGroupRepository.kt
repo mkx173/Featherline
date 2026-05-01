@@ -120,56 +120,6 @@ class MedicationGroupRepository @Inject constructor(
         }
     }
 
-    suspend fun archiveAndRecreateGroup(
-        uuid: UUID,
-        now: Instant = Instant.now(),
-        today: LocalDate = LocalDate.now(),
-    ): UUID {
-        val nowEpochMillis = now.toEpochMilli()
-        val originalUuid = uuid.toString()
-        val newGroupUuid = UUID.randomUUID().toString()
-        return databaseHolder.withTransaction { database ->
-            val groupDao = database.medicationGroupDao()
-            val existingGroup = groupDao.getGroup(originalUuid)
-                ?: throw MedicationGroupNotFoundException(uuid)
-
-            groupDao.updateGroupArchiveState(
-                uuid = originalUuid,
-                archivedAtEpochMillis = nowEpochMillis,
-                updatedAtEpochMillis = nowEpochMillis,
-            )
-            groupDao.updateGroupReplacedBy(
-                uuid = originalUuid,
-                replacedByGroupUuid = newGroupUuid,
-                updatedAtEpochMillis = nowEpochMillis,
-            )
-            groupDao.upsertGroupWithItems(
-                group = existingGroup.group.copy(
-                    uuid = newGroupUuid,
-                    scheduleSinceEpochDay = today.toEpochDay(),
-                    createdAtEpochMillis = nowEpochMillis,
-                    updatedAtEpochMillis = nowEpochMillis,
-                    archivedAtEpochMillis = null,
-                    includePastScheduledSlots = false,
-                    replacedByGroupUuid = null,
-                ),
-                items = existingGroup.items.map { item ->
-                    item.copy(
-                        uuid = UUID.randomUUID().toString(),
-                        groupUuid = newGroupUuid,
-                    )
-                },
-                scheduleTimes = existingGroup.scheduleTimes.map { scheduleTime ->
-                    scheduleTime.copy(groupUuid = newGroupUuid)
-                },
-                weeklyDays = existingGroup.weeklyDays.map { weeklyDay ->
-                    weeklyDay.copy(groupUuid = newGroupUuid)
-                },
-            )
-            UUID.fromString(newGroupUuid)
-        }
-    }
-
     suspend fun updateScheduleTimes(
         groupUuid: UUID,
         newTimes: List<LocalTime>,
@@ -232,92 +182,103 @@ class MedicationGroupRepository @Inject constructor(
         colorKey: MedicationGroupColorKey,
         schedule: MedicationGroupScheduleInput,
         medications: List<MedicationGroupMedicationInput>,
-        notificationsEnabled: Boolean = false
+        notificationsEnabled: Boolean = false,
+        replacesGroupUuid: UUID? = null,
     ): UUID {
-        val dao = databaseHolder.get().medicationGroupDao()
         val nowEpochMillis = Instant.now().toEpochMilli()
         val groupUuid = uuid ?: UUID.randomUUID()
-        val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
-        val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
+        databaseHolder.withTransaction { database ->
+            val dao = database.medicationGroupDao()
+            val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
+            val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
 
-        dao.upsertGroupWithItems(
-            group = MedicationGroupEntity(
-                uuid = groupUuid.toString(),
-                name = name,
-                colorKey = colorKey.name,
-                notificationsEnabled = notificationsEnabled,
-                scheduleType = schedule.type.name,
-                scheduleInterval = schedule.interval,
-                scheduleSinceEpochDay = schedule.since.toEpochDay(),
-                createdAtEpochMillis = createdAtEpochMillis,
-                updatedAtEpochMillis = nowEpochMillis,
-                archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
-                includePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots ?: true,
-                replacedByGroupUuid = existingGroup?.group?.replacedByGroupUuid,
-            ),
-            items = medications.mapIndexed { index, medication ->
-                MedicationGroupItemEntity(
-                    uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
-                    groupUuid = groupUuid.toString(),
-                    sortOrder = index,
-                    count = medication.count,
-                    category = medication.details.category.name,
-                    applicationType = medication.details.applicationType.name,
-                    selectionKind = medication.details.selection.kind.name,
-                    medicationKey = when (val selection = medication.details.selection) {
-                        is MedicationSelection.Catalog -> selection.medicationKey.name
-                        is MedicationSelection.Custom -> null
-                    },
-                    customMedicationName = when (val selection = medication.details.selection) {
-                        is MedicationSelection.Catalog -> null
-                        is MedicationSelection.Custom -> selection.medicationName
-                    },
-                    doseKind = medication.details.dose.kind.name,
-                    doseValueMg = when (val dose = medication.details.dose) {
-                        is MedicationDose.MgAsMedicine -> dose.valueMg
-                        is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                        is MedicationDose.PatchTotalMg -> dose.valueMg
-                        else -> null
-                    },
-                    customDoseUnit = when {
-                        medication.details.selection is MedicationSelection.Custom &&
-                            medication.details.dose is MedicationDose.MgAsMedicine ->
-                            medication.details.customDoseUnit.storageValue
-
-                        else -> MedicationDoseUnit.MG.storageValue
-                    },
-                    doseValuePercent = when (val dose = medication.details.dose) {
-                        is MedicationDose.GelPercentAndWeight -> dose.percent
-                        else -> null
-                    },
-                    doseWeightGrams = when (val dose = medication.details.dose) {
-                        is MedicationDose.GelPercentAndWeight -> dose.weightGrams
-                        else -> null
-                    },
-                    doseReleaseRateMcgPerDay = when (val dose = medication.details.dose) {
-                        is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
-                        else -> null
-                    },
-                    gelApplicationArea = medication.details.gelApplicationArea.name,
-                )
-            },
-            scheduleTimes = schedule.times.mapIndexed { index, time ->
-                MedicationGroupScheduleTimeEntity(
-                    groupUuid = groupUuid.toString(),
-                    sortOrder = index,
-                    hourOfDay = time.hour,
-                    minuteOfHour = time.minute
-                )
-            },
-            weeklyDays = schedule.weeklyDaysOfWeek
-                .sortedBy { it.value }
-                .map { dayOfWeek ->
-                    MedicationGroupWeeklyDayEntity(
+            dao.upsertGroupWithItems(
+                group = MedicationGroupEntity(
+                    uuid = groupUuid.toString(),
+                    name = name,
+                    colorKey = colorKey.name,
+                    notificationsEnabled = notificationsEnabled,
+                    scheduleType = schedule.type.name,
+                    scheduleInterval = schedule.interval,
+                    scheduleSinceEpochDay = schedule.since.toEpochDay(),
+                    createdAtEpochMillis = createdAtEpochMillis,
+                    updatedAtEpochMillis = nowEpochMillis,
+                    archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
+                    includePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots
+                        ?: (replacesGroupUuid == null),
+                    replacedByGroupUuid = existingGroup?.group?.replacedByGroupUuid,
+                ),
+                items = medications.mapIndexed { index, medication ->
+                    MedicationGroupItemEntity(
+                        uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
                         groupUuid = groupUuid.toString(),
-                        dayOfWeek = dayOfWeek.value
+                        sortOrder = index,
+                        count = medication.count,
+                        category = medication.details.category.name,
+                        applicationType = medication.details.applicationType.name,
+                        selectionKind = medication.details.selection.kind.name,
+                        medicationKey = when (val selection = medication.details.selection) {
+                            is MedicationSelection.Catalog -> selection.medicationKey.name
+                            is MedicationSelection.Custom -> null
+                        },
+                        customMedicationName = when (val selection = medication.details.selection) {
+                            is MedicationSelection.Catalog -> null
+                            is MedicationSelection.Custom -> selection.medicationName
+                        },
+                        doseKind = medication.details.dose.kind.name,
+                        doseValueMg = when (val dose = medication.details.dose) {
+                            is MedicationDose.MgAsMedicine -> dose.valueMg
+                            is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
+                            is MedicationDose.PatchTotalMg -> dose.valueMg
+                            else -> null
+                        },
+                        customDoseUnit = when {
+                            medication.details.selection is MedicationSelection.Custom &&
+                                medication.details.dose is MedicationDose.MgAsMedicine ->
+                                medication.details.customDoseUnit.storageValue
+
+                            else -> MedicationDoseUnit.MG.storageValue
+                        },
+                        doseValuePercent = when (val dose = medication.details.dose) {
+                            is MedicationDose.GelPercentAndWeight -> dose.percent
+                            else -> null
+                        },
+                        doseWeightGrams = when (val dose = medication.details.dose) {
+                            is MedicationDose.GelPercentAndWeight -> dose.weightGrams
+                            else -> null
+                        },
+                        doseReleaseRateMcgPerDay = when (val dose = medication.details.dose) {
+                            is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
+                            else -> null
+                        },
+                        gelApplicationArea = medication.details.gelApplicationArea.name,
                     )
-                }
-        )
+                },
+                scheduleTimes = schedule.times.mapIndexed { index, time ->
+                    MedicationGroupScheduleTimeEntity(
+                        groupUuid = groupUuid.toString(),
+                        sortOrder = index,
+                        hourOfDay = time.hour,
+                        minuteOfHour = time.minute
+                    )
+                },
+                weeklyDays = schedule.weeklyDaysOfWeek
+                    .sortedBy { it.value }
+                    .map { dayOfWeek ->
+                        MedicationGroupWeeklyDayEntity(
+                            groupUuid = groupUuid.toString(),
+                            dayOfWeek = dayOfWeek.value
+                        )
+                    }
+            )
+            if (replacesGroupUuid != null) {
+                dao.updateGroupReplacedBy(
+                    uuid = replacesGroupUuid.toString(),
+                    replacedByGroupUuid = groupUuid.toString(),
+                    updatedAtEpochMillis = nowEpochMillis,
+                )
+            }
+        }
 
         return groupUuid
     }

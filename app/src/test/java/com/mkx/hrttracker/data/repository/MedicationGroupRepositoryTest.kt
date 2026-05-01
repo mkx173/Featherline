@@ -9,6 +9,13 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -189,78 +196,63 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveAndRecreateGroup_archivesOriginalAndCreatesActiveCopyStartingToday() = runTest {
-        val groupUuid = UUID.fromString("893f1577-5d7f-447f-b626-45cd7dc69e33")
-        val medicationUuid = "932e8b35-7dd4-4202-92f4-5efb9a8a4f0e"
-        val now = Instant.parse("2026-04-30T10:00:00Z")
-        val today = LocalDate.of(2026, 4, 30)
-        val copiedGroup = slot<MedicationGroupEntity>()
-        val copiedItems = slot<List<MedicationGroupItemEntity>>()
-        val copiedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
-        val copiedWeeklyDays = slot<List<MedicationGroupWeeklyDayEntity>>()
+    fun saveGroup_withReplacement_createsActiveCopyAndLinksArchivedOriginal() = runTest {
+        val originalGroupUuid = UUID.fromString("893f1577-5d7f-447f-b626-45cd7dc69e33")
+        val savedGroup = slot<MedicationGroupEntity>()
+        val savedItems = slot<List<MedicationGroupItemEntity>>()
+        val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+        val savedWeeklyDays = slot<List<MedicationGroupWeeklyDayEntity>>()
         coEvery {
-            databaseHolder.withTransaction<UUID>(any())
+            databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
-            firstArg<suspend (HrtTrackerDatabase) -> UUID>().invoke(database)
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
         }
-        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
-            groupUuid = groupUuid,
-            times = listOf(LocalTime.of(8, 0)),
-            items = listOf(
-                testGroupItemEntity(
-                    uuid = medicationUuid,
-                    groupUuid = groupUuid.toString(),
-                )
-            ),
-            weeklyDays = listOf(
-                MedicationGroupWeeklyDayEntity(
-                    groupUuid = groupUuid.toString(),
-                    dayOfWeek = 4,
-                )
-            ),
-        )
-        coEvery {
-            medicationGroupDao.updateGroupArchiveState(
-                uuid = groupUuid.toString(),
-                archivedAtEpochMillis = now.toEpochMilli(),
-                updatedAtEpochMillis = now.toEpochMilli(),
-            )
-        } returns Unit
 
-        val recreatedGroupUuid = repository.archiveAndRecreateGroup(groupUuid, now, today)
+        val savedGroupUuid = repository.saveGroup(
+            uuid = null,
+            name = "Group",
+            colorKey = MedicationGroupColorKey.ROSE,
+            schedule = MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 30),
+                weeklyDaysOfWeek = setOf(java.time.DayOfWeek.THURSDAY),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(
+                MedicationGroupMedicationInput(
+                    uuid = null,
+                    details = testMedicationDetails(),
+                    count = 1,
+                )
+            ),
+            notificationsEnabled = true,
+            replacesGroupUuid = originalGroupUuid,
+        )
 
         coVerifyOrder {
-            medicationGroupDao.getGroup(groupUuid.toString())
-            medicationGroupDao.updateGroupArchiveState(
-                uuid = groupUuid.toString(),
-                archivedAtEpochMillis = now.toEpochMilli(),
-                updatedAtEpochMillis = now.toEpochMilli(),
+            medicationGroupDao.upsertGroupWithItems(
+                group = capture(savedGroup),
+                items = capture(savedItems),
+                scheduleTimes = capture(savedTimes),
+                weeklyDays = capture(savedWeeklyDays),
             )
             medicationGroupDao.updateGroupReplacedBy(
-                uuid = groupUuid.toString(),
-                replacedByGroupUuid = any(),
-                updatedAtEpochMillis = now.toEpochMilli(),
-            )
-            medicationGroupDao.upsertGroupWithItems(
-                group = capture(copiedGroup),
-                items = capture(copiedItems),
-                scheduleTimes = capture(copiedTimes),
-                weeklyDays = capture(copiedWeeklyDays),
+                uuid = originalGroupUuid.toString(),
+                replacedByGroupUuid = savedGroupUuid.toString(),
+                updatedAtEpochMillis = any(),
             )
         }
-        assertEquals(recreatedGroupUuid.toString(), copiedGroup.captured.uuid)
-        assertNotEquals(groupUuid.toString(), copiedGroup.captured.uuid)
-        assertEquals(today.toEpochDay(), copiedGroup.captured.scheduleSinceEpochDay)
-        assertEquals(now.toEpochMilli(), copiedGroup.captured.createdAtEpochMillis)
-        assertEquals(now.toEpochMilli(), copiedGroup.captured.updatedAtEpochMillis)
-        assertEquals(true, copiedGroup.captured.notificationsEnabled)
-        assertNull(copiedGroup.captured.archivedAtEpochMillis)
-        assertEquals(false, copiedGroup.captured.includePastScheduledSlots)
-        assertNull(copiedGroup.captured.replacedByGroupUuid)
-        assertEquals(recreatedGroupUuid.toString(), copiedItems.captured.single().groupUuid)
-        assertNotEquals(medicationUuid, copiedItems.captured.single().uuid)
-        assertEquals(recreatedGroupUuid.toString(), copiedTimes.captured.single().groupUuid)
-        assertEquals(recreatedGroupUuid.toString(), copiedWeeklyDays.captured.single().groupUuid)
+        assertEquals(savedGroupUuid.toString(), savedGroup.captured.uuid)
+        assertNotEquals(originalGroupUuid.toString(), savedGroup.captured.uuid)
+        assertEquals(LocalDate.of(2026, 4, 30).toEpochDay(), savedGroup.captured.scheduleSinceEpochDay)
+        assertEquals(true, savedGroup.captured.notificationsEnabled)
+        assertNull(savedGroup.captured.archivedAtEpochMillis)
+        assertEquals(false, savedGroup.captured.includePastScheduledSlots)
+        assertNull(savedGroup.captured.replacedByGroupUuid)
+        assertEquals(savedGroupUuid.toString(), savedItems.captured.single().groupUuid)
+        assertEquals(savedGroupUuid.toString(), savedTimes.captured.single().groupUuid)
+        assertEquals(savedGroupUuid.toString(), savedWeeklyDays.captured.single().groupUuid)
     }
 
     @Test
@@ -381,6 +373,15 @@ class MedicationGroupRepositoryTest {
             doseWeightGrams = null,
             doseReleaseRateMcgPerDay = null,
             gelApplicationArea = "DEFAULT",
+        )
+    }
+
+    private fun testMedicationDetails(): MedicationDetails {
+        return MedicationDetails(
+            category = MedicationKey.ESTRADIOL.category,
+            applicationType = MedicationApplicationType.ORAL,
+            selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
+            dose = MedicationDose.MgAsMedicine(2.0),
         )
     }
 }
