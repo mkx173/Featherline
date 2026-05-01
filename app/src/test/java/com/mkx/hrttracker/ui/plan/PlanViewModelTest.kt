@@ -38,6 +38,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -183,6 +184,57 @@ class PlanViewModelTest {
         assertEquals(
             PlanCalendarDayStatus.NONE,
             uiState.calendarDays.getValue(LocalDate.of(2026, 4, 18)).status,
+        )
+    }
+
+    @Test
+    fun recreatedGroupCreatedBetweenSlotsDoesNotShowPastSlotFromActiveCopy() = runTest {
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 4, 18, 10, 0)
+        val createdAt = now.atZone(zoneId).toInstant()
+        val originalGroupUuid = UUID.fromString("71c62a73-2476-4bfc-8297-837926b3b0e4")
+        val recreatedGroupUuid = UUID.fromString("b2dd4935-bfb8-4f36-8d48-0d422f8bd809")
+        val appTimeSource = FakeAppTimeSource(now)
+        val baseGroup = medicationGroup(times = listOf(LocalTime.of(9, 0), LocalTime.of(21, 0)))
+        val archivedOriginalGroup = baseGroup.copy(
+            uuid = originalGroupUuid,
+            archivedAt = createdAt,
+        )
+        val recreatedGroup = baseGroup.copy(
+            uuid = recreatedGroupUuid,
+            createdAt = createdAt,
+            updatedAt = createdAt,
+            archivedAt = null,
+        )
+        val fulfilledOriginalSlot = testMedicationLogEntry(
+            details = archivedOriginalGroup.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = originalGroupUuid,
+            appliedAt = LocalDateTime.of(2026, 4, 18, 9, 5)
+                .atZone(zoneId)
+                .toInstant(),
+            scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0),
+        )
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(archivedOriginalGroup, recreatedGroup)
+        )
+        every { medicationLogRepository.observeEntries() } returns flowOf(listOf(fulfilledOriginalSlot))
+
+        val viewModel = PlanViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val uiState = viewModel.uiState.value
+        assertTrue(uiState.entries.isEmpty())
+        assertEquals(listOf(recreatedGroupUuid), uiState.medicationGroups.map { it.uuid })
+        assertEquals(
+            listOf(LocalTime.of(21, 0)),
+            uiState.daySchedule.scheduledEntries.map { it.scheduledTime },
         )
     }
 

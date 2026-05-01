@@ -3,12 +3,11 @@ package com.mkx.hrttracker.ui.history
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isScheduledOn
-import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
+import com.mkx.hrttracker.ui.plan.isPlanOffPlanEntry
 import com.mkx.hrttracker.ui.plan.planCalendarDate
-import com.mkx.hrttracker.ui.plan.scheduledTimesInPlanWindow
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -282,7 +281,7 @@ internal fun buildHistoryCalendarDayUiState(
         dayStates[currentDate] = HistoryCalendarDayUiState(
             status = primaryState.status,
             hasOffPlanRecord = dayEntries.any { entry ->
-                isHistoryOffPlanEntry(
+                isPlanOffPlanEntry(
                     entry = entry,
                     scheduledGroups = scheduledGroups,
                     date = currentDate,
@@ -342,28 +341,4 @@ internal fun historyEntryTapAction(
     } else {
         HistoryEntryTapAction.TOGGLE_SELECTION
     }
-}
-
-private fun isHistoryOffPlanEntry(
-    entry: MedicationLogEntry,
-    scheduledGroups: List<MedicationGroup>,
-    date: LocalDate,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    val sourceGroupUuid = entry.sourceGroupUuid ?: return true
-    val scheduledFor = entry.scheduledFor ?: return true
-    if (scheduledFor.toLocalDate() != date) {
-        return true
-    }
-
-    val group = scheduledGroups.firstOrNull { scheduledGroup -> scheduledGroup.uuid == sourceGroupUuid }
-        ?: return true
-    if (scheduledFor.toLocalTime() !in group.scheduledTimesInPlanWindow(date, zoneId)) {
-        return true
-    }
-
-    val requiredSignatures = group.medications
-        .groupBy(MedicationSignature::fromGroupMedication)
-        .keys
-    return MedicationSignature.fromLogEntry(entry) !in requiredSignatures
 }

@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -130,6 +131,46 @@ class MedicationGroupEditorLoadStateTest {
 
         assertFalse(viewModel.uiState.value.isLoadingGroupForEditing)
         assertEquals(group.name, viewModel.uiState.value.groupName)
+    }
+
+    @Test
+    fun unarchiveGroup_confirmsThenMarksEditorSavedWithoutEditableBlink() = runTest {
+        val groupUuid = UUID.fromString("8c9c40fd-4487-4a90-b75a-4f04032519fd")
+        val group = testMedicationGroup(groupUuid).copy(
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.unarchiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isArchived)
+
+        viewModel.showUnarchiveConfirmation()
+        assertTrue(viewModel.uiState.value.isUnarchiveConfirmationVisible)
+
+        viewModel.unarchiveGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnarchiving)
+        assertFalse(viewModel.uiState.value.isUnarchiveConfirmationVisible)
+        assertTrue(viewModel.uiState.value.isArchived)
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 }
 

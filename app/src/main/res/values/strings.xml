@@ -226,10 +226,13 @@
     <string name="archive_medication_group_title">Archive group</string>
     <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from the current plan and stop sending reminders. Existing records will not be deleted.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
+    <string name="unarchive_medication_group">Unarchive group</string>
+    <string name="unarchive_medication_group_title">Unarchive group</string>
+    <string name="unarchive_medication_group_confirmation">Unarchive this medication group? It will return to the current plan. Reminders will stay off until you enable them.</string>
+    <string name="unarchive_medication_group_failure">Unable to unarchive group.</string>
     <string name="archive_and_recreate">Archive and recreate</string>
     <string name="archive_create_active_copy">Create copy after archive</string>
     <string name="archive_and_recreate_starts_today">The new plan will start today.</string>
-    <string name="archive_and_recreate_starts_tomorrow">Because this group has records today, the new plan will start tomorrow.</string>
     <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
     <string name="group_locked_banner">This group already has related records, so some settings can’t be changed. To make adjustments, archive the current group and create a new one.</string>
     <string name="group_locked_time_note">Changing the scheduled time also updates the scheduled time shown on past records.</string>

@@ -101,6 +101,21 @@ class MedicationGroupRepository @Inject constructor(
         }
     }
 
+    suspend fun unarchiveGroup(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        val nowEpochMillis = now.toEpochMilli()
+        databaseHolder.withTransaction { database ->
+            database.medicationGroupDao().updateGroupArchiveState(
+                uuid = uuid.toString(),
+                archivedAtEpochMillis = null,
+                updatedAtEpochMillis = nowEpochMillis,
+                notificationsEnabled = false,
+            )
+        }
+    }
+
     suspend fun archiveAndRecreateGroup(
         uuid: UUID,
         now: Instant = Instant.now(),

@@ -123,6 +123,37 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun unarchiveGroup_clearsArchivedAtAndKeepsNotificationsDisabledInSingleTransaction() = runTest {
+        val groupUuid = UUID.fromString("810b59ca-af49-45ee-a9fe-f9fe268a94dc")
+        val now = Instant.parse("2026-04-30T09:00:00Z")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = groupUuid.toString(),
+                archivedAtEpochMillis = null,
+                updatedAtEpochMillis = now.toEpochMilli(),
+                notificationsEnabled = false,
+            )
+        } returns Unit
+
+        repository.unarchiveGroup(groupUuid, now)
+
+        coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
+        coVerify(exactly = 1) {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = groupUuid.toString(),
+                archivedAtEpochMillis = null,
+                updatedAtEpochMillis = now.toEpochMilli(),
+                notificationsEnabled = false,
+            )
+        }
+    }
+
+    @Test
     fun archiveAndRecreateGroup_archivesOriginalAndCreatesActiveCopyStartingToday() = runTest {
         val groupUuid = UUID.fromString("893f1577-5d7f-447f-b626-45cd7dc69e33")
         val medicationUuid = "932e8b35-7dd4-4202-92f4-5efb9a8a4f0e"

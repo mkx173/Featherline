@@ -8,13 +8,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -284,6 +282,38 @@ internal fun ArchiveMedicationGroupCard(
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_archive),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun UnarchiveMedicationGroupCard(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.unarchive_medication_group),
+        index = index,
+        count = count,
+        enabled = enabled,
+        onClick = onClick,
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_unarchive),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),

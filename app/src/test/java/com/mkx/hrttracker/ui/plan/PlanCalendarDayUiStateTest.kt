@@ -232,6 +232,99 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
+    fun buildPlanCalendarDayUiState_skips_slots_before_group_creation_time_on_start_day() {
+        val zoneId = ZoneId.of("UTC")
+        val createdAt = LocalDateTime.of(2026, 4, 16, 10, 0)
+            .atZone(zoneId)
+            .toInstant()
+        val group = medicationGroup(
+            uuid = UUID.fromString("298f60c9-ecda-44dd-bf89-a3641d482711"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("7c342897-e84c-4e7d-aa89-e4405aff05d5"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        ).copy(
+            createdAt = createdAt,
+            updatedAt = createdAt,
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = emptyList(),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 16),
+            zoneId = zoneId,
+        )
+
+        val state = dayStates.getValue(LocalDate.of(2026, 4, 16))
+        assertEquals(1, state.expectedOccurrenceCount)
+        assertEquals(PlanCalendarDayStatus.MISSED, state.status)
+    }
+
+    @Test
+    fun buildPlanCalendarDayUiState_counts_logged_slot_before_group_creation_as_planned() {
+        val zoneId = ZoneId.of("UTC")
+        val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+            .atZone(zoneId)
+            .toInstant()
+        val group = medicationGroup(
+            uuid = UUID.fromString("23eeb5fa-cc2f-40c4-90fc-39171b650e33"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("e7c4380d-f7b6-475c-8c88-d438c614b76e"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        ).copy(
+            createdAt = createdAt,
+            updatedAt = createdAt,
+        )
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = group.uuid,
+                    details = group.medications.single().details,
+                    appliedAt = LocalDateTime.of(2026, 4, 17, 9, 5),
+                    scheduledFor = LocalDateTime.of(2026, 4, 17, 9, 0)
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 17),
+            endDate = LocalDate.of(2026, 4, 17),
+            zoneId = zoneId,
+        )
+
+        val state = dayStates.getValue(LocalDate.of(2026, 4, 17))
+        assertEquals(1, state.expectedOccurrenceCount)
+        assertEquals(1, state.matchedOccurrenceCount)
+        assertEquals(false, state.hasOffPlanRecord)
+        assertEquals(PlanCalendarDayStatus.FULFILLED, state.status)
+    }
+
+    @Test
     fun buildPlanCalendarDayUiState_countsArchivedLinkedRecordWithoutFuturePlan() {
         val archivedGroup = medicationGroup(
             uuid = UUID.fromString("64bc428f-5cf1-4505-b68a-aa5579c1d75d"),

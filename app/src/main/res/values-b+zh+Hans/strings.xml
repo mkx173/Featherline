@@ -222,10 +222,13 @@
     <string name="archive_medication_group_title">归档分组</string>
     <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它会从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
+    <string name="unarchive_medication_group">取消归档分组</string>
+    <string name="unarchive_medication_group_title">取消归档分组</string>
+    <string name="unarchive_medication_group_confirmation">要取消归档这个用药分组吗？它会回到当前计划中。提醒会保持关闭，直到您重新启用。</string>
+    <string name="unarchive_medication_group_failure">无法取消归档分组</string>
     <string name="archive_and_recreate">归档并重建</string>
     <string name="archive_create_active_copy">归档后创建副本</string>
     <string name="archive_and_recreate_starts_today">新计划会从今天开始</string>
-    <string name="archive_and_recreate_starts_tomorrow">因为这个分组今天已有记录，新计划会从明天开始</string>
     <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录。因此您无法更改部分内容。如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>

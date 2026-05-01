@@ -356,7 +356,7 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
-    fun archiveAndRecreateGroup_withTodayRecord_startsRecreatedGroupTomorrow() = runTest {
+    fun archiveAndRecreateGroup_withTodayRecord_startsRecreatedGroupToday() = runTest {
         val groupUuid = UUID.fromString("015d4963-1e43-4d6f-9e58-d390fb182a7c")
         val recreatedGroupUuid = UUID.fromString("81167037-541c-4359-8cf2-5fa424ab77ee")
         val group = testMedicationGroup(groupUuid)
@@ -377,7 +377,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveAndRecreateGroup(
                 uuid = groupUuid,
                 now = any(),
-                today = LocalDate.of(2026, 4, 26),
+                today = LocalDate.of(2026, 4, 25),
             )
         } returns recreatedGroupUuid
         every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
@@ -396,9 +396,6 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
 
-        assertEquals(1, viewModel.uiState.value.todayRelatedEntryCount)
-        assertEquals(true, viewModel.uiState.value.willRecreateAfterArchiveStartTomorrow)
-
         viewModel.archiveAndRecreateGroup()
         advanceUntilIdle()
 
@@ -408,7 +405,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             medicationGroupRepository.archiveAndRecreateGroup(
                 uuid = groupUuid,
                 now = any(),
-                today = LocalDate.of(2026, 4, 26),
+                today = LocalDate.of(2026, 4, 25),
             )
         }
         verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
@@ -455,9 +452,6 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-
-        assertEquals(0, viewModel.uiState.value.todayRelatedEntryCount)
-        assertEquals(false, viewModel.uiState.value.willRecreateAfterArchiveStartTomorrow)
 
         viewModel.archiveAndRecreateGroup()
         advanceUntilIdle()

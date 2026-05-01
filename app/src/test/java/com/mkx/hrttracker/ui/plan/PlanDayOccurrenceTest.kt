@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 
 class PlanDayOccurrenceTest {
@@ -44,6 +45,77 @@ class PlanDayOccurrenceTest {
         assertTrue(schedule.scheduledEntries[1].isDueSoon)
         assertFalse(schedule.scheduledEntries[1].isPastDue)
         assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
+    }
+
+    @Test
+    fun buildPlanDaySchedule_skips_slots_before_group_creation_time_on_start_day() {
+        val zoneId = ZoneId.of("UTC")
+        val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+            .atZone(zoneId)
+            .toInstant()
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 18),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+            )
+        ).copy(
+            createdAt = createdAt,
+            updatedAt = createdAt,
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 10, 15),
+            zoneId = zoneId,
+        )
+
+        assertEquals(listOf(LocalTime.of(11, 0)), schedule.scheduledEntries.map { it.scheduledTime })
+    }
+
+    @Test
+    fun buildPlanDaySchedule_shows_logged_slot_before_group_creation_as_planned() {
+        val zoneId = ZoneId.of("UTC")
+        val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+            .atZone(zoneId)
+            .toInstant()
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0))
+            )
+        ).copy(
+            createdAt = createdAt,
+            updatedAt = createdAt,
+        )
+        val loggedSlot = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 17, 9, 5)
+                .atZone(zoneId)
+                .toInstant(),
+            scheduledFor = LocalDateTime.of(2026, 4, 17, 9, 0)
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 17),
+            groups = listOf(group),
+            entries = listOf(loggedSlot),
+            now = LocalDateTime.of(2026, 4, 18, 10, 15),
+            zoneId = zoneId,
+        )
+
+        assertEquals(1, schedule.scheduledEntries.size)
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertTrue(schedule.unplannedEntries.isEmpty())
     }
 
     @Test

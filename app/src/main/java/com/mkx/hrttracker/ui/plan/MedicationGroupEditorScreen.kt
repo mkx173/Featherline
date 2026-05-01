@@ -392,6 +392,10 @@ fun MedicationGroupEditorScreen(
         onArchiveDismiss = viewModel::dismissArchiveConfirmation,
         onArchiveConfirm = viewModel::archiveGroup,
         onArchiveMedicationGroupResultConsumed = viewModel::consumeArchiveMedicationGroupResult,
+        onUnarchiveClick = viewModel::showUnarchiveConfirmation,
+        onUnarchiveDismiss = viewModel::dismissUnarchiveConfirmation,
+        onUnarchiveConfirm = viewModel::unarchiveGroup,
+        onUnarchiveMedicationGroupResultConsumed = viewModel::consumeUnarchiveMedicationGroupResult,
         onArchiveAndRecreateConfirm = viewModel::archiveAndRecreateGroup,
         onArchiveAndRecreateMedicationGroupResultConsumed =
             viewModel::consumeArchiveAndRecreateMedicationGroupResult,
@@ -446,6 +450,10 @@ private fun MedicationGroupEditorScreenContent(
     onArchiveDismiss: () -> Unit,
     onArchiveConfirm: () -> Unit,
     onArchiveMedicationGroupResultConsumed: () -> Unit,
+    onUnarchiveClick: () -> Unit,
+    onUnarchiveDismiss: () -> Unit,
+    onUnarchiveConfirm: () -> Unit,
+    onUnarchiveMedicationGroupResultConsumed: () -> Unit,
     onArchiveAndRecreateConfirm: () -> Unit,
     onArchiveAndRecreateMedicationGroupResultConsumed: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -489,6 +497,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.save_medication_group_failure)
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
+    val unarchiveMedicationGroupFailureMessage =
+        stringResource(R.string.unarchive_medication_group_failure)
     val archiveAndRecreateMedicationGroupFailureMessage =
         stringResource(R.string.archive_and_recreate_medication_group_failure)
     val deleteMedicationGroupFailureMessage =
@@ -511,6 +521,7 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isSaving &&
         !uiState.isDeleting &&
         !uiState.isArchiving &&
+        !uiState.isUnarchiving &&
         !uiState.isRecreatingAfterArchive &&
         !uiState.isDeletingRelatedEntries &&
         !uiState.isArchived &&
@@ -519,6 +530,7 @@ private fun MedicationGroupEditorScreenContent(
         !uiState.isSaving &&
         !uiState.isDeleting &&
         !uiState.isArchiving &&
+        !uiState.isUnarchiving &&
         !uiState.isRecreatingAfterArchive &&
         !uiState.isDeletingRelatedEntries
     val upcomingOccurrences = remember(
@@ -612,6 +624,21 @@ private fun MedicationGroupEditorScreenContent(
                     Toast.LENGTH_SHORT,
                 ).show()
                 onArchiveMedicationGroupResultConsumed()
+            }
+
+            null -> Unit
+        }
+    }
+
+    LaunchedEffect(uiState.unarchiveMedicationGroupResult) {
+        when (uiState.unarchiveMedicationGroupResult) {
+            UnarchiveMedicationGroupResult.FAILURE -> {
+                Toast.makeText(
+                    context,
+                    unarchiveMedicationGroupFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                onUnarchiveMedicationGroupResultConsumed()
             }
 
             null -> Unit
@@ -814,13 +841,7 @@ private fun MedicationGroupEditorScreenContent(
 
                     if (shouldCreateActiveCopyAfterArchive) {
                         SupportMessageListItem(
-                            text = stringResource(
-                                if (uiState.willRecreateAfterArchiveStartTomorrow) {
-                                    R.string.archive_and_recreate_starts_tomorrow
-                                } else {
-                                    R.string.archive_and_recreate_starts_today
-                                }
-                            ),
+                            text = stringResource(R.string.archive_and_recreate_starts_today),
                             painter = painterResource(R.drawable.ic_info),
                             index = 1,
                             count = 2,
@@ -851,6 +872,37 @@ private fun MedicationGroupEditorScreenContent(
                     Text(text = stringResource(R.string.cancel))
                 }
             }
+        )
+    }
+
+    if (uiState.isUnarchiveConfirmationVisible) {
+        val isUnarchiveActionInProgress = uiState.isUnarchiving
+        AlertDialog(
+            onDismissRequest = {
+                if (!isUnarchiveActionInProgress) {
+                    onUnarchiveDismiss()
+                }
+            },
+            title = { Text(text = stringResource(R.string.unarchive_medication_group_title)) },
+            text = {
+                Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isUnarchiveActionInProgress,
+                    onClick = onUnarchiveConfirm,
+                ) {
+                    Text(text = stringResource(R.string.unarchive_medication_group))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isUnarchiveActionInProgress,
+                    onClick = onUnarchiveDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
         )
     }
 
@@ -1293,16 +1345,21 @@ private fun MedicationGroupEditorScreenContent(
 
             if (uiState.isEditing) {
                 item {
-                    val dangerZoneItemCount = if (uiState.isArchived) 2 else 3
-                    val deleteRecordsIndex = if (uiState.isArchived) 0 else 1
-                    val deleteGroupIndex = if (uiState.isArchived) 1 else 2
+                    val dangerZoneItemCount = 3
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))
                     Column(
                         verticalArrangement = Arrangement.spacedBy(
                             dimensionResource(R.dimen.list_segment_gap)
                         )
                     ) {
-                        if (!uiState.isArchived) {
+                        if (uiState.isArchived) {
+                            UnarchiveMedicationGroupCard(
+                                enabled = dangerZoneActionEnabled,
+                                onClick = onUnarchiveClick,
+                                index = 0,
+                                count = dangerZoneItemCount,
+                            )
+                        } else {
                             ArchiveMedicationGroupCard(
                                 enabled = dangerZoneActionEnabled,
                                 onClick = onArchiveClick,
@@ -1313,13 +1370,13 @@ private fun MedicationGroupEditorScreenContent(
                         DeleteMedicationGroupRecordsCard(
                             enabled = dangerZoneActionEnabled && uiState.relatedEntryCount > 0,
                             onClick = onDeleteRelatedEntriesClick,
-                            index = deleteRecordsIndex,
+                            index = 1,
                             count = dangerZoneItemCount,
                         )
                         DeleteMedicationGroupCard(
                             enabled = dangerZoneActionEnabled,
                             onClick = onDeleteClick,
-                            index = deleteGroupIndex,
+                            index = 2,
                             count = dangerZoneItemCount,
                         )
                     }
@@ -1606,6 +1663,10 @@ private fun MedicationGroupEditorDailyPreview() {
             onArchiveDismiss = { },
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
+            onUnarchiveClick = { },
+            onUnarchiveDismiss = { },
+            onUnarchiveConfirm = { },
+            onUnarchiveMedicationGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -1673,6 +1734,10 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onArchiveDismiss = { },
             onArchiveConfirm = { },
             onArchiveMedicationGroupResultConsumed = { },
+            onUnarchiveClick = { },
+            onUnarchiveDismiss = { },
+            onUnarchiveConfirm = { },
+            onUnarchiveMedicationGroupResultConsumed = { },
             onArchiveAndRecreateConfirm = { },
             onArchiveAndRecreateMedicationGroupResultConsumed = { },
             onDeleteClick = { },
@@ -1781,6 +1846,10 @@ private fun MedicationGroupEditorPreviewContent(
         onArchiveDismiss = { },
         onArchiveConfirm = { },
         onArchiveMedicationGroupResultConsumed = { },
+        onUnarchiveClick = { },
+        onUnarchiveDismiss = { },
+        onUnarchiveConfirm = { },
+        onUnarchiveMedicationGroupResultConsumed = { },
         onArchiveAndRecreateConfirm = { },
         onArchiveAndRecreateMedicationGroupResultConsumed = { },
         onDeleteClick = { },
