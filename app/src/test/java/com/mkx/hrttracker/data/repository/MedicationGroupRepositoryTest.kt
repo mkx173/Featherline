@@ -123,7 +123,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun unarchiveGroup_clearsArchivedAtAndKeepsNotificationsDisabledInSingleTransaction() = runTest {
+    fun unarchiveGroup_clearsArchivedAtWithoutTouchingNotificationsInSingleTransaction() = runTest {
         val groupUuid = UUID.fromString("810b59ca-af49-45ee-a9fe-f9fe268a94dc")
         val now = Instant.parse("2026-04-30T09:00:00Z")
         coEvery {
@@ -131,12 +131,15 @@ class MedicationGroupRepositoryTest {
         } coAnswers {
             firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
         }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(8, 0)),
+            archivedAtEpochMillis = 1L,
+        )
         coEvery {
-            medicationGroupDao.updateGroupArchiveState(
+            medicationGroupDao.clearGroupArchive(
                 uuid = groupUuid.toString(),
-                archivedAtEpochMillis = null,
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
         } returns Unit
 
@@ -144,12 +147,47 @@ class MedicationGroupRepositoryTest {
 
         coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
         coVerify(exactly = 1) {
-            medicationGroupDao.updateGroupArchiveState(
+            medicationGroupDao.clearGroupArchive(
                 uuid = groupUuid.toString(),
-                archivedAtEpochMillis = null,
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
+        }
+        coVerify(exactly = 0) {
+            medicationGroupDao.updateGroupArchiveState(
+                uuid = any(),
+                archivedAtEpochMillis = any(),
+                updatedAtEpochMillis = any(),
+                notificationsEnabled = any(),
+            )
+        }
+    }
+
+    @Test
+    fun unarchiveGroup_throwsWhenReplacementGroupIsStillActive() = runTest {
+        val groupUuid = UUID.fromString("a3a16c10-e9c3-4f4a-9ddf-1e8b4d3aa01d")
+        val replacementUuid = UUID.fromString("be3eaa20-6e2c-4cc4-8a5b-5b9a8a8e0c10")
+        val now = Instant.parse("2026-04-30T09:00:00Z")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(8, 0)),
+            archivedAtEpochMillis = 1L,
+            replacedByGroupUuid = replacementUuid.toString(),
+        )
+        coEvery { medicationGroupDao.getGroup(replacementUuid.toString()) } returns testGroupEntity(
+            groupUuid = replacementUuid,
+            times = listOf(LocalTime.of(8, 0)),
+        )
+
+        assertThrows(MedicationGroupReplacedByActiveSuccessorException::class.java) {
+            kotlinx.coroutines.runBlocking { repository.unarchiveGroup(groupUuid, now) }
+        }
+        coVerify(exactly = 0) {
+            medicationGroupDao.clearGroupArchive(any(), any())
         }
     }
 
@@ -203,6 +241,11 @@ class MedicationGroupRepositoryTest {
                 updatedAtEpochMillis = now.toEpochMilli(),
                 notificationsEnabled = false,
             )
+            medicationGroupDao.updateGroupReplacedBy(
+                uuid = groupUuid.toString(),
+                replacedByGroupUuid = any(),
+                updatedAtEpochMillis = now.toEpochMilli(),
+            )
             medicationGroupDao.upsertGroupWithItems(
                 group = capture(copiedGroup),
                 items = capture(copiedItems),
@@ -218,6 +261,7 @@ class MedicationGroupRepositoryTest {
         assertEquals(true, copiedGroup.captured.notificationsEnabled)
         assertNull(copiedGroup.captured.archivedAtEpochMillis)
         assertEquals(false, copiedGroup.captured.includePastScheduledSlots)
+        assertNull(copiedGroup.captured.replacedByGroupUuid)
         assertEquals(recreatedGroupUuid.toString(), copiedItems.captured.single().groupUuid)
         assertNotEquals(medicationUuid, copiedItems.captured.single().uuid)
         assertEquals(recreatedGroupUuid.toString(), copiedTimes.captured.single().groupUuid)
@@ -291,6 +335,8 @@ class MedicationGroupRepositoryTest {
         times: List<LocalTime>,
         items: List<MedicationGroupItemEntity> = emptyList(),
         weeklyDays: List<MedicationGroupWeeklyDayEntity> = emptyList(),
+        archivedAtEpochMillis: Long? = null,
+        replacedByGroupUuid: String? = null,
     ): MedicationGroupWithItemsEntity {
         return MedicationGroupWithItemsEntity(
             group = MedicationGroupEntity(
@@ -303,7 +349,8 @@ class MedicationGroupRepositoryTest {
                 scheduleSinceEpochDay = 0,
                 createdAtEpochMillis = 0,
                 updatedAtEpochMillis = 0,
-                archivedAtEpochMillis = null,
+                archivedAtEpochMillis = archivedAtEpochMillis,
+                replacedByGroupUuid = replacedByGroupUuid,
             ),
             items = items,
             scheduleTimes = times.mapIndexed { index, time ->

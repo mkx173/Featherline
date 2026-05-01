@@ -75,6 +75,7 @@ class DatabaseHolder @Inject constructor(
                 MIGRATION_21_22,
                 MIGRATION_22_23,
                 MIGRATION_23_24,
+                MIGRATION_24_25,
             )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()

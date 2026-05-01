@@ -52,6 +52,7 @@ data class BackupMedicationGroupSnapshot(
     val updatedAtEpochMillis: Long,
     val archivedAtEpochMillis: Long?,
     val includePastScheduledSlots: Boolean = true,
+    val replacedByGroupUuid: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

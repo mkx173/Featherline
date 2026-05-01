@@ -885,7 +885,15 @@ private fun MedicationGroupEditorScreenContent(
             },
             title = { Text(text = stringResource(R.string.unarchive_medication_group_title)) },
             text = {
-                Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
+                    if (uiState.plannedEntryCount > 0) {
+                        Text(
+                            text = stringResource(R.string.unarchive_medication_group_locked_note),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
@@ -1080,6 +1088,18 @@ private fun MedicationGroupEditorScreenContent(
                         leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         titleColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+
+            if (uiState.isArchived && uiState.hasActiveReplacement) {
+                item {
+                    SupportMessageListItem(
+                        text = stringResource(R.string.unarchive_medication_group_replaced),
+                        icon = Icons.Rounded.ErrorOutline,
+                        leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
                     )
                 }
             }
@@ -1354,7 +1374,7 @@ private fun MedicationGroupEditorScreenContent(
                     ) {
                         if (uiState.isArchived) {
                             UnarchiveMedicationGroupCard(
-                                enabled = dangerZoneActionEnabled,
+                                enabled = dangerZoneActionEnabled && !uiState.hasActiveReplacement,
                                 onClick = onUnarchiveClick,
                                 index = 0,
                                 count = dangerZoneItemCount,

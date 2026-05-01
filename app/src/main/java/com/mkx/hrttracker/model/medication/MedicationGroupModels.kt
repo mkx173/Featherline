@@ -17,6 +17,7 @@ data class MedicationGroup(
     val updatedAt: Instant,
     val archivedAt: Instant? = null,
     val includePastScheduledSlots: Boolean = true,
+    val replacedByGroupUuid: UUID? = null,
 )
 
 data class MedicationGroupMedication(

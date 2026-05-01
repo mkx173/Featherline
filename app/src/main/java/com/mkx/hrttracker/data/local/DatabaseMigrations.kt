@@ -3,6 +3,14 @@ package com.mkx.hrttracker.data.local
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+val MIGRATION_24_25: Migration = object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE medication_groups ADD COLUMN replacedByGroupUuid TEXT"
+        )
+    }
+}
+
 val MIGRATION_23_24: Migration = object : Migration(23, 24) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(

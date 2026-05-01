@@ -223,6 +223,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             updatedAtEpochMillis = group.updatedAtEpochMillis,
             archivedAtEpochMillis = group.archivedAtEpochMillis,
             includePastScheduledSlots = group.includePastScheduledSlots,
+            replacedByGroupUuid = group.replacedByGroupUuid,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
             LocalTime.of(time.hourOfDay, time.minuteOfHour)

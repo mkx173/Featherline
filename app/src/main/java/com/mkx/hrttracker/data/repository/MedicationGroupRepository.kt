@@ -107,11 +107,16 @@ class MedicationGroupRepository @Inject constructor(
     ) {
         val nowEpochMillis = now.toEpochMilli()
         databaseHolder.withTransaction { database ->
-            database.medicationGroupDao().updateGroupArchiveState(
+            val groupDao = database.medicationGroupDao()
+            val existingGroup = groupDao.getGroup(uuid.toString())
+                ?: throw MedicationGroupNotFoundException(uuid)
+            val replacementUuid = existingGroup.group.replacedByGroupUuid
+            if (replacementUuid != null && groupDao.getGroup(replacementUuid) != null) {
+                throw MedicationGroupReplacedByActiveSuccessorException(uuid)
+            }
+            groupDao.clearGroupArchive(
                 uuid = uuid.toString(),
-                archivedAtEpochMillis = null,
                 updatedAtEpochMillis = nowEpochMillis,
-                notificationsEnabled = false,
             )
         }
     }
@@ -135,6 +140,11 @@ class MedicationGroupRepository @Inject constructor(
                 updatedAtEpochMillis = nowEpochMillis,
                 notificationsEnabled = false,
             )
+            groupDao.updateGroupReplacedBy(
+                uuid = originalUuid,
+                replacedByGroupUuid = newGroupUuid,
+                updatedAtEpochMillis = nowEpochMillis,
+            )
             groupDao.upsertGroupWithItems(
                 group = existingGroup.group.copy(
                     uuid = newGroupUuid,
@@ -143,6 +153,7 @@ class MedicationGroupRepository @Inject constructor(
                     updatedAtEpochMillis = nowEpochMillis,
                     archivedAtEpochMillis = null,
                     includePastScheduledSlots = false,
+                    replacedByGroupUuid = null,
                 ),
                 items = existingGroup.items.map { item ->
                     item.copy(
@@ -244,6 +255,7 @@ class MedicationGroupRepository @Inject constructor(
                 updatedAtEpochMillis = nowEpochMillis,
                 archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
                 includePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots ?: true,
+                replacedByGroupUuid = existingGroup?.group?.replacedByGroupUuid,
             ),
             items = medications.mapIndexed { index, medication ->
                 MedicationGroupItemEntity(
@@ -340,6 +352,7 @@ class MedicationGroupRepository @Inject constructor(
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
             archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli),
             includePastScheduledSlots = group.includePastScheduledSlots,
+            replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
         )
     }
 
@@ -408,6 +421,12 @@ class MedicationGroupRepository @Inject constructor(
 class MedicationGroupNotFoundException(
     uuid: UUID,
 ) : NoSuchElementException("Medication group $uuid was not found.")
+
+class MedicationGroupReplacedByActiveSuccessorException(
+    uuid: UUID,
+) : IllegalStateException(
+    "Medication group $uuid cannot be unarchived because it has an active replacement."
+)
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(
     "Schedule time count cannot change in locked mode."

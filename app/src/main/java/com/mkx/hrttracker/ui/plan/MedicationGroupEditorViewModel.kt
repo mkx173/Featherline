@@ -92,10 +92,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
         viewModelScope.launch {
             medicationGroupRepository.observeGroups().collect { groupsOrNull ->
                 _uiState.update { currentState ->
-                    val visibleGroups = groupsOrNull.orEmpty()
-                        .filterNot { group ->
-                            group.uuid.toString() == currentState.editingGroupId
-                        }
+                    val allGroups = groupsOrNull.orEmpty()
+                    val editingGroup = allGroups.firstOrNull { group ->
+                        group.uuid.toString() == currentState.editingGroupId
+                    }
+                    val visibleGroups = allGroups.filterNot { group ->
+                        group.uuid.toString() == currentState.editingGroupId
+                    }
+                    val hasActiveReplacement = editingGroup
+                        ?.replacedByGroupUuid
+                        ?.let { replacementUuid ->
+                            allGroups.any { it.uuid == replacementUuid }
+                        } == true
                     val resolvedGroupColorKey = resolveMedicationGroupColorKey(
                         currentColorKey = currentState.groupColorKey,
                         usedColors = visibleGroups.map { group -> group.colorKey },
@@ -113,7 +121,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         )
                     ).copy(
                         groupColorKey = resolvedGroupColorKey,
-                        hasAssignedGroupColor = true
+                        hasAssignedGroupColor = true,
+                        hasActiveReplacement = hasActiveReplacement,
                     )
                 }
             }
@@ -1126,6 +1135,7 @@ data class MedicationGroupEditorUiState(
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val isArchived: Boolean = false,
+    val hasActiveReplacement: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
