@@ -172,6 +172,33 @@ class MedicationGroupEditorLoadStateTest {
         coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
+
+    @Test
+    fun newGroup_defaultsScheduleToNextHalfHour() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 25, 23, 31))
+        val expectedDefaultDate = LocalDate.of(2026, 4, 26)
+        val expectedDefaultTime = LocalTime.of(0, 0)
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(expectedDefaultDate, viewModel.uiState.value.sinceDate)
+        assertEquals(setOf(expectedDefaultDate.dayOfWeek), viewModel.uiState.value.weeklyDaysOfWeek)
+        assertEquals(expectedDefaultTime, viewModel.uiState.value.weeklyTime)
+        assertEquals(
+            listOf(expectedDefaultTime),
+            viewModel.uiState.value.dailyTimes.map(MedicationGroupScheduleTimeUiState::time),
+        )
+    }
 }
 
 private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {

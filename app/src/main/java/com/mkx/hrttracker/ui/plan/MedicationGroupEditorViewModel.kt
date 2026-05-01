@@ -64,6 +64,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val editingGroupId = editingGroupUuid?.toString()
     private val pendingGroupUuid = editingGroupUuid ?: UUID.randomUUID()
     private val cachedEditingGroup = editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
+    private val defaultScheduleDateTime =
+        nextMedicationGroupEditorDefaultDateTime(appTimeSource.currentMinute.value)
     private val _uiState = MutableStateFlow(
         cachedEditingGroup?.toEditorState(
             remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
@@ -71,7 +73,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
             plannedEntryCount = 0,
         ) ?: MedicationGroupEditorUiState(
             editingGroupId = editingGroupId,
-            isLoadingGroupForEditing = editingGroupUuid != null
+            isLoadingGroupForEditing = editingGroupUuid != null,
+            sinceDate = defaultScheduleDateTime.toLocalDate(),
+            weeklyDaysOfWeek = setOf(defaultScheduleDateTime.dayOfWeek),
+            weeklyTime = defaultScheduleDateTime.toLocalTime(),
+            dailyTimes = listOf(
+                MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
+            )
         )
     )
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
@@ -261,16 +269,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 return@update currentState
             }
             val normalizedTime = time.withSecond(0).withNano(0)
-            val updatedState = currentState.copy(
-                dailyTimes = currentState.dailyTimes.map { dailyTime ->
-                    if (dailyTime.localId == localId) {
-                        dailyTime.copy(time = normalizedTime)
-                    } else {
-                        dailyTime
-                    }
-                }
+            val updatedDailyTimesInCurrentOrder = dailyTimesWithUpdatedTimeInCurrentOrder(
+                dailyTimes = currentState.dailyTimes,
+                localId = localId,
+                time = normalizedTime,
             )
-            if (updatedState.isLocked && !areScheduleTimesInLockedOrder(scheduleTimesForSave(updatedState))) {
+            val updatedState = currentState.copy(
+                dailyTimes = sortDailyTimesByTime(updatedDailyTimesInCurrentOrder)
+            )
+            if (
+                currentState.isLocked &&
+                !areScheduleTimesInLockedOrder(updatedDailyTimesInCurrentOrder.map { it.time })
+            ) {
                 currentState.copy(scheduleTimeOrderError = false)
             } else {
                 updatedState.copy(scheduleTimeOrderError = false)
@@ -1033,9 +1043,57 @@ internal fun appendDailyTime(
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
     time: LocalTime
 ): List<MedicationGroupScheduleTimeUiState> {
-    return dailyTimes + MedicationGroupScheduleTimeUiState(
-        time = time.withSecond(0).withNano(0)
+    return sortDailyTimesByTime(
+        dailyTimes + MedicationGroupScheduleTimeUiState(
+            time = time.withSecond(0).withNano(0)
+        )
     )
+}
+
+internal fun dailyTimesWithUpdatedTime(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    localId: String,
+    time: LocalTime,
+): List<MedicationGroupScheduleTimeUiState> {
+    return sortDailyTimesByTime(
+        dailyTimesWithUpdatedTimeInCurrentOrder(
+            dailyTimes = dailyTimes,
+            localId = localId,
+            time = time,
+        )
+    )
+}
+
+private fun dailyTimesWithUpdatedTimeInCurrentOrder(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+    localId: String,
+    time: LocalTime,
+): List<MedicationGroupScheduleTimeUiState> {
+    val normalizedTime = time.withSecond(0).withNano(0)
+    return dailyTimes.map { dailyTime ->
+        if (dailyTime.localId == localId) {
+            dailyTime.copy(time = normalizedTime)
+        } else {
+            dailyTime
+        }
+    }
+}
+
+internal fun sortDailyTimesByTime(
+    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
+): List<MedicationGroupScheduleTimeUiState> {
+    return dailyTimes.sortedBy { dailyTime -> dailyTime.time }
+}
+
+internal fun nextMedicationGroupEditorDefaultDateTime(
+    currentDateTime: LocalDateTime
+): LocalDateTime {
+    val currentMinute = currentDateTime.withSecond(0).withNano(0)
+    return if (currentMinute.minute < 30) {
+        currentMinute.withMinute(30)
+    } else {
+        currentMinute.plusHours(1).withMinute(0)
+    }
 }
 
 internal fun hasDuplicateDailyTime(
