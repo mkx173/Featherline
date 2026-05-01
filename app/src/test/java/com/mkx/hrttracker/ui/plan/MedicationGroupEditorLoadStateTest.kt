@@ -205,9 +205,10 @@ class MedicationGroupEditorLoadStateTest {
         assertFalse(viewModel.uiState.value.isArchived)
         assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
         assertEquals(true, viewModel.uiState.value.includePastScheduledSlots)
-        assertEquals("Group 2", viewModel.uiState.value.groupName)
+        assertEquals("Group", viewModel.uiState.value.groupName)
         assertEquals(MedicationGroupColorKey.ORCHID, viewModel.uiState.value.groupColorKey)
         assertEquals(true, viewModel.uiState.value.notificationsEnabled)
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
         assertNull(viewModel.uiState.value.medications.single().persistedMedicationId)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 5, 1))

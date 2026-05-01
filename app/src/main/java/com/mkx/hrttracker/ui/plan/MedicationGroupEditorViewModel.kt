@@ -625,15 +625,23 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 context.getString(R.string.default_group_name_format, index)
             }
         )
+        val resolvedGroupName = resolveMedicationGroupName(
+            groupName = currentState.groupName,
+            defaultGroupName = currentState.defaultGroupName,
+            isEditing = currentState.isEditing,
+        ).ifEmpty { defaultName }
         val colorKey = nextAvailableMedicationGroupColor(
             usedColors = usedColors,
             seed = UUID.randomUUID().hashCode(),
         )
+        val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
 
         _uiState.update {
             currentState.toUnsavedDuplicatedGroupState(
+                resolvedGroupName = resolvedGroupName,
                 defaultGroupName = defaultName,
                 colorKey = colorKey,
+                scheduleStartDate = duplicateScheduleStartDate,
             )
         }
     }
@@ -1002,17 +1010,21 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
 }
 
 private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
+    resolvedGroupName: String,
     defaultGroupName: String,
     colorKey: MedicationGroupColorKey,
+    scheduleStartDate: LocalDate,
 ): MedicationGroupEditorUiState {
     return toUnsavedCopiedGroupState(
-        resolvedGroupName = defaultGroupName,
+        resolvedGroupName = resolvedGroupName,
         defaultGroupName = defaultGroupName,
         colorKey = colorKey,
         includePastScheduledSlots = true,
         isScheduleStartDateLocked = false,
         pendingReplacementGroupId = null,
         notificationsEnabled = remindersEnabled,
+    ).copy(
+        sinceDate = scheduleStartDate,
     )
 }
 
