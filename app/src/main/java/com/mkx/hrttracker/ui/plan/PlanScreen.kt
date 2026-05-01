@@ -187,8 +187,6 @@ private fun PlanScreenContent(
         )
     }
     val selection = uiState.selectedDate
-    val daySchedule = uiState.daySchedule
-    val displayedDate = daySchedule.date
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
@@ -234,6 +232,57 @@ private fun PlanScreenContent(
     val visibleWeek = rememberFirstMostVisibleWeek(state, viewportPercent = 90f)
     val visibleWeekStartDate = visibleWeek.days.first().date
     val weekPageProgress = rememberWeekPageProgress(state)
+    val currentWeekStartDate = remember(uiState.today, uiState.calendarFirstDayOfWeek) {
+        uiState.today.with(TemporalAdjusters.previousOrSame(uiState.calendarFirstDayOfWeek))
+    }
+    var pendingCalendarSelectedDate by remember(state) { mutableStateOf<LocalDate?>(null) }
+    var pendingCurrentWeekSelectionReset by remember(state) { mutableStateOf<LocalDate?>(null) }
+    val calendarSelectedDate = planCalendarVisualSelectedDate(
+        selectedDate = selection,
+        pendingCalendarSelectedDate = pendingCalendarSelectedDate,
+    )
+    val isPendingResetAtCurrentWeek = shouldResetPlanSelectionForCurrentWeekNavigation(
+        visibleWeekStartDate = visibleWeekStartDate,
+        today = uiState.today,
+        firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+        pendingSelectionReset = pendingCurrentWeekSelectionReset,
+    )
+    val displaySelection = if (isPendingResetAtCurrentWeek) null else selection
+    val daySchedule = if (isPendingResetAtCurrentWeek) {
+        buildPlanDaySchedule(
+            date = uiState.today,
+            groups = uiState.medicationGroups,
+            entries = uiState.entries,
+            now = uiState.now,
+        )
+    } else {
+        uiState.daySchedule
+    }
+    val displayedDate = daySchedule.date
+
+    LaunchedEffect(
+        visibleWeekStartDate,
+        pendingCurrentWeekSelectionReset,
+        uiState.today,
+        uiState.calendarFirstDayOfWeek,
+    ) {
+        if (
+            shouldResetPlanSelectionForCurrentWeekNavigation(
+                visibleWeekStartDate = visibleWeekStartDate,
+                today = uiState.today,
+                firstDayOfWeek = uiState.calendarFirstDayOfWeek,
+                pendingSelectionReset = pendingCurrentWeekSelectionReset,
+            )
+        ) {
+            onDateSelectionReset()
+        }
+    }
+    LaunchedEffect(selection, pendingCurrentWeekSelectionReset) {
+        val pendingReset = pendingCurrentWeekSelectionReset ?: return@LaunchedEffect
+        if (selection != pendingReset) {
+            pendingCurrentWeekSelectionReset = null
+        }
+    }
 
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
@@ -321,7 +370,7 @@ private fun PlanScreenContent(
                         today = uiState.today,
                         firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                         monthFormatter = monthFormatter,
-                        selectedDate = selection,
+                        selectedDate = displaySelection,
                         pageProgress = weekPageProgress,
                         onPreviousClick = {
                             scope.launch {
@@ -329,9 +378,22 @@ private fun PlanScreenContent(
                             }
                         },
                         onCurrentClick = {
+                            val previousSelection = selection
+                            if (previousSelection != null) {
+                                pendingCalendarSelectedDate = previousSelection
+                                pendingCurrentWeekSelectionReset = previousSelection
+                                if (visibleWeekStartDate == currentWeekStartDate) {
+                                    onDateSelectionReset()
+                                }
+                            }
                             scope.launch {
-                                state.animateScrollToWeek(uiState.today)
-                                onDateSelectionReset()
+                                try {
+                                    state.animateScrollToWeek(uiState.today)
+                                } finally {
+                                    if (pendingCalendarSelectedDate == previousSelection) {
+                                        pendingCalendarSelectedDate = null
+                                    }
+                                }
                             }
                         },
                         onNextClick = {
@@ -351,8 +413,9 @@ private fun PlanScreenContent(
                                 today = uiState.today,
                                 appLocale = appLocale,
                                 dayState = dayState,
-                                isSelected = selection == day.date
+                                isSelected = calendarSelectedDate == day.date
                             ) { clicked ->
+                                pendingCalendarSelectedDate = null
                                 onDateSelected(clicked)
                             }
                         }
@@ -999,6 +1062,21 @@ internal fun planWeekHeaderMonthLabel(
     } else {
         "${monthFormatter(weekStartDate)} / ${monthFormatter(weekEndDate)}"
     }
+}
+
+internal fun planCalendarVisualSelectedDate(
+    selectedDate: LocalDate?,
+    pendingCalendarSelectedDate: LocalDate?,
+): LocalDate? = pendingCalendarSelectedDate ?: selectedDate
+
+internal fun shouldResetPlanSelectionForCurrentWeekNavigation(
+    visibleWeekStartDate: LocalDate,
+    today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
+    pendingSelectionReset: LocalDate?,
+): Boolean {
+    val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
+    return pendingSelectionReset != null && visibleWeekStartDate == currentWeekStart
 }
 
 internal fun resolvePlanInitialVisibleWeekDate(

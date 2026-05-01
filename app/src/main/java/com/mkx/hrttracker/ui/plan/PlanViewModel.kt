@@ -69,6 +69,7 @@ class PlanViewModel @Inject constructor(
 
         PlanUiState(
             isLoading = isLoading,
+            now = now,
             today = today,
             calendarFirstDayOfWeek = calendarRange.firstDayOfWeek,
             calendarStartDate = calendarRange.startDate,
@@ -179,6 +180,7 @@ internal fun buildNextOccurrencesByGroup(
 
 data class PlanUiState(
     val isLoading: Boolean = true,
+    val now: LocalDateTime = LocalDate.now().atStartOfDay(),
     val today: LocalDate = LocalDate.now(),
     val calendarFirstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val calendarStartDate: LocalDate = buildPlanCalendarRange(
