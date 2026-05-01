@@ -339,6 +339,8 @@
     <string name="settings_app_language">App language</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
+    <string name="settings_hide_archived_group_records">Hide archived group records</string>
+    <string name="settings_hide_archived_group_records_summary">Hide logs from archived medication groups.</string>
     <string name="settings_screen_lock_protection">App lock</string>
     <string name="settings_screen_lock_protection_summary">Require device authentication to open the app.</string>
     <string name="settings_app_lock_grace_period">Stay unlocked after leaving</string>

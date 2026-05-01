@@ -19,6 +19,7 @@ data class MedicationGroupEntity(
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val archivedAtEpochMillis: Long? = null,
+    val includePastScheduledSlots: Boolean = true,
 )
 
 @Entity(

@@ -251,9 +251,11 @@ private fun PlanScreenContent(
     val daySchedule = if (isPendingResetAtCurrentWeek) {
         buildPlanDaySchedule(
             date = uiState.today,
-            groups = uiState.medicationGroups,
+            groups = uiState.scheduleMedicationGroups,
             entries = uiState.entries,
             now = uiState.now,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = uiState.now,
         )
     } else {
         uiState.daySchedule
@@ -1259,6 +1261,7 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
         calendarEndDate = range.endDate,
         entries = entries,
         medicationGroups = groups,
+        scheduleMedicationGroups = groups,
         remindersEnabled = true,
         calendarDays = calendarDays,
         daySchedule = daySchedule,

@@ -217,6 +217,7 @@ class MedicationGroupRepositoryTest {
         assertEquals(now.toEpochMilli(), copiedGroup.captured.updatedAtEpochMillis)
         assertEquals(true, copiedGroup.captured.notificationsEnabled)
         assertNull(copiedGroup.captured.archivedAtEpochMillis)
+        assertEquals(false, copiedGroup.captured.includePastScheduledSlots)
         assertEquals(recreatedGroupUuid.toString(), copiedItems.captured.single().groupUuid)
         assertNotEquals(medicationUuid, copiedItems.captured.single().uuid)
         assertEquals(recreatedGroupUuid.toString(), copiedTimes.captured.single().groupUuid)

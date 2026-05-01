@@ -16,6 +16,7 @@ data class MedicationGroup(
     val createdAt: Instant,
     val updatedAt: Instant,
     val archivedAt: Instant? = null,
+    val includePastScheduledSlots: Boolean = true,
 )
 
 data class MedicationGroupMedication(

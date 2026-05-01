@@ -36,7 +36,9 @@ fun buildPlanDaySchedule(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime = LocalDateTime.now(),
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): PlanDaySchedule {
     val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(date) }
     val scheduledEntries = scheduledGroups
@@ -47,6 +49,8 @@ fun buildPlanDaySchedule(
                 date = date,
                 entries = entries,
                 zoneId = zoneId,
+                includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+                unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
             ).sorted().flatMap { time ->
                 val slotDateTime = LocalDateTime.of(date, time)
                 val slotLogs = entries.filter { entry ->

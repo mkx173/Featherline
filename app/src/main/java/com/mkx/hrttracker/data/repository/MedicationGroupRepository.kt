@@ -142,6 +142,7 @@ class MedicationGroupRepository @Inject constructor(
                     createdAtEpochMillis = nowEpochMillis,
                     updatedAtEpochMillis = nowEpochMillis,
                     archivedAtEpochMillis = null,
+                    includePastScheduledSlots = false,
                 ),
                 items = existingGroup.items.map { item ->
                     item.copy(
@@ -244,6 +245,7 @@ class MedicationGroupRepository @Inject constructor(
                 createdAtEpochMillis = createdAtEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis,
                 archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
+                includePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots ?: true,
             ),
             items = medications.mapIndexed { index, medication ->
                 MedicationGroupItemEntity(
@@ -338,7 +340,8 @@ class MedicationGroupRepository @Inject constructor(
             notificationsEnabled = group.notificationsEnabled,
             createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
-            archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli)
+            archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli),
+            includePastScheduledSlots = group.includePastScheduledSlots,
         )
     }
 

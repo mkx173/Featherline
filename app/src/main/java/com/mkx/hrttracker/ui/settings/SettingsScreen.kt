@@ -348,6 +348,7 @@ fun SettingsScreen(
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
+        onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -490,6 +491,7 @@ private fun SettingsScreenContent(
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
+    onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupExportInProgress: Boolean,
@@ -765,7 +767,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
-                        count = 3,
+                        count = 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -791,7 +793,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 1,
-                        count = 3,
+                        count = 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -815,7 +817,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 2,
-                    count = 3,
+                    count = 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -828,6 +830,29 @@ private fun SettingsScreenContent(
                         Switch(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
+                        )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_archived_group_records),
+                    supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
+                    index = 3,
+                    count = 4,
+                    onClick = {
+                        onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_archive)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = !settingsState.showArchivedGroupRecords,
+                            onCheckedChange = { hideArchivedGroupRecords ->
+                                onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
+                            }
                         )
                     }
                 )
@@ -1259,6 +1284,7 @@ private fun SettingsScreenPreview() {
             onAppLanguageOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
+            onShowArchivedGroupRecordsChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupExportInProgress = false,

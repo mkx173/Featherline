@@ -42,12 +42,13 @@ class PlanViewModel @Inject constructor(
     ) { groupsOrNull, entriesOrNull, settingsState, selection, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null
         val allGroups = sortPlanMedicationGroups(groupsOrNull.orEmpty())
-        val groups = allGroups.filter(MedicationGroup::isActive)
+        val activeGroups = allGroups.filter(MedicationGroup::isActive)
         val entries = visibleMedicationEntries(
             entries = entriesOrNull.orEmpty(),
             groups = allGroups,
-            showArchivedGroupRecords = false,
+            showArchivedGroupRecords = settingsState.showArchivedGroupRecords,
         )
+        val scheduleGroups = if (settingsState.showArchivedGroupRecords) allGroups else activeGroups
         val today = now.toLocalDate()
         val calendarRange = buildPlanCalendarRange(
             today = today,
@@ -56,12 +57,14 @@ class PlanViewModel @Inject constructor(
         val displayedDate = selection ?: today
         val daySchedule = buildPlanDaySchedule(
             date = displayedDate,
-            groups = groups,
+            groups = scheduleGroups,
             entries = entries,
-            now = now
+            now = now,
+            includeUnloggedArchivedSlots = false,
+            unloggedArchivedSlotCutoff = now,
         )
         val nextOccurrencesByGroup = buildNextOccurrencesByGroup(
-            groups = groups,
+            groups = activeGroups,
             entries = entries,
             start = now,
             limit = UPCOMING_OCCURRENCES_LIMIT
@@ -76,14 +79,17 @@ class PlanViewModel @Inject constructor(
             calendarEndDate = calendarRange.endDate,
             selectedDate = selection,
             entries = entries,
-            medicationGroups = groups,
+            medicationGroups = activeGroups,
+            scheduleMedicationGroups = scheduleGroups,
             remindersEnabled = settingsState.remindersEnabled,
             calendarDays = buildPlanCalendarDayUiStateIncludingDisplayedDate(
-                groups = groups,
+                groups = scheduleGroups,
                 entries = entries,
                 startDate = calendarRange.startDate,
                 endDate = calendarRange.endDate,
                 displayedDate = displayedDate,
+                includeUnloggedArchivedSlots = false,
+                unloggedArchivedSlotCutoff = now,
             ),
             daySchedule = daySchedule,
             nextOccurrencesByGroup = nextOccurrencesByGroup
@@ -128,12 +134,16 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
     startDate: LocalDate,
     endDate: LocalDate,
     displayedDate: LocalDate,
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val calendarDays = buildPlanCalendarDayUiState(
         groups = groups,
         entries = entries,
         startDate = startDate,
         endDate = endDate,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
 
     if (displayedDate in calendarDays) {
@@ -145,6 +155,8 @@ private fun buildPlanCalendarDayUiStateIncludingDisplayedDate(
         entries = entries,
         startDate = displayedDate,
         endDate = displayedDate,
+        includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+        unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
     )
 }
 
@@ -194,6 +206,7 @@ data class PlanUiState(
     val selectedDate: LocalDate? = null,
     val entries: List<MedicationLogEntry> = emptyList(),
     val medicationGroups: List<MedicationGroup> = emptyList(),
+    val scheduleMedicationGroups: List<MedicationGroup> = medicationGroups,
     val remindersEnabled: Boolean = true,
     val calendarDays: Map<LocalDate, PlanCalendarDayUiState> = emptyMap(),
     val daySchedule: PlanDaySchedule = PlanDaySchedule(

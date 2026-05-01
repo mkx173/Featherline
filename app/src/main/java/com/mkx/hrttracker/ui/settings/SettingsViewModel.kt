@@ -89,6 +89,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setShowArchivedGroupRecords(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setShowArchivedGroupRecords(enabled)
+        }
+    }
+
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setRemindersEnabled(enabled)

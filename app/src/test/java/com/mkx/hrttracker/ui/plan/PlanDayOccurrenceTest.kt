@@ -64,6 +64,7 @@ class PlanDayOccurrenceTest {
         ).copy(
             createdAt = createdAt,
             updatedAt = createdAt,
+            includePastScheduledSlots = false,
         )
 
         val schedule = buildPlanDaySchedule(
@@ -75,6 +76,39 @@ class PlanDayOccurrenceTest {
         )
 
         assertEquals(listOf(LocalTime.of(11, 0)), schedule.scheduledEntries.map { it.scheduledTime })
+    }
+
+    @Test
+    fun buildPlanDaySchedule_includes_slots_before_group_creation_when_schedule_history_enabled() {
+        val zoneId = ZoneId.of("UTC")
+        val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+            .atZone(zoneId)
+            .toInstant()
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 18),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+            )
+        ).copy(
+            createdAt = createdAt,
+            updatedAt = createdAt,
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 10, 15),
+            zoneId = zoneId,
+        )
+
+        assertEquals(
+            listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
+            schedule.scheduledEntries.map { it.scheduledTime },
+        )
     }
 
     @Test

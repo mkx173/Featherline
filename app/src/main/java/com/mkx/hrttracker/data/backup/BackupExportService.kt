@@ -226,6 +226,7 @@ class BackupExportService @Inject constructor(
             createdAtEpochMillis = createdAt.toEpochMilli(),
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             archivedAtEpochMillis = archivedAt?.toEpochMilli(),
+            includePastScheduledSlots = includePastScheduledSlots,
         )
     }
 

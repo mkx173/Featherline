@@ -270,6 +270,7 @@ class BackupExportServiceTest {
             Instant.parse("2026-04-21T00:00:00Z").toEpochMilli(),
             group.archivedAtEpochMillis,
         )
+        assertEquals(true, group.includePastScheduledSlots)
 
         val groupMedication = group.medications.single()
         assertEquals(groupMedicationUuid.toString(), groupMedication.uuid)

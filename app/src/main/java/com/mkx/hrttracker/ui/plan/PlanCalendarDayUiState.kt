@@ -40,7 +40,9 @@ fun buildPlanCalendarDayUiState(
     entries: List<MedicationLogEntry>,
     startDate: LocalDate,
     endDate: LocalDate,
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): Map<LocalDate, PlanCalendarDayUiState> {
     val entriesByDate = entries.groupBy { entry ->
         entry.planCalendarDate(zoneId)
@@ -65,6 +67,8 @@ fun buildPlanCalendarDayUiState(
                 date = currentDate,
                 entries = dayEntries,
                 zoneId = zoneId,
+                includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+                unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
             )
         }
         val expectedOccurrenceCount = scheduledTimesByGroup.values.sumOf { times -> times.size }
@@ -145,12 +149,25 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
     date: LocalDate,
     entries: List<MedicationLogEntry>,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    includeUnloggedArchivedSlots: Boolean = true,
+    unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): List<LocalTime> {
-    val visibleTimes = scheduledTimesInPlanWindow(date, zoneId)
+    val visibleTimes = scheduledTimesInPlanWindow(date, zoneId).filter { time ->
+        isArchivedPlanSlotVisible(
+            slotDateTime = LocalDateTime.of(date, time),
+            includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+            unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+        )
+    }
     val loggedTimes = entries.mapNotNull { entry ->
         val scheduledFor = entry.scheduledFor ?: return@mapNotNull null
         if (entry.sourceGroupUuid == uuid &&
             scheduledFor.toLocalDate() == date &&
+            isArchivedPlanSlotVisible(
+                slotDateTime = scheduledFor,
+                includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
+                unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
+            ) &&
             hasScheduledSlot(scheduledFor, zoneId) &&
             hasMedicationSignatureFor(entry)
         ) {
@@ -163,14 +180,26 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
     return (visibleTimes + loggedTimes).distinct().sorted()
 }
 
+private fun MedicationGroup.isArchivedPlanSlotVisible(
+    slotDateTime: LocalDateTime,
+    includeUnloggedArchivedSlots: Boolean,
+    unloggedArchivedSlotCutoff: LocalDateTime?,
+): Boolean {
+    return archivedAt == null ||
+        includeUnloggedArchivedSlots ||
+        unloggedArchivedSlotCutoff?.let { cutoff -> slotDateTime.isBefore(cutoff) } == true
+}
+
 private fun isMedicationGroupSlotInPlanWindow(
     group: MedicationGroup,
     slotDateTime: LocalDateTime,
     zoneId: ZoneId,
 ): Boolean {
-    val createdAt = group.createdAt.atZone(zoneId).toLocalDateTime()
-    if (slotDateTime.isBefore(createdAt)) {
-        return false
+    if (!group.includePastScheduledSlots) {
+        val createdAt = group.createdAt.atZone(zoneId).toLocalDateTime()
+        if (slotDateTime.isBefore(createdAt)) {
+            return false
+        }
     }
 
     val archivedAt = group.archivedAt ?: return true

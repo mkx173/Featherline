@@ -258,6 +258,7 @@ class PlanCalendarDayUiStateTest {
         ).copy(
             createdAt = createdAt,
             updatedAt = createdAt,
+            includePastScheduledSlots = false,
         )
 
         val dayStates = buildPlanCalendarDayUiState(

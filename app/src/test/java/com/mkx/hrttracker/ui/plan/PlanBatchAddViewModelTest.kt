@@ -128,6 +128,37 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
+    fun buildPlanBatchAddEntries_skipsSlotsBeforeCreationWhenScheduleHistoryDisabled() {
+        val groupUuid = UUID.fromString("0f7391f1-3278-4e44-83a9-613de4b49bc3")
+        val group = medicationGroup(
+            uuid = groupUuid,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        ).copy(
+            createdAt = Instant.parse("2026-04-10T10:00:00Z"),
+            updatedAt = Instant.parse("2026-04-10T10:00:00Z"),
+            includePastScheduledSlots = false,
+        )
+
+        val entries = buildPlanBatchAddEntries(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1, entries.size)
+        assertEquals(groupUuid, entries.single().sourceGroupUuid)
+        assertEquals(LocalDateTime.of(2026, 4, 10, 11, 0), entries.single().scheduledFor)
+    }
+
+    @Test
     fun buildPlanBatchAddEntries_extendsWeeklyIntervalBackwardForManualBackfill() {
         val groupUuid = UUID.fromString("c1930158-390a-4fa5-8cd7-76d3e5911a68")
         val group = medicationGroup(

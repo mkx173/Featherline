@@ -303,6 +303,12 @@ internal fun buildPlanBatchAddEntryPlan(
         startDate = startDate,
         endDate = endDate,
     ).forEach { occurrence ->
+        if (!group.includePastScheduledSlots &&
+            occurrence.isBefore(group.createdAt.atZone(zoneId).toLocalDateTime())
+        ) {
+            return@forEach
+        }
+
         val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
         if (!isBeforePlanStart && occurrence in fulfilledPlanSlots) {
             skippedEntryCount += group.medications.size
