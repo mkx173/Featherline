@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ColorScheme
@@ -40,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -400,7 +402,7 @@ internal fun RegimenGroupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Sync,
+                            imageVector = Icons.Rounded.Repeat,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
@@ -557,8 +559,9 @@ internal fun RegimenGroupCard(
 }
 
 internal data class RegimenGroupCardMetadata(
-    val icon: ImageVector,
     val text: String,
+    val icon: ImageVector? = null,
+    val iconPainter: Painter? = null,
 )
 
 @Composable
@@ -570,12 +573,21 @@ private fun RegimenGroupCardMetadataRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = metadata.icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp)
-        )
+        if (metadata.iconPainter != null) {
+            Icon(
+                painter = metadata.iconPainter,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+        } else if (metadata.icon != null) {
+            Icon(
+                imageVector = metadata.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+        }
         Text(
             text = metadata.text,
             style = MaterialTheme.typography.bodySmall,

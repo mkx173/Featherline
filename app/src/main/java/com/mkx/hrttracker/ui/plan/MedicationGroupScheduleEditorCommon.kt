@@ -12,8 +12,8 @@ import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
-import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -64,7 +65,7 @@ internal fun IntervalStepperCard(
         },
         leadingContent = {
             Icon(
-                imageVector = Icons.Rounded.Sync,
+                imageVector = Icons.Rounded.Repeat,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -259,7 +260,7 @@ internal fun DeleteMedicationGroupRecordsCard(
         label = stringResource(R.string.delete_group_related_records),
         enabled = enabled,
         onClick = onClick,
-        icon = Icons.Rounded.PlaylistRemove,
+        iconPainter = painterResource(R.drawable.ic_delete_history),
         index = index,
         count = count,
         supportText = if (!enabled) stringResource(R.string.delete_group_related_records_disabled) else null
@@ -282,7 +283,7 @@ internal fun ArchiveMedicationGroupCard(
         onClick = onClick,
         leadingContent = {
             Icon(
-                imageVector = Icons.Rounded.Archive,
+                painter = painterResource(R.drawable.ic_archive),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),

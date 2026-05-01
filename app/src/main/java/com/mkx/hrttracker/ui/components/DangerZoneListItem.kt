@@ -3,12 +3,13 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
@@ -18,7 +19,8 @@ fun DangerZoneListItem(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector = Icons.Rounded.Delete,
+    icon: ImageVector = Icons.Rounded.DeleteForever,
+    iconPainter: Painter? = null,
     index: Int = 0,
     count: Int = 1,
     supportText: String? = null,
@@ -40,12 +42,21 @@ fun DangerZoneListItem(
         titleTextStyle = MaterialTheme.typography.titleMedium,
         titleColor = contentColor,
         leadingContent = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = contentColor,
-            )
+            if (iconPainter != null) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
+            }
         },
         trailingContent = {
             Icon(

@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -197,19 +196,20 @@ private fun ArchivedMedicationGroupCard(
             dateFormatter(date),
         )
     }
-    val metadataRows = remember(createdText, archivedText) {
+    val archivePainter = painterResource(R.drawable.ic_archive)
+    val metadataRows = remember(createdText, archivedText, archivePainter) {
         buildList {
             add(
                 RegimenGroupCardMetadata(
-                    icon = Icons.Rounded.Event,
                     text = createdText,
+                    icon = Icons.Rounded.Event,
                 )
             )
             if (archivedText != null) {
                 add(
                     RegimenGroupCardMetadata(
-                        icon = Icons.Rounded.Archive,
                         text = archivedText,
+                        iconPainter = archivePainter,
                     )
                 )
             }

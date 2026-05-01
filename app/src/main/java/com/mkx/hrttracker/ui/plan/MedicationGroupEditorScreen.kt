@@ -793,7 +793,7 @@ private fun MedicationGroupEditorScreenContent(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(text = stringResource(R.string.archive_medication_group_confirmation))
                     HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, end = 2.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
                     Row(
