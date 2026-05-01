@@ -136,12 +136,11 @@
     <string name="history_delete_all_entries_failure">无法删除记录</string>
     <string name="history_delete_selected_entries_success">已删除所选记录</string>
     <string name="history_delete_selected_entries_failure">无法删除所选记录</string>
-    <string name="history_show_archived_group_records">显示归档分组记录</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="other">要删除全部 %1$d 条记录吗？</item>
     </plurals>
     <plurals name="history_delete_all_entries_hidden_archived_warning">
-        <item quantity="other">这也会删除当前隐藏的 %1$d 条归档分组记录。</item>
+        <item quantity="other">包含 %1$d 条当前隐藏的已归档分组的记录</item>
     </plurals>
     <plurals name="history_selected_entries_title">
         <item quantity="other">已选择 %1$d 项</item>
@@ -335,8 +334,8 @@
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
-    <string name="settings_hide_archived_group_records">隐藏归档分组记录</string>
-    <string name="settings_hide_archived_group_records_summary">隐藏归档用药分组的记录</string>
+    <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
+    <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>
     <string name="settings_screen_lock_protection">应用锁</string>
     <string name="settings_screen_lock_protection_summary">打开应用时需要验证身份</string>
     <string name="settings_app_lock_grace_period">离开后保持解锁</string>
@@ -348,7 +347,7 @@
     <string name="settings_calibration_add_result">添加检查结果</string>
     <string name="settings_calibration_edit_result">编辑检查结果</string>
     <string name="settings_calibration_empty_state">暂无检查结果</string>
-    <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s 后采血</string>
+    <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s</string>
     <string name="settings_calibration_entry_title">添加结果</string>
     <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
     <string name="settings_calibration_e2_field">E2（pg/mL）</string>

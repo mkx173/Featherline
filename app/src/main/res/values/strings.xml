@@ -136,14 +136,13 @@
     <string name="history_delete_all_entries_failure">Unable to delete records.</string>
     <string name="history_delete_selected_entries_success">Deleted selected records.</string>
     <string name="history_delete_selected_entries_failure">Unable to delete selected records.</string>
-    <string name="history_show_archived_group_records">Show archived group records</string>
     <plurals name="history_delete_all_entries_confirmation">
         <item quantity="one">Delete all %1$d record?</item>
         <item quantity="other">Delete all %1$d records?</item>
     </plurals>
     <plurals name="history_delete_all_entries_hidden_archived_warning">
-        <item quantity="one">This includes %1$d archived group record currently hidden.</item>
-        <item quantity="other">This includes %1$d archived group records currently hidden.</item>
+        <item quantity="one">Includes %1$d hidden record from archived groups.</item>
+        <item quantity="other">Includes %1$d hidden records from archived groups.</item>
     </plurals>
     <plurals name="history_selected_entries_title">
         <item quantity="one">%1$d selected</item>
@@ -340,7 +339,7 @@
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
     <string name="settings_hide_archived_group_records">Hide archived group records</string>
-    <string name="settings_hide_archived_group_records_summary">Hide logs from archived medication groups.</string>
+    <string name="settings_hide_archived_group_records_summary">Hide records from archived groups in plan and history.</string>
     <string name="settings_screen_lock_protection">App lock</string>
     <string name="settings_screen_lock_protection_summary">Require device authentication to open the app.</string>
     <string name="settings_app_lock_grace_period">Stay unlocked after leaving</string>
@@ -352,7 +351,7 @@
     <string name="settings_calibration_add_result">Add test result</string>
     <string name="settings_calibration_edit_result">Edit test result</string>
     <string name="settings_calibration_empty_state">No test results yet.</string>
-    <string name="settings_calibration_last_e2_elapsed">Drawn %1$s after last E2 dose.</string>
+    <string name="settings_calibration_last_e2_elapsed">%1$s after last E2 dose.</string>
     <string name="settings_calibration_entry_title">Add result</string>
     <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
     <string name="settings_calibration_e2_field">E2 (pg/mL)</string>
