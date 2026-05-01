@@ -155,6 +155,8 @@ fun MedicationGroupEditorScreen(
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    val archiveAndRecreateMedicationGroupSuccessMessage =
+        stringResource(R.string.archive_and_recreate_medication_group_success)
 
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
@@ -273,6 +275,11 @@ fun MedicationGroupEditorScreen(
         val recreatedGroupUuid = uiState.recreatedGroupId
             ?.let { groupId -> runCatching { UUID.fromString(groupId) }.getOrNull() }
         if (recreatedGroupUuid != null) {
+            Toast.makeText(
+                context,
+                archiveAndRecreateMedicationGroupSuccessMessage,
+                Toast.LENGTH_SHORT
+            ).show()
             viewModel.consumeRecreatedGroupId()
             onGroupRecreated(recreatedGroupUuid)
         }

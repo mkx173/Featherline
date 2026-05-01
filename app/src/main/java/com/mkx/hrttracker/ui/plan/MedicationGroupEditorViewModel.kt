@@ -697,8 +697,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val unarchived = unarchiveResult == null
 
-            if (unarchived) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
+            if (unarchived && currentState.notificationsEnabled) {
+                runCatching { medicationReminderScheduler.rescheduleGroup(uuid) }
             }
 
             _uiState.update {

@@ -92,7 +92,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveGroup_setsArchivedAtAndDisablesNotificationsInSingleTransaction() = runTest {
+    fun archiveGroup_setsArchivedAtWithoutTouchingNotificationsInSingleTransaction() = runTest {
         val groupUuid = UUID.fromString("38789ce3-9978-402c-8fd5-e660d436b8c4")
         val now = Instant.parse("2026-04-30T08:00:00Z")
         coEvery {
@@ -105,7 +105,6 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
         } returns Unit
 
@@ -117,7 +116,6 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
         }
     }
@@ -157,7 +155,6 @@ class MedicationGroupRepositoryTest {
                 uuid = any(),
                 archivedAtEpochMillis = any(),
                 updatedAtEpochMillis = any(),
-                notificationsEnabled = any(),
             )
         }
     }
@@ -227,7 +224,6 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
         } returns Unit
 
@@ -239,7 +235,6 @@ class MedicationGroupRepositoryTest {
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
                 updatedAtEpochMillis = now.toEpochMilli(),
-                notificationsEnabled = false,
             )
             medicationGroupDao.updateGroupReplacedBy(
                 uuid = groupUuid.toString(),

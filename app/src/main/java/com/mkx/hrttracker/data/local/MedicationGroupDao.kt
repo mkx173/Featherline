@@ -88,8 +88,7 @@ interface MedicationGroupDao {
         """
         UPDATE medication_groups
         SET archivedAtEpochMillis = :archivedAtEpochMillis,
-            updatedAtEpochMillis = :updatedAtEpochMillis,
-            notificationsEnabled = :notificationsEnabled
+            updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE uuid = :uuid
         """
     )
@@ -97,7 +96,6 @@ interface MedicationGroupDao {
         uuid: String,
         archivedAtEpochMillis: Long?,
         updatedAtEpochMillis: Long,
-        notificationsEnabled: Boolean,
     )
 
     @Query(

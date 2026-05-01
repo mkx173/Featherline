@@ -142,7 +142,7 @@ class MedicationGroupEditorLoadStateTest {
         every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         coEvery { medicationGroupRepository.unarchiveGroup(groupUuid, any()) } returns Unit
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -170,7 +170,45 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(viewModel.uiState.value.isArchived)
         assertTrue(viewModel.uiState.value.isSaved)
         coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun unarchiveGroup_whenNotificationsWereDisabled_doesNotReschedule() = runTest {
+        val groupUuid = UUID.fromString("b5522c59-4f9d-427b-a8b9-09a21c5328e3")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            notificationsEnabled = false,
+        ).copy(
+            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.unarchiveGroup(groupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.showUnarchiveConfirmation()
+        viewModel.unarchiveGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnarchiving)
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleGroup(any(), any()) }
+        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
     @Test
@@ -201,7 +239,10 @@ class MedicationGroupEditorLoadStateTest {
     }
 }
 
-private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {
+private fun testMedicationGroup(
+    groupUuid: UUID,
+    notificationsEnabled: Boolean = true,
+): MedicationGroup {
     return MedicationGroup(
         uuid = groupUuid,
         name = "Group",
@@ -220,7 +261,7 @@ private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {
                 count = 1,
             )
         ),
-        notificationsEnabled = true,
+        notificationsEnabled = notificationsEnabled,
         createdAt = Instant.parse("2026-04-01T00:00:00Z"),
         updatedAt = Instant.parse("2026-04-02T00:00:00Z"),
     )

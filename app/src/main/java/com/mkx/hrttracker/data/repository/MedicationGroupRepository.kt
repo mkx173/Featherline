@@ -96,7 +96,6 @@ class MedicationGroupRepository @Inject constructor(
                 uuid = uuid.toString(),
                 archivedAtEpochMillis = nowEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis,
-                notificationsEnabled = false,
             )
         }
     }
@@ -138,7 +137,6 @@ class MedicationGroupRepository @Inject constructor(
                 uuid = originalUuid,
                 archivedAtEpochMillis = nowEpochMillis,
                 updatedAtEpochMillis = nowEpochMillis,
-                notificationsEnabled = false,
             )
             groupDao.updateGroupReplacedBy(
                 uuid = originalUuid,
