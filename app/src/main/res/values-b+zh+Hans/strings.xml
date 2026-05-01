@@ -199,10 +199,10 @@
     <string name="field_time_of_application">用药时间</string>
     <string name="delete_medication_group">删除分组</string>
     <string name="delete_medication_group_title">删除分组</string>
-    <string name="delete_medication_group_confirmation">要删除这个用药分组吗？它没有相关历史记录。</string>
+    <string name="delete_medication_group_confirmation">要删除这个用药分组吗？它没有相关历史记录</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
-        <item quantity="one">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除。</item>
-        <item quantity="other">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除。</item>
+        <item quantity="one">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
+        <item quantity="other">要删除这个用药分组吗？你可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
     </plurals>
     <string name="delete_medication_group_keep_records">保留记录</string>
     <string name="save_medication_group_failure">无法保存分组</string>

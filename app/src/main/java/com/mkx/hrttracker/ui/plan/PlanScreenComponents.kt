@@ -675,7 +675,7 @@ private fun SelectedDayMedicationIconSurface(
             ) {
                 if (state == SelectedDayRowState.LOGGED) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_check_circle),
+                        painter = painterResource(R.drawable.ic_check_circle_filled),
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
