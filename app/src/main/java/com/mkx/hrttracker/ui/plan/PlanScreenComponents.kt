@@ -78,6 +78,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 internal fun SelectedDaySection(
@@ -87,6 +88,7 @@ internal fun SelectedDaySection(
     daySchedule: PlanDaySchedule,
     appLocale: Locale,
     timeFormatter: DateTimeFormatter,
+    archivedGroupUuids: Set<UUID>,
     onScheduledClick: (PlanDayScheduleEntry) -> Unit,
     onUnplannedClick: (MedicationLogEntry) -> Unit
 ) {
@@ -152,6 +154,7 @@ internal fun SelectedDaySection(
                                 index = index,
                                 itemCount = rows.size,
                                 timeFormatter = timeFormatter,
+                                isFromArchivedGroup = row.entry.groupUuid in archivedGroupUuids,
                                 onClick = { onScheduledClick(row.entry) }
                             )
                         }
@@ -164,6 +167,8 @@ internal fun SelectedDaySection(
                                 index = index,
                                 itemCount = rows.size,
                                 timeFormatter = timeFormatter,
+                                isFromArchivedGroup = row.entry.sourceGroupUuid != null &&
+                                    row.entry.sourceGroupUuid in archivedGroupUuids,
                                 onClick = { onUnplannedClick(row.entry) }
                             )
                         }
@@ -182,6 +187,7 @@ private fun SelectedDayRow(
     index: Int,
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
+    isFromArchivedGroup: Boolean,
     onClick: () -> Unit
 ) {
     val rowColorScheme = when (row.groupColorKey) {
@@ -267,12 +273,27 @@ private fun SelectedDayRow(
         modifier = Modifier.fillMaxWidth(),
         trailingContent = {
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = timeLabel,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.End
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (isFromArchivedGroup) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_archive),
+                            contentDescription = stringResource(
+                                R.string.archived_group_record_indicator
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = timeLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.End
+                    )
+                }
                 Text(
                     text = labelDisplayText,
                     style = MaterialTheme.typography.labelMedium,
@@ -846,6 +867,7 @@ private fun SelectedDaySectionPreview() {
             daySchedule = uiState.daySchedule,
             appLocale = appLocale,
             timeFormatter = timeFormatter,
+            archivedGroupUuids = emptySet(),
             onScheduledClick = { },
             onUnplannedClick = { }
         )
@@ -867,6 +889,7 @@ private fun SelectedDayRowPreview() {
             index = 0,
             itemCount = 1,
             timeFormatter = timeFormatter,
+            isFromArchivedGroup = false,
             onClick = { }
         )
     }
@@ -890,6 +913,7 @@ private fun SelectedDayManualRowPreview() {
             index = 0,
             itemCount = 1,
             timeFormatter = timeFormatter,
+            isFromArchivedGroup = true,
             onClick = { }
         )
     }

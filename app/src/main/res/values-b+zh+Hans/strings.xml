@@ -223,13 +223,11 @@
     <string name="archive_medication_group_failure">无法归档分组</string>
     <string name="unarchive_medication_group">取消归档分组</string>
     <string name="unarchive_medication_group_title">取消归档分组</string>
-    <string name="unarchive_medication_group_confirmation">要取消归档这个用药分组吗？它会回到当前计划中。</string>
+    <string name="unarchive_medication_group_confirmation">要取消归档这个用药分组吗？它会回到当前计划中</string>
     <string name="unarchive_medication_group_failure">无法取消归档分组</string>
-    <string name="unarchive_medication_group_replaced">这个分组已被新的计划取代，无法取消归档。请先删除新的计划。</string>
-    <string name="unarchive_medication_group_locked_note">如果存在过去的记录，部分设置在取消归档后仍会处于锁定状态。</string>
+    <string name="unarchive_medication_group_replaced">这个分组已被新的计划取代，无法取消归档。请先删除新的计划</string>
     <string name="archive_and_recreate">归档并重建</string>
     <string name="archive_create_active_copy">归档后创建副本</string>
-    <string name="archive_and_recreate_starts_today">新计划会从今天开始</string>
     <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录。因此您无法更改部分内容。如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
@@ -253,6 +251,7 @@
     <string name="cancel">取消</string>
     <string name="save">保存</string>
     <string name="archive">归档</string>
+    <string name="archived_group_record_indicator">来自已归档分组</string>
     <string name="plan_archived_groups">已归档的分组</string>
     <string name="plan_archived_groups_empty">暂无已归档的分组</string>
     <string name="plan_archived_groups_created_at">创建于 %1$s</string>

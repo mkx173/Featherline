@@ -116,6 +116,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.HrtOutlinedButton
@@ -427,6 +428,11 @@ private fun HistoryScreenContent(
     }
     val groupColorsById = remember(uiState.medicationGroups) {
         uiState.medicationGroups.associate { group -> group.uuid to group.colorKey }
+    }
+    val archivedGroupUuids = remember(uiState.medicationGroups) {
+        uiState.medicationGroups
+            .filter(MedicationGroup::isArchived)
+            .mapTo(mutableSetOf()) { group -> group.uuid }
     }
     val entryListTitle = if (effectiveSelectedDate != null) {
         stringResource(
@@ -769,6 +775,8 @@ private fun HistoryScreenContent(
                                     timeFormatter = timeFormatter,
                                     groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
                                     groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
+                                    isFromArchivedGroup = entry.sourceGroupUuid != null &&
+                                        entry.sourceGroupUuid in archivedGroupUuids,
                                     isSelected = entry.uuid in uiState.selectedEntryIds,
                                     index = index,
                                     count = dateEntries.size,
@@ -1947,6 +1955,7 @@ private fun HistoryEntryCard(
     timeFormatter: DateTimeFormatter,
     groupName: String?,
     groupColorKey: MedicationGroupColorKey?,
+    isFromArchivedGroup: Boolean,
     isSelected: Boolean,
     index: Int = 0,
     count: Int = 1,
@@ -1978,14 +1987,29 @@ private fun HistoryEntryCard(
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
         trailingContent = {
-            Text(
-                text = entry.appliedAt
-                    .atZone(ZoneId.systemDefault())
-                    .format(timeFormatter),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.End
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (isFromArchivedGroup) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_archive),
+                        contentDescription = stringResource(
+                            R.string.archived_group_record_indicator
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Text(
+                    text = entry.appliedAt
+                        .atZone(ZoneId.systemDefault())
+                        .format(timeFormatter),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End
+                )
+            }
         }
     )
 }

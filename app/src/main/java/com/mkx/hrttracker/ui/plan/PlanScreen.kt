@@ -88,6 +88,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -261,6 +262,11 @@ private fun PlanScreenContent(
         uiState.daySchedule
     }
     val displayedDate = daySchedule.date
+    val archivedGroupUuids = remember(uiState.scheduleMedicationGroups) {
+        uiState.scheduleMedicationGroups
+            .filter(MedicationGroup::isArchived)
+            .mapTo(mutableSetOf()) { group -> group.uuid }
+    }
 
     LaunchedEffect(
         visibleWeekStartDate,
@@ -435,6 +441,7 @@ private fun PlanScreenContent(
                         daySchedule = daySchedule,
                         appLocale = appLocale,
                         timeFormatter = timeFormatter,
+                        archivedGroupUuids = archivedGroupUuids,
                         onScheduledClick = { scheduled ->
                             val editingEntryIds = plannedEntryEditorIds(scheduled)
                             if (scheduled.isFulfilled && editingEntryIds.isNotEmpty()) {

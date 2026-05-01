@@ -838,16 +838,6 @@ private fun MedicationGroupEditorScreenContent(
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     )
-
-                    if (shouldCreateActiveCopyAfterArchive) {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.archive_and_recreate_starts_today),
-                            painter = painterResource(R.drawable.ic_info),
-                            index = 1,
-                            count = 2,
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        )
-                    }
                 }
             },
             confirmButton = {
@@ -885,15 +875,7 @@ private fun MedicationGroupEditorScreenContent(
             },
             title = { Text(text = stringResource(R.string.unarchive_medication_group_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
-                    if (uiState.plannedEntryCount > 0) {
-                        Text(
-                            text = stringResource(R.string.unarchive_medication_group_locked_note),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
+                Text(text = stringResource(R.string.unarchive_medication_group_confirmation))
             },
             confirmButton = {
                 TextButton(
