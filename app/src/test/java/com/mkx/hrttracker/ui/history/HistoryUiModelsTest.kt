@@ -1052,6 +1052,40 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historyCalendarDayAlpha_dims_today_when_rendered_as_adjacent_month_day() {
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.OutDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = true
+            ),
+            0f
+        )
+        assertEquals(
+            0.56f,
+            historyCalendarDayAlpha(
+                position = DayPosition.InDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = true
+            ),
+            0f
+        )
+        assertEquals(
+            1f,
+            historyCalendarDayAlpha(
+                position = DayPosition.MonthDate,
+                isFuture = false,
+                isSelected = false,
+                isToday = true
+            ),
+            0f
+        )
+    }
+
+    @Test
     fun canSelectHistoryCalendarDate_disallows_future_dates() {
         val today = LocalDate.of(2026, 4, 20)
 

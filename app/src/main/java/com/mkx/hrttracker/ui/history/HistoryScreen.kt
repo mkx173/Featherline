@@ -1663,12 +1663,12 @@ internal fun historyCalendarDayAlpha(
     isSelected: Boolean,
     isToday: Boolean
 ): Float {
-    return if (isSelected || isToday) {
-        1f
-    } else if (position != DayPosition.MonthDate || isFuture) {
-        0.56f
-    } else {
-        1f
+    return when {
+        isSelected -> 1f
+        position != DayPosition.MonthDate -> 0.56f
+        isToday -> 1f
+        isFuture -> 0.56f
+        else -> 1f
     }
 }
 
