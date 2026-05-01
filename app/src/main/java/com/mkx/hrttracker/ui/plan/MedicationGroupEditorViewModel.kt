@@ -220,7 +220,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            if (it.areScheduleShapeFieldsLocked) {
+            if (it.areScheduleShapeFieldsLocked || !it.isSinceDateSelectable(date)) {
                 it
             } else {
                 it.copy(sinceDate = date)
@@ -1000,6 +1000,8 @@ private fun MedicationGroup.toEditorState(
         remindersEnabled = remindersEnabled,
         notificationsEnabled = notificationsEnabled,
         hasResolvedNotificationDefault = true,
+        includePastScheduledSlots = includePastScheduledSlots,
+        minimumSelectableSinceDate = if (includePastScheduledSlots) null else schedule.since,
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
         isLoadingGroupForEditing = false,
@@ -1064,6 +1066,8 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         isSaved = false,
         isDeleted = false,
         isArchived = false,
+        includePastScheduledSlots = false,
+        minimumSelectableSinceDate = scheduleStartDate,
         hasActiveReplacement = false,
         saveMedicationGroupResult = null,
         relatedEntryCount = 0,
@@ -1276,6 +1280,8 @@ data class MedicationGroupEditorUiState(
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val isArchived: Boolean = false,
+    val includePastScheduledSlots: Boolean = true,
+    val minimumSelectableSinceDate: LocalDate? = null,
     val hasActiveReplacement: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
@@ -1311,6 +1317,11 @@ data class MedicationGroupEditorUiState(
 
     val areMedicationsLocked: Boolean
         get() = isLocked || isArchived
+}
+
+internal fun MedicationGroupEditorUiState.isSinceDateSelectable(date: LocalDate): Boolean {
+    val minimumDate = minimumSelectableSinceDate ?: return true
+    return !date.isBefore(minimumDate)
 }
 
 enum class SaveMedicationGroupResult {

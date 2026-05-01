@@ -189,6 +189,7 @@
     <string name="decrease_schedule_interval">Decrease schedule interval</string>
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
+    <string name="group_schedule_start_date_minimum_note">Copied plans can only move their start date later to keep past schedule records stable.</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>

@@ -662,7 +662,8 @@ private fun MedicationGroupEditorScreenContent(
         DatePickerModal(
             onDateSelected = onSinceDateChange,
             onDismiss = { pendingSinceDate = null },
-            initialSelectedDate = initialSinceDate
+            initialSelectedDate = initialSinceDate,
+            minimumDate = uiState.minimumSelectableSinceDate,
         )
     }
 
@@ -1221,6 +1222,15 @@ private fun MedicationGroupEditorScreenContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (uiState.minimumSelectableSinceDate != null && !uiState.isArchived) {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.group_schedule_start_date_minimum_note),
+                            icon = Icons.Rounded.ErrorOutline,
+                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
                     CompositionLocalProvider(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {

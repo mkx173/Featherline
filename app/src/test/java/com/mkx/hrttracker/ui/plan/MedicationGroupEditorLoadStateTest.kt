@@ -134,6 +134,42 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun editingSuccessorGroup_withoutHistory_allowsOnlyFutureStartDates() = runTest {
+        val groupUuid = UUID.fromString("512e3056-d3dc-4972-a62d-4a3d3150fe47")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.minimumSelectableSinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 3, 31))
+
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
+
+        assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.minimumSelectableSinceDate)
+    }
+
+    @Test
     fun unarchiveGroup_confirmsThenMarksEditorSavedWithoutEditableBlink() = runTest {
         val groupUuid = UUID.fromString("8c9c40fd-4487-4a90-b75a-4f04032519fd")
         val group = testMedicationGroup(groupUuid).copy(
@@ -242,6 +278,7 @@ class MedicationGroupEditorLoadStateTest {
 private fun testMedicationGroup(
     groupUuid: UUID,
     notificationsEnabled: Boolean = true,
+    includePastScheduledSlots: Boolean = true,
 ): MedicationGroup {
     return MedicationGroup(
         uuid = groupUuid,
@@ -264,6 +301,7 @@ private fun testMedicationGroup(
         notificationsEnabled = notificationsEnabled,
         createdAt = Instant.parse("2026-04-01T00:00:00Z"),
         updatedAt = Instant.parse("2026-04-02T00:00:00Z"),
+        includePastScheduledSlots = includePastScheduledSlots,
     )
 }
 

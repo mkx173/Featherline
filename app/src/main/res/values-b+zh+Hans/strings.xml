@@ -186,6 +186,7 @@
     <string name="decrease_schedule_interval">减少计划间隔</string>
     <string name="increase_schedule_interval">增加计划间隔</string>
     <string name="group_schedule_since">开始日期</string>
+    <string name="group_schedule_start_date_minimum_note">复制的计划只能将开始日期往后调整，以保持历史计划记录稳定</string>
     <string name="group_schedule_days_of_week">选择星期</string>
     <string name="group_schedule_time">时间</string>
     <string name="group_schedule_times">时间列表</string>

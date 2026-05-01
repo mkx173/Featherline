@@ -9,6 +9,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -32,9 +33,12 @@ fun DatePickerModal(
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     initialSelectedDate: LocalDate,
+    minimumDate: LocalDate? = null,
 ) {
     val datePickerState = rememberDatePickerState(
-        initialSelectedDate = initialSelectedDate
+        initialSelectedDate = initialSelectedDate,
+        selectableDates = minimumDate?.let(::minimumDateSelectableDates)
+            ?: object : SelectableDates {}
     )
 
     DatePickerDialog(
@@ -145,4 +149,27 @@ internal fun materialPickerDateMillisToLocalDate(
     return Instant.ofEpochMilli(selectedDateMillis)
         .atZone(zoneId)
         .toLocalDate()
+}
+
+internal fun isSelectableDateFromMinimum(
+    date: LocalDate,
+    minimumDate: LocalDate?,
+): Boolean {
+    return minimumDate == null || !date.isBefore(minimumDate)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private fun minimumDateSelectableDates(minimumDate: LocalDate): SelectableDates {
+    return object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+            return isSelectableDateFromMinimum(
+                date = materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneId.of("UTC")),
+                minimumDate = minimumDate,
+            )
+        }
+
+        override fun isSelectableYear(year: Int): Boolean {
+            return year >= minimumDate.year
+        }
+    }
 }

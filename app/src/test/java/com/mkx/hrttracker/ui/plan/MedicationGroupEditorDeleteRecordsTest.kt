@@ -41,6 +41,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -389,6 +390,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(viewModel.uiState.value.editingGroupId)
         assertEquals(groupUuid.toString(), viewModel.uiState.value.pendingReplacementGroupId)
         assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.minimumSelectableSinceDate)
         assertEquals(group.name, viewModel.uiState.value.groupName)
         assertEquals(false, viewModel.uiState.value.isArchived)
         assertEquals(0, viewModel.uiState.value.relatedEntryCount)
@@ -398,6 +400,16 @@ class MedicationGroupEditorDeleteRecordsTest {
             viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
         )
         assertNull(viewModel.uiState.value.medications.single().persistedMedicationId)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 24))
+
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
+
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.minimumSelectableSinceDate)
+        assertTrue(viewModel.uiState.value.isSinceDateSelectable(LocalDate.of(2026, 4, 26)))
         coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
         coVerify(exactly = 0) {
             medicationGroupRepository.saveGroup(
