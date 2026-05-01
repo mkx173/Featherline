@@ -101,19 +101,6 @@ interface MedicationGroupDao {
     @Query(
         """
         UPDATE medication_groups
-        SET archivedAtEpochMillis = NULL,
-            updatedAtEpochMillis = :updatedAtEpochMillis
-        WHERE uuid = :uuid
-        """
-    )
-    suspend fun clearGroupArchive(
-        uuid: String,
-        updatedAtEpochMillis: Long,
-    )
-
-    @Query(
-        """
-        UPDATE medication_groups
         SET replacedByGroupUuid = :replacedByGroupUuid,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE uuid = :uuid

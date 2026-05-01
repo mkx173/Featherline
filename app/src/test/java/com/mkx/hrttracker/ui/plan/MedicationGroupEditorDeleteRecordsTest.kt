@@ -390,7 +390,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(viewModel.uiState.value.editingGroupId)
         assertEquals(groupUuid.toString(), viewModel.uiState.value.pendingReplacementGroupId)
         assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
-        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.minimumSelectableSinceDate)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
         assertEquals(group.name, viewModel.uiState.value.groupName)
         assertEquals(false, viewModel.uiState.value.isArchived)
         assertEquals(0, viewModel.uiState.value.relatedEntryCount)
@@ -407,9 +407,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
 
-        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.sinceDate)
-        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.minimumSelectableSinceDate)
-        assertTrue(viewModel.uiState.value.isSinceDateSelectable(LocalDate.of(2026, 4, 26)))
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
         coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
         coVerify(exactly = 0) {
             medicationGroupRepository.saveGroup(

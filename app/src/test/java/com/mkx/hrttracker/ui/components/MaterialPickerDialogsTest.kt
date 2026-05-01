@@ -17,22 +17,4 @@ class MaterialPickerDialogsTest {
             materialPickerDateMillisToLocalDate(selectedDateMillis, zoneId)
         )
     }
-
-    @Test
-    fun is_selectable_date_from_minimum_rejects_earlier_dates() {
-        val minimumDate = LocalDate.of(2026, 4, 25)
-
-        assertEquals(
-            false,
-            isSelectableDateFromMinimum(LocalDate.of(2026, 4, 24), minimumDate)
-        )
-        assertEquals(
-            true,
-            isSelectableDateFromMinimum(LocalDate.of(2026, 4, 25), minimumDate)
-        )
-        assertEquals(
-            true,
-            isSelectableDateFromMinimum(LocalDate.of(2026, 4, 26), minimumDate)
-        )
-    }
 }

@@ -66,6 +66,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val cachedEditingGroup = editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
     private val defaultScheduleDateTime =
         nextMedicationGroupEditorDefaultDateTime(appTimeSource.currentMinute.value)
+    private var latestGroups: List<MedicationGroup> = emptyList()
     private val _uiState = MutableStateFlow(
         cachedEditingGroup?.toEditorState(
             remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
@@ -101,17 +102,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
             medicationGroupRepository.observeGroups().collect { groupsOrNull ->
                 _uiState.update { currentState ->
                     val allGroups = groupsOrNull.orEmpty()
+                    latestGroups = allGroups
                     val editingGroup = allGroups.firstOrNull { group ->
                         group.uuid.toString() == currentState.editingGroupId
                     }
                     val visibleGroups = allGroups.filterNot { group ->
                         group.uuid.toString() == currentState.editingGroupId
                     }
-                    val hasActiveReplacement = editingGroup
-                        ?.replacedByGroupUuid
-                        ?.let { replacementUuid ->
-                            allGroups.any { it.uuid == replacementUuid }
-                        } == true
                     val resolvedGroupColorKey = resolveMedicationGroupColorKey(
                         currentColorKey = currentState.groupColorKey,
                         usedColors = visibleGroups.map { group -> group.colorKey },
@@ -130,7 +127,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     ).copy(
                         groupColorKey = resolvedGroupColorKey,
                         hasAssignedGroupColor = true,
-                        hasActiveReplacement = hasActiveReplacement,
                     )
                 }
             }
@@ -220,7 +216,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            if (it.areScheduleShapeFieldsLocked || !it.isSinceDateSelectable(date)) {
+            if (it.areScheduleShapeFieldsLocked || it.isScheduleStartDateLocked) {
                 it
             } else {
                 it.copy(sinceDate = date)
@@ -475,7 +471,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isSaving ||
             currentState.isDeleting ||
             currentState.isArchiving ||
-            currentState.isUnarchiving ||
             currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries ||
             currentState.isArchived ||
@@ -608,30 +603,38 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun showUnarchiveConfirmation() {
+    fun duplicateArchivedGroup() {
         val currentState = _uiState.value
         if (
-            currentState.isEditing &&
-            currentState.isArchived &&
-            !currentState.isSaving &&
-            !currentState.isDeleting &&
-            !currentState.isArchiving &&
-            !currentState.isUnarchiving &&
-            !currentState.isRecreatingAfterArchive &&
-            !currentState.isDeletingRelatedEntries
+            !currentState.isEditing ||
+            !currentState.isArchived ||
+            currentState.isSaving ||
+            currentState.isDeleting ||
+            currentState.isArchiving ||
+            currentState.isRecreatingAfterArchive ||
+            currentState.isDeletingRelatedEntries
         ) {
-            _uiState.update {
-                it.copy(
-                    isUnarchiveConfirmationVisible = true,
-                    unarchiveMedicationGroupResult = null,
-                )
-            }
+            return
         }
-    }
+        val existingGroupCount = latestGroups.size.takeIf { it > 0 } ?: 1
+        val usedColors = latestGroups.map(MedicationGroup::colorKey)
+            .ifEmpty { listOf(currentState.groupColorKey) }
+        val defaultName = defaultMedicationGroupName(
+            existingGroupCount = existingGroupCount,
+            formatName = { index ->
+                context.getString(R.string.default_group_name_format, index)
+            }
+        )
+        val colorKey = nextAvailableMedicationGroupColor(
+            usedColors = usedColors,
+            seed = UUID.randomUUID().hashCode(),
+        )
 
-    fun dismissUnarchiveConfirmation() {
         _uiState.update {
-            it.copy(isUnarchiveConfirmationVisible = false)
+            currentState.toUnsavedDuplicatedGroupState(
+                defaultGroupName = defaultName,
+                colorKey = colorKey,
+            )
         }
     }
 
@@ -671,53 +674,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun unarchiveGroup() {
-        val currentState = _uiState.value
-        val groupId = currentState.editingGroupId ?: return
-        if (
-            !currentState.isArchived ||
-            currentState.isSaving ||
-            currentState.isDeleting ||
-            currentState.isArchiving ||
-            currentState.isUnarchiving ||
-            currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries
-        ) {
-            return
-        }
-        val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
-
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isUnarchiving = true,
-                    isUnarchiveConfirmationVisible = false,
-                    unarchiveMedicationGroupResult = null,
-                )
-            }
-
-            val unarchiveResult = runCatching {
-                medicationGroupRepository.unarchiveGroup(uuid)
-            }.fold(
-                onSuccess = { null },
-                onFailure = { UnarchiveMedicationGroupResult.FAILURE },
-            )
-            val unarchived = unarchiveResult == null
-
-            if (unarchived && currentState.notificationsEnabled) {
-                runCatching { medicationReminderScheduler.rescheduleGroup(uuid) }
-            }
-
-            _uiState.update {
-                it.copy(
-                    isUnarchiving = false,
-                    isSaved = unarchived,
-                    unarchiveMedicationGroupResult = unarchiveResult,
-                )
-            }
-        }
-    }
-
     fun archiveAndRecreateGroup() {
         val currentState = _uiState.value
         val groupId = currentState.editingGroupId ?: return
@@ -726,7 +682,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isSaving ||
             currentState.isDeleting ||
             currentState.isArchiving ||
-            currentState.isUnarchiving ||
             currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries
         ) {
@@ -869,10 +824,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
         _uiState.update { it.copy(archiveMedicationGroupResult = null) }
     }
 
-    fun consumeUnarchiveMedicationGroupResult() {
-        _uiState.update { it.copy(unarchiveMedicationGroupResult = null) }
-    }
-
     fun consumeArchiveAndRecreateMedicationGroupResult() {
         _uiState.update { it.copy(archiveAndRecreateMedicationGroupResult = null) }
     }
@@ -1001,7 +952,7 @@ private fun MedicationGroup.toEditorState(
         notificationsEnabled = notificationsEnabled,
         hasResolvedNotificationDefault = true,
         includePastScheduledSlots = includePastScheduledSlots,
-        minimumSelectableSinceDate = if (includePastScheduledSlots) null else schedule.since,
+        isScheduleStartDateLocked = !includePastScheduledSlots,
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
         isLoadingGroupForEditing = false,
@@ -1037,6 +988,43 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
     scheduleStartDate: LocalDate,
     resolvedGroupName: String,
 ): MedicationGroupEditorUiState {
+    return toUnsavedCopiedGroupState(
+        resolvedGroupName = resolvedGroupName,
+        defaultGroupName = resolvedGroupName,
+        colorKey = groupColorKey,
+        includePastScheduledSlots = false,
+        isScheduleStartDateLocked = true,
+        pendingReplacementGroupId = archivedGroupId,
+        notificationsEnabled = notificationsEnabled,
+    ).copy(
+        sinceDate = scheduleStartDate,
+    )
+}
+
+private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
+    defaultGroupName: String,
+    colorKey: MedicationGroupColorKey,
+): MedicationGroupEditorUiState {
+    return toUnsavedCopiedGroupState(
+        resolvedGroupName = defaultGroupName,
+        defaultGroupName = defaultGroupName,
+        colorKey = colorKey,
+        includePastScheduledSlots = true,
+        isScheduleStartDateLocked = false,
+        pendingReplacementGroupId = null,
+        notificationsEnabled = remindersEnabled,
+    )
+}
+
+private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
+    resolvedGroupName: String,
+    defaultGroupName: String,
+    colorKey: MedicationGroupColorKey,
+    includePastScheduledSlots: Boolean,
+    isScheduleStartDateLocked: Boolean,
+    pendingReplacementGroupId: String?,
+    notificationsEnabled: Boolean,
+): MedicationGroupEditorUiState {
     val copiedMedications = medications.map { medication ->
         medication.copy(
             localId = UUID.randomUUID().toString(),
@@ -1046,13 +1034,17 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
     return copy(
         editingGroupId = null,
         groupName = resolvedGroupName,
-        defaultGroupName = resolvedGroupName,
+        defaultGroupName = defaultGroupName,
         hasResolvedInitialGroupName = true,
-        sinceDate = scheduleStartDate,
         dailyTimes = dailyTimes.map { dailyTime ->
             MedicationGroupScheduleTimeUiState(time = dailyTime.time)
         },
         medications = copiedMedications,
+        remindersEnabled = remindersEnabled,
+        notificationsEnabled = notificationsEnabled,
+        hasResolvedNotificationDefault = true,
+        groupColorKey = colorKey,
+        hasAssignedGroupColor = true,
         editingMedication = null,
         isMedicationEditorSaved = false,
         medicationEditorErrorMessageRes = null,
@@ -1060,15 +1052,13 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         isSaving = false,
         isDeleting = false,
         isArchiving = false,
-        isUnarchiving = false,
         isDeletingRelatedEntries = false,
         isLoadingGroupForEditing = false,
         isSaved = false,
         isDeleted = false,
         isArchived = false,
-        includePastScheduledSlots = false,
-        minimumSelectableSinceDate = scheduleStartDate,
-        hasActiveReplacement = false,
+        includePastScheduledSlots = includePastScheduledSlots,
+        isScheduleStartDateLocked = isScheduleStartDateLocked,
         saveMedicationGroupResult = null,
         relatedEntryCount = 0,
         plannedEntryCount = 0,
@@ -1082,12 +1072,11 @@ private fun MedicationGroupEditorUiState.toUnsavedRecreatedGroupState(
         originalDailyTimes = emptyList(),
         originalMedications = emptyList(),
         isArchiveConfirmationVisible = false,
-        isUnarchiveConfirmationVisible = false,
         isDeleteConfirmationVisible = false,
         isDeleteRelatedEntriesConfirmationVisible = false,
-        pendingReplacementGroupId = archivedGroupId,
+        pendingReplacementGroupId = pendingReplacementGroupId,
         archiveMedicationGroupResult = null,
-        unarchiveMedicationGroupResult = null,
+        archiveAndRecreateMedicationGroupResult = null,
         deleteRelatedEntriesResult = null,
         deleteMedicationGroupResult = null,
     )
@@ -1273,7 +1262,6 @@ data class MedicationGroupEditorUiState(
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val isArchiving: Boolean = false,
-    val isUnarchiving: Boolean = false,
     val isRecreatingAfterArchive: Boolean = false,
     val isDeletingRelatedEntries: Boolean = false,
     val isLoadingGroupForEditing: Boolean = false,
@@ -1281,8 +1269,7 @@ data class MedicationGroupEditorUiState(
     val isDeleted: Boolean = false,
     val isArchived: Boolean = false,
     val includePastScheduledSlots: Boolean = true,
-    val minimumSelectableSinceDate: LocalDate? = null,
-    val hasActiveReplacement: Boolean = false,
+    val isScheduleStartDateLocked: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
@@ -1296,12 +1283,10 @@ data class MedicationGroupEditorUiState(
     val originalDailyTimes: List<LocalTime> = emptyList(),
     val originalMedications: List<MedicationGroupMedicationItemUiState> = emptyList(),
     val isArchiveConfirmationVisible: Boolean = false,
-    val isUnarchiveConfirmationVisible: Boolean = false,
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val pendingReplacementGroupId: String? = null,
     val archiveMedicationGroupResult: ArchiveMedicationGroupResult? = null,
-    val unarchiveMedicationGroupResult: UnarchiveMedicationGroupResult? = null,
     val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
     val deleteMedicationGroupResult: DeleteMedicationGroupResult? = null,
@@ -1319,11 +1304,6 @@ data class MedicationGroupEditorUiState(
         get() = isLocked || isArchived
 }
 
-internal fun MedicationGroupEditorUiState.isSinceDateSelectable(date: LocalDate): Boolean {
-    val minimumDate = minimumSelectableSinceDate ?: return true
-    return !date.isBefore(minimumDate)
-}
-
 enum class SaveMedicationGroupResult {
     FAILURE,
 }
@@ -1338,10 +1318,6 @@ enum class DeleteMedicationGroupResult {
 }
 
 enum class ArchiveMedicationGroupResult {
-    FAILURE,
-}
-
-enum class UnarchiveMedicationGroupResult {
     FAILURE,
 }
 

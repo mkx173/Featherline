@@ -20,7 +20,6 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +34,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,7 +65,10 @@ class MedicationGroupEditorLoadStateTest {
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
         every {
             context.getString(R.string.default_group_name_format, any())
-        } returns "Group 1"
+        } answers {
+            val formatArgs = invocation.args[1] as Array<*>
+            "Group ${formatArgs.first()}"
+        }
     }
 
     @After
@@ -134,7 +137,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun editingSuccessorGroup_withoutHistory_allowsOnlyFutureStartDates() = runTest {
+    fun editingRecreatedGroup_withoutHistory_locksStartDate() = runTest {
         val groupUuid = UUID.fromString("512e3056-d3dc-4972-a62d-4a3d3150fe47")
         val group = testMedicationGroup(
             groupUuid = groupUuid,
@@ -157,7 +160,7 @@ class MedicationGroupEditorLoadStateTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
-        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.minimumSelectableSinceDate)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 3, 31))
 
@@ -165,54 +168,12 @@ class MedicationGroupEditorLoadStateTest {
 
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
 
-        assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.sinceDate)
-        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.minimumSelectableSinceDate)
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
     }
 
     @Test
-    fun unarchiveGroup_confirmsThenMarksEditorSavedWithoutEditableBlink() = runTest {
+    fun duplicateArchivedGroup_prefillsNewDraftWithNewNameAndColor() = runTest {
         val groupUuid = UUID.fromString("8c9c40fd-4487-4a90-b75a-4f04032519fd")
-        val group = testMedicationGroup(groupUuid).copy(
-            archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
-        )
-        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
-        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
-        coEvery { medicationGroupRepository.unarchiveGroup(groupUuid, any()) } returns Unit
-        coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
-
-        val viewModel = MedicationGroupEditorViewModel(
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            settingsRepository = settingsRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            context = context,
-            savedStateHandle = SavedStateHandle(
-                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
-            ),
-            appTimeSource = appTimeSource,
-        )
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.isArchived)
-
-        viewModel.showUnarchiveConfirmation()
-        assertTrue(viewModel.uiState.value.isUnarchiveConfirmationVisible)
-
-        viewModel.unarchiveGroup()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isUnarchiving)
-        assertFalse(viewModel.uiState.value.isUnarchiveConfirmationVisible)
-        assertTrue(viewModel.uiState.value.isArchived)
-        assertTrue(viewModel.uiState.value.isSaved)
-        coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) }
-        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
-    }
-
-    @Test
-    fun unarchiveGroup_whenNotificationsWereDisabled_doesNotReschedule() = runTest {
-        val groupUuid = UUID.fromString("b5522c59-4f9d-427b-a8b9-09a21c5328e3")
         val group = testMedicationGroup(
             groupUuid = groupUuid,
             notificationsEnabled = false,
@@ -221,7 +182,6 @@ class MedicationGroupEditorLoadStateTest {
         )
         every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
-        coEvery { medicationGroupRepository.unarchiveGroup(groupUuid, any()) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -236,15 +196,23 @@ class MedicationGroupEditorLoadStateTest {
         )
         advanceUntilIdle()
 
-        viewModel.showUnarchiveConfirmation()
-        viewModel.unarchiveGroup()
-        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isArchived)
 
-        assertFalse(viewModel.uiState.value.isUnarchiving)
-        assertTrue(viewModel.uiState.value.isSaved)
-        coVerify(exactly = 1) { medicationGroupRepository.unarchiveGroup(groupUuid, any()) }
-        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleGroup(any(), any()) }
-        coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+        viewModel.duplicateArchivedGroup()
+
+        assertNull(viewModel.uiState.value.editingGroupId)
+        assertNull(viewModel.uiState.value.pendingReplacementGroupId)
+        assertFalse(viewModel.uiState.value.isArchived)
+        assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertEquals(true, viewModel.uiState.value.includePastScheduledSlots)
+        assertEquals("Group 2", viewModel.uiState.value.groupName)
+        assertEquals(MedicationGroupColorKey.ORCHID, viewModel.uiState.value.groupColorKey)
+        assertEquals(true, viewModel.uiState.value.notificationsEnabled)
+        assertNull(viewModel.uiState.value.medications.single().persistedMedicationId)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 5, 1))
+
+        assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.sinceDate)
     }
 
     @Test

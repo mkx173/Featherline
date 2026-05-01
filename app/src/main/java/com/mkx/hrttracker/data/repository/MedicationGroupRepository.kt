@@ -100,21 +100,6 @@ class MedicationGroupRepository @Inject constructor(
         }
     }
 
-    suspend fun unarchiveGroup(
-        uuid: UUID,
-        now: Instant = Instant.now(),
-    ) {
-        val nowEpochMillis = now.toEpochMilli()
-        databaseHolder.withTransaction { database ->
-            val groupDao = database.medicationGroupDao()
-            groupDao.getGroup(uuid.toString()) ?: throw MedicationGroupNotFoundException(uuid)
-            groupDao.clearGroupArchive(
-                uuid = uuid.toString(),
-                updatedAtEpochMillis = nowEpochMillis,
-            )
-        }
-    }
-
     suspend fun updateScheduleTimes(
         groupUuid: UUID,
         newTimes: List<LocalTime>,

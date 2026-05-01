@@ -299,21 +299,21 @@ internal fun ArchiveMedicationGroupCard(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun UnarchiveMedicationGroupCard(
+internal fun DuplicateMedicationGroupCard(
     enabled: Boolean,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 1,
 ) {
     PreferenceSegmentedListItem(
-        title = stringResource(R.string.unarchive_medication_group),
+        title = stringResource(R.string.duplicate_medication_group),
         index = index,
         count = count,
         enabled = enabled,
         onClick = onClick,
         leadingContent = {
             Icon(
-                painter = painterResource(R.drawable.ic_unarchive),
+                imageVector = Icons.Rounded.Add,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),

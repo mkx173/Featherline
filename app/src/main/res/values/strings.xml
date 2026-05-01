@@ -189,7 +189,7 @@
     <string name="decrease_schedule_interval">Decrease schedule interval</string>
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
-    <string name="group_schedule_start_date_minimum_note">Copied plans can only move their start date later to keep past schedule records stable.</string>
+    <string name="group_schedule_start_date_locked_note">Recreated plans keep their start date fixed to keep past schedule records stable.</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>
@@ -227,13 +227,9 @@
     <string name="archive_medication_group_title">Archive group</string>
     <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from the current plan and stop sending reminders. Existing records will not be deleted.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
-    <string name="unarchive_medication_group">Unarchive group</string>
-    <string name="unarchive_medication_group_title">Unarchive group</string>
-    <string name="unarchive_medication_group_confirmation">Unarchive this medication group? It will return to the current plan.</string>
-    <string name="unarchive_medication_group_failure">Unable to unarchive group.</string>
-    <string name="unarchive_medication_group_replaced">A newer copy of this group may still be active. Unarchiving can create duplicate plan entries or reminders.</string>
     <string name="archive_and_recreate">Archive and recreate</string>
     <string name="archive_create_active_copy">Create copy after archive</string>
+    <string name="duplicate_medication_group">Duplicate as new group</string>
     <string name="archive_and_recreate_medication_group_success">Archived.</string>
     <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
     <string name="group_locked_banner">This group already has related records, so some settings can’t be changed. To make adjustments, archive the current group and create a new one.</string>
