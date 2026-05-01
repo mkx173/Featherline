@@ -230,14 +230,12 @@ class MedicationGroupRepository @Inject constructor(
         val groupUuid = uuid ?: UUID.randomUUID()
         val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
         val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
-        val resolvedColorKey = existingGroup?.group?.colorKey?.let(MedicationGroupColorKey::fromStorageValue)
-            ?: colorKey
 
         dao.upsertGroupWithItems(
             group = MedicationGroupEntity(
                 uuid = groupUuid.toString(),
                 name = name,
-                colorKey = resolvedColorKey.name,
+                colorKey = colorKey.name,
                 notificationsEnabled = notificationsEnabled,
                 scheduleType = schedule.type.name,
                 scheduleInterval = schedule.interval,

@@ -163,6 +163,11 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
         val scheduledFor = entry.scheduledFor ?: return@mapNotNull null
         if (entry.sourceGroupUuid == uuid &&
             scheduledFor.toLocalDate() == date &&
+            isMedicationGroupSlotInPlanWindow(
+                group = this,
+                slotDateTime = scheduledFor,
+                zoneId = zoneId,
+            ) &&
             isArchivedPlanSlotVisible(
                 slotDateTime = scheduledFor,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
