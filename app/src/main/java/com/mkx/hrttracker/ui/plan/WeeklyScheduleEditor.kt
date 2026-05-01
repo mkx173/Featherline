@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
@@ -92,7 +91,7 @@ internal fun WeeklyScheduleEditor(
             index = 2,
             count = totalCount,
             onClick = {},
-            enabled = daySelectionEnabled,
+            enabled = true,
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -107,9 +106,6 @@ internal fun WeeklyScheduleEditor(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (shapeLocked) {
-                        LockedFieldIcon(modifier = Modifier.size(20.dp))
-                    }
                 }
                 ConnectedButtonGroup(
                     modifier = Modifier.fillMaxWidth(),
@@ -135,6 +131,7 @@ internal fun WeeklyScheduleEditor(
             icon = Icons.Rounded.Schedule,
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
+            locked = !timeEditEnabled,
             index = 3,
             count = totalCount
         )

@@ -1082,12 +1082,7 @@ private fun MedicationGroupEditorScreenContent(
                                     } else {
                                         null
                                     },
-                                    trailingContent = if (uiState.isLocked) {
-                                        { LockedFieldIcon() }
-                                    } else {
-                                        null
-                                    },
-                                    enabled = medicationEditable,
+                                    enabled = true,
                                     index = index,
                                     itemCount = uiState.medications.size,
                                 )
@@ -1160,7 +1155,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
                             daySelectionEnabled = !uiState.areScheduleShapeFieldsLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = uiState.isLocked,
+                            shapeLocked = uiState.areScheduleShapeFieldsLocked,
                         )
                     } else {
                         DailyScheduleEditor(
@@ -1187,7 +1182,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
                             addRemoveTimeEnabled = !uiState.areScheduleShapeFieldsLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = uiState.isLocked,
+                            shapeLocked = uiState.areScheduleShapeFieldsLocked,
                         )
                     }
                     if (uiState.isLocked) {

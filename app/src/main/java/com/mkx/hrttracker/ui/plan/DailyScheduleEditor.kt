@@ -183,20 +183,22 @@ private fun DailyTimeRow(
                 modifier = Modifier.size(20.dp)
             )
         },
-        trailingContent = {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-                modifier = Modifier.size(20.dp)
-            )
+        trailingContent = if (enabled) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        } else {
+            null
         },
-        onClick = onClick,
-        enabled = enabled,
+        onClick = if (enabled) onClick else {
+            {}
+        },
+        enabled = true,
         shapes = segmentedListItemShapes(
             index = index,
             count = count,
@@ -207,6 +209,7 @@ private fun DailyTimeRow(
         Text(
             text = formattedTime,
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

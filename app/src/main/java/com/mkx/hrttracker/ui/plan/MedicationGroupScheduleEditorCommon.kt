@@ -10,7 +10,6 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -49,12 +48,13 @@ internal fun IntervalStepperCard(
     index: Int = 0,
     count: Int = 1
 ) {
+    val controlsEnabled = enabled && !locked
 
     EditorSegmentedListItem(
         index = index,
         count = count,
         onClick = { },
-        enabled = enabled,
+        enabled = true,
         overlineContent = {
             Text(
                 text = label.uppercase(),
@@ -63,15 +63,16 @@ internal fun IntervalStepperCard(
             )
         },
         leadingContent = {
-                    Icon(
-                        imageVector = Icons.Rounded.Sync,
-                        contentDescription = null
-                    )
+            Icon(
+                imageVector = Icons.Rounded.Sync,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         },
-        trailingContent = {
-            if (locked) {
-                LockedFieldIcon()
-            } else {
+        trailingContent = if (!controlsEnabled) {
+            null
+        } else {
+            {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -79,13 +80,13 @@ internal fun IntervalStepperCard(
                     StepperCircleButton(
                         icon = Icons.Rounded.Remove,
                         contentDescription = stringResource(R.string.decrease_schedule_interval),
-                        enabled = enabled && value > 1,
+                        enabled = value > 1,
                         onClick = onDecreaseClick
                     )
                     StepperCircleButton(
                         icon = Icons.Rounded.Add,
                         contentDescription = stringResource(R.string.increase_schedule_interval),
-                        enabled = enabled,
+                        enabled = true,
                         onClick = onIncreaseClick
                     )
                 }
@@ -101,6 +102,7 @@ internal fun IntervalStepperCard(
                 text = value.toString(),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.alignByBaseline()
             )
             Text(
@@ -148,11 +150,14 @@ internal fun EditorFieldRow(
     index: Int = 0,
     count: Int = 1
 ) {
+    val fieldEnabled = enabled && !locked
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = onClick,
-        enabled = enabled,
+        onClick = if (fieldEnabled) onClick else {
+            {}
+        },
+        enabled = true,
         leadingContent = {
             Icon(
                 imageVector = icon,
@@ -168,10 +173,10 @@ internal fun EditorFieldRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        trailingContent = {
-            if (locked) {
-                LockedFieldIcon()
-            } else {
+        trailingContent = if (!fieldEnabled) {
+            null
+        } else {
+            {
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = null,
@@ -182,21 +187,10 @@ internal fun EditorFieldRow(
     ) {
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
-}
-
-@Composable
-internal fun LockedFieldIcon(
-    modifier: Modifier = Modifier,
-) {
-    Icon(
-        imageVector = Icons.Rounded.Lock,
-        contentDescription = stringResource(R.string.group_field_locked),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.size(24.dp)
-    )
 }
 
 internal fun parseScheduleInterval(value: String): Int {
