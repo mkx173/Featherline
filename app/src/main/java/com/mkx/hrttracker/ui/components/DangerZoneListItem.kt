@@ -22,8 +22,7 @@ fun DangerZoneListItem(
     index: Int = 0,
     count: Int = 1,
     supportText: String? = null,
-    ) {
-    val displayLabel = label.uppercase()
+) {
     val contentColor = if (enabled) {
         MaterialTheme.colorScheme.onErrorContainer
     } else {
@@ -31,7 +30,7 @@ fun DangerZoneListItem(
     }
 
     PreferenceSegmentedListItem(
-        title = displayLabel,
+        title = label,
         index = index,
         count = count,
         enabled = enabled,

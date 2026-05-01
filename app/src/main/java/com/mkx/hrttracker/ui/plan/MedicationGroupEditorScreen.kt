@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,8 +33,10 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -68,6 +71,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -769,6 +773,13 @@ private fun MedicationGroupEditorScreenContent(
         )
     }
 
+    var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(uiState.isArchiveConfirmationVisible) {
+        if (uiState.isArchiveConfirmationVisible) {
+            shouldCreateActiveCopyAfterArchive = false
+        }
+    }
+
     if (uiState.isArchiveConfirmationVisible) {
         val isArchiveActionInProgress = uiState.isArchiving || uiState.isRecreatingAfterArchive
         AlertDialog(
@@ -779,44 +790,74 @@ private fun MedicationGroupEditorScreenContent(
             },
             title = { Text(text = stringResource(R.string.archive_medication_group_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(text = stringResource(R.string.archive_medication_group_confirmation))
-                    Text(
-                        text = stringResource(
-                            if (uiState.willRecreateAfterArchiveStartTomorrow) {
-                                R.string.archive_and_recreate_starts_tomorrow
-                            } else {
-                                R.string.archive_and_recreate_starts_today
-                            }
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !isArchiveActionInProgress) {
+                                shouldCreateActiveCopyAfterArchive =
+                                    !shouldCreateActiveCopyAfterArchive
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.archive_create_active_copy),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.weight(1f),
+                        )
+                        CompositionLocalProvider(
+                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                        ) {
+                            Checkbox(
+                                checked = shouldCreateActiveCopyAfterArchive,
+                                enabled = !isArchiveActionInProgress,
+                                onCheckedChange = { checked ->
+                                    shouldCreateActiveCopyAfterArchive = checked
+                                },
+                            )
+                        }
+                    }
+                    if (shouldCreateActiveCopyAfterArchive) {
+                        Text(
+                            text = stringResource(
+                                if (uiState.willRecreateAfterArchiveStartTomorrow) {
+                                    R.string.archive_and_recreate_starts_tomorrow
+                                } else {
+                                    R.string.archive_and_recreate_starts_today
+                                }
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
             confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                TextButton(
+                    enabled = !isArchiveActionInProgress,
+                    onClick = {
+                        if (shouldCreateActiveCopyAfterArchive) {
+                            onArchiveAndRecreateConfirm()
+                        } else {
+                            onArchiveConfirm()
+                        }
+                    }
                 ) {
-                    TextButton(
-                        enabled = !isArchiveActionInProgress,
-                        onClick = onArchiveAndRecreateConfirm,
-                    ) {
-                        Text(text = stringResource(R.string.archive_and_recreate))
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        enabled = !isArchiveActionInProgress,
-                        onClick = onArchiveDismiss,
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                    TextButton(
-                        enabled = !isArchiveActionInProgress,
-                        onClick = onArchiveConfirm,
-                    ) {
-                        Text(text = stringResource(R.string.archive))
-                    }
+                    Text(text = stringResource(R.string.archive))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isArchiveActionInProgress,
+                    onClick = onArchiveDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
                 }
             }
         )

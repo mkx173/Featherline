@@ -274,13 +274,27 @@ internal fun ArchiveMedicationGroupCard(
     index: Int = 0,
     count: Int = 1,
 ) {
-    DangerZoneListItem(
-        label = stringResource(R.string.archive_medication_group),
-        enabled = enabled,
-        onClick = onClick,
-        icon = Icons.Rounded.Archive,
+    PreferenceSegmentedListItem(
+        title = stringResource(R.string.archive_medication_group),
         index = index,
         count = count,
+        enabled = enabled,
+        onClick = onClick,
+        leadingContent = {
+            Icon(
+                imageVector = Icons.Rounded.Archive,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
     )
 }
 
