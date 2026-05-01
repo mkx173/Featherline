@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -1023,9 +1024,10 @@ private fun MedicationGroupEditorScreenContent(
                 item {
                     SupportMessageListItem(
                         text = stringResource(R.string.group_locked_banner),
-                        icon = Icons.Rounded.ErrorOutline,
-                        leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                        leadingIconSize = 24.dp,
+                        painter = painterResource(R.drawable.ic_calendar_lock),
+                        leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        titleColor = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
             }
@@ -1221,9 +1223,10 @@ private fun MedicationGroupEditorScreenContent(
                     if (uiState.isLocked) {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_locked_time_note),
-                            icon = Icons.Rounded.ErrorOutline,
-                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
-                            leadingIconSize = 24.dp,
+                            icon = Icons.Rounded.EditCalendar,
+                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                 }
