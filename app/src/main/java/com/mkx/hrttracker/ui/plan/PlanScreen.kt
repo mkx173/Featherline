@@ -322,14 +322,14 @@ private fun PlanScreenContent(
                         val menuItems = buildList {
                             add(
                                 HrtDropdownMenuItem(
-                                    text = stringResource(R.string.plan_batch_add_from_plan),
-                                    onClick = onBatchAddClick,
+                                    text = stringResource(R.string.plan_archived_groups),
+                                    onClick = onArchivedGroupsClick,
                                 )
                             )
                             add(
                                 HrtDropdownMenuItem(
-                                    text = stringResource(R.string.plan_archived_groups),
-                                    onClick = onArchivedGroupsClick,
+                                    text = stringResource(R.string.plan_batch_add_from_plan),
+                                    onClick = onBatchAddClick,
                                 )
                             )
                         }

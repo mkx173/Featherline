@@ -26,6 +26,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import androidx.core.net.toUri
 
 @Composable
 fun OnboardingDialogs(
@@ -222,7 +223,7 @@ private fun requestExactAlarmAccess(
     launch(
         Intent(
             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-            Uri.parse("package:${context.packageName}")
+            "package:${context.packageName}".toUri()
         )
     )
 }

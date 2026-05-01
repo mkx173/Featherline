@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,6 +45,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -62,6 +64,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -105,6 +108,7 @@ import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -128,6 +132,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import androidx.core.net.toUri
 
 @Composable
 fun MedicationGroupEditorScreen(
@@ -773,14 +778,8 @@ private fun MedicationGroupEditorScreenContent(
         )
     }
 
-    var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(uiState.isArchiveConfirmationVisible) {
-        if (uiState.isArchiveConfirmationVisible) {
-            shouldCreateActiveCopyAfterArchive = false
-        }
-    }
-
     if (uiState.isArchiveConfirmationVisible) {
+        var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
         val isArchiveActionInProgress = uiState.isArchiving || uiState.isRecreatingAfterArchive
         AlertDialog(
             onDismissRequest = {
@@ -790,42 +789,30 @@ private fun MedicationGroupEditorScreenContent(
             },
             title = { Text(text = stringResource(R.string.archive_medication_group_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))) {
                     Text(text = stringResource(R.string.archive_medication_group_confirmation))
-                    HorizontalDivider(
-                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, end = 2.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !isArchiveActionInProgress) {
-                                shouldCreateActiveCopyAfterArchive =
-                                    !shouldCreateActiveCopyAfterArchive
-                            },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.archive_create_active_copy),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Normal,
-                            modifier = Modifier.weight(1f),
-                        )
-                        CompositionLocalProvider(
-                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
-                        ) {
-                            Checkbox(
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PreferenceSegmentedListItem(
+                        title = stringResource(R.string.archive_create_active_copy),
+                        index = 0,
+                        count = if (shouldCreateActiveCopyAfterArchive) 2 else 1,
+                        onClick = {
+                            shouldCreateActiveCopyAfterArchive =
+                                !shouldCreateActiveCopyAfterArchive
+                        },
+                        enabled = !isArchiveActionInProgress,
+                        trailingContent = {
+                            Switch(
                                 checked = shouldCreateActiveCopyAfterArchive,
-                                enabled = !isArchiveActionInProgress,
-                                onCheckedChange = { checked ->
-                                    shouldCreateActiveCopyAfterArchive = checked
-                                },
+                                onCheckedChange = { shouldCreateActiveCopyAfterArchive = it },
+                                enabled = !isArchiveActionInProgress
                             )
-                        }
-                    }
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
+
                     if (shouldCreateActiveCopyAfterArchive) {
-                        Text(
+                        SupportMessageListItem(
                             text = stringResource(
                                 if (uiState.willRecreateAfterArchiveStartTomorrow) {
                                     R.string.archive_and_recreate_starts_tomorrow
@@ -833,7 +820,10 @@ private fun MedicationGroupEditorScreenContent(
                                     R.string.archive_and_recreate_starts_today
                                 }
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            painter = painterResource(R.drawable.ic_info),
+                            index = 1,
+                            count = 2,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         )
                     }
                 }
@@ -1134,7 +1124,9 @@ private fun MedicationGroupEditorScreenContent(
                         HrtFilledTonalButton(
                             text = stringResource(R.string.add),
                             onClick = onAddMedication,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             icon = Icons.Rounded.Add,
                             iconModifier = Modifier.size(
                                 ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
@@ -1530,7 +1522,7 @@ private fun maybeRequestExactAlarmAccess(
 
     val intent = Intent(
         Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-        Uri.parse("package:${context.packageName}")
+        "package:${context.packageName}".toUri()
     )
     launch(intent)
 }
@@ -1541,7 +1533,9 @@ private fun EditorSectionHeader(
     trailing: @Composable (() -> Unit)? = null
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

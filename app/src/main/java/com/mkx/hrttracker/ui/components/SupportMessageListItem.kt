@@ -37,6 +37,7 @@ fun SupportMessageListItem(
     leadingIconSize: Dp = 20.dp,
     chevronTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     chevronSize: Dp = 24.dp,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
 ) {
     CompositionLocalProvider(
         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
@@ -89,6 +90,7 @@ fun SupportMessageListItem(
             titleTextStyle = textStyle,
             supportingTextStyle = supportingTextStyle,
             titleColor = titleColor,
+            containerColor = containerColor
         )
     }
 }

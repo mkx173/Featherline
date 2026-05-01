@@ -107,6 +107,7 @@ import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,7 +139,7 @@ fun SettingsScreen(
     var pendingPreparedBackupTempFilePath by rememberSaveable { mutableStateOf<String?>(null) }
     val pendingRestoreRequest = pendingRestoreUriString?.let { restoreUriString ->
         PendingBackupRestoreRequest(
-            uri = Uri.parse(restoreUriString),
+            uri = restoreUriString.toUri(),
             displayName = pendingRestoreDisplayName,
         )
     }
@@ -997,7 +998,7 @@ private fun SettingsScreenContent(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(externalUrl)))
+                        context.startActivity(Intent(Intent.ACTION_VIEW, externalUrl.toUri()))
                         pendingExternalUrl = null
                     }
                 ) {
@@ -1163,7 +1164,7 @@ private fun requestExactAlarmAccess(
     launch(
         Intent(
             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-            Uri.parse("package:${context.packageName}")
+            "package:${context.packageName}".toUri()
         )
     )
 }
