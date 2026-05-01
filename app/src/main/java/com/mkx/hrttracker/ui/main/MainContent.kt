@@ -59,8 +59,8 @@ import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
@@ -90,9 +90,7 @@ fun MainContent(
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     if (uiState.isLoading) {
         Box(
             modifier = modifier.fillMaxSize(),

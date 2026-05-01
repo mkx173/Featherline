@@ -63,7 +63,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -99,9 +98,9 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -210,9 +209,7 @@ fun MedicationLogEntryEditorSheet(
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val sourceGroupScheduledForText = sourceGroupScheduledFor?.let { scheduledFor ->
         stringResource(
             R.string.medication_editor_original_schedule,
@@ -883,7 +880,7 @@ private fun MedicationLogAppliedAtFields(
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
 ) {
-    val context = LocalContext.current
+    val uses24HourFormat = rememberUses24HourTimeFormat()
     val focusManager = LocalFocusManager.current
     var showDatePickerModal by remember { mutableStateOf(false) }
 
@@ -937,7 +934,7 @@ private fun MedicationLogAppliedAtFields(
                 focusManager.clearFocus()
             },
             initialTime = appliedTime,
-            is24Hour = context.uses24HourTimeFormat()
+            is24Hour = uses24HourFormat
         )
     }
 

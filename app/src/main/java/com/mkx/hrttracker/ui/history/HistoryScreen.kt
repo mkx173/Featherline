@@ -132,8 +132,8 @@ import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -232,9 +232,7 @@ private fun HistoryScreenContent(
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val monthLabelFormatter = remember(appLocale) {
         historyMonthLabelFormatter(appLocale)
     }

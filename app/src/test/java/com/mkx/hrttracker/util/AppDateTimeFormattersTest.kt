@@ -3,9 +3,40 @@ package com.mkx.hrttracker.util
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.Locale
 
 class AppDateTimeFormattersTest {
+    @Test
+    fun localizedShortTimeFormatter_usesExplicit24HourFormat() {
+        val formatter = localizedShortTimeFormatter(
+            locale = Locale.US,
+            uses24HourFormat = true,
+        )
+
+        assertEquals("21:05", LocalTime.of(21, 5).format(formatter))
+    }
+
+    @Test
+    fun localizedShortTimeFormatter_usesExplicit12HourFormat() {
+        val formatter = localizedShortTimeFormatter(
+            locale = Locale.UK,
+            uses24HourFormat = false,
+        )
+
+        assertEquals("9:05 pm", LocalTime.of(21, 5).format(formatter))
+    }
+
+    @Test
+    fun localizedShortTimeFormatter_placesChineseDayPeriodBeforeTime() {
+        val formatter = localizedShortTimeFormatter(
+            locale = Locale.SIMPLIFIED_CHINESE,
+            uses24HourFormat = false,
+        )
+
+        assertEquals("上午9:05", LocalTime.of(9, 5).format(formatter))
+    }
+
     @Test
     fun dateRangeLabelFormatter_omitsYearWhenBothEndsAreInCurrentYear() {
         val formatter = dateRangeLabelFormatter(

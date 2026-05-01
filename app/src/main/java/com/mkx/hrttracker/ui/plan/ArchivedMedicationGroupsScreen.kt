@@ -41,8 +41,8 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -85,9 +85,7 @@ private fun ArchivedMedicationGroupsScreenContent(
     val dateFormatter = remember(appLocale, uiState.today) {
         dateLabelFormatter(appLocale, uiState.today)
     }
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),

@@ -1,19 +1,51 @@
 package com.mkx.hrttracker.util
 
 import android.content.Context
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.text.format.DateFormat
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 
 typealias LocalDateFormatter = (LocalDate) -> String
 
-fun localizedShortTimeFormatter(locale: Locale): DateTimeFormatter {
-    return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+fun localizedShortTimeFormatter(
+    locale: Locale,
+    uses24HourFormat: Boolean,
+): DateTimeFormatter {
+    val pattern = if (uses24HourFormat) {
+        "HH:mm"
+    } else if (locale.isChineseLanguage()) {
+        "ah:mm"
+    } else {
+        "h:mm a"
+    }
+    return DateTimeFormatter.ofPattern(pattern, locale)
+}
+
+@Composable
+fun rememberLocalizedShortTimeFormatter(locale: Locale): DateTimeFormatter {
+    val uses24HourFormat = rememberUses24HourTimeFormat()
+    return remember(locale, uses24HourFormat) {
+        localizedShortTimeFormatter(locale, uses24HourFormat)
+    }
+}
+
+@Composable
+fun rememberUses24HourTimeFormat(): Boolean {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    return remember(context, configuration) {
+        context.uses24HourTimeFormat()
+    }
 }
 
 fun dateLabelFormatter(
@@ -149,7 +181,10 @@ data class CalibrationPanelDateTimeLabels(
     val timeLabel: String,
 )
 
-fun calibrationPanelDateTimeFormatters(locale: Locale): CalibrationPanelDateTimeFormatters {
+fun calibrationPanelDateTimeFormatters(
+    locale: Locale,
+    uses24HourFormat: Boolean,
+): CalibrationPanelDateTimeFormatters {
     val monthPattern = if (locale.isChineseLanguage()) {
         "M月"
     } else {
@@ -158,7 +193,7 @@ fun calibrationPanelDateTimeFormatters(locale: Locale): CalibrationPanelDateTime
     return CalibrationPanelDateTimeFormatters(
         monthFormatter = DateTimeFormatter.ofPattern(monthPattern, locale),
         dayFormatter = DateTimeFormatter.ofPattern("d", locale),
-        timeFormatter = localizedShortTimeFormatter(locale),
+        timeFormatter = localizedShortTimeFormatter(locale, uses24HourFormat),
     )
 }
 
@@ -180,7 +215,14 @@ fun backupFileNameTimestampFormatter(): DateTimeFormatter {
 }
 
 fun Context.uses24HourTimeFormat(): Boolean {
-    return DateFormat.is24HourFormat(this)
+    return DateFormat.is24HourFormat(systemLocaleContext())
+}
+
+private fun Context.systemLocaleContext(): Context {
+    val configuration = Configuration(resources.configuration).apply {
+        setLocales(Resources.getSystem().configuration.locales)
+    }
+    return createConfigurationContext(configuration)
 }
 
 private fun Locale.isChineseLanguage(): Boolean {

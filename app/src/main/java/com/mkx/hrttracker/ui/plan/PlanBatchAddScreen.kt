@@ -68,8 +68,8 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.dateRangeLabelFormatter
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDate
 import java.util.UUID
 
@@ -121,9 +121,7 @@ private fun PlanBatchAddScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, uiState.today) {
         dateLabelFormatter(appLocale, uiState.today)
     }

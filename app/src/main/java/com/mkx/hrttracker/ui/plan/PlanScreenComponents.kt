@@ -856,7 +856,7 @@ private enum class SelectedDayRowState {
 private fun SelectedDaySectionPreview() {
     val uiState = buildPlanPreviewUiState()
     val appLocale = Locale.US
-    val timeFormatter = localizedShortTimeFormatter(appLocale)
+    val timeFormatter = localizedShortTimeFormatter(appLocale, uses24HourFormat = false)
 
     PlanScreenComponentPreviewContainer {
         SelectedDaySection(
@@ -878,7 +878,7 @@ private fun SelectedDaySectionPreview() {
 @Composable
 private fun SelectedDayRowPreview() {
     val uiState = buildPlanPreviewUiState()
-    val timeFormatter = localizedShortTimeFormatter(Locale.US)
+    val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
     val row = SelectedDayRowModel.Scheduled(uiState.daySchedule.scheduledEntries.first())
 
     PlanScreenComponentPreviewContainer {
@@ -900,7 +900,7 @@ private fun SelectedDayRowPreview() {
 private fun SelectedDayManualRowPreview() {
     val uiState = buildPlanPreviewUiState()
     val entry = uiState.daySchedule.unplannedEntries.first()
-    val timeFormatter = localizedShortTimeFormatter(Locale.US)
+    val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
 
     PlanScreenComponentPreviewContainer {
         SelectedDayRow(
@@ -927,7 +927,7 @@ private fun RegimenGroupCardPreview() {
     val dateFormatter = remember(appLocale, uiState.today) {
         dateLabelFormatter(appLocale, uiState.today)
     }
-    val timeFormatter = localizedShortTimeFormatter(appLocale)
+    val timeFormatter = localizedShortTimeFormatter(appLocale, uses24HourFormat = false)
     val group = uiState.medicationGroups.last()
 
     PlanScreenComponentPreviewContainer {

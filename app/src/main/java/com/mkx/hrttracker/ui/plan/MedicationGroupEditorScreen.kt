@@ -123,10 +123,10 @@ import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -477,9 +477,7 @@ private fun MedicationGroupEditorScreenContent(
     val resolvedOccurrenceReferenceTime = occurrenceReferenceTime
         ?: LocalDateTime.now().withSecond(0).withNano(0)
     val currentDate = resolvedOccurrenceReferenceTime.toLocalDate()
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, currentDate) {
         medicationGroupScheduleDateFormatter(appLocale, currentDate)
     }
@@ -488,7 +486,7 @@ private fun MedicationGroupEditorScreenContent(
         remindersEnabled = uiState.remindersEnabled,
         showInexactReminderWarning = showInexactReminderWarning
     )
-    val is24Hour = context.uses24HourTimeFormat()
+    val is24Hour = rememberUses24HourTimeFormat()
     val deleteRelatedEntriesSuccessMessage =
         stringResource(R.string.delete_group_related_records_success)
     val deleteRelatedEntriesFailureMessage =

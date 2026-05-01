@@ -75,7 +75,8 @@ import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.uses24HourTimeFormat
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -97,10 +98,8 @@ fun CalibrationEditorScreen(
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
     }
-    val timeFormatter = remember(appLocale) {
-        localizedShortTimeFormatter(appLocale)
-    }
-    val is24Hour = context.uses24HourTimeFormat()
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val is24Hour = rememberUses24HourTimeFormat()
     var isDatePickerVisible by rememberSaveable { mutableStateOf(false) }
     var isTimePickerVisible by rememberSaveable { mutableStateOf(false) }
     var addAnalyteSheetOptions by remember {
@@ -723,7 +722,7 @@ private fun previewCalibrationEditorDateFormatter(): LocalDateFormatter {
 }
 
 private fun previewCalibrationEditorTimeFormatter(): DateTimeFormatter {
-    return localizedShortTimeFormatter(Locale.ENGLISH)
+    return localizedShortTimeFormatter(Locale.ENGLISH, uses24HourFormat = false)
 }
 
 private fun previewCalibrationCustomAnalytes(): List<CustomBloodAnalyte> {

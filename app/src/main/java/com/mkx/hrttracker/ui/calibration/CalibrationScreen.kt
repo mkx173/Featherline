@@ -91,6 +91,7 @@ import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.calibrationPanelDateTimeFormatters
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -112,9 +113,10 @@ fun CalibrationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val appLocale = rememberAppLocale()
+    val uses24HourFormat = rememberUses24HourTimeFormat()
     val today = remember { LocalDate.now() }
-    val panelDateTimeFormatters = remember(appLocale) {
-        calibrationPanelDateTimeFormatters(appLocale)
+    val panelDateTimeFormatters = remember(appLocale, uses24HourFormat) {
+        calibrationPanelDateTimeFormatters(appLocale, uses24HourFormat)
     }
     val monthFormatter = remember(appLocale, today) {
         calibrationMonthHeaderFormatter(
@@ -1279,7 +1281,7 @@ private fun CalibrationPanelRowPreview() {
 }
 
 private fun previewCalibrationPanelDateTimeFormatters(): CalibrationPanelDateTimeFormatters {
-    return calibrationPanelDateTimeFormatters(Locale.ENGLISH)
+    return calibrationPanelDateTimeFormatters(Locale.ENGLISH, uses24HourFormat = false)
 }
 
 private fun previewCalibrationMonthFormatter(): LocalDateFormatter {

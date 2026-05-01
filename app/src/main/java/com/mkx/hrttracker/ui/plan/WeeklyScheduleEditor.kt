@@ -173,7 +173,10 @@ private fun WeeklyScheduleEditorPreview() {
                 locale = previewLocale,
                 today = LocalDate.of(2026, 4, 22),
             ),
-            timeFormatter = localizedShortTimeFormatter(previewLocale),
+            timeFormatter = localizedShortTimeFormatter(
+                previewLocale,
+                uses24HourFormat = false,
+            ),
             onSinceDateChange = {},
             onIntervalChange = {},
             onDayChange = {},
