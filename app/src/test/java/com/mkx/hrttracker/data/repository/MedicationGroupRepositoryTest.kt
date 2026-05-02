@@ -341,6 +341,128 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun saveGroup_forExistingFreshBackfilledGroupWhenStartDateChanges_movesCurrentRowsToNewSinceStart() =
+        runTest {
+            val groupUuid = UUID.fromString("3c4e6213-dadf-409f-afee-c3d862a01ea0")
+            val savedGroup = slot<MedicationGroupEntity>()
+            val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+            coEvery {
+                databaseHolder.withTransaction<Unit>(any())
+            } coAnswers {
+                firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+            }
+            coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+                groupUuid = groupUuid,
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+                includePastScheduledSlots = true,
+                scheduleSinceEpochDay = LocalDate.of(2026, 4, 10).toEpochDay(),
+                effectiveFromLocalIso = listOf("2026-04-10T00:00", "2026-04-10T00:00"),
+            )
+
+            repository.saveGroup(
+                uuid = groupUuid,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(0),
+                            time = LocalTime.of(8, 0),
+                        ),
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(1),
+                            time = LocalTime.of(20, 0),
+                        ),
+                    ),
+                ),
+                medications = emptyList(),
+                includePastScheduledSlots = true,
+                now = Instant.parse("2026-04-30T08:15:00Z"),
+            )
+
+            coVerify {
+                medicationGroupDao.upsertGroupWithItems(
+                    group = capture(savedGroup),
+                    items = any(),
+                    scheduleTimes = capture(savedTimes),
+                    weeklyDays = any(),
+                )
+            }
+            assertEquals(LocalDate.of(2026, 4, 1).toEpochDay(), savedGroup.captured.scheduleSinceEpochDay)
+            assertEquals(true, savedGroup.captured.includePastScheduledSlots)
+            assertEquals(
+                listOf("2026-04-01T00:00", "2026-04-01T00:00"),
+                savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
+            )
+        }
+
+    @Test
+    fun saveGroup_forExistingFreshBackfilledGroupWithRecords_preservesEffectiveFromWhenStartDateChanges() =
+        runTest {
+            val groupUuid = UUID.fromString("94d89db6-c7b7-41b5-95a2-8be9dc3e375d")
+            val savedGroup = slot<MedicationGroupEntity>()
+            val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
+            coEvery {
+                databaseHolder.withTransaction<Unit>(any())
+            } coAnswers {
+                firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+            }
+            coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupEntity(
+                groupUuid = groupUuid,
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+                includePastScheduledSlots = true,
+                scheduleSinceEpochDay = LocalDate.of(2026, 4, 10).toEpochDay(),
+                effectiveFromLocalIso = listOf("2026-04-10T00:00", "2026-04-10T00:00"),
+            )
+            coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+            repository.saveGroup(
+                uuid = groupUuid,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(0),
+                            time = LocalTime.of(8, 0),
+                        ),
+                        MedicationGroupScheduleTimeInput(
+                            uuid = testScheduleTimeUuid(1),
+                            time = LocalTime.of(20, 0),
+                        ),
+                    ),
+                ),
+                medications = emptyList(),
+                includePastScheduledSlots = true,
+                now = Instant.parse("2026-04-30T08:15:00Z"),
+            )
+
+            coVerify {
+                medicationGroupDao.upsertGroupWithItems(
+                    group = capture(savedGroup),
+                    items = any(),
+                    scheduleTimes = capture(savedTimes),
+                    weeklyDays = any(),
+                )
+            }
+            assertEquals(LocalDate.of(2026, 4, 1).toEpochDay(), savedGroup.captured.scheduleSinceEpochDay)
+            assertEquals(
+                listOf("2026-04-10T00:00", "2026-04-10T00:00"),
+                savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
+            )
+        }
+
+    @Test
     fun saveGroup_forExistingFreshGroupWhenBackfillDisabled_movesCurrentRowsToSaveTime() = runTest {
         val groupUuid = UUID.fromString("d20ad4f2-e8bb-43f7-aab8-72dfb270f66a")
         val savedGroup = slot<MedicationGroupEntity>()
@@ -788,6 +910,7 @@ class MedicationGroupRepositoryTest {
         weeklyDays: List<MedicationGroupWeeklyDayEntity> = emptyList(),
         archivedAtEpochMillis: Long? = null,
         includePastScheduledSlots: Boolean = true,
+        scheduleSinceEpochDay: Long = LocalDate.of(2026, 4, 1).toEpochDay(),
         replacedByGroupUuid: String? = null,
         recreatedFromGroupUuid: String? = null,
         effectiveFromLocalIso: List<String> = List(times.size) {
@@ -802,7 +925,7 @@ class MedicationGroupRepositoryTest {
                 notificationsEnabled = true,
                 scheduleType = "DAILY",
                 scheduleInterval = 1,
-                scheduleSinceEpochDay = 0,
+                scheduleSinceEpochDay = scheduleSinceEpochDay,
                 createdAtEpochMillis = 0,
                 updatedAtEpochMillis = 0,
                 archivedAtEpochMillis = archivedAtEpochMillis,

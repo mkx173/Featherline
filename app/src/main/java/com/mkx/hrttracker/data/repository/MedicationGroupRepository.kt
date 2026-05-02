@@ -198,6 +198,14 @@ class MedicationGroupRepository @Inject constructor(
                 !isExistingRecreatedGroup &&
                 !hasExistingRecords &&
                 existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
+            val didBackfilledStartDateChange = existingGroupRow != null &&
+                !isExistingRecreatedGroup &&
+                !hasExistingRecords &&
+                resolvedIncludePastScheduledSlots &&
+                existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+            val shouldMoveCurrentRowsToSinceStart =
+                (didBackfillModeChange && resolvedIncludePastScheduledSlots) ||
+                    didBackfilledStartDateChange
             val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                 ?: replacesGroupUuid?.toString()
             val existingScheduleTimesByUuid = existingGroup
@@ -276,7 +284,7 @@ class MedicationGroupRepository @Inject constructor(
                         LocalTime.of(existingTimeRow.hourOfDay, existingTimeRow.minuteOfHour)
                     }
                     val effectiveFromLocal = when {
-                        didBackfillModeChange && resolvedIncludePastScheduledSlots ->
+                        shouldMoveCurrentRowsToSinceStart ->
                             schedule.since.atStartOfDay().toString()
 
                         didBackfillModeChange ->
