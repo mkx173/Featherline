@@ -659,6 +659,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 defaultGroupName = defaultName,
                 colorKey = colorKey,
                 scheduleStartDate = duplicateScheduleStartDate,
+            ).copy(
+                scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
             )
         }
     }
@@ -719,6 +721,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
             defaultGroupName = currentState.defaultGroupName,
             isEditing = currentState.isEditing,
         )
+        val draftState = currentState.toUnsavedRecreatedGroupState(
+            archivedGroupId = groupId,
+            scheduleStartDate = recreateScheduleStartDate,
+            resolvedGroupName = resolvedGroupName,
+        )
 
         viewModelScope.launch {
             _uiState.update {
@@ -729,37 +736,108 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
 
-            val recreateResult = runCatching {
+            val archiveSucceeded = runCatching {
                 medicationGroupRepository.archiveGroup(uuid)
-            }.fold(
-                onSuccess = { ArchiveAndRecreateMedicationGroupResult.SUCCESS },
-                onFailure = { ArchiveAndRecreateMedicationGroupResult.FAILURE },
-            )
+            }.isSuccess
 
-            if (recreateResult == ArchiveAndRecreateMedicationGroupResult.SUCCESS) {
-                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-                runCatching { medicationReminderScheduler.rescheduleAll() }
+            if (!archiveSucceeded) {
+                _uiState.update {
+                    it.copy(
+                        isRecreatingAfterArchive = false,
+                        archiveAndRecreateMedicationGroupResult =
+                            ArchiveAndRecreateMedicationGroupResult.FAILURE,
+                    )
+                }
+                return@launch
             }
 
+            runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+            runCatching { medicationReminderScheduler.rescheduleAll() }
+
+            val savedGroupUuid = saveRecreatedDraftGroup(
+                draftState = draftState,
+                resolvedGroupName = resolvedGroupName,
+                replacesGroupUuid = uuid,
+            )
+            if (savedGroupUuid != null) {
+                runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+            }
+            val savedGroup = savedGroupUuid?.let { medicationGroupRepository.getGroup(it) }
+            val remindersEnabled = settingsRepository.getCurrentSettings().remindersEnabled
+
             _uiState.update {
-                if (recreateResult == ArchiveAndRecreateMedicationGroupResult.SUCCESS) {
-                    currentState.toUnsavedRecreatedGroupState(
-                        archivedGroupId = groupId,
-                        scheduleStartDate = recreateScheduleStartDate,
-                        resolvedGroupName = resolvedGroupName,
+                if (savedGroup != null) {
+                    savedGroup.toEditorState(
+                        remindersEnabled = remindersEnabled,
+                        relatedEntryCount = 0,
+                        plannedEntryCount = 0,
                     ).copy(
-                        remindersEnabled = it.remindersEnabled,
                         isRecreatingAfterArchive = false,
-                        archiveAndRecreateMedicationGroupResult = recreateResult,
+                        archiveAndRecreateMedicationGroupResult =
+                            ArchiveAndRecreateMedicationGroupResult.SUCCESS,
+                        scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
                     )
                 } else {
                     it.copy(
                         isRecreatingAfterArchive = false,
-                        archiveAndRecreateMedicationGroupResult = recreateResult,
+                        archiveAndRecreateMedicationGroupResult =
+                            ArchiveAndRecreateMedicationGroupResult.FAILURE,
                     )
                 }
             }
         }
+    }
+
+    private suspend fun saveRecreatedDraftGroup(
+        draftState: MedicationGroupEditorUiState,
+        resolvedGroupName: String,
+        replacesGroupUuid: UUID,
+    ): UUID? {
+        val parsedWeeklyInterval = parseScheduleInterval(draftState.weeklyIntervalWeeks)
+        val parsedDailyInterval = parseScheduleInterval(draftState.dailyIntervalDays)
+        val resolvedDailyTimes = draftState.dailyTimes.ifEmpty {
+            listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
+        }
+        val scheduleTimeInputs = scheduleTimeInputsForSave(
+            uiState = draftState,
+            resolvedDailyTimes = resolvedDailyTimes,
+        )
+        val scheduleInput = when (draftState.scheduleType) {
+            MedicationGroupScheduleType.WEEKLY -> MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = parsedWeeklyInterval,
+                since = draftState.sinceDate,
+                weeklyDaysOfWeek = draftState.weeklyDaysOfWeek,
+                times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
+                timeSlots = scheduleTimeInputs,
+            )
+            MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = parsedDailyInterval,
+                since = draftState.sinceDate,
+                weeklyDaysOfWeek = emptySet(),
+                times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
+                timeSlots = scheduleTimeInputs,
+            )
+        }
+        return runCatching {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = resolvedGroupName,
+                colorKey = draftState.groupColorKey,
+                schedule = scheduleInput,
+                medications = draftState.medications.map { medication ->
+                    MedicationGroupMedicationInput(
+                        uuid = medication.persistedMedicationId?.let(UUID::fromString),
+                        details = medication.details,
+                        count = medication.count,
+                    )
+                },
+                notificationsEnabled = draftState.notificationsEnabled,
+                includePastScheduledSlots = draftState.includePastScheduledSlots,
+                replacesGroupUuid = replacesGroupUuid,
+            )
+        }.getOrNull()
     }
 
     fun showDeleteRelatedEntriesConfirmation() {
@@ -1059,7 +1137,7 @@ private fun MedicationGroupEditorUiState.toUnsavedDuplicatedGroupState(
         includePastScheduledSlots = true,
         isScheduleStartDateLocked = false,
         pendingReplacementGroupId = null,
-        notificationsEnabled = remindersEnabled,
+        notificationsEnabled = notificationsEnabled,
     ).copy(
         sinceDate = scheduleStartDate,
     )
@@ -1343,6 +1421,7 @@ data class MedicationGroupEditorUiState(
     val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
     val deleteMedicationGroupResult: DeleteMedicationGroupResult? = null,
+    val scrollToTopRequestVersion: Int = 0,
 ) {
     val isEditing: Boolean
         get() = editingGroupId != null

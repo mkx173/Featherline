@@ -956,6 +956,13 @@ private fun MedicationGroupEditorScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
+    LaunchedEffect(uiState.scrollToTopRequestVersion) {
+        if (uiState.scrollToTopRequestVersion > 0) {
+            listState.animateScrollToItem(0)
+            topAppBarState.heightOffset = 0f
+            topAppBarState.contentOffset = 0f
+        }
+    }
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {

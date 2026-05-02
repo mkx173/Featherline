@@ -359,84 +359,24 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
-    fun archiveAndRecreateGroup_archivesOriginalAndKeepsCopiedPlanUnsavedInEditor() = runTest {
+    fun archiveAndRecreateGroup_archivesOriginalAndImmediatelySavesReplacement() = runTest {
         val groupUuid = UUID.fromString("015d4963-1e43-4d6f-9e58-d390fb182a7c")
-        val group = testMedicationGroup(groupUuid)
-
-        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
-        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
-        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
-        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
-        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
-
-        val viewModel = MedicationGroupEditorViewModel(
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            settingsRepository = settingsRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            context = context,
-            savedStateHandle = SavedStateHandle(
-                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
-            ),
-            appTimeSource = appTimeSource,
-        )
-        advanceUntilIdle()
-
-        viewModel.archiveAndRecreateGroup()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isRecreatingAfterArchive)
-        assertNull(viewModel.uiState.value.editingGroupId)
-        assertEquals(groupUuid.toString(), viewModel.uiState.value.pendingReplacementGroupId)
-        assertEquals(groupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
-        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
-        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
-        assertFalse(viewModel.uiState.value.canEditBackfillOption)
-        assertEquals(group.name, viewModel.uiState.value.groupName)
-        assertEquals(false, viewModel.uiState.value.isArchived)
-        assertEquals(0, viewModel.uiState.value.relatedEntryCount)
-        assertEquals(0, viewModel.uiState.value.plannedEntryCount)
-        assertEquals(
-            ArchiveAndRecreateMedicationGroupResult.SUCCESS,
-            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
-        )
-        assertNull(viewModel.uiState.value.medications.single().persistedMedicationId)
-
-        viewModel.updateSinceDate(LocalDate.of(2026, 4, 24))
-
-        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
-
-        viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
-
-        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
-        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
-        coVerify(exactly = 0) {
-            medicationGroupRepository.saveGroup(
-                uuid = any(),
-                name = any(),
-                colorKey = any(),
-                schedule = any(),
-                medications = any(),
-                notificationsEnabled = any(),
-                includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
-                now = any(),
-            )
-        }
-        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
-    }
-
-    @Test
-    fun saveGroup_afterArchiveAndRecreate_savesDraftAsReplacement() = runTest {
-        val groupUuid = UUID.fromString("0e093bec-554e-46c3-91df-cb90e0e09cdb")
         val savedGroupUuid = UUID.fromString("cb37018a-4569-4ee8-8e1d-ecdbd9b47e1b")
-        val group = testMedicationGroup(groupUuid)
+        val originalGroup = testMedicationGroup(groupUuid)
+        val savedGroup = originalGroup.copy(
+            uuid = savedGroupUuid,
+            includePastScheduledSlots = false,
+            recreatedFromGroupUuid = groupUuid,
+            createdAt = Instant.parse("2026-04-25T10:00:00Z"),
+            updatedAt = Instant.parse("2026-04-25T10:00:00Z"),
+        )
         val savedMedications = slot<List<MedicationGroupMedicationInput>>()
+        val savedNotificationsEnabled = slot<Boolean>()
+        val savedIncludePastScheduledSlots = slot<Boolean>()
 
-        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
-        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(originalGroup))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns originalGroup
+        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
         every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
@@ -469,17 +409,28 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
 
+        val initialScrollToTopVersion = viewModel.uiState.value.scrollToTopRequestVersion
+
         viewModel.archiveAndRecreateGroup()
         advanceUntilIdle()
 
-        viewModel.saveGroup()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isRecreatingAfterArchive)
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
         assertNull(viewModel.uiState.value.pendingReplacementGroupId)
         assertEquals(groupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
-        assertEquals(true, viewModel.uiState.value.isSaved)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertFalse(viewModel.uiState.value.canEditBackfillOption)
+        assertEquals(originalGroup.name, viewModel.uiState.value.groupName)
+        assertFalse(viewModel.uiState.value.isArchived)
+        assertEquals(
+            ArchiveAndRecreateMedicationGroupResult.SUCCESS,
+            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
+        )
+        assertEquals(
+            initialScrollToTopVersion + 1,
+            viewModel.uiState.value.scrollToTopRequestVersion,
+        )
+        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
         coVerify(exactly = 1) {
             medicationGroupRepository.saveGroup(
                 uuid = null,
@@ -487,14 +438,67 @@ class MedicationGroupEditorDeleteRecordsTest {
                 colorKey = any(),
                 schedule = any(),
                 medications = capture(savedMedications),
-                notificationsEnabled = any(),
-                includePastScheduledSlots = any(),
+                notificationsEnabled = capture(savedNotificationsEnabled),
+                includePastScheduledSlots = capture(savedIncludePastScheduledSlots),
                 replacesGroupUuid = groupUuid,
                 now = any(),
             )
         }
         assertNull(savedMedications.captured.single().uuid)
+        assertEquals(originalGroup.notificationsEnabled, savedNotificationsEnabled.captured)
+        assertFalse(savedIncludePastScheduledSlots.captured)
+        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
+    }
+
+    @Test
+    fun archiveAndRecreateGroup_whenSaveFails_reportsFailureAfterArchive() = runTest {
+        val groupUuid = UUID.fromString("0e093bec-554e-46c3-91df-cb90e0e09cdb")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = groupUuid,
+                now = any(),
+            )
+        } throws RuntimeException("save failed")
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.archiveAndRecreateGroup()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isRecreatingAfterArchive)
+        assertEquals(
+            ArchiveAndRecreateMedicationGroupResult.FAILURE,
+            viewModel.uiState.value.archiveAndRecreateMedicationGroupResult,
+        )
+        coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
     }
 
     @Test
