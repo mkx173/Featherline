@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
@@ -34,7 +35,9 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,10 +94,12 @@ class MedicationGroupRepository @Inject constructor(
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
+        val nowLocal = now.toLocalDateTime()
         databaseHolder.withTransaction { database ->
             database.medicationGroupDao().updateGroupArchiveState(
                 uuid = uuid.toString(),
                 archivedAtEpochMillis = nowEpochMillis,
+                archivedAtLocalIso = nowLocal.toString(),
                 updatedAtEpochMillis = nowEpochMillis,
             )
         }
@@ -110,9 +115,11 @@ class MedicationGroupRepository @Inject constructor(
             val logDao = database.medicationLogDao()
             val existingGroup = groupDao.getGroup(groupUuid.toString())
                 ?: throw MedicationGroupNotFoundException(groupUuid)
-            val oldTimes = existingGroup.scheduleTimes
+            val oldTimeRows = existingGroup.scheduleTimes
                 .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
-                .map { time -> LocalTime.of(time.hourOfDay, time.minuteOfHour) }
+            val oldTimes = oldTimeRows.map { time ->
+                LocalTime.of(time.hourOfDay, time.minuteOfHour)
+            }
             val normalizedNewTimes = newTimes.map { time ->
                 time.withSecond(0).withNano(0)
             }
@@ -125,6 +132,7 @@ class MedicationGroupRepository @Inject constructor(
                 } else {
                     logDao.getPlannedEntryIdsForGroupSlotTime(
                         groupUuid = groupUuid.toString(),
+                        scheduleTimeUuid = oldTimeRows[index].uuid,
                         oldTimeIso = oldTime.toScheduleTimeIso(),
                     )
                 }
@@ -137,11 +145,14 @@ class MedicationGroupRepository @Inject constructor(
             groupDao.deleteScheduleTimesForGroup(groupUuid.toString())
             groupDao.insertScheduleTimes(
                 normalizedNewTimes.mapIndexed { index, time ->
+                    val oldTimeRow = oldTimeRows[index]
                     MedicationGroupScheduleTimeEntity(
+                        uuid = oldTimeRow.uuid,
                         groupUuid = groupUuid.toString(),
                         sortOrder = index,
                         hourOfDay = time.hour,
                         minuteOfHour = time.minute,
+                        effectiveFromLocalIso = oldTimeRow.effectiveFromLocalIso,
                     )
                 }
             )
@@ -163,14 +174,23 @@ class MedicationGroupRepository @Inject constructor(
         schedule: MedicationGroupScheduleInput,
         medications: List<MedicationGroupMedicationInput>,
         notificationsEnabled: Boolean = false,
+        includePastScheduledSlots: Boolean = true,
         replacesGroupUuid: UUID? = null,
+        now: Instant = Instant.now(),
     ): UUID {
-        val nowEpochMillis = Instant.now().toEpochMilli()
+        val nowEpochMillis = now.toEpochMilli()
+        val nowLocal = now.toLocalDateTime()
         val groupUuid = uuid ?: UUID.randomUUID()
         databaseHolder.withTransaction { database ->
             val dao = database.medicationGroupDao()
             val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
             val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
+            val resolvedIncludePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots
+                ?: (replacesGroupUuid == null && includePastScheduledSlots)
+            val existingScheduleTimesByUuid = existingGroup
+                ?.scheduleTimes
+                ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
+                .orEmpty()
 
             dao.upsertGroupWithItems(
                 group = MedicationGroupEntity(
@@ -184,8 +204,8 @@ class MedicationGroupRepository @Inject constructor(
                     createdAtEpochMillis = createdAtEpochMillis,
                     updatedAtEpochMillis = nowEpochMillis,
                     archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
-                    includePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots
-                        ?: (replacesGroupUuid == null),
+                    archivedAtLocalIso = existingGroup?.group?.archivedAtLocalIso,
+                    includePastScheduledSlots = resolvedIncludePastScheduledSlots,
                     replacedByGroupUuid = existingGroup?.group?.replacedByGroupUuid,
                 ),
                 items = medications.mapIndexed { index, medication ->
@@ -234,12 +254,29 @@ class MedicationGroupRepository @Inject constructor(
                         gelApplicationArea = medication.details.gelApplicationArea.name,
                     )
                 },
-                scheduleTimes = schedule.times.mapIndexed { index, time ->
+                scheduleTimes = schedule.timeSlots.mapIndexed { index, scheduleTime ->
+                    val time = scheduleTime.time.withSecond(0).withNano(0)
+                    val scheduleTimeUuid = scheduleTime.uuid ?: UUID.randomUUID()
+                    val existingScheduleTime = existingScheduleTimesByUuid[scheduleTimeUuid.toString()]
+                    val existingTime = existingScheduleTime?.let { existingTimeRow ->
+                        LocalTime.of(existingTimeRow.hourOfDay, existingTimeRow.minuteOfHour)
+                    }
+                    val effectiveFromLocal = when {
+                        existingScheduleTime != null && existingTime == time ->
+                            existingScheduleTime.effectiveFromLocalIso
+
+                        existingGroup == null && resolvedIncludePastScheduledSlots ->
+                            schedule.since.atStartOfDay().toString()
+
+                        else -> nowLocal.toString()
+                    }
                     MedicationGroupScheduleTimeEntity(
+                        uuid = scheduleTimeUuid.toString(),
                         groupUuid = groupUuid.toString(),
                         sortOrder = index,
                         hourOfDay = time.hour,
-                        minuteOfHour = time.minute
+                        minuteOfHour = time.minute,
+                        effectiveFromLocalIso = effectiveFromLocal,
                     )
                 },
                 weeklyDays = schedule.weeklyDaysOfWeek
@@ -264,6 +301,14 @@ class MedicationGroupRepository @Inject constructor(
     }
 
     private fun MedicationGroupWithItemsEntity.toModel(): MedicationGroup {
+        val scheduleTimeSlots = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
+            .map { time ->
+                MedicationGroupScheduleTime(
+                    uuid = UUID.fromString(time.uuid),
+                    time = LocalTime.of(time.hourOfDay, time.minuteOfHour),
+                    effectiveFrom = LocalDateTime.parse(time.effectiveFromLocalIso),
+                )
+            }
         return MedicationGroup(
             uuid = UUID.fromString(group.uuid),
             name = group.name,
@@ -275,9 +320,8 @@ class MedicationGroupRepository @Inject constructor(
                 weeklyDaysOfWeek = weeklyDays
                     .map { weeklyDay -> DayOfWeek.of(weeklyDay.dayOfWeek) }
                     .toSet(),
-                times = scheduleTimes.sortedBy(MedicationGroupScheduleTimeEntity::sortOrder).map { time ->
-                    LocalTime.of(time.hourOfDay, time.minuteOfHour)
-                }
+                times = scheduleTimeSlots.map(MedicationGroupScheduleTime::time),
+                timeSlots = scheduleTimeSlots,
             ),
             medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
                 MedicationGroupMedication(
@@ -290,6 +334,10 @@ class MedicationGroupRepository @Inject constructor(
             createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
             archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli),
+            archivedAtLocal = group.archivedAtLocalIso?.let(LocalDateTime::parse)
+                ?: group.archivedAtEpochMillis
+                    ?.let(Instant::ofEpochMilli)
+                    ?.toLocalDateTime(),
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
         )
@@ -401,4 +449,16 @@ data class MedicationGroupScheduleInput(
     val since: LocalDate,
     val weeklyDaysOfWeek: Set<DayOfWeek>,
     val times: List<LocalTime>,
+    val timeSlots: List<MedicationGroupScheduleTimeInput> = times.map { time ->
+        MedicationGroupScheduleTimeInput(time = time)
+    },
 )
+
+data class MedicationGroupScheduleTimeInput(
+    val uuid: UUID? = null,
+    val time: LocalTime,
+)
+
+private fun Instant.toLocalDateTime(
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): LocalDateTime = atZone(zoneId).toLocalDateTime()

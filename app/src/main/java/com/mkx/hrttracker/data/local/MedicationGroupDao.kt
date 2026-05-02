@@ -88,6 +88,7 @@ interface MedicationGroupDao {
         """
         UPDATE medication_groups
         SET archivedAtEpochMillis = :archivedAtEpochMillis,
+            archivedAtLocalIso = :archivedAtLocalIso,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE uuid = :uuid
         """
@@ -95,6 +96,7 @@ interface MedicationGroupDao {
     suspend fun updateGroupArchiveState(
         uuid: String,
         archivedAtEpochMillis: Long?,
+        archivedAtLocalIso: String?,
         updatedAtEpochMillis: Long,
     )
 

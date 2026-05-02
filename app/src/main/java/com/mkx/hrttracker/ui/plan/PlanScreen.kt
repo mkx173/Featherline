@@ -121,7 +121,7 @@ import java.util.UUID
 fun PlanScreen(
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
-    onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
@@ -156,7 +156,7 @@ private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
-    onQuickLogClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
@@ -447,7 +447,8 @@ private fun PlanScreenContent(
                             } else {
                                 onQuickLogClick(
                                     scheduled.groupUuid,
-                                    LocalDateTime.of(daySchedule.date, scheduled.scheduledTime),
+                                    scheduled.scheduleTimeUuid,
+                                    scheduled.scheduledFor,
                                     scheduled.medication.details,
                                     remainingQuickLogCount(
                                         totalCount = scheduled.medication.count,
@@ -1169,7 +1170,7 @@ private fun PlanScreenPreview() {
             uiState = buildPlanPreviewUiState(),
             onGroupClick = { },
             onEntryClick = { },
-            onQuickLogClick = { _, _, _, _ -> },
+            onQuickLogClick = { _, _, _, _, _ -> },
             onAddGroupClick = { },
             onHistoryClick = { },
             onBatchAddClick = { },

@@ -7,9 +7,10 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
-import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
-import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.ui.plan.MedicationSignature
+import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDate
@@ -53,6 +54,7 @@ data class MainTodayDoseRowUiState(
     val groupUuid: UUID,
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
+    val scheduleTimeUuid: UUID?,
     val scheduledAt: LocalDateTime,
     val medication: MedicationGroupMedication,
     val status: MainTodayDoseStatus,
@@ -83,6 +85,7 @@ data class MainUpcomingDoseRowUiState(
     val groupUuid: UUID,
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
+    val scheduleTimeUuid: UUID?,
     val scheduledAt: LocalDateTime,
     val medication: MedicationGroupMedication,
 )
@@ -113,10 +116,11 @@ internal fun buildMainAntiandrogenCards(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
     return groups.flatMap { group ->
-        val nextDoseAt = group.schedule.nextOccurrencesFrom(
+        val nextDoseAt = group.nextOccurrencesInPlanWindowFrom(
             start = now,
-            limit = 1
-        ).firstOrNull()
+            limit = 1,
+            zoneId = zoneId,
+        ).firstOrNull()?.scheduledFor
 
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
@@ -168,7 +172,7 @@ internal fun buildMainTodaySection(
 
     val entriesByUuid = entries.associateBy { it.uuid }
     val rows = daySchedule.scheduledEntries.map { scheduledEntry ->
-        val scheduledAt = LocalDateTime.of(today, scheduledEntry.scheduledTime)
+        val scheduledAt = scheduledEntry.scheduledFor
         val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
             .mapNotNull { entriesByUuid[it] }
             .sortedBy { it.appliedAt }
@@ -177,6 +181,7 @@ internal fun buildMainTodaySection(
             groupUuid = scheduledEntry.groupUuid,
             groupName = scheduledEntry.groupName,
             groupColorKey = scheduledEntry.groupColorKey,
+            scheduleTimeUuid = scheduledEntry.scheduleTimeUuid,
             scheduledAt = scheduledAt,
             medication = scheduledEntry.medication,
             status = when {
@@ -207,7 +212,8 @@ internal fun buildMainUpcomingSection(
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
     lookaheadDays: Long = 14L,
-    upcomingLimit: Int = 3
+    upcomingLimit: Int = 3,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val tomorrow = now.toLocalDate().plusDays(1)
     val tomorrowRows = buildMainPreviewRowsForDate(
@@ -232,17 +238,20 @@ internal fun buildMainUpcomingSection(
                 .map { (_, meds) ->
                     meds.first().copy(count = meds.sumOf { medication -> medication.count })
                 }
-            group.schedule
-                .occurrencesBetween(
+            group
+                .occurrencesBetweenInPlanWindow(
                     startDate = futureStartDate,
-                    endDate = futureStartDate.plusDays(lookaheadDays)
+                    endDate = futureStartDate.plusDays(lookaheadDays),
+                    zoneId = zoneId,
                 )
                 .asSequence()
                 .filterNot { occurrence ->
                     isSlotFulfilled(
                         group = group,
-                        date = occurrence.toLocalDate(),
-                        time = occurrence.toLocalTime(),
+                        slot = PlanScheduleTimeSlot(
+                            scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                            scheduledFor = occurrence.scheduledFor,
+                        ),
                         entries = entries
                     )
                 }
@@ -252,7 +261,8 @@ internal fun buildMainUpcomingSection(
                             groupUuid = group.uuid,
                             groupName = group.name,
                             groupColorKey = group.colorKey,
-                            scheduledAt = occurrence,
+                            scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                            scheduledAt = occurrence.scheduledFor,
                             medication = medication
                         )
                     }
@@ -287,7 +297,8 @@ internal fun buildMainPreviewRowsForDate(
                 groupUuid = scheduledEntry.groupUuid,
                 groupName = scheduledEntry.groupName,
                 groupColorKey = scheduledEntry.groupColorKey,
-                scheduledAt = LocalDateTime.of(date, scheduledEntry.scheduledTime),
+                scheduleTimeUuid = scheduledEntry.scheduleTimeUuid,
+                scheduledAt = scheduledEntry.scheduledFor,
                 medication = scheduledEntry.medication
             )
         }

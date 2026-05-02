@@ -3,7 +3,8 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDateTime
 import java.util.UUID
@@ -24,8 +25,8 @@ internal fun buildNextMedicationReminderPlans(
         .filter(MedicationGroup::isActive)
         .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }
         .mapNotNull { group ->
-            group.schedule
-                .nextOccurrencesFrom(
+            group
+                .nextOccurrencesInPlanWindowFrom(
                     start = now,
                     limit = MAX_OCCURRENCES_TO_SCAN_PER_GROUP,
                     lookaheadDays = lookaheadDays
@@ -33,8 +34,10 @@ internal fun buildNextMedicationReminderPlans(
                 .firstOrNull { occurrence ->
                     !isSlotFulfilled(
                         group = group,
-                        date = occurrence.toLocalDate(),
-                        time = occurrence.toLocalTime(),
+                        slot = PlanScheduleTimeSlot(
+                            scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                            scheduledFor = occurrence.scheduledFor,
+                        ),
                         entries = entries
                     )
                 }
@@ -42,7 +45,7 @@ internal fun buildNextMedicationReminderPlans(
                     MedicationReminderPlan(
                         groupUuid = group.uuid,
                         groupName = group.name,
-                        scheduledAt = occurrence
+                        scheduledAt = occurrence.scheduledFor
                     )
                 }
         }

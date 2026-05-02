@@ -4,7 +4,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.isScheduledOn
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,7 +14,9 @@ data class PlanDayScheduleEntry(
     val groupUuid: UUID,
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
+    val scheduleTimeUuid: UUID? = null,
     val scheduledTime: LocalTime,
+    val scheduledFor: LocalDateTime = LocalDateTime.of(LocalDate.now(), scheduledTime),
     val medication: MedicationGroupMedication,
     val fulfillingEntryUuids: List<UUID>,
     val loggedAt: LocalDateTime? = null,
@@ -40,21 +41,28 @@ fun buildPlanDaySchedule(
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
 ): PlanDaySchedule {
-    val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(date) }
+    val scheduledGroups = groups.scheduledGroupsForPlanDay(
+        date = date,
+        entries = entries.filter { entry -> entry.planCalendarDate(zoneId) == date },
+    )
     val scheduledEntries = scheduledGroups
         .flatMap { group ->
             val medicationsBySignature = group.medications
                 .groupBy(MedicationSignature::fromGroupMedication)
-            group.scheduledTimesForPlanDay(
+            group.scheduledSlotsForPlanDay(
                 date = date,
                 entries = entries,
                 zoneId = zoneId,
                 includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-            ).sorted().flatMap { time ->
-                val slotDateTime = LocalDateTime.of(date, time)
+            ).flatMap { slot ->
+                val slotDateTime = slot.scheduledFor
                 val slotLogs = entries.filter { entry ->
-                    entry.sourceGroupUuid == group.uuid && entry.scheduledFor == slotDateTime
+                    isEntryForPlanSlot(
+                        group = group,
+                        slot = slot,
+                        entry = entry,
+                    )
                 }
                 val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
                 val isDueSoonSlot = isDueSoon(slotDateTime, now)
@@ -69,7 +77,9 @@ fun buildPlanDaySchedule(
                         groupUuid = group.uuid,
                         groupName = group.name,
                         groupColorKey = group.colorKey,
-                        scheduledTime = time,
+                        scheduleTimeUuid = slot.scheduleTimeUuid,
+                        scheduledFor = slotDateTime,
+                        scheduledTime = slot.time,
                         medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         loggedAt = matchingLogs.lastOrNull()

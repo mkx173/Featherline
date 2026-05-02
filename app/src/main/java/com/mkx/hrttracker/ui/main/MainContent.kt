@@ -82,7 +82,7 @@ private val FulfilledStatusColor = Color(0xFF2E7D32)
 fun MainContent(
     uiState: MainUiState,
     listState: LazyListState,
-    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -557,7 +557,7 @@ private fun MainTodaySection(
     section: MainTodaySectionUiState,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -646,7 +646,7 @@ private fun MainUpcomingSection(
 private fun MainTodayDoseRow(
     row: MainTodayDoseRowUiState,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
@@ -763,6 +763,7 @@ private fun MainTodayDoseRow(
                     onClick = {
                         onQuickLogDoseClick(
                             row.groupUuid,
+                            row.scheduleTimeUuid,
                             row.scheduledAt,
                             row.medication.details,
                             remainingQuickLogCount(

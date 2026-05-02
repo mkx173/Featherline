@@ -51,6 +51,7 @@ data class BackupMedicationGroupSnapshot(
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val archivedAtEpochMillis: Long?,
+    val archivedAtLocalIso: String? = null,
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
 )
@@ -68,6 +69,8 @@ data class BackupMedicationGroupScheduleSnapshot(
 data class BackupMedicationGroupScheduleTimeSnapshot(
     val hourOfDay: Int,
     val minuteOfHour: Int,
+    val uuid: String? = null,
+    val effectiveFromLocalIso: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -105,6 +108,7 @@ data class BackupMedicationLogSnapshot(
     val gelApplicationArea: String,
     val dosageMgAsEstradiol: Double?,
     val sourceGroupUuid: String?,
+    val scheduleTimeUuid: String? = null,
     val appliedAtEpochMillis: Long,
     val appliedAtTimeZoneId: String,
     val scheduledForIso: String?,

@@ -20,6 +20,7 @@ data class MedicationLogEntryEntity(
     val doseReleaseRateMcgPerDay: Double?,
     val dosageMgAsEstradiol: Double?,
     val sourceGroupUuid: String?,
+    val scheduleTimeUuid: String? = null,
     val appliedAtEpochMillis: Long,
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     val scheduledForIso: String? = null,

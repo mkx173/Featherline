@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
@@ -148,6 +149,91 @@ class PlanDayOccurrenceTest {
         )
 
         assertEquals(1, schedule.scheduledEntries.size)
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertTrue(schedule.unplannedEntries.isEmpty())
+    }
+
+    @Test
+    fun buildPlanDaySchedule_shows_logged_slot_outside_effective_window_as_planned() {
+        val scheduleTimeUuid = UUID.fromString("16d63c4d-10d2-4bc3-9f0a-934fd5aa7c74")
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = scheduleTimeUuid,
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = LocalDateTime.of(2026, 4, 18, 10, 0),
+                    )
+                ),
+            )
+        )
+        val loggedSlot = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 18, 9, 5)
+                .atZone(ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0),
+        ).copy(scheduleTimeUuid = scheduleTimeUuid)
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(loggedSlot),
+            now = LocalDateTime.of(2026, 4, 18, 10, 15),
+        )
+
+        assertEquals(1, schedule.scheduledEntries.size)
+        assertEquals(LocalTime.of(9, 0), schedule.scheduledEntries.single().scheduledTime)
+        assertTrue(schedule.scheduledEntries.single().isFulfilled)
+        assertTrue(schedule.unplannedEntries.isEmpty())
+    }
+
+    @Test
+    fun buildPlanDaySchedule_uses_scheduleTimeUuid_when_locked_time_shift_keeps_old_scheduledFor() {
+        val scheduleTimeUuid = UUID.fromString("9b2fef06-05d9-4c27-8126-114fe09417a6")
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = scheduleTimeUuid,
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = LocalDate.of(2026, 4, 1).atStartOfDay(),
+                    )
+                ),
+            )
+        )
+        val shiftedSlotLog = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 18, 8, 5)
+                .atZone(ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = LocalDateTime.of(2026, 4, 18, 8, 0),
+        ).copy(scheduleTimeUuid = scheduleTimeUuid)
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(shiftedSlotLog),
+            now = LocalDateTime.of(2026, 4, 18, 10, 0),
+        )
+
+        assertEquals(1, schedule.scheduledEntries.size)
+        assertEquals(LocalTime.of(9, 0), schedule.scheduledEntries.single().scheduledTime)
+        assertEquals(listOf(shiftedSlotLog.uuid), schedule.scheduledEntries.single().fulfillingEntryUuids)
         assertTrue(schedule.scheduledEntries.single().isFulfilled)
         assertTrue(schedule.unplannedEntries.isEmpty())
     }

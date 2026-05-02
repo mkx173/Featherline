@@ -60,6 +60,7 @@ class AddEntryViewModel @Inject constructor(
 
     fun initializeQuickLog(
         groupId: UUID,
+        scheduleTimeUuid: UUID? = null,
         scheduledFor: LocalDateTime,
         medicationDetails: MedicationDetails,
         medicationCount: Int,
@@ -69,6 +70,7 @@ class AddEntryViewModel @Inject constructor(
         _uiState.value = buildQuickLogUiState(
             groupId = groupId,
             group = cachedGroup,
+            scheduleTimeUuid = scheduleTimeUuid,
             scheduledFor = scheduledFor,
             medicationDetails = medicationDetails,
             medicationCount = medicationCount,
@@ -224,6 +226,7 @@ class AddEntryViewModel @Inject constructor(
                         uuids = editingEntryUuids,
                         medication = currentState.medicationDraft.toMedicationDetails(),
                         sourceGroupUuid = currentState.sourceGroupUuid,
+                        scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = currentState.scheduledFor,
                         count = resolvedCount
@@ -233,6 +236,7 @@ class AddEntryViewModel @Inject constructor(
                         uuid = editingEntryUuids.firstOrNull(),
                         medication = currentState.medicationDraft.toMedicationDetails(),
                         sourceGroupUuid = currentState.sourceGroupUuid,
+                        scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = currentState.scheduledFor,
                         count = resolvedCount
@@ -330,6 +334,7 @@ data class AddEntryUiState(
     val editingEntryIds: List<String> = emptyList(),
     val medicationDraft: MedicationDraftUiState = defaultMedicationDraft(),
     val sourceGroupUuid: UUID? = null,
+    val scheduleTimeUuid: UUID? = null,
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
     val scheduledFor: LocalDateTime? = null,
@@ -362,6 +367,7 @@ data class AddEntryUiState(
 
 data class AddEntryQuickLogRequest(
     val groupId: UUID,
+    val scheduleTimeUuid: UUID? = null,
     val scheduledFor: LocalDateTime,
     val medicationDetails: MedicationDetails,
     val medicationCount: Int,
@@ -396,6 +402,7 @@ internal fun buildEditingUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
         medicationDraft = medicationDraftFromDetails(representativeEntry.details),
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
+        scheduleTimeUuid = representativeEntry.scheduleTimeUuid,
         sourceGroupName = matchingSourceGroup?.name,
         sourceGroupColorKey = matchingSourceGroup?.colorKey,
         scheduledFor = representativeEntry.scheduledFor,
@@ -411,6 +418,7 @@ internal fun buildEditingUiState(
 internal fun buildQuickLogUiState(
     groupId: UUID,
     group: MedicationGroup?,
+    scheduleTimeUuid: UUID? = null,
     scheduledFor: LocalDateTime,
     medicationDetails: MedicationDetails,
     medicationCount: Int,
@@ -420,6 +428,7 @@ internal fun buildQuickLogUiState(
     return AddEntryUiState(
         medicationDraft = medicationDraftFromDetails(medicationDetails),
         sourceGroupUuid = groupId,
+        scheduleTimeUuid = scheduleTimeUuid,
         sourceGroupName = group?.name,
         sourceGroupColorKey = group?.colorKey,
         scheduledFor = scheduledFor,
@@ -442,6 +451,7 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
     return entries.all { entry ->
         entry.details == firstEntry.details &&
             entry.sourceGroupUuid == firstEntry.sourceGroupUuid &&
+            entry.scheduleTimeUuid == firstEntry.scheduleTimeUuid &&
             entry.appliedAt == firstEntry.appliedAt &&
             entry.scheduledFor == firstEntry.scheduledFor &&
             entry.count == firstEntry.count

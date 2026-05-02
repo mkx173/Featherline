@@ -417,7 +417,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
             )
         }
         verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
@@ -445,7 +447,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = groupUuid,
+                now = any(),
             )
         } returns savedGroupUuid
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
@@ -481,7 +485,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = capture(savedMedications),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = groupUuid,
+                now = any(),
             )
         }
         assertNull(savedMedications.captured.single().uuid)
@@ -504,7 +510,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
             )
         } throws RuntimeException("save failed")
 
@@ -541,7 +549,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
             )
         }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleGroup(any()) }
@@ -561,7 +571,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
             )
         } returns savedGroupUuid
         coEvery {
@@ -597,7 +609,9 @@ class MedicationGroupEditorDeleteRecordsTest {
                 schedule = any(),
                 medications = any(),
                 notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
                 replacesGroupUuid = any(),
+                now = any(),
             )
         }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }

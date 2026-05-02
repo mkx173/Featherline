@@ -2,6 +2,149 @@ package com.mkx.hrttracker.data.local
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.UUID
+
+val MIGRATION_25_26: Migration = object : Migration(25, 26) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        val zoneId = ZoneId.systemDefault()
+        db.execSQL("PRAGMA foreign_keys=OFF")
+        db.execSQL("ALTER TABLE medication_groups ADD COLUMN archivedAtLocalIso TEXT")
+
+        db.query(
+            """
+            SELECT uuid, archivedAtEpochMillis
+            FROM medication_groups
+            WHERE archivedAtEpochMillis IS NOT NULL
+            """.trimIndent()
+        ).use { cursor ->
+            val uuidIndex = cursor.getColumnIndexOrThrow("uuid")
+            val archivedAtIndex = cursor.getColumnIndexOrThrow("archivedAtEpochMillis")
+            while (cursor.moveToNext()) {
+                val archivedAtLocal = Instant.ofEpochMilli(cursor.getLong(archivedAtIndex))
+                    .atZone(zoneId)
+                    .toLocalDateTime()
+                    .toString()
+                db.execSQL(
+                    """
+                    UPDATE medication_groups
+                    SET archivedAtLocalIso = ?
+                    WHERE uuid = ?
+                    """.trimIndent(),
+                    arrayOf(archivedAtLocal, cursor.getString(uuidIndex))
+                )
+            }
+        }
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS medication_group_schedule_times_new (
+                uuid TEXT NOT NULL PRIMARY KEY,
+                groupUuid TEXT NOT NULL,
+                sortOrder INTEGER NOT NULL,
+                hourOfDay INTEGER NOT NULL,
+                minuteOfHour INTEGER NOT NULL,
+                effectiveFromLocalIso TEXT NOT NULL,
+                FOREIGN KEY(groupUuid) REFERENCES medication_groups(uuid) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+
+        db.query(
+            """
+            SELECT
+                times.groupUuid,
+                times.sortOrder,
+                times.hourOfDay,
+                times.minuteOfHour,
+                groups.scheduleSinceEpochDay,
+                groups.createdAtEpochMillis,
+                groups.includePastScheduledSlots
+            FROM medication_group_schedule_times AS times
+            INNER JOIN medication_groups AS groups ON groups.uuid = times.groupUuid
+            ORDER BY times.groupUuid ASC, times.sortOrder ASC
+            """.trimIndent()
+        ).use { cursor ->
+            val groupUuidIndex = cursor.getColumnIndexOrThrow("groupUuid")
+            val sortOrderIndex = cursor.getColumnIndexOrThrow("sortOrder")
+            val hourIndex = cursor.getColumnIndexOrThrow("hourOfDay")
+            val minuteIndex = cursor.getColumnIndexOrThrow("minuteOfHour")
+            val sinceIndex = cursor.getColumnIndexOrThrow("scheduleSinceEpochDay")
+            val createdAtIndex = cursor.getColumnIndexOrThrow("createdAtEpochMillis")
+            val includePastIndex = cursor.getColumnIndexOrThrow("includePastScheduledSlots")
+            while (cursor.moveToNext()) {
+                val effectiveFromLocal = if (cursor.getInt(includePastIndex) == 0) {
+                    Instant.ofEpochMilli(cursor.getLong(createdAtIndex))
+                        .atZone(zoneId)
+                        .toLocalDateTime()
+                } else {
+                    LocalDate.ofEpochDay(cursor.getLong(sinceIndex)).atStartOfDay()
+                }
+                db.execSQL(
+                    """
+                    INSERT INTO medication_group_schedule_times_new (
+                        uuid,
+                        groupUuid,
+                        sortOrder,
+                        hourOfDay,
+                        minuteOfHour,
+                        effectiveFromLocalIso
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """.trimIndent(),
+                    arrayOf(
+                        UUID.randomUUID().toString(),
+                        cursor.getString(groupUuidIndex),
+                        cursor.getInt(sortOrderIndex),
+                        cursor.getInt(hourIndex),
+                        cursor.getInt(minuteIndex),
+                        effectiveFromLocal.toString(),
+                    )
+                )
+            }
+        }
+
+        db.execSQL("DROP TABLE medication_group_schedule_times")
+        db.execSQL(
+            """
+            ALTER TABLE medication_group_schedule_times_new
+            RENAME TO medication_group_schedule_times
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS index_medication_group_schedule_times_groupUuid
+            ON medication_group_schedule_times(groupUuid)
+            """.trimIndent()
+        )
+        db.execSQL("ALTER TABLE medication_log_entries ADD COLUMN scheduleTimeUuid TEXT")
+        db.execSQL(
+            """
+            UPDATE medication_log_entries
+            SET scheduleTimeUuid = (
+                SELECT times.uuid
+                FROM medication_group_schedule_times AS times
+                WHERE times.groupUuid = medication_log_entries.sourceGroupUuid
+                  AND printf('%02d:%02d', times.hourOfDay, times.minuteOfHour) =
+                      substr(medication_log_entries.scheduledForIso, 12, 5)
+                  AND (
+                      SELECT COUNT(*)
+                      FROM medication_group_schedule_times AS matchingTimes
+                      WHERE matchingTimes.groupUuid = times.groupUuid
+                        AND matchingTimes.hourOfDay = times.hourOfDay
+                        AND matchingTimes.minuteOfHour = times.minuteOfHour
+                  ) = 1
+                LIMIT 1
+            )
+            WHERE sourceGroupUuid IS NOT NULL
+              AND scheduledForIso IS NOT NULL
+            """.trimIndent()
+        )
+        db.execSQL("PRAGMA foreign_keys=ON")
+    }
+}
 
 val MIGRATION_24_25: Migration = object : Migration(24, 25) {
     override fun migrate(db: SupportSQLiteDatabase) {

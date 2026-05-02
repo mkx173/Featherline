@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -303,13 +304,14 @@ internal fun buildPlanBatchAddEntryPlan(
         startDate = startDate,
         endDate = endDate,
     ).forEach { occurrence ->
-        if (!group.includePastScheduledSlots &&
-            occurrence.isBefore(group.createdAt.atZone(zoneId).toLocalDateTime())
-        ) {
+        val scheduleTime = group.schedule.timeSlots.firstOrNull { slot ->
+            slot.time == occurrence.toLocalTime()
+        } ?: return@forEach
+        val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
+        if (!isBeforePlanStart && !group.ownsUnloggedOccurrence(scheduleTime, occurrence, zoneId)) {
             return@forEach
         }
 
-        val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
         if (!isBeforePlanStart && occurrence in fulfilledPlanSlots) {
             skippedEntryCount += group.medications.size
             return@forEach
@@ -319,6 +321,7 @@ internal fun buildPlanBatchAddEntryPlan(
             entries += MedicationLogEntryInput(
                 medication = medication.details,
                 sourceGroupUuid = if (isBeforePlanStart) null else group.uuid,
+                scheduleTimeUuid = if (isBeforePlanStart) null else scheduleTime.uuid,
                 appliedAt = occurrence.atZone(zoneId).toInstant(),
                 scheduledFor = if (isBeforePlanStart) null else occurrence,
                 count = medication.count,

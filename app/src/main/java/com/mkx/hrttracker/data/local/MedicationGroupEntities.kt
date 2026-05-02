@@ -6,6 +6,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import java.time.LocalDate
+import java.util.UUID
 
 @Entity(tableName = "medication_groups")
 data class MedicationGroupEntity(
@@ -19,6 +21,7 @@ data class MedicationGroupEntity(
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val archivedAtEpochMillis: Long? = null,
+    val archivedAtLocalIso: String? = null,
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
 )
@@ -56,7 +59,6 @@ data class MedicationGroupItemEntity(
 
 @Entity(
     tableName = "medication_group_schedule_times",
-    primaryKeys = ["groupUuid", "sortOrder"],
     foreignKeys = [
         ForeignKey(
             entity = MedicationGroupEntity::class,
@@ -72,6 +74,8 @@ data class MedicationGroupScheduleTimeEntity(
     val sortOrder: Int,
     val hourOfDay: Int,
     val minuteOfHour: Int,
+    val effectiveFromLocalIso: String = LocalDate.EPOCH.atStartOfDay().toString(),
+    @PrimaryKey val uuid: String = UUID.randomUUID().toString(),
 )
 
 @Entity(

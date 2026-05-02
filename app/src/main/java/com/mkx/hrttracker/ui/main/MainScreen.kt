@@ -31,7 +31,8 @@ import java.util.UUID
 fun MainScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
-    onQuickLogDoseClick: (UUID, LocalDateTime, MedicationDetails, Int) -> Unit = { _, _, _, _ -> },
+    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit =
+        { _, _, _, _, _ -> },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )

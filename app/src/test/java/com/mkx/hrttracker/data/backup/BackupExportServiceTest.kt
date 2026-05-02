@@ -251,12 +251,12 @@ class BackupExportServiceTest {
         assertEquals(2, group.schedule.interval)
         assertEquals(LocalDate.of(2026, 4, 1).toEpochDay(), group.schedule.sinceEpochDay)
         assertEquals(listOf(1, 3), group.schedule.weeklyDaysOfWeek)
+        assertEquals(listOf(9, 21), group.schedule.times.map { it.hourOfDay })
+        assertEquals(listOf(0, 30), group.schedule.times.map { it.minuteOfHour })
+        assertTrue(group.schedule.times.all { it.uuid != null })
         assertEquals(
-            listOf(
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
-                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 21, minuteOfHour = 30),
-            ),
-            group.schedule.times,
+            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
+            group.schedule.times.map { it.effectiveFromLocalIso },
         )
         assertEquals(
             Instant.parse("2026-04-01T00:00:00Z").toEpochMilli(),

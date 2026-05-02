@@ -5,9 +5,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.UUID
 
 class MedicationGroupScheduleOccurrencesTest {
     @Test
@@ -70,6 +72,168 @@ class MedicationGroupScheduleOccurrencesTest {
                 LocalDateTime.of(2026, 4, 23, 9, 0),
             ),
             occurrences
+        )
+    }
+
+    @Test
+    fun occurrencesBetweenInPlanWindow_excludes_archived_slots_at_or_after_archive_time() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(10, 0), LocalTime.of(11, 0)),
+            ),
+        ).copy(
+            archivedAtLocal = LocalDateTime.of(2026, 4, 18, 10, 0),
+        )
+
+        val occurrences = group.occurrencesBetweenInPlanWindow(
+            startDate = LocalDate.of(2026, 4, 18),
+            endDate = LocalDate.of(2026, 4, 18),
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 18, 9, 0)),
+            occurrences.map(MedicationGroupSlotOccurrence::scheduledFor),
+        )
+    }
+
+    @Test
+    fun occurrencesBetweenInPlanWindow_excludes_successor_slots_before_effectiveFrom() {
+        val scheduleTimeUuid = UUID.fromString("08b67f8d-3534-4c95-aa12-1691132e508f")
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = scheduleTimeUuid,
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = LocalDateTime.of(2026, 4, 18, 10, 0),
+                    )
+                ),
+            ),
+        )
+
+        val occurrences = group.occurrencesBetweenInPlanWindow(
+            startDate = LocalDate.of(2026, 4, 17),
+            endDate = LocalDate.of(2026, 4, 19),
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 19, 9, 0)),
+            occurrences.map(MedicationGroupSlotOccurrence::scheduledFor),
+        )
+        assertEquals(listOf(scheduleTimeUuid), occurrences.map(MedicationGroupSlotOccurrence::scheduleTimeUuid))
+    }
+
+    @Test
+    fun occurrencesBetweenInPlanWindow_excludes_added_past_same_day_time_until_next_day() {
+        val addedSlotUuid = UUID.fromString("c032724d-ce9c-4564-a5ca-49807a308aef")
+        val existingSlotUuid = UUID.fromString("fe13529d-0e06-4d3c-9424-49a14935350e")
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(11, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = addedSlotUuid,
+                        time = LocalTime.of(8, 0),
+                        effectiveFrom = LocalDateTime.of(2026, 4, 18, 10, 0),
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = existingSlotUuid,
+                        time = LocalTime.of(11, 0),
+                        effectiveFrom = LocalDate.of(2026, 4, 1).atStartOfDay(),
+                    )
+                ),
+            ),
+        )
+
+        val occurrences = group.occurrencesBetweenInPlanWindow(
+            startDate = LocalDate.of(2026, 4, 18),
+            endDate = LocalDate.of(2026, 4, 19),
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 18, 11, 0),
+                LocalDateTime.of(2026, 4, 19, 8, 0),
+                LocalDateTime.of(2026, 4, 19, 11, 0),
+            ),
+            occurrences.map(MedicationGroupSlotOccurrence::scheduledFor),
+        )
+    }
+
+    @Test
+    fun occurrencesBetweenInPlanWindow_applies_midnight_cutover_against_save_time() {
+        val lateSaveGroup = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.MIDNIGHT),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.fromString("2ed090f4-6580-48fb-bf07-7e3febcff861"),
+                        time = LocalTime.MIDNIGHT,
+                        effectiveFrom = LocalDateTime.of(2026, 4, 19, 0, 1),
+                    )
+                ),
+            ),
+        )
+        val earlySaveGroup = lateSaveGroup.copy(
+            schedule = lateSaveGroup.schedule.copy(
+                timeSlots = listOf(
+                    lateSaveGroup.schedule.timeSlots.single().copy(
+                        effectiveFrom = LocalDateTime.of(2026, 4, 18, 23, 59),
+                    )
+                )
+            )
+        )
+
+        assertEquals(
+            emptyList<LocalDateTime>(),
+            lateSaveGroup.occurrencesBetweenInPlanWindow(
+                startDate = LocalDate.of(2026, 4, 19),
+                endDate = LocalDate.of(2026, 4, 19),
+            ).map(MedicationGroupSlotOccurrence::scheduledFor),
+        )
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 4, 19, 0, 0)),
+            earlySaveGroup.occurrencesBetweenInPlanWindow(
+                startDate = LocalDate.of(2026, 4, 19),
+                endDate = LocalDate.of(2026, 4, 19),
+            ).map(MedicationGroupSlotOccurrence::scheduledFor),
+        )
+    }
+
+    private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {
+        return MedicationGroup(
+            uuid = UUID.fromString("435c592a-cc90-4f70-9266-b0960a42f46d"),
+            name = "Group",
+            schedule = schedule,
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("b163399f-2eb2-4d5f-b1ad-b516de344c4e"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0),
+                    ),
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
         )
     }
 }

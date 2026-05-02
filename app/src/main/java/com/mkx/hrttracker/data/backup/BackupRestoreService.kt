@@ -35,6 +35,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.time.Instant
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -169,6 +170,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     val groupWeeklyDayEntities = mutableListOf<MedicationGroupWeeklyDayEntity>()
     val seenGroupUuids = mutableSetOf<String>()
     val seenGroupItemUuids = mutableSetOf<String>()
+    val seenScheduleTimeUuids = mutableSetOf<String>()
+    val zoneId = ZoneId.systemDefault()
 
     medicationGroups.forEach { group ->
         val groupUuid = group.uuid.parseUuid("medication group UUID").toString()
@@ -210,6 +213,14 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         weeklyDays.forEach { dayOfWeek ->
             DayOfWeek.of(dayOfWeek)
         }
+        val archivedAtLocalIso = group.archivedAtLocalIso?.let { archivedAtLocal ->
+            LocalDateTime.parse(archivedAtLocal).toString()
+        } ?: group.archivedAtEpochMillis?.let { archivedAtEpochMillis ->
+            Instant.ofEpochMilli(archivedAtEpochMillis)
+                .atZone(zoneId)
+                .toLocalDateTime()
+                .toString()
+        }
 
         groupEntities += MedicationGroupEntity(
             uuid = groupUuid,
@@ -222,16 +233,36 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             createdAtEpochMillis = group.createdAtEpochMillis,
             updatedAtEpochMillis = group.updatedAtEpochMillis,
             archivedAtEpochMillis = group.archivedAtEpochMillis,
+            archivedAtLocalIso = archivedAtLocalIso,
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = group.replacedByGroupUuid,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
             LocalTime.of(time.hourOfDay, time.minuteOfHour)
+            val scheduleTimeUuid = time.uuid
+                ?.parseUuid("medication group schedule time UUID")
+                ?.toString()
+                ?: UUID.randomUUID().toString()
+            require(seenScheduleTimeUuids.add(scheduleTimeUuid)) {
+                "Duplicate medication group schedule time UUID $scheduleTimeUuid in backup."
+            }
+            val effectiveFromLocalIso = time.effectiveFromLocalIso?.let { effectiveFrom ->
+                LocalDateTime.parse(effectiveFrom).toString()
+            } ?: if (group.includePastScheduledSlots) {
+                LocalDate.ofEpochDay(group.schedule.sinceEpochDay).atStartOfDay().toString()
+            } else {
+                Instant.ofEpochMilli(group.createdAtEpochMillis)
+                    .atZone(zoneId)
+                    .toLocalDateTime()
+                    .toString()
+            }
             MedicationGroupScheduleTimeEntity(
+                uuid = scheduleTimeUuid,
                 groupUuid = groupUuid,
                 sortOrder = index,
                 hourOfDay = time.hourOfDay,
                 minuteOfHour = time.minuteOfHour,
+                effectiveFromLocalIso = effectiveFromLocalIso,
             )
         }
         groupWeeklyDayEntities += weeklyDays.map { dayOfWeek ->
@@ -273,6 +304,9 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     }
 
     val validGroupUuids = groupEntities.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
+    val scheduleTimeGroupByUuid = groupScheduleTimeEntities.associate { scheduleTime ->
+        scheduleTime.uuid to scheduleTime.groupUuid
+    }
     val logEntities = mutableListOf<MedicationLogEntryEntity>()
     val seenLogUuids = mutableSetOf<String>()
     medicationLogs.forEach { log ->
@@ -297,6 +331,34 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             LocalDateTime.parse(value)
             value
         }
+        val scheduledFor = scheduledForIso?.let(LocalDateTime::parse)
+        val scheduleTimeUuid = log.scheduleTimeUuid
+            ?.parseUuid("medication log schedule time UUID")
+            ?.toString()
+        val resolvedScheduleTimeUuid = scheduleTimeUuid ?: if (
+            sourceGroupUuid != null &&
+            scheduledFor != null
+        ) {
+            groupScheduleTimeEntities
+                .filter { scheduleTime ->
+                    scheduleTime.groupUuid == sourceGroupUuid &&
+                        scheduleTime.hourOfDay == scheduledFor.hour &&
+                        scheduleTime.minuteOfHour == scheduledFor.minute
+                }
+                .singleOrNull()
+                ?.uuid
+        } else {
+            null
+        }
+        if (scheduleTimeUuid != null) {
+            require(
+                sourceGroupUuid != null &&
+                    scheduledFor != null &&
+                    scheduleTimeGroupByUuid[scheduleTimeUuid] == sourceGroupUuid
+            ) {
+                "Medication log ${log.uuid} references a schedule time outside its source group."
+            }
+        }
         log.dosageMgAsEstradiol?.requirePositiveFinite("medication log estradiol-equivalent dose")
         logEntities += MedicationLogEntryEntity(
             uuid = logUuid,
@@ -313,6 +375,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             doseReleaseRateMcgPerDay = validatedMedication.doseReleaseRateMcgPerDay,
             dosageMgAsEstradiol = log.dosageMgAsEstradiol,
             sourceGroupUuid = sourceGroupUuid,
+            scheduleTimeUuid = resolvedScheduleTimeUuid,
             appliedAtEpochMillis = log.appliedAtEpochMillis,
             appliedAtTimeZoneId = log.appliedAtTimeZoneId,
             scheduledForIso = scheduledForIso,

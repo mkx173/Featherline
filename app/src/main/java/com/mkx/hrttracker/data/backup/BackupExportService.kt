@@ -215,10 +215,12 @@ class BackupExportService @Inject constructor(
                 weeklyDaysOfWeek = schedule.weeklyDaysOfWeek
                     .map { dayOfWeek -> dayOfWeek.value }
                     .sorted(),
-                times = schedule.times.map { time ->
+                times = schedule.timeSlots.map { slot ->
                     BackupMedicationGroupScheduleTimeSnapshot(
-                        hourOfDay = time.hour,
-                        minuteOfHour = time.minute,
+                        uuid = slot.uuid.toString(),
+                        hourOfDay = slot.time.hour,
+                        minuteOfHour = slot.time.minute,
+                        effectiveFromLocalIso = slot.effectiveFrom.toString(),
                     )
                 },
             ),
@@ -226,6 +228,7 @@ class BackupExportService @Inject constructor(
             createdAtEpochMillis = createdAt.toEpochMilli(),
             updatedAtEpochMillis = updatedAt.toEpochMilli(),
             archivedAtEpochMillis = archivedAt?.toEpochMilli(),
+            archivedAtLocalIso = archivedAtLocal?.toString(),
             includePastScheduledSlots = includePastScheduledSlots,
             replacedByGroupUuid = replacedByGroupUuid?.toString(),
         )
@@ -269,6 +272,7 @@ class BackupExportService @Inject constructor(
             gelApplicationArea = fields.gelApplicationArea,
             dosageMgAsEstradiol = dosageMgAsEstradiol,
             sourceGroupUuid = sourceGroupUuid?.toString(),
+            scheduleTimeUuid = scheduleTimeUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),

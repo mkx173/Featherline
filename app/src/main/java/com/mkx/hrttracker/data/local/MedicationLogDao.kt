@@ -93,6 +93,7 @@ interface MedicationLogDao {
         """
         UPDATE medication_log_entries
         SET sourceGroupUuid = NULL,
+            scheduleTimeUuid = NULL,
             scheduledForIso = NULL
         WHERE sourceGroupUuid = :groupUuid
         """
@@ -104,11 +105,15 @@ interface MedicationLogDao {
         SELECT uuid FROM medication_log_entries
         WHERE sourceGroupUuid = :groupUuid
           AND scheduledForIso IS NOT NULL
-          AND substr(scheduledForIso, 12) = :oldTimeIso
+          AND (
+              scheduleTimeUuid = :scheduleTimeUuid
+              OR (scheduleTimeUuid IS NULL AND substr(scheduledForIso, 12) = :oldTimeIso)
+          )
         """
     )
     suspend fun getPlannedEntryIdsForGroupSlotTime(
         groupUuid: String,
+        scheduleTimeUuid: String,
         oldTimeIso: String,
     ): List<String>
 

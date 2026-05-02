@@ -8,11 +8,13 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
+import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
@@ -220,6 +222,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 it
             } else {
                 it.copy(sinceDate = date)
+            }
+        }
+    }
+
+    fun updateIncludePastScheduledSlots(includePastScheduledSlots: Boolean) {
+        _uiState.update {
+            if (it.isEditing || it.pendingReplacementGroupId != null || it.isArchived) {
+                it
+            } else {
+                it.copy(includePastScheduledSlots = includePastScheduledSlots)
             }
         }
     }
@@ -490,6 +502,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val resolvedDailyTimes = currentState.dailyTimes.ifEmpty {
             listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
         }
+        val scheduleTimeInputs = scheduleTimeInputsForSave(
+            uiState = currentState,
+            resolvedDailyTimes = resolvedDailyTimes,
+        )
 
         viewModelScope.launch {
             _uiState.update {
@@ -516,16 +532,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             interval = parsedWeeklyInterval,
                             since = currentState.sinceDate,
                             weeklyDaysOfWeek = currentState.weeklyDaysOfWeek,
-                            times = listOf(currentState.weeklyTime)
+                            times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
+                            timeSlots = scheduleTimeInputs,
                         )
                         MedicationGroupScheduleType.DAILY -> MedicationGroupScheduleInput(
                             type = MedicationGroupScheduleType.DAILY,
                             interval = parsedDailyInterval,
                             since = currentState.sinceDate,
                             weeklyDaysOfWeek = emptySet(),
-                            times = resolvedDailyTimes
-                                .map(MedicationGroupScheduleTimeUiState::time)
-                                .sorted()
+                            times = scheduleTimeInputs.map(MedicationGroupScheduleTimeInput::time),
+                            timeSlots = scheduleTimeInputs,
                         )
                     },
                     medications = currentState.medications.map { medication ->
@@ -536,6 +552,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         )
                     },
                     notificationsEnabled = currentState.notificationsEnabled,
+                    includePastScheduledSlots = currentState.includePastScheduledSlots,
                     replacesGroupUuid = currentState.pendingReplacementGroupId?.let(UUID::fromString),
                 )
             }
@@ -916,9 +933,18 @@ private fun MedicationGroup.toEditorState(
     relatedEntryCount: Int,
     plannedEntryCount: Int,
 ): MedicationGroupEditorUiState {
-    val normalizedScheduleTimes = schedule.times
-        .ifEmpty { listOf(LocalTime.of(9, 0)) }
-        .sorted()
+    val normalizedScheduleTimeSlots = schedule.timeSlots
+        .ifEmpty {
+            listOf(
+                MedicationGroupScheduleTime(
+                    uuid = UUID.randomUUID(),
+                    time = LocalTime.of(9, 0),
+                    effectiveFrom = schedule.since.atStartOfDay(),
+                )
+            )
+        }
+        .sortedBy { slot -> slot.time }
+    val normalizedScheduleTimes = normalizedScheduleTimeSlots.map { slot -> slot.time }
     val editorMedications = medications.map { medication ->
         MedicationGroupMedicationItemUiState(
             localId = medication.uuid.toString(),
@@ -945,6 +971,11 @@ private fun MedicationGroup.toEditorState(
         weeklyDaysOfWeek = schedule.weeklyDaysOfWeek.ifEmpty {
             setOf(LocalDate.now().dayOfWeek)
         },
+        weeklyTimeLocalId = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
+            normalizedScheduleTimeSlots.firstOrNull()?.uuid?.toString() ?: UUID.randomUUID().toString()
+        } else {
+            UUID.randomUUID().toString()
+        },
         weeklyTime = schedule.times.firstOrNull() ?: LocalTime.of(9, 0),
         dailyIntervalDays = if (schedule.type == MedicationGroupScheduleType.DAILY) {
             parseScheduleInterval(schedule.interval.toString()).toString()
@@ -952,7 +983,12 @@ private fun MedicationGroup.toEditorState(
             "1"
         },
         dailyTimes = if (schedule.type == MedicationGroupScheduleType.DAILY) {
-            normalizedScheduleTimes.map { time -> MedicationGroupScheduleTimeUiState(time = time) }
+            normalizedScheduleTimeSlots.map { slot ->
+                MedicationGroupScheduleTimeUiState(
+                    localId = slot.uuid.toString(),
+                    time = slot.time,
+                )
+            }
         } else {
             listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0)))
         },
@@ -1048,6 +1084,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         groupName = resolvedGroupName,
         defaultGroupName = defaultGroupName,
         hasResolvedInitialGroupName = true,
+        weeklyTimeLocalId = UUID.randomUUID().toString(),
         dailyTimes = dailyTimes.map { dailyTime ->
             MedicationGroupScheduleTimeUiState(time = dailyTime.time)
         },
@@ -1258,6 +1295,7 @@ data class MedicationGroupEditorUiState(
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
+    val weeklyTimeLocalId: String = UUID.randomUUID().toString(),
     val weeklyTime: LocalTime = LocalTime.of(9, 0),
     val dailyIntervalDays: String = "1",
     val dailyTimes: List<MedicationGroupScheduleTimeUiState> = listOf(
@@ -1448,6 +1486,30 @@ internal fun relatedEntryCountForGroup(
     groupId: String?,
 ): Int = entryCountsForGroup(entries, groupId).relatedEntryCount
 
+internal fun scheduleTimeInputsForSave(
+    uiState: MedicationGroupEditorUiState,
+    resolvedDailyTimes: List<MedicationGroupScheduleTimeUiState> = uiState.dailyTimes,
+): List<MedicationGroupScheduleTimeInput> {
+    return when (uiState.scheduleType) {
+        MedicationGroupScheduleType.WEEKLY -> listOf(
+            MedicationGroupScheduleTimeInput(
+                uuid = uiState.weeklyTimeLocalId.toUuidOrNull(),
+                time = uiState.weeklyTime.withSecond(0).withNano(0),
+            )
+        )
+
+        MedicationGroupScheduleType.DAILY -> resolvedDailyTimes
+            .ifEmpty { listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))) }
+            .sortedBy(MedicationGroupScheduleTimeUiState::time)
+            .map { dailyTime ->
+                MedicationGroupScheduleTimeInput(
+                    uuid = dailyTime.localId.toUuidOrNull(),
+                    time = dailyTime.time.withSecond(0).withNano(0),
+                )
+            }
+    }
+}
+
 internal fun scheduleTimesForSave(uiState: MedicationGroupEditorUiState): List<LocalTime> {
     return when (uiState.scheduleType) {
         MedicationGroupScheduleType.WEEKLY -> listOf(uiState.weeklyTime.withSecond(0).withNano(0))
@@ -1455,6 +1517,10 @@ internal fun scheduleTimesForSave(uiState: MedicationGroupEditorUiState): List<L
             .ifEmpty { listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))) }
             .map { dailyTime -> dailyTime.time.withSecond(0).withNano(0) }
     }
+}
+
+private fun String.toUuidOrNull(): UUID? {
+    return runCatching { UUID.fromString(this) }.getOrNull()
 }
 
 internal fun lockedScheduleTimesChanged(uiState: MedicationGroupEditorUiState): Boolean {

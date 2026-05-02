@@ -8,7 +8,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.model.medication.occurrencesBetween
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -168,24 +168,25 @@ internal fun buildNextOccurrencesByGroup(
     lookaheadDays: Long = 90L
 ): Map<UUID, List<LocalDateTime>> {
     return groups.associate { group ->
-        group.uuid to group.schedule
-            .occurrencesBetween(
-                startDate = start.toLocalDate(),
-                endDate = start.toLocalDate().plusDays(lookaheadDays)
+        group.uuid to group
+            .nextOccurrencesInPlanWindowFrom(
+                start = start,
+                limit = Int.MAX_VALUE,
+                lookaheadDays = lookaheadDays
             )
             .asSequence()
-            .filter { occurrence ->
-                !occurrence.isBefore(start)
-            }
             .filterNot { occurrence ->
                 isSlotFulfilled(
                     group = group,
-                    date = occurrence.toLocalDate(),
-                    time = occurrence.toLocalTime(),
+                    slot = PlanScheduleTimeSlot(
+                        scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                        scheduledFor = occurrence.scheduledFor,
+                    ),
                     entries = entries
                 )
             }
             .take(limit)
+            .map { occurrence -> occurrence.scheduledFor }
             .toList()
     }
 }

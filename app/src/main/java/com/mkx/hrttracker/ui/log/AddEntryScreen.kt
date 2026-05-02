@@ -56,6 +56,7 @@ fun AddEntryScreen(
         } else {
             viewModel.initializeQuickLog(
                 groupId = quickLogRequest.groupId,
+                scheduleTimeUuid = quickLogRequest.scheduleTimeUuid,
                 scheduledFor = quickLogRequest.scheduledFor,
                 medicationDetails = quickLogRequest.medicationDetails,
                 medicationCount = quickLogRequest.medicationCount,
