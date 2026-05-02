@@ -39,7 +39,6 @@ import java.time.Instant
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
@@ -238,7 +237,6 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             replacedByGroupUuid = group.replacedByGroupUuid,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
-            LocalTime.of(time.hourOfDay, time.minuteOfHour)
             val scheduleTimeUuid = time.uuid
                 ?.parseUuid("medication group schedule time UUID")
                 ?.toString()

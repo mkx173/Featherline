@@ -7,6 +7,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
@@ -235,6 +236,7 @@ class PlanViewModelTest {
             times = listOf(LocalTime.of(8, 0), LocalTime.of(21, 0))
         ).copy(
             archivedAt = now.atZone(ZoneId.systemDefault()).toInstant(),
+            archivedAtLocal = now,
         )
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(archivedGroup))
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
@@ -269,9 +271,24 @@ class PlanViewModelTest {
         val archivedOriginalGroup = baseGroup.copy(
             uuid = originalGroupUuid,
             archivedAt = createdAt,
+            archivedAtLocal = now,
         )
         val recreatedGroup = baseGroup.copy(
             uuid = recreatedGroupUuid,
+            schedule = baseGroup.schedule.copy(
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = now,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(21, 0),
+                        effectiveFrom = now,
+                    ),
+                ),
+            ),
             createdAt = createdAt,
             updatedAt = createdAt,
             archivedAt = null,

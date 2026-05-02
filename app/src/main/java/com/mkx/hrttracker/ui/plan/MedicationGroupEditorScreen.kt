@@ -1155,35 +1155,34 @@ private fun MedicationGroupEditorScreenContent(
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     }
-                    if (!uiState.isEditing) {
-                        val backfillToggleEnabled = uiState.pendingReplacementGroupId == null &&
-                            !uiState.isArchived
-                        PreferenceSegmentedListItem(
-                            title = stringResource(R.string.group_schedule_backfill_title),
-                            supportingText = stringResource(
-                                if (uiState.pendingReplacementGroupId == null) {
-                                    R.string.group_schedule_backfill_summary
-                                } else {
-                                    R.string.group_schedule_backfill_recreated_summary
-                                }
-                            ),
-                            index = 0,
-                            count = 1,
-                            onClick = {
-                                if (backfillToggleEnabled) {
-                                    onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
-                                }
-                            },
-                            enabled = backfillToggleEnabled,
-                            trailingContent = {
-                                Switch(
-                                    checked = uiState.includePastScheduledSlots,
-                                    onCheckedChange = onIncludePastScheduledSlotsChange,
-                                    enabled = backfillToggleEnabled,
-                                )
-                            },
-                        )
+                    val backfillToggleEnabled = !uiState.isEditing &&
+                        uiState.pendingReplacementGroupId == null &&
+                        !uiState.isArchived
+                    val backfillSummaryRes = when {
+                        uiState.pendingReplacementGroupId != null ->
+                            R.string.group_schedule_backfill_recreated_summary
+                        uiState.isEditing -> R.string.group_schedule_backfill_locked_summary
+                        else -> R.string.group_schedule_backfill_summary
                     }
+                    PreferenceSegmentedListItem(
+                        title = stringResource(R.string.group_schedule_backfill_title),
+                        supportingText = stringResource(backfillSummaryRes),
+                        index = 0,
+                        count = 1,
+                        onClick = {
+                            if (backfillToggleEnabled) {
+                                onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
+                            }
+                        },
+                        enabled = backfillToggleEnabled,
+                        trailingContent = {
+                            Switch(
+                                checked = uiState.includePastScheduledSlots,
+                                onCheckedChange = onIncludePastScheduledSlotsChange,
+                                enabled = backfillToggleEnabled,
+                            )
+                        },
+                    )
                     CompositionLocalProvider(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {

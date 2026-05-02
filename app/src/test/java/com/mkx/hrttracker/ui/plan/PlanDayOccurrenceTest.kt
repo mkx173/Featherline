@@ -51,7 +51,8 @@ class PlanDayOccurrenceTest {
     @Test
     fun buildPlanDaySchedule_skips_slots_before_group_creation_time_on_start_day() {
         val zoneId = ZoneId.of("UTC")
-        val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+        val savedAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+        val createdAt = savedAt
             .atZone(zoneId)
             .toInstant()
         val group = medicationGroup(
@@ -60,7 +61,19 @@ class PlanDayOccurrenceTest {
                 interval = 1,
                 since = LocalDate.of(2026, 4, 18),
                 weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(11, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                ),
             )
         ).copy(
             createdAt = createdAt,
@@ -110,6 +123,74 @@ class PlanDayOccurrenceTest {
             listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
             schedule.scheduledEntries.map { it.scheduledTime },
         )
+    }
+
+    @Test
+    fun buildPlanDaySchedule_archiveAndRecreate_savedAsIs_doesNotDuplicateTodaysSlots() {
+        val zoneId = ZoneId.of("UTC")
+        val savedAt = LocalDateTime.of(2026, 4, 18, 10, 0)
+        val savedAtInstant = savedAt.atZone(zoneId).toInstant()
+        val originalUuid = UUID.fromString("a1c1c10c-3a47-4f64-aa10-0d59ba2a5b21")
+        val recreatedUuid = UUID.fromString("b2d2d20d-4b58-5077-bb21-1e6acb3b6c32")
+        val baseGroup = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(13, 0), LocalTime.of(21, 0))
+            )
+        )
+        val archivedOriginal = baseGroup.copy(
+            uuid = originalUuid,
+            archivedAt = savedAtInstant,
+            archivedAtLocal = savedAt,
+        )
+        val recreated = baseGroup.copy(
+            uuid = recreatedUuid,
+            schedule = baseGroup.schedule.copy(
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(8, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(13, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(21, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                ),
+            ),
+            createdAt = savedAtInstant,
+            updatedAt = savedAtInstant,
+            includePastScheduledSlots = false,
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(archivedOriginal, recreated),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 10, 5),
+            zoneId = zoneId,
+        )
+
+        val times = schedule.scheduledEntries.map { entry -> entry.scheduledTime }
+        assertEquals(
+            listOf(LocalTime.of(8, 0), LocalTime.of(13, 0), LocalTime.of(21, 0)),
+            times,
+        )
+        val ownerByTime = schedule.scheduledEntries.associate { entry ->
+            entry.scheduledTime to entry.groupUuid
+        }
+        assertEquals(originalUuid, ownerByTime.getValue(LocalTime.of(8, 0)))
+        assertEquals(recreatedUuid, ownerByTime.getValue(LocalTime.of(13, 0)))
+        assertEquals(recreatedUuid, ownerByTime.getValue(LocalTime.of(21, 0)))
     }
 
     @Test

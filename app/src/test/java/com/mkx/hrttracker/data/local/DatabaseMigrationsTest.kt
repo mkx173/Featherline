@@ -114,6 +114,54 @@ class DatabaseMigrationsTest {
         })
     }
 
+    @Test
+    fun migration25To26_legacySuccessorWithIncludePastTrue_setsEffectiveFromSinceStartOfDay() {
+        val database = mockk<SupportSQLiteDatabase>()
+        val statementsWithArgs = mutableListOf<Pair<String, List<Any?>>>()
+        every { database.execSQL(any<String>()) } answers { Unit }
+        every { database.execSQL(any<String>(), any<Array<Any?>>()) } answers {
+            statementsWithArgs += firstArg<String>() to secondArg<Array<Any?>>().toList()
+            Unit
+        }
+        every {
+            database.query(match<String> { sql -> sql.contains("archivedAtEpochMillis") })
+        } returns cursorOf(columns = listOf("uuid", "archivedAtEpochMillis"), rows = emptyList())
+        every {
+            database.query(match<String> { sql ->
+                sql.contains("FROM medication_group_schedule_times AS times")
+            })
+        } returns cursorOf(
+            columns = listOf(
+                "groupUuid",
+                "sortOrder",
+                "hourOfDay",
+                "minuteOfHour",
+                "scheduleSinceEpochDay",
+                "createdAtEpochMillis",
+                "includePastScheduledSlots",
+            ),
+            rows = listOf(
+                listOf(
+                    "legacy-successor",
+                    0,
+                    9,
+                    0,
+                    LocalDate.of(2026, 4, 1).toEpochDay(),
+                    Instant.parse("2026-04-18T01:00:00Z").toEpochMilli(),
+                    1,
+                ),
+            ),
+        )
+
+        MIGRATION_25_26.migrate(database)
+
+        val scheduleInsert = statementsWithArgs.single { (sql, _) ->
+            sql.contains("INSERT INTO medication_group_schedule_times_new")
+        }
+        assertEquals("legacy-successor", scheduleInsert.second[1])
+        assertEquals("2026-04-01T00:00", scheduleInsert.second[5])
+    }
+
     private fun cursorOf(
         columns: List<String>,
         rows: List<List<Any?>>,

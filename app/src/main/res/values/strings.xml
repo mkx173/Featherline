@@ -193,6 +193,7 @@
     <string name="group_schedule_backfill_title">Backfill past slots</string>
     <string name="group_schedule_backfill_summary">Show missed scheduled slots from the start date.</string>
     <string name="group_schedule_backfill_recreated_summary">Recreated groups start from the save time.</string>
+    <string name="group_schedule_backfill_locked_summary">This option is fixed after the group is first saved.</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
     <string name="group_schedule_times">Times</string>

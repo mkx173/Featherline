@@ -7,6 +7,7 @@ import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
@@ -234,7 +235,8 @@ class PlanCalendarDayUiStateTest {
     @Test
     fun buildPlanCalendarDayUiState_skips_slots_before_group_creation_time_on_start_day() {
         val zoneId = ZoneId.of("UTC")
-        val createdAt = LocalDateTime.of(2026, 4, 16, 10, 0)
+        val savedAt = LocalDateTime.of(2026, 4, 16, 10, 0)
+        val createdAt = savedAt
             .atZone(zoneId)
             .toInstant()
         val group = medicationGroup(
@@ -244,7 +246,19 @@ class PlanCalendarDayUiStateTest {
                 interval = 1,
                 since = LocalDate.of(2026, 4, 16),
                 weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(11, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                ),
             ),
             medications = listOf(
                 medication(
@@ -327,6 +341,7 @@ class PlanCalendarDayUiStateTest {
 
     @Test
     fun buildPlanCalendarDayUiState_countsArchivedLinkedRecordWithoutFuturePlan() {
+        val archivedAtInstant = Instant.parse("2026-04-16T10:00:00Z")
         val archivedGroup = medicationGroup(
             uuid = UUID.fromString("64bc428f-5cf1-4505-b68a-aa5579c1d75d"),
             schedule = MedicationGroupSchedule(
@@ -346,7 +361,8 @@ class PlanCalendarDayUiStateTest {
                 )
             )
         ).copy(
-            archivedAt = Instant.parse("2026-04-16T10:00:00Z")
+            archivedAt = archivedAtInstant,
+            archivedAtLocal = archivedAtInstant.atZone(ZoneId.systemDefault()).toLocalDateTime(),
         )
 
         val dayStates = buildPlanCalendarDayUiState(

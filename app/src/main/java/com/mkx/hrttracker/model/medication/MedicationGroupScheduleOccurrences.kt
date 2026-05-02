@@ -140,17 +140,12 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
 fun MedicationGroup.ownsUnloggedOccurrence(
     scheduleTime: MedicationGroupScheduleTime,
     scheduledFor: LocalDateTime,
-    zoneId: ZoneId = ZoneId.systemDefault(),
+    @Suppress("UNUSED_PARAMETER") zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
-    val effectiveFrom = if (includePastScheduledSlots) {
-        scheduleTime.effectiveFrom
-    } else {
-        maxOf(scheduleTime.effectiveFrom, createdAt.atZone(zoneId).toLocalDateTime())
-    }
-    if (scheduledFor.isBefore(effectiveFrom)) {
+    if (scheduledFor.isBefore(scheduleTime.effectiveFrom)) {
         return false
     }
 
-    val archivedAt = archivedAtLocal ?: archivedAt?.atZone(zoneId)?.toLocalDateTime() ?: return true
+    val archivedAt = archivedAtLocal ?: return true
     return scheduledFor.isBefore(archivedAt)
 }

@@ -227,9 +227,7 @@ private fun MedicationGroup.isArchivedUnloggedPlanSlotVisible(
     includeUnloggedArchivedSlots: Boolean,
     unloggedArchivedSlotCutoff: LocalDateTime?,
 ): Boolean {
-    val archiveBoundary = archivedAtLocal
-        ?: archivedAt?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
-    return archiveBoundary == null ||
+    return archivedAtLocal == null ||
         includeUnloggedArchivedSlots ||
         unloggedArchivedSlotCutoff?.let { cutoff -> slotDateTime.isBefore(cutoff) } == true
 }

@@ -334,10 +334,7 @@ class MedicationGroupRepository @Inject constructor(
             createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(group.updatedAtEpochMillis),
             archivedAt = group.archivedAtEpochMillis?.let(Instant::ofEpochMilli),
-            archivedAtLocal = group.archivedAtLocalIso?.let(LocalDateTime::parse)
-                ?: group.archivedAtEpochMillis
-                    ?.let(Instant::ofEpochMilli)
-                    ?.toLocalDateTime(),
+            archivedAtLocal = group.archivedAtLocalIso?.let(LocalDateTime::parse),
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
         )

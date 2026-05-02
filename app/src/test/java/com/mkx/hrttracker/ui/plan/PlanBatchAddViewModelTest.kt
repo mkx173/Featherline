@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
@@ -130,6 +131,7 @@ class PlanBatchAddViewModelTest {
     @Test
     fun buildPlanBatchAddEntries_skipsSlotsBeforeCreationWhenScheduleHistoryDisabled() {
         val groupUuid = UUID.fromString("0f7391f1-3278-4e44-83a9-613de4b49bc3")
+        val savedAt = LocalDateTime.of(2026, 4, 10, 10, 0)
         val group = medicationGroup(
             uuid = groupUuid,
             schedule = MedicationGroupSchedule(
@@ -138,6 +140,18 @@ class PlanBatchAddViewModelTest {
                 since = LocalDate.of(2026, 4, 10),
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0)),
+                timeSlots = listOf(
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(9, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                    MedicationGroupScheduleTime(
+                        uuid = UUID.randomUUID(),
+                        time = LocalTime.of(11, 0),
+                        effectiveFrom = savedAt,
+                    ),
+                ),
             ),
             medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
         ).copy(
