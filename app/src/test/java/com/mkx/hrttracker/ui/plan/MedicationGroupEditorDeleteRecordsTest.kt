@@ -389,8 +389,10 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertFalse(viewModel.uiState.value.isRecreatingAfterArchive)
         assertNull(viewModel.uiState.value.editingGroupId)
         assertEquals(groupUuid.toString(), viewModel.uiState.value.pendingReplacementGroupId)
+        assertEquals(groupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
         assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertFalse(viewModel.uiState.value.canEditBackfillOption)
         assertEquals(group.name, viewModel.uiState.value.groupName)
         assertEquals(false, viewModel.uiState.value.isArchived)
         assertEquals(0, viewModel.uiState.value.relatedEntryCount)
@@ -476,6 +478,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertFalse(viewModel.uiState.value.isSaving)
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
         assertNull(viewModel.uiState.value.pendingReplacementGroupId)
+        assertEquals(groupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertEquals(true, viewModel.uiState.value.isSaved)
         coVerify(exactly = 1) {
             medicationGroupRepository.saveGroup(

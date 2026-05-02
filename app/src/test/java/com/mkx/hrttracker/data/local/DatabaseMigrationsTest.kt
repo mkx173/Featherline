@@ -14,6 +14,27 @@ import java.util.UUID
 
 class DatabaseMigrationsTest {
     @Test
+    fun migration26To27_backfillsSuccessorLineageFromOriginalReplacementLink() {
+        val database = mockk<SupportSQLiteDatabase>()
+        val statements = mutableListOf<String>()
+        every { database.execSQL(any<String>()) } answers {
+            statements += firstArg<String>()
+            Unit
+        }
+
+        MIGRATION_26_27.migrate(database)
+
+        assertTrue(statements.any { sql ->
+            sql.contains("ALTER TABLE medication_groups ADD COLUMN recreatedFromGroupUuid")
+        })
+        assertTrue(statements.any { sql ->
+            sql.contains("UPDATE medication_groups") &&
+                sql.contains("SET recreatedFromGroupUuid") &&
+                sql.contains("original.replacedByGroupUuid = medication_groups.uuid")
+        })
+    }
+
+    @Test
     fun migration25To26_backfillsScheduleTimeOwnershipAndLogScheduleTimeLinks() {
         val database = mockk<SupportSQLiteDatabase>()
         val statements = mutableListOf<String>()

@@ -228,7 +228,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateIncludePastScheduledSlots(includePastScheduledSlots: Boolean) {
         _uiState.update {
-            if (it.isEditing || it.pendingReplacementGroupId != null || it.isArchived) {
+            if (!it.canEditBackfillOption) {
                 it
             } else {
                 it.copy(includePastScheduledSlots = includePastScheduledSlots)
@@ -996,7 +996,8 @@ private fun MedicationGroup.toEditorState(
         notificationsEnabled = notificationsEnabled,
         hasResolvedNotificationDefault = true,
         includePastScheduledSlots = includePastScheduledSlots,
-        isScheduleStartDateLocked = !includePastScheduledSlots,
+        isScheduleStartDateLocked = recreatedFromGroupUuid != null,
+        recreatedFromGroupId = recreatedFromGroupUuid?.toString(),
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
         isLoadingGroupForEditing = false,
@@ -1124,6 +1125,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         isDeleteConfirmationVisible = false,
         isDeleteRelatedEntriesConfirmationVisible = false,
         pendingReplacementGroupId = pendingReplacementGroupId,
+        recreatedFromGroupId = pendingReplacementGroupId,
         archiveMedicationGroupResult = null,
         archiveAndRecreateMedicationGroupResult = null,
         deleteRelatedEntriesResult = null,
@@ -1336,6 +1338,7 @@ data class MedicationGroupEditorUiState(
     val isDeleteConfirmationVisible: Boolean = false,
     val isDeleteRelatedEntriesConfirmationVisible: Boolean = false,
     val pendingReplacementGroupId: String? = null,
+    val recreatedFromGroupId: String? = null,
     val archiveMedicationGroupResult: ArchiveMedicationGroupResult? = null,
     val archiveAndRecreateMedicationGroupResult: ArchiveAndRecreateMedicationGroupResult? = null,
     val deleteRelatedEntriesResult: DeleteRelatedEntriesResult? = null,
@@ -1352,6 +1355,18 @@ data class MedicationGroupEditorUiState(
 
     val areMedicationsLocked: Boolean
         get() = isLocked || isArchived
+
+    val canEditBackfillOption: Boolean
+        get() = !isArchived &&
+            pendingReplacementGroupId == null &&
+            (
+                !isEditing ||
+                    (
+                        recreatedFromGroupId == null &&
+                            relatedEntryCount == 0 &&
+                            plannedEntryCount == 0
+                    )
+            )
 }
 
 enum class SaveMedicationGroupResult {

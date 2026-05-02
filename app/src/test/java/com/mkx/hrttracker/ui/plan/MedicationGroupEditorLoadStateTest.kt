@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -137,7 +138,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun editingRecreatedGroup_withoutHistory_locksStartDate() = runTest {
+    fun editingFreshForwardOnlyGroup_withoutLineage_allowsStartDateEdits() = runTest {
         val groupUuid = UUID.fromString("512e3056-d3dc-4972-a62d-4a3d3150fe47")
         val group = testMedicationGroup(
             groupUuid = groupUuid,
@@ -160,11 +161,101 @@ class MedicationGroupEditorLoadStateTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
-        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertNull(viewModel.uiState.value.recreatedFromGroupId)
+        assertTrue(viewModel.uiState.value.canEditBackfillOption)
+
+        viewModel.updateIncludePastScheduledSlots(true)
+
+        assertEquals(true, viewModel.uiState.value.includePastScheduledSlots)
+
+        viewModel.updateIncludePastScheduledSlots(false)
+
+        assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 3, 31))
 
-        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+        assertEquals(LocalDate.of(2026, 3, 31), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
+
+        assertEquals(LocalDate.of(2026, 4, 20), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingFreshForwardOnlyGroup_withExistingRecords_disablesBackfillOption() = runTest {
+        val groupUuid = UUID.fromString("24e07d37-f507-4d95-99e6-6ab234efef24")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
+                )
+            )
+        )
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.relatedEntryCount)
+        assertEquals(0, viewModel.uiState.value.plannedEntryCount)
+        assertFalse(viewModel.uiState.value.canEditBackfillOption)
+
+        viewModel.updateIncludePastScheduledSlots(true)
+
+        assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
+    }
+
+    @Test
+    fun editingRecreatedGroup_withDeletedParentLineage_locksStartDate() = runTest {
+        val parentGroupUuid = UUID.fromString("11e03ed2-5569-44ea-98e0-f810dedcddde")
+        val groupUuid = UUID.fromString("ad94244c-34cf-4ce2-85f2-769d63787208")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+            recreatedFromGroupUuid = parentGroupUuid,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertEquals(parentGroupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
+        assertFalse(viewModel.uiState.value.canEditBackfillOption)
+
+        viewModel.updateIncludePastScheduledSlots(true)
+
+        assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
 
@@ -248,6 +339,7 @@ private fun testMedicationGroup(
     groupUuid: UUID,
     notificationsEnabled: Boolean = true,
     includePastScheduledSlots: Boolean = true,
+    recreatedFromGroupUuid: UUID? = null,
 ): MedicationGroup {
     return MedicationGroup(
         uuid = groupUuid,
@@ -271,6 +363,7 @@ private fun testMedicationGroup(
         createdAt = Instant.parse("2026-04-01T00:00:00Z"),
         updatedAt = Instant.parse("2026-04-02T00:00:00Z"),
         includePastScheduledSlots = includePastScheduledSlots,
+        recreatedFromGroupUuid = recreatedFromGroupUuid,
     )
 }
 

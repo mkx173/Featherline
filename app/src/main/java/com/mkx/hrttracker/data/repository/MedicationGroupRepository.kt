@@ -184,9 +184,22 @@ class MedicationGroupRepository @Inject constructor(
         databaseHolder.withTransaction { database ->
             val dao = database.medicationGroupDao()
             val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
-            val createdAtEpochMillis = existingGroup?.group?.createdAtEpochMillis ?: nowEpochMillis
-            val resolvedIncludePastScheduledSlots = existingGroup?.group?.includePastScheduledSlots
-                ?: (replacesGroupUuid == null && includePastScheduledSlots)
+            val existingGroupRow = existingGroup?.group
+            val createdAtEpochMillis = existingGroupRow?.createdAtEpochMillis ?: nowEpochMillis
+            val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
+            val hasExistingRecords = existingGroupRow != null &&
+                database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
+            val resolvedIncludePastScheduledSlots = when {
+                existingGroupRow == null -> replacesGroupUuid == null && includePastScheduledSlots
+                isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
+                else -> includePastScheduledSlots
+            }
+            val didBackfillModeChange = existingGroupRow != null &&
+                !isExistingRecreatedGroup &&
+                !hasExistingRecords &&
+                existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
+            val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
+                ?: replacesGroupUuid?.toString()
             val existingScheduleTimesByUuid = existingGroup
                 ?.scheduleTimes
                 ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
@@ -203,10 +216,11 @@ class MedicationGroupRepository @Inject constructor(
                     scheduleSinceEpochDay = schedule.since.toEpochDay(),
                     createdAtEpochMillis = createdAtEpochMillis,
                     updatedAtEpochMillis = nowEpochMillis,
-                    archivedAtEpochMillis = existingGroup?.group?.archivedAtEpochMillis,
-                    archivedAtLocalIso = existingGroup?.group?.archivedAtLocalIso,
+                    archivedAtEpochMillis = existingGroupRow?.archivedAtEpochMillis,
+                    archivedAtLocalIso = existingGroupRow?.archivedAtLocalIso,
                     includePastScheduledSlots = resolvedIncludePastScheduledSlots,
-                    replacedByGroupUuid = existingGroup?.group?.replacedByGroupUuid,
+                    replacedByGroupUuid = existingGroupRow?.replacedByGroupUuid,
+                    recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
                 ),
                 items = medications.mapIndexed { index, medication ->
                     MedicationGroupItemEntity(
@@ -262,6 +276,12 @@ class MedicationGroupRepository @Inject constructor(
                         LocalTime.of(existingTimeRow.hourOfDay, existingTimeRow.minuteOfHour)
                     }
                     val effectiveFromLocal = when {
+                        didBackfillModeChange && resolvedIncludePastScheduledSlots ->
+                            schedule.since.atStartOfDay().toString()
+
+                        didBackfillModeChange ->
+                            nowLocal.toString()
+
                         existingScheduleTime != null && existingTime == time ->
                             existingScheduleTime.effectiveFromLocalIso
 
@@ -337,6 +357,7 @@ class MedicationGroupRepository @Inject constructor(
             archivedAtLocal = group.archivedAtLocalIso?.let(LocalDateTime::parse),
             includePastScheduledSlots = group.includePastScheduledSlots,
             replacedByGroupUuid = group.replacedByGroupUuid?.let(UUID::fromString),
+            recreatedFromGroupUuid = group.recreatedFromGroupUuid?.let(UUID::fromString),
         )
     }
 

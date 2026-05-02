@@ -54,6 +54,7 @@ data class BackupMedicationGroupSnapshot(
     val archivedAtLocalIso: String? = null,
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
+    val recreatedFromGroupUuid: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -7,6 +7,29 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
+val MIGRATION_26_27: Migration = object : Migration(26, 27) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE medication_groups ADD COLUMN recreatedFromGroupUuid TEXT")
+        db.execSQL(
+            """
+            UPDATE medication_groups
+            SET recreatedFromGroupUuid = (
+                SELECT original.uuid
+                FROM medication_groups AS original
+                WHERE original.replacedByGroupUuid = medication_groups.uuid
+                ORDER BY original.updatedAtEpochMillis DESC, original.createdAtEpochMillis DESC
+                LIMIT 1
+            )
+            WHERE EXISTS (
+                SELECT 1
+                FROM medication_groups AS original
+                WHERE original.replacedByGroupUuid = medication_groups.uuid
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 val MIGRATION_25_26: Migration = object : Migration(25, 26) {
     override fun migrate(db: SupportSQLiteDatabase) {
         val zoneId = ZoneId.systemDefault()

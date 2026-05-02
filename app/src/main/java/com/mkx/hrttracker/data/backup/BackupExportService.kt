@@ -231,6 +231,7 @@ class BackupExportService @Inject constructor(
             archivedAtLocalIso = archivedAtLocal?.toString(),
             includePastScheduledSlots = includePastScheduledSlots,
             replacedByGroupUuid = replacedByGroupUuid?.toString(),
+            recreatedFromGroupUuid = recreatedFromGroupUuid?.toString(),
         )
     }
 

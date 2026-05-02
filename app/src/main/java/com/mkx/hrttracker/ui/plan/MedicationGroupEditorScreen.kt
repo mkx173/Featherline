@@ -1155,13 +1155,12 @@ private fun MedicationGroupEditorScreenContent(
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     }
-                    val backfillToggleEnabled = !uiState.isEditing &&
-                        uiState.pendingReplacementGroupId == null &&
-                        !uiState.isArchived
+                    val backfillToggleEnabled = uiState.canEditBackfillOption
                     val backfillSummaryRes = when {
-                        uiState.pendingReplacementGroupId != null ->
+                        uiState.pendingReplacementGroupId != null ||
+                            uiState.recreatedFromGroupId != null ->
                             R.string.group_schedule_backfill_recreated_summary
-                        uiState.isEditing -> R.string.group_schedule_backfill_locked_summary
+                        !uiState.canEditBackfillOption -> R.string.group_schedule_backfill_locked_summary
                         else -> R.string.group_schedule_backfill_summary
                     }
                     PreferenceSegmentedListItem(

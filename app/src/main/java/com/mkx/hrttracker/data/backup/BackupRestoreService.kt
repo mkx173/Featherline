@@ -220,6 +220,12 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 .toLocalDateTime()
                 .toString()
         }
+        val replacedByGroupUuid = group.replacedByGroupUuid
+            ?.parseUuid("medication group replaced-by UUID")
+            ?.toString()
+        val recreatedFromGroupUuid = group.recreatedFromGroupUuid
+            ?.parseUuid("medication group recreated-from UUID")
+            ?.toString()
 
         groupEntities += MedicationGroupEntity(
             uuid = groupUuid,
@@ -234,7 +240,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
             archivedAtEpochMillis = group.archivedAtEpochMillis,
             archivedAtLocalIso = archivedAtLocalIso,
             includePastScheduledSlots = group.includePastScheduledSlots,
-            replacedByGroupUuid = group.replacedByGroupUuid,
+            replacedByGroupUuid = replacedByGroupUuid,
+            recreatedFromGroupUuid = recreatedFromGroupUuid,
         )
         groupScheduleTimeEntities += group.schedule.times.mapIndexed { index, time ->
             val scheduleTimeUuid = time.uuid
@@ -301,7 +308,8 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         }
     }
 
-    val validGroupUuids = groupEntities.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
+    val groupEntitiesWithLineage = groupEntities.withDerivedRecreatedFromGroupUuids()
+    val validGroupUuids = groupEntitiesWithLineage.mapTo(mutableSetOf(), MedicationGroupEntity::uuid)
     val scheduleTimeGroupByUuid = groupScheduleTimeEntities.associate { scheduleTime ->
         scheduleTime.uuid to scheduleTime.groupUuid
     }
@@ -481,7 +489,7 @@ internal fun BackupSnapshot.toValidatedSnapshot(
     return ValidatedBackupSnapshot(
         settings = validatedSettings,
         userProfile = validatedUserProfile,
-        medicationGroups = groupEntities,
+        medicationGroups = groupEntitiesWithLineage,
         medicationGroupItems = groupItemEntities,
         medicationGroupScheduleTimes = groupScheduleTimeEntities,
         medicationGroupWeeklyDays = groupWeeklyDayEntities,
@@ -490,6 +498,24 @@ internal fun BackupSnapshot.toValidatedSnapshot(
         bloodTestPanels = panelEntities,
         bloodTestResults = resultEntities,
     )
+}
+
+private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): List<MedicationGroupEntity> {
+    val sourceUuidBySuccessorUuid = mutableMapOf<String, String>()
+    forEach { group ->
+        val successorUuid = group.replacedByGroupUuid ?: return@forEach
+        if (successorUuid !in sourceUuidBySuccessorUuid) {
+            sourceUuidBySuccessorUuid[successorUuid] = group.uuid
+        }
+    }
+    return map { group ->
+        val derivedSourceUuid = sourceUuidBySuccessorUuid[group.uuid]
+        if (group.recreatedFromGroupUuid == null && derivedSourceUuid != null) {
+            group.copy(recreatedFromGroupUuid = derivedSourceUuid)
+        } else {
+            group
+        }
+    }
 }
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {

@@ -68,6 +68,14 @@ interface MedicationLogDao {
 
     @Query(
         """
+        SELECT COUNT(*) FROM medication_log_entries
+        WHERE sourceGroupUuid = :groupUuid
+        """
+    )
+    suspend fun getEntryCountForGroup(groupUuid: String): Int
+
+    @Query(
+        """
         DELETE FROM medication_log_entries
         WHERE uuid IN (:uuids)
         """

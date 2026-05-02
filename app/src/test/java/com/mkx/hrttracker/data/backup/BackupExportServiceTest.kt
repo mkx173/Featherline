@@ -92,6 +92,7 @@ class BackupExportServiceTest {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z")
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
         val groupMedicationUuid = UUID.fromString("00000000-0000-0000-0000-000000000011")
+        val sourceGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000012")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000020")
         val analyteUuid = UUID.fromString("00000000-0000-0000-0000-000000000030")
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000040")
@@ -148,6 +149,7 @@ class BackupExportServiceTest {
                 createdAt = Instant.parse("2026-04-01T00:00:00Z"),
                 updatedAt = Instant.parse("2026-04-20T00:00:00Z"),
                 archivedAt = Instant.parse("2026-04-21T00:00:00Z"),
+                recreatedFromGroupUuid = sourceGroupUuid,
             )
         )
         coEvery { medicationLogRepository.getEntries() } returns listOf(
@@ -271,6 +273,7 @@ class BackupExportServiceTest {
             group.archivedAtEpochMillis,
         )
         assertEquals(true, group.includePastScheduledSlots)
+        assertEquals(sourceGroupUuid.toString(), group.recreatedFromGroupUuid)
 
         val groupMedication = group.medications.single()
         assertEquals(groupMedicationUuid.toString(), groupMedication.uuid)

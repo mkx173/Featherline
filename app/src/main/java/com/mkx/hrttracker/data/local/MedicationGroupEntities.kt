@@ -24,6 +24,7 @@ data class MedicationGroupEntity(
     val archivedAtLocalIso: String? = null,
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: String? = null,
+    val recreatedFromGroupUuid: String? = null,
 )
 
 @Entity(
@@ -74,7 +75,7 @@ data class MedicationGroupScheduleTimeEntity(
     val sortOrder: Int,
     val hourOfDay: Int,
     val minuteOfHour: Int,
-    val effectiveFromLocalIso: String = LocalDate.EPOCH.atStartOfDay().toString(),
+    val effectiveFromLocalIso: String = LocalDate.of(1970, 1, 1).atStartOfDay().toString(),
     @PrimaryKey val uuid: String = UUID.randomUUID().toString(),
 )
 

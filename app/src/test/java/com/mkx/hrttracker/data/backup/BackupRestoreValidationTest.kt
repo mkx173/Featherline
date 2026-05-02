@@ -25,6 +25,7 @@ class BackupRestoreValidationTest {
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000005")
         val builtinResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000006")
         val customResultUuid = UUID.fromString("00000000-0000-0000-0000-000000000007")
+        val recreatedFromGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000008")
         val snapshot = BackupSnapshot(
             exportedAtEpochMillis = exportedAt,
             app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
@@ -82,6 +83,7 @@ class BackupRestoreValidationTest {
                     createdAtEpochMillis = 100L,
                     updatedAtEpochMillis = 200L,
                     archivedAtEpochMillis = null,
+                    recreatedFromGroupUuid = recreatedFromGroupUuid.toString(),
                 )
             ),
             medicationLogs = listOf(
@@ -177,6 +179,7 @@ class BackupRestoreValidationTest {
         assertEquals(groupUuid.toString(), restoredGroup.uuid)
         assertEquals("TEAL", restoredGroup.colorKey)
         assertEquals(2, restoredGroup.scheduleInterval)
+        assertEquals(recreatedFromGroupUuid.toString(), restoredGroup.recreatedFromGroupUuid)
 
         val restoredItem = validatedSnapshot.medicationGroupItems.single()
         assertEquals(itemUuid.toString(), restoredItem.uuid)
@@ -298,6 +301,36 @@ class BackupRestoreValidationTest {
     }
 
     @Test
+    fun toValidatedSnapshot_derivesLegacySuccessorLineageFromReplacedByLink() {
+        val originalGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000351")
+        val successorGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000352")
+        val snapshot = medicationOnlySnapshot(
+            groupUuid = originalGroupUuid,
+            scheduleTimes = listOf(
+                BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 9, minuteOfHour = 0),
+            ),
+            logs = emptyList(),
+            replacedByGroupUuid = successorGroupUuid.toString(),
+            extraGroups = listOf(
+                medicationGroupSnapshot(
+                    groupUuid = successorGroupUuid,
+                    scheduleTimes = listOf(
+                        BackupMedicationGroupScheduleTimeSnapshot(hourOfDay = 10, minuteOfHour = 0),
+                    ),
+                    includePastScheduledSlots = false,
+                )
+            ),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val successor = validatedSnapshot.medicationGroups.single { group ->
+            group.uuid == successorGroupUuid.toString()
+        }
+        assertEquals(originalGroupUuid.toString(), successor.recreatedFromGroupUuid)
+    }
+
+    @Test
     fun toValidatedSnapshot_rejectsLogScheduleTimeUuidOutsideSourceGroup() {
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000401")
         val otherGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000402")
@@ -378,6 +411,8 @@ class BackupRestoreValidationTest {
         logs: List<BackupMedicationLogSnapshot>,
         includePastScheduledSlots: Boolean = true,
         createdAtEpochMillis: Long = Instant.parse("2026-04-18T01:00:00Z").toEpochMilli(),
+        replacedByGroupUuid: String? = null,
+        recreatedFromGroupUuid: String? = null,
         extraGroups: List<BackupMedicationGroupSnapshot> = emptyList(),
     ): BackupSnapshot {
         return BackupSnapshot(
@@ -404,6 +439,8 @@ class BackupRestoreValidationTest {
                     scheduleTimes = scheduleTimes,
                     includePastScheduledSlots = includePastScheduledSlots,
                     createdAtEpochMillis = createdAtEpochMillis,
+                    replacedByGroupUuid = replacedByGroupUuid,
+                    recreatedFromGroupUuid = recreatedFromGroupUuid,
                 )
             ) + extraGroups,
             medicationLogs = logs,
@@ -417,6 +454,8 @@ class BackupRestoreValidationTest {
         scheduleTimes: List<BackupMedicationGroupScheduleTimeSnapshot>,
         includePastScheduledSlots: Boolean = true,
         createdAtEpochMillis: Long = Instant.parse("2026-04-18T01:00:00Z").toEpochMilli(),
+        replacedByGroupUuid: String? = null,
+        recreatedFromGroupUuid: String? = null,
     ): BackupMedicationGroupSnapshot {
         return BackupMedicationGroupSnapshot(
             uuid = groupUuid.toString(),
@@ -452,6 +491,8 @@ class BackupRestoreValidationTest {
             updatedAtEpochMillis = createdAtEpochMillis,
             archivedAtEpochMillis = null,
             includePastScheduledSlots = includePastScheduledSlots,
+            replacedByGroupUuid = replacedByGroupUuid,
+            recreatedFromGroupUuid = recreatedFromGroupUuid,
         )
     }
 

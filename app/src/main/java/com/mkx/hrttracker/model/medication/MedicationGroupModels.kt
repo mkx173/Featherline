@@ -24,6 +24,7 @@ data class MedicationGroup(
         ?.toLocalDateTime(),
     val includePastScheduledSlots: Boolean = true,
     val replacedByGroupUuid: UUID? = null,
+    val recreatedFromGroupUuid: UUID? = null,
 )
 
 data class MedicationGroupMedication(
