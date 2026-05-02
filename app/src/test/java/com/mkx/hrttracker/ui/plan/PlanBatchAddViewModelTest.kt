@@ -269,6 +269,62 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
+    fun buildPlanBatchAddEntries_skipsSlotsScheduledAfterNow() {
+        val groupUuid = UUID.fromString("ee2bfd17-4873-43fb-92fd-d7f0c9cd25d2")
+        val pastSlot = LocalDateTime.of(2026, 4, 10, 0, 15)
+        val futureSlot = LocalDateTime.of(2026, 4, 10, 9, 0)
+        val group = medicationGroup(
+            uuid = groupUuid,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 10),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(pastSlot.toLocalTime(), futureSlot.toLocalTime()),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+
+        val entries = buildPlanBatchAddEntries(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 10),
+            endDate = LocalDate.of(2026, 4, 10),
+            now = LocalDateTime.of(2026, 4, 10, 0, 30),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1, entries.size)
+        assertEquals(pastSlot, entries.single().scheduledFor)
+        assertEquals(groupUuid, entries.single().sourceGroupUuid)
+    }
+
+    @Test
+    fun buildPlanBatchAddEntries_includesSlotScheduledExactlyNow() {
+        val now = LocalDateTime.of(2026, 4, 10, 9, 0)
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = now.toLocalDate(),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(now.toLocalTime()),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+
+        val entries = buildPlanBatchAddEntries(
+            group = group,
+            startDate = now.toLocalDate(),
+            endDate = now.toLocalDate(),
+            now = now,
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1, entries.size)
+        assertEquals(now, entries.single().scheduledFor)
+    }
+
+    @Test
     fun planBatchAddUiState_disablesConfirmWhenNoGroupIsSelected() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(

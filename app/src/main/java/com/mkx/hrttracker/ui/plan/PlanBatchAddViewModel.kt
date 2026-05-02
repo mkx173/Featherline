@@ -60,6 +60,7 @@ class PlanBatchAddViewModel @Inject constructor(
                 existingEntries = entries,
                 startDate = startDate,
                 endDate = endDate,
+                now = now,
             )
         } else {
             PlanBatchAddEntryPlan()
@@ -263,6 +264,7 @@ internal fun buildPlanBatchAddEntries(
     existingEntries: List<MedicationLogEntry> = emptyList(),
     startDate: LocalDate,
     endDate: LocalDate,
+    now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MedicationLogEntryInput> {
     return buildPlanBatchAddEntryPlan(
@@ -270,6 +272,7 @@ internal fun buildPlanBatchAddEntries(
         existingEntries = existingEntries,
         startDate = startDate,
         endDate = endDate,
+        now = now,
         zoneId = zoneId,
     ).entries
 }
@@ -284,6 +287,7 @@ internal fun buildPlanBatchAddEntryPlan(
     existingEntries: List<MedicationLogEntry> = emptyList(),
     startDate: LocalDate,
     endDate: LocalDate,
+    now: LocalDateTime = LocalDateTime.now(),
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): PlanBatchAddEntryPlan {
     if (group.medications.isEmpty() || startDate.isAfter(endDate)) {
@@ -304,6 +308,9 @@ internal fun buildPlanBatchAddEntryPlan(
         startDate = startDate,
         endDate = endDate,
     ).forEach { occurrence ->
+        if (occurrence.isAfter(now)) {
+            return@forEach
+        }
         val scheduleTime = group.schedule.timeSlots.firstOrNull { slot ->
             slot.time == occurrence.toLocalTime()
         } ?: return@forEach
