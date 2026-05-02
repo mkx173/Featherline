@@ -1181,6 +1181,14 @@ private fun MedicationGroupEditorScreenContent(
                             }
                         },
                         enabled = backfillToggleEnabled,
+                        leadingContent = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_edit_calendar),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        },
                         trailingContent = {
                             Switch(
                                 checked = uiState.includePastScheduledSlots,

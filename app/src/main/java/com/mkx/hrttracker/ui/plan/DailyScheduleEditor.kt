@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -63,7 +62,7 @@ internal fun DailyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = dateFormatter(sinceDate),
-            icon = Icons.Rounded.Event,
+            icon = painterResource(R.drawable.ic_event),
             onClick = { onSinceDateChange(sinceDate) },
             enabled = sinceEnabled,
             locked = shapeLocked,
@@ -264,7 +263,7 @@ private fun ScheduleOccurrenceRow(
     SegmentedListItem(
         leadingContent = {
             Icon(
-                painter = painterResource(R.drawable.ic_calendar_clock),
+                painter = painterResource(R.drawable.ic_event_upcoming),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)

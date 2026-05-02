@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -14,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -63,7 +64,7 @@ internal fun WeeklyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = dateFormatter(sinceDate),
-            icon = Icons.Rounded.Event,
+            icon = painterResource(R.drawable.ic_event),
             onClick = { onSinceDateChange(sinceDate) },
             enabled = sinceEnabled,
             locked = shapeLocked,
@@ -128,7 +129,7 @@ internal fun WeeklyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_time),
             value = time.format(timeFormatter),
-            icon = Icons.Rounded.Schedule,
+            icon = rememberVectorPainter(Icons.Rounded.Schedule),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
             locked = !timeEditEnabled,

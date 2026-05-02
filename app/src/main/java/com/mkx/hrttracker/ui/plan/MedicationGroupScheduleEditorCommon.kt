@@ -7,12 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -22,7 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +64,7 @@ internal fun IntervalStepperCard(
         },
         leadingContent = {
             Icon(
-                imageVector = Icons.Rounded.Repeat,
+                painter = painterResource(R.drawable.ic_repeat),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -142,7 +143,7 @@ private fun StepperCircleButton(
 internal fun EditorFieldRow(
     label: String,
     value: String,
-    icon: ImageVector,
+    icon: Painter,
     onClick: () -> Unit,
     enabled: Boolean = true,
     locked: Boolean = false,
@@ -159,7 +160,7 @@ internal fun EditorFieldRow(
         enabled = true,
         leadingContent = {
             Icon(
-                imageVector = icon,
+                painter = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
@@ -313,7 +314,7 @@ internal fun DuplicateMedicationGroupCard(
         onClick = onClick,
         leadingContent = {
             Icon(
-                imageVector = Icons.Rounded.Add,
+                painter = painterResource(R.drawable.ic_content_copy),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),
@@ -397,7 +398,7 @@ private fun EditorFieldRowPreview() {
             EditorFieldRow(
                 label = "Time",
                 value = "08:00",
-                icon = Icons.Rounded.AccessTime,
+                icon = rememberVectorPainter(Icons.Rounded.AccessTime),
                 onClick = {},
             )
         }

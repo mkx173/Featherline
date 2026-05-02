@@ -25,10 +25,8 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
-import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ColorScheme
@@ -423,7 +421,7 @@ internal fun RegimenGroupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Repeat,
+                            painter = painterResource(R.drawable.ic_repeat),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp)
@@ -466,7 +464,7 @@ internal fun RegimenGroupCard(
                     if (showStartDate) {
                         RegimenGroupCardMetadataRow(
                             metadata = RegimenGroupCardMetadata(
-                                icon = Icons.Rounded.Event,
+                                iconPainter = painterResource(R.drawable.ic_event),
                                 text = grouStartDateText,
                             ),
                         )

@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -373,7 +372,7 @@ private fun PlanBatchAddRangeSelector(
                 ),
                 onClick = onDateRangeClick,
                 modifier = Modifier.fillMaxWidth(),
-                icon = Icons.Rounded.Event,
+                painter = painterResource(R.drawable.ic_date_range),
                 leadingIconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                 leadingIconSize = 24.dp,
                 showChevron = true,
