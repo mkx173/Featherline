@@ -652,6 +652,7 @@ private fun SelectedDayMedicationIconSurface(
     colorScheme: ColorScheme
 ) {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
+    val showLoggedBadge = state == SelectedDayRowState.LOGGED
     val showDueBadge = state == SelectedDayRowState.DUE
     val showPastDueBadge = state == SelectedDayRowState.PAST_DUE
     val useOutlinedIcon = state == SelectedDayRowState.PAST_DUE ||
@@ -671,21 +672,24 @@ private fun SelectedDayMedicationIconSurface(
                 modifier = Modifier.size(36.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (state == SelectedDayRowState.LOGGED) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_check_circle_filled),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
-                    MedicationApplicationIcon(
-                        applicationType = applicationType,
-                        contentDescription = applicationTypeLabel,
-                        modifier = Modifier.size(20.dp),
-                        outlined = useOutlinedIcon,
-                    )
-                }
+                MedicationApplicationIcon(
+                    applicationType = applicationType,
+                    contentDescription = applicationTypeLabel,
+                    modifier = Modifier.size(20.dp),
+                    outlined = useOutlinedIcon,
+                )
             }
+        }
+        if (showLoggedBadge) {
+            Icon(
+                painter = painterResource(R.drawable.ic_check_circle_filled),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(10.dp)
+                    .offset(x = 2.dp, y = 2.dp)
+            )
         }
         if (showDueBadge) {
             Icon(
