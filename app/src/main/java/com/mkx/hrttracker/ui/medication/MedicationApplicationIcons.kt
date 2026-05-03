@@ -3,19 +3,13 @@ package com.mkx.hrttracker.ui.medication
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 
@@ -29,14 +23,15 @@ internal fun rememberMedicationApplicationIcons(
         ::medicationApplicationIconRes
     }
     val pillIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.ORAL))
+    val sublingualIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.SUBLINGUAL))
     val injectionIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.INJECTION))
     val gelIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.GEL))
     val patchOnIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.PATCH_ON))
     val patchOffIcon = ImageVector.vectorResource(iconRes(MedicationApplicationType.PATCH_OFF))
-    return remember(pillIcon, injectionIcon, gelIcon, patchOnIcon, patchOffIcon) {
+    return remember(pillIcon, sublingualIcon, injectionIcon, gelIcon, patchOnIcon, patchOffIcon) {
         mapOf(
             MedicationApplicationType.ORAL to pillIcon,
-            MedicationApplicationType.SUBLINGUAL to pillIcon,
+            MedicationApplicationType.SUBLINGUAL to sublingualIcon,
             MedicationApplicationType.INJECTION to injectionIcon,
             MedicationApplicationType.GEL to gelIcon,
             MedicationApplicationType.PATCH_ON to patchOnIcon,
@@ -50,7 +45,6 @@ internal fun MedicationApplicationIcon(
     applicationType: MedicationApplicationType,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    scheduleIconSize: Dp = 9.dp,
     outlined: Boolean = false,
 ) {
     val applicationTypeIcon = rememberMedicationApplicationIcons(outlined = outlined)
@@ -64,15 +58,6 @@ internal fun MedicationApplicationIcon(
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize()
         )
-        if (applicationType == MedicationApplicationType.SUBLINGUAL) {
-            Icon(
-                painter = painterResource(R.drawable.ic_timelapse),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(scheduleIconSize)
-            )
-        }
     }
 }
 
@@ -80,7 +65,7 @@ internal fun MedicationApplicationIcon(
 internal fun medicationApplicationIconRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
         MedicationApplicationType.ORAL -> R.drawable.ic_pill
-        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_pill
+        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_sublingual
         MedicationApplicationType.INJECTION -> R.drawable.ic_syringe
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops
         MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add
@@ -92,7 +77,7 @@ internal fun medicationApplicationIconRes(applicationType: MedicationApplication
 internal fun medicationApplicationOutlinedIconRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
         MedicationApplicationType.ORAL -> R.drawable.ic_pill_alt
-        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_pill_alt
+        MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_sublingual_alt
         MedicationApplicationType.INJECTION -> R.drawable.ic_syringe_alt
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops_alt
         MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add_alt

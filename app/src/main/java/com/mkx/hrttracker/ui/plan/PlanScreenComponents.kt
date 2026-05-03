@@ -682,7 +682,6 @@ private fun SelectedDayMedicationIconSurface(
                         applicationType = applicationType,
                         contentDescription = applicationTypeLabel,
                         modifier = Modifier.size(20.dp),
-                        scheduleIconSize = 9.dp,
                         outlined = useOutlinedIcon,
                     )
                 }
@@ -766,7 +765,6 @@ private fun RegimenMedicationChip(
                 applicationType = applicationType,
                 contentDescription = applicationTypeLabel,
                 modifier = Modifier.size(14.dp),
-                scheduleIconSize = 6.dp,
             )
             val medicationString =
                 listOfNotNull(medicationName, doseSummary.takeIf { it.isNotBlank() })

@@ -125,7 +125,7 @@ class MedicationEditorSheetsTest {
             medicationApplicationIconRes(MedicationApplicationType.ORAL)
         )
         assertEquals(
-            R.drawable.ic_pill,
+            R.drawable.ic_sublingual,
             medicationApplicationIconRes(MedicationApplicationType.SUBLINGUAL)
         )
         assertEquals(
@@ -153,7 +153,7 @@ class MedicationEditorSheetsTest {
             medicationApplicationOutlinedIconRes(MedicationApplicationType.ORAL)
         )
         assertEquals(
-            R.drawable.ic_pill_alt,
+            R.drawable.ic_sublingual_alt,
             medicationApplicationOutlinedIconRes(MedicationApplicationType.SUBLINGUAL)
         )
         assertEquals(

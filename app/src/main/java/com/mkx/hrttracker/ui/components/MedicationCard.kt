@@ -118,7 +118,6 @@ internal fun MedicationCard(
                         applicationType = details.applicationType,
                         contentDescription = applicationTypeLabel,
                         modifier = Modifier.size(20.dp),
-                        scheduleIconSize = 9.dp,
                     )
                 }
             }
