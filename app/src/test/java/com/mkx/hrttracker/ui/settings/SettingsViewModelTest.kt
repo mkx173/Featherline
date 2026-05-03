@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.settings
 
+import android.net.Uri
 import com.mkx.hrttracker.data.backup.BackupExportService
 import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
@@ -22,6 +23,10 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 
@@ -52,7 +57,39 @@ class SettingsViewModelTest {
 
     @Test
     fun init_preloadsCalibrationDataForSettingsFlow() = runTest {
-        SettingsViewModel(
+        createViewModel()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { bloodTestRepository.getPanels() }
+        coVerify(exactly = 1) { bloodTestRepository.preloadActiveCustomAnalytes() }
+    }
+
+    @Test
+    fun pendingRestoreRequest_staysInViewModelUntilCleared() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val uri = mockk<Uri>()
+
+        viewModel.setPendingRestoreRequest(
+            fileUri = uri,
+            displayName = "backup.json",
+        )
+        advanceUntilIdle()
+
+        val restoreRequest = viewModel.uiState.value.pendingRestoreRequest
+        assertNotNull(restoreRequest)
+        checkNotNull(restoreRequest)
+        assertSame(uri, restoreRequest.uri)
+        assertEquals("backup.json", restoreRequest.displayName)
+
+        viewModel.clearPendingRestoreRequest()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+    }
+
+    private fun createViewModel(): SettingsViewModel {
+        return SettingsViewModel(
             settingsRepository = settingsRepository,
             userProfileRepository = userProfileRepository,
             bloodTestRepository = bloodTestRepository,
@@ -61,9 +98,5 @@ class SettingsViewModelTest {
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
         )
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { bloodTestRepository.getPanels() }
-        coVerify(exactly = 1) { bloodTestRepository.preloadActiveCustomAnalytes() }
     }
 }

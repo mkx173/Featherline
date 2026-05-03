@@ -53,128 +53,77 @@ class AppLockViewModelTest {
     }
 
     @Test
-    fun externalActivityBypass_success_keeps_app_unlocked_until_result_is_consumed() = runTest {
-        val viewModel = AppLockViewModel(
-            settingsRepository = settingsRepository,
-            appLockSecurityManager = appLockSecurityManager,
-            elapsedRealtimeProvider = elapsedRealtimeProvider,
-        )
+    fun initialLockedState_requestsUnlockPrompt() = runTest {
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.isUnlocked)
-        assertNotNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onAuthenticationSucceeded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.allowNextExternalActivityBypass()
-        viewModel.onBackgrounded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onForegrounded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onExternalActivityResult(keepUnlocked = true)
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onBackgrounded()
-        advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onForegrounded()
-        advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isUnlocked)
         assertNotNull(viewModel.uiState.value.pendingPrompt)
     }
 
     @Test
-    fun externalActivityBypass_cancel_relocks_immediately_after_return() = runTest {
-        val viewModel = AppLockViewModel(
-            settingsRepository = settingsRepository,
-            appLockSecurityManager = appLockSecurityManager,
-            elapsedRealtimeProvider = elapsedRealtimeProvider,
-        )
+    fun immediateGracePeriod_relocksAfterBackgrounding() = runTest {
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onAuthenticationSucceeded()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.isUnlocked)
 
-        viewModel.allowNextExternalActivityBypass()
         viewModel.onBackgrounded()
         advanceUntilIdle()
-        viewModel.onForegrounded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
 
-        viewModel.onExternalActivityResult(keepUnlocked = false)
-        advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isUnlocked)
         assertNull(viewModel.uiState.value.pendingPrompt)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isUnlocked)
+        assertNotNull(viewModel.uiState.value.pendingPrompt)
     }
 
     @Test
-    fun externalActivityBypass_cancel_respects_grace_period() = runTest {
+    fun delayedGracePeriod_keepsUnlockedWhenReturningBeforeTimeout() = runTest {
         settingsStateFlow.value = SettingsState(
             screenLockProtectionEnabled = true,
-            appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
+        every { elapsedRealtimeProvider.now() } returnsMany listOf(1_000L, 60_999L)
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+
+        viewModel.onBackgrounded()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isUnlocked)
+
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+    }
+
+    @Test
+    fun delayedGracePeriod_relocksWhenReturningAtTimeout() = runTest {
+        settingsStateFlow.value = SettingsState(
+            screenLockProtectionEnabled = true,
+            appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
         )
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
         every { elapsedRealtimeProvider.now() } returnsMany listOf(1_000L, 61_000L)
-
-        val viewModel = AppLockViewModel(
-            settingsRepository = settingsRepository,
-            appLockSecurityManager = appLockSecurityManager,
-            elapsedRealtimeProvider = elapsedRealtimeProvider,
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onAuthenticationSucceeded()
         advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
 
-        viewModel.allowNextExternalActivityBypass()
         viewModel.onBackgrounded()
         advanceUntilIdle()
-        viewModel.onForegrounded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-
-        viewModel.onExternalActivityResult(keepUnlocked = false)
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-    }
-
-    @Test
-    fun externalActivityBypass_cancelPending_before_background_does_not_bypass_lock() = runTest {
-        val viewModel = AppLockViewModel(
-            settingsRepository = settingsRepository,
-            appLockSecurityManager = appLockSecurityManager,
-            elapsedRealtimeProvider = elapsedRealtimeProvider,
-        )
-        advanceUntilIdle()
-
-        viewModel.onAuthenticationSucceeded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-
-        viewModel.allowNextExternalActivityBypass()
-        viewModel.cancelPendingExternalActivityBypass()
-        viewModel.onBackgrounded()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
 
         viewModel.onForegrounded()
         advanceUntilIdle()
@@ -183,35 +132,11 @@ class AppLockViewModelTest {
         assertNotNull(viewModel.uiState.value.pendingPrompt)
     }
 
-    @Test
-    fun externalActivityBypass_stale_pending_background_does_not_bypass_lock() = runTest {
-        every { elapsedRealtimeProvider.now() } returnsMany listOf(
-            1_000L,
-            1_000L + AppLockViewModel.EXTERNAL_ACTIVITY_BYPASS_ARM_TIMEOUT_MILLIS + 1L,
-        )
-
-        val viewModel = AppLockViewModel(
+    private fun createViewModel(): AppLockViewModel {
+        return AppLockViewModel(
             settingsRepository = settingsRepository,
             appLockSecurityManager = appLockSecurityManager,
             elapsedRealtimeProvider = elapsedRealtimeProvider,
         )
-        advanceUntilIdle()
-
-        viewModel.onAuthenticationSucceeded()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isUnlocked)
-
-        viewModel.allowNextExternalActivityBypass()
-        viewModel.onBackgrounded()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isUnlocked)
-        assertNull(viewModel.uiState.value.pendingPrompt)
-
-        viewModel.onForegrounded()
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isUnlocked)
-        assertNotNull(viewModel.uiState.value.pendingPrompt)
     }
 }

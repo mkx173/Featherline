@@ -75,9 +75,21 @@ enum class AppLockGracePeriodOption(
         labelRes = R.string.app_lock_grace_period_immediately,
         durationMillis = 0L
     ),
+    FIFTEEN_SECONDS(
+        labelRes = R.string.app_lock_grace_period_15_seconds,
+        durationMillis = 15_000L
+    ),
+    THIRTY_SECONDS(
+        labelRes = R.string.app_lock_grace_period_30_seconds,
+        durationMillis = 30_000L
+    ),
     ONE_MINUTE(
         labelRes = R.string.app_lock_grace_period_1_minute,
         durationMillis = 60_000L
+    ),
+    TWO_MINUTES(
+        labelRes = R.string.app_lock_grace_period_2_minutes,
+        durationMillis = 2 * 60_000L
     ),
     FIVE_MINUTES(
         labelRes = R.string.app_lock_grace_period_5_minutes,
@@ -98,7 +110,7 @@ enum class AppLockGracePeriodOption(
 
     companion object {
         fun fromStorageValue(value: String?): AppLockGracePeriodOption {
-            return entries.firstOrNull { it.name == value } ?: IMMEDIATELY
+            return entries.firstOrNull { it.name == value } ?: ONE_MINUTE
         }
     }
 }
@@ -112,7 +124,7 @@ data class SettingsState(
     val showArchivedGroupRecords: Boolean = true,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
-        AppLockGracePeriodOption.IMMEDIATELY,
+        AppLockGracePeriodOption.ONE_MINUTE,
     val hideScreenContentEnabled: Boolean = false,
 )
 

@@ -464,7 +464,10 @@
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
     <string name="app_lock_grace_period_immediately">立即</string>
+    <string name="app_lock_grace_period_15_seconds">15 秒</string>
+    <string name="app_lock_grace_period_30_seconds">30 秒</string>
     <string name="app_lock_grace_period_1_minute">1 分钟</string>
+    <string name="app_lock_grace_period_2_minutes">2 分钟</string>
     <string name="app_lock_grace_period_5_minutes">5 分钟</string>
     <string name="app_lock_grace_period_15_minutes">15 分钟</string>
     <string name="app_lock_grace_period_30_minutes">30 分钟</string>

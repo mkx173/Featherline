@@ -26,10 +26,6 @@ class AppLockViewModel @Inject constructor(
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val errorMessageRes = MutableStateFlow<Int?>(null)
     private var backgroundedAtElapsedRealtime: Long? = null
-    private var bypassPendingBackground = false
-    private var bypassPendingBackgroundArmedAtElapsedRealtime: Long? = null
-    private var bypassAwaitingExternalResult = false
-    private var bypassBackgroundedAtElapsedRealtime: Long? = null
     private var nextPromptId = 0L
 
     val uiState: StateFlow<AppLockUiState> = combine(
@@ -65,10 +61,6 @@ class AppLockViewModel @Inject constructor(
             settingsRepository.settingsState.collect { settingsState ->
                 if (!settingsState.screenLockProtectionEnabled) {
                     backgroundedAtElapsedRealtime = null
-                    bypassPendingBackground = false
-                    bypassPendingBackgroundArmedAtElapsedRealtime = null
-                    bypassAwaitingExternalResult = false
-                    bypassBackgroundedAtElapsedRealtime = null
                     isUnlocked.value = true
                     pendingPrompt.value = null
                     errorMessageRes.value = null
@@ -80,14 +72,6 @@ class AppLockViewModel @Inject constructor(
     fun onForegrounded() {
         val state = uiState.value
         if (!state.isReady || !state.screenLockProtectionEnabled) {
-            return
-        }
-
-        if (bypassAwaitingExternalResult) {
-            backgroundedAtElapsedRealtime = null
-            isUnlocked.value = true
-            pendingPrompt.value = null
-            errorMessageRes.value = null
             return
         }
 
@@ -111,22 +95,6 @@ class AppLockViewModel @Inject constructor(
             return
         }
 
-        if (bypassPendingBackground) {
-            val elapsedSinceArming = bypassPendingBackgroundArmedAtElapsedRealtime?.let { armedAt ->
-                (elapsedRealtimeProvider.now() - armedAt).coerceAtLeast(0L)
-            } ?: Long.MAX_VALUE
-            bypassPendingBackground = false
-            bypassPendingBackgroundArmedAtElapsedRealtime = null
-            if (elapsedSinceArming <= EXTERNAL_ACTIVITY_BYPASS_ARM_TIMEOUT_MILLIS) {
-                bypassAwaitingExternalResult = true
-                bypassBackgroundedAtElapsedRealtime = elapsedRealtimeProvider.now()
-                backgroundedAtElapsedRealtime = null
-                pendingPrompt.value = null
-                errorMessageRes.value = null
-                return
-            }
-        }
-
         if (!state.isUnlocked) {
             backgroundedAtElapsedRealtime = null
             pendingPrompt.value = null
@@ -144,47 +112,6 @@ class AppLockViewModel @Inject constructor(
 
         pendingPrompt.value = null
         errorMessageRes.value = null
-    }
-
-    fun allowNextExternalActivityBypass() {
-        val state = uiState.value
-        if (!state.isReady || !state.screenLockProtectionEnabled || !state.isUnlocked) {
-            return
-        }
-
-        bypassPendingBackground = true
-        bypassPendingBackgroundArmedAtElapsedRealtime = elapsedRealtimeProvider.now()
-    }
-
-    fun cancelPendingExternalActivityBypass() {
-        bypassPendingBackground = false
-        bypassPendingBackgroundArmedAtElapsedRealtime = null
-    }
-
-    fun onExternalActivityResult(
-        keepUnlocked: Boolean,
-    ) {
-        if (!bypassAwaitingExternalResult) {
-            return
-        }
-
-        bypassAwaitingExternalResult = false
-        val bypassBackgroundedAt = bypassBackgroundedAtElapsedRealtime
-        bypassBackgroundedAtElapsedRealtime = null
-        if (keepUnlocked) {
-            return
-        }
-
-        val state = uiState.value
-        val elapsedSinceLeaving = bypassBackgroundedAt?.let { backgroundedAt ->
-            (elapsedRealtimeProvider.now() - backgroundedAt).coerceAtLeast(0L)
-        } ?: Long.MAX_VALUE
-        if (state.appLockGracePeriodOption.shouldRelock(elapsedSinceLeaving)) {
-            backgroundedAtElapsedRealtime = null
-            isUnlocked.value = false
-            pendingPrompt.value = null
-            errorMessageRes.value = null
-        }
     }
 
     fun requestUnlock() {
@@ -218,17 +145,13 @@ class AppLockViewModel @Inject constructor(
 
         errorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
-
-    companion object {
-        internal const val EXTERNAL_ACTIVITY_BYPASS_ARM_TIMEOUT_MILLIS = 5_000L
-    }
 }
 
 data class AppLockUiState(
     val isReady: Boolean = false,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: com.mkx.hrttracker.model.settings.AppLockGracePeriodOption =
-        com.mkx.hrttracker.model.settings.AppLockGracePeriodOption.IMMEDIATELY,
+        com.mkx.hrttracker.model.settings.AppLockGracePeriodOption.ONE_MINUTE,
     val isUnlocked: Boolean = false,
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val errorMessageRes: Int? = null,

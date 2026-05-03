@@ -41,19 +41,22 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
+    private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
     private var nextPromptId = 0L
 
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.settingsState,
         userProfileRepository.observeProfile(),
         pendingPrompt,
-        securityErrorMessageRes
-    ) { settingsState, profile, prompt, errorRes ->
+        securityErrorMessageRes,
+        pendingRestoreRequest
+    ) { settingsState, profile, prompt, errorRes, restoreRequest ->
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
             pendingPrompt = prompt,
-            securityErrorMessageRes = errorRes
+            securityErrorMessageRes = errorRes,
+            pendingRestoreRequest = restoreRequest
         )
     }.stateIn(
         scope = viewModelScope,
@@ -208,6 +211,20 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    fun setPendingRestoreRequest(
+        fileUri: Uri,
+        displayName: String?,
+    ) {
+        pendingRestoreRequest.value = PendingBackupRestoreRequest(
+            uri = fileUri,
+            displayName = displayName,
+        )
+    }
+
+    fun clearPendingRestoreRequest() {
+        pendingRestoreRequest.value = null
+    }
+
     private fun preloadCalibrationData() {
         viewModelScope.launch {
             runCatching {
@@ -223,4 +240,10 @@ data class SettingsUiState(
     val userProfile: UserProfile = UserProfile(),
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val securityErrorMessageRes: Int? = null,
+    val pendingRestoreRequest: PendingBackupRestoreRequest? = null,
+)
+
+data class PendingBackupRestoreRequest(
+    val uri: Uri,
+    val displayName: String?,
 )

@@ -11,7 +11,6 @@ import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -81,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -104,10 +104,8 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
-import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
-import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,9 +119,6 @@ fun SettingsScreen(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val appLockViewModel = (activity as? ComponentActivity)?.let { activityOwner ->
-        hiltViewModel<AppLockViewModel>(viewModelStoreOwner = activityOwner)
-    }
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
@@ -133,16 +128,9 @@ fun SettingsScreen(
     var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
     var isBackupRestoreInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingRestoreUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingRestoreDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPreparedBackupDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPreparedBackupTempFilePath by rememberSaveable { mutableStateOf<String?>(null) }
-    val pendingRestoreRequest = pendingRestoreUriString?.let { restoreUriString ->
-        PendingBackupRestoreRequest(
-            uri = restoreUriString.toUri(),
-            displayName = pendingRestoreDisplayName,
-        )
-    }
+    val pendingRestoreRequest = uiState.pendingRestoreRequest
     val pendingPreparedBackupExport = pendingPreparedBackupDisplayName?.let { displayName ->
         pendingPreparedBackupTempFilePath?.let { tempFilePath ->
             viewModel.restorePreparedBackupExport(
@@ -190,7 +178,6 @@ fun SettingsScreen(
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { directoryUri ->
-        appLockViewModel?.onExternalActivityResult(keepUnlocked = directoryUri != null)
         val preparedBackupExport = pendingPreparedBackupExport
         if (directoryUri == null) {
             if (preparedBackupExport != null) {
@@ -245,12 +232,14 @@ fun SettingsScreen(
     val restoreBackupFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { fileUri ->
-        appLockViewModel?.onExternalActivityResult(keepUnlocked = fileUri != null)
         if (fileUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
             return@rememberLauncherForActivityResult
         }
-        pendingRestoreUriString = fileUri.toString()
-        pendingRestoreDisplayName = resolveDocumentDisplayName(context, fileUri)
+        persistBackupRestoreReadPermission(context, fileUri)
+        viewModel.setPendingRestoreRequest(
+            fileUri = fileUri,
+            displayName = resolveDocumentDisplayName(context, fileUri),
+        )
     }
 
     LaunchedEffect(configuration) {
@@ -356,11 +345,9 @@ fun SettingsScreen(
         },
         onRestoreFromFileClick = {
             if (!isBackupActionBlocked) {
-                appLockViewModel?.allowNextExternalActivityBypass()
                 try {
                     restoreBackupFileLauncher.launch(arrayOf("*/*"))
                 } catch (_: Exception) {
-                    appLockViewModel?.cancelPendingExternalActivityBypass()
                     Toast.makeText(
                         context,
                         backupRestoreFailedMessage,
@@ -406,11 +393,9 @@ fun SettingsScreen(
                     pendingPreparedBackupDisplayName = preparedBackupExport.displayName
                     pendingPreparedBackupTempFilePath = preparedBackupExport.tempFilePath
                     showBackupPasswordDialog = false
-                    appLockViewModel?.allowNextExternalActivityBypass()
                     try {
                         backupDirectoryLauncher.launch(null)
                     } catch (_: Exception) {
-                        appLockViewModel?.cancelPendingExternalActivityBypass()
                         viewModel.discardPreparedBackup(preparedBackupExport)
                         pendingPreparedBackupDisplayName = null
                         pendingPreparedBackupTempFilePath = null
@@ -442,8 +427,8 @@ fun SettingsScreen(
             isInProgress = isBackupRestoreInProgress,
             minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
             onDismiss = {
-                pendingRestoreUriString = null
-                pendingRestoreDisplayName = null
+                releaseBackupRestoreReadPermission(context, restoreRequest.uri)
+                viewModel.clearPendingRestoreRequest()
             },
             onConfirm = { password ->
                 coroutineScope.launch {
@@ -466,8 +451,8 @@ fun SettingsScreen(
                         ).show()
                     } finally {
                         isBackupRestoreInProgress = false
-                        pendingRestoreUriString = null
-                        pendingRestoreDisplayName = null
+                        releaseBackupRestoreReadPermission(context, restoreRequest.uri)
+                        viewModel.clearPendingRestoreRequest()
                     }
                 }
             },
@@ -1263,7 +1248,7 @@ private fun SettingsScreenPreview() {
                     appLanguageOption = AppLanguageOption.ENGLISH,
                     remindersEnabled = true,
                     screenLockProtectionEnabled = true,
-                    appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
+                    appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
                     hideScreenContentEnabled = true,
                 ),
                 userProfile = UserProfile(
@@ -1294,12 +1279,31 @@ private fun SettingsScreenPreview() {
     }
 }
 
-private data class PendingBackupRestoreRequest(
-    val uri: Uri,
-    val displayName: String?,
-)
-
 private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6
+
+private fun persistBackupRestoreReadPermission(
+    context: Context,
+    uri: Uri,
+) {
+    runCatching {
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+    }
+}
+
+private fun releaseBackupRestoreReadPermission(
+    context: Context,
+    uri: Uri,
+) {
+    runCatching {
+        context.contentResolver.releasePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+    }
+}
 
 private fun resolveDocumentDisplayName(
     context: Context,
