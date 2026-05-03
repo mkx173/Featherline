@@ -152,6 +152,12 @@
     <string name="field_medication_source">选择方式</string>
     <string name="field_medication_name">药物名称</string>
     <string name="medication_editor_original_schedule">计划于 %1$s</string>
+    <string name="medication_editor_schedule_offset_minutes_later">+%1$d分钟</string>
+    <string name="medication_editor_schedule_offset_minutes_earlier">-%1$d分钟</string>
+    <string name="medication_editor_schedule_offset_hours_later">+%1$d小时</string>
+    <string name="medication_editor_schedule_offset_hours_earlier">-%1$d小时</string>
+    <string name="medication_editor_schedule_offset_days_later">+%1$d天</string>
+    <string name="medication_editor_schedule_offset_days_earlier">-%1$d天</string>
     <string name="field_dosage_mg">剂量</string>
     <string name="field_count">数量</string>
     <string name="field_dose_type">剂量类型</string>

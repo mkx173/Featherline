@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDateTime
 
 class MedicationEditorSheetsTest {
     @Test
@@ -171,6 +172,73 @@ class MedicationEditorSheetsTest {
         assertEquals(
             R.drawable.ic_tab_close_inactive_alt,
             medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF)
+        )
+    }
+
+    @Test
+    fun medicationLogScheduleOffset_selects_localized_label_and_single_largest_unit() {
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+
+        assertNull(medicationLogScheduleOffset(scheduledFor = scheduledFor, appliedAt = scheduledFor))
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_minutes_later,
+                value = 20
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusMinutes(20)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_minutes_earlier,
+                value = 5
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusMinutes(5)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_hours_later,
+                value = 1
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusMinutes(80)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_hours_earlier,
+                value = 2
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusMinutes(130)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_days_later,
+                value = 1
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusHours(47)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_days_earlier,
+                value = 1
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusHours(25)
+            )
         )
     }
 

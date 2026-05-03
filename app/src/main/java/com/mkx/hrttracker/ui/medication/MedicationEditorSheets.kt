@@ -104,6 +104,7 @@ import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -219,6 +220,15 @@ fun MedicationLogEntryEditorSheet(
             ).joinToString(separator = " ")
         )
     }
+    val sourceGroupScheduleOffset = sourceGroupScheduledFor?.let { scheduledFor ->
+        medicationLogScheduleOffset(
+            scheduledFor = scheduledFor,
+            appliedAt = LocalDateTime.of(appliedDate, appliedTime)
+        )
+    }
+    val sourceGroupScheduleOffsetText = sourceGroupScheduleOffset?.let { offset ->
+        stringResource(offset.labelRes, offset.value)
+    }
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
@@ -260,6 +270,7 @@ fun MedicationLogEntryEditorSheet(
                 sourceGroupName = sourceGroupName,
                 sourceGroupColorKey = sourceGroupColorKey,
                 sourceGroupScheduledForText = sourceGroupScheduledForText,
+                sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
             )
         }
 
@@ -844,6 +855,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
     sourceGroupName: String?,
     sourceGroupColorKey: MedicationGroupColorKey?,
     sourceGroupScheduledForText: String?,
+    sourceGroupScheduleOffsetText: String?,
 ) {
     val groupName = sourceGroupName?.takeIf(String::isNotBlank)
     val hasGroupInfo = groupName != null && sourceGroupScheduledForText != null
@@ -854,6 +866,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
             groupName = checkNotNull(groupName),
             groupColorKey = sourceGroupColorKey,
             scheduledForText = checkNotNull(sourceGroupScheduledForText),
+            scheduleOffsetText = sourceGroupScheduleOffsetText,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
@@ -968,6 +981,7 @@ private fun MedicationEditorGroupInfoCard(
     groupName: String,
     groupColorKey: MedicationGroupColorKey?,
     scheduledForText: String,
+    scheduleOffsetText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
@@ -978,7 +992,17 @@ private fun MedicationEditorGroupInfoCard(
             index = 0,
             count = 2,
             modifier = modifier,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            trailingContent = scheduleOffsetText?.let { offsetText ->
+                {
+                    Text(
+                        text = offsetText,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1026,6 +1050,63 @@ private fun MedicationEditorGroupInfoCard(
         }
     }
 }
+
+internal fun medicationLogScheduleOffset(
+    scheduledFor: LocalDateTime,
+    appliedAt: LocalDateTime
+): MedicationLogScheduleOffset? {
+    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, appliedAt)
+    if (deltaMinutes == 0L) {
+        return null
+    }
+
+    val isEarly = deltaMinutes < 0
+    val absoluteMinutes = kotlin.math.abs(deltaMinutes)
+    val value: Long
+    @StringRes val labelRes: Int
+
+    when {
+        absoluteMinutes >= MINUTES_PER_DAY -> {
+            value = absoluteMinutes / MINUTES_PER_DAY
+            labelRes = if (isEarly) {
+                R.string.medication_editor_schedule_offset_days_earlier
+            } else {
+                R.string.medication_editor_schedule_offset_days_later
+            }
+        }
+
+        absoluteMinutes >= MINUTES_PER_HOUR -> {
+            value = absoluteMinutes / MINUTES_PER_HOUR
+            labelRes = if (isEarly) {
+                R.string.medication_editor_schedule_offset_hours_earlier
+            } else {
+                R.string.medication_editor_schedule_offset_hours_later
+            }
+        }
+
+        else -> {
+            value = absoluteMinutes
+            labelRes = if (isEarly) {
+                R.string.medication_editor_schedule_offset_minutes_earlier
+            } else {
+                R.string.medication_editor_schedule_offset_minutes_later
+            }
+        }
+    }
+
+    return MedicationLogScheduleOffset(
+        labelRes = labelRes,
+        value = value
+    )
+}
+
+internal data class MedicationLogScheduleOffset(
+    @param:StringRes val labelRes: Int,
+    val value: Long
+)
+
+private const val MINUTES_PER_HOUR = 60L
+private const val MINUTES_PER_DAY = 24L * MINUTES_PER_HOUR
 
 @Composable
 private fun DoseTextField(
@@ -1481,6 +1562,10 @@ private fun MedicationEditorGroupInfoCardPreview() {
             scheduledForText = stringResource(
                 R.string.medication_editor_original_schedule,
                 "Apr 22, 2026 21:00"
+            ),
+            scheduleOffsetText = stringResource(
+                R.string.medication_editor_schedule_offset_minutes_later,
+                20
             ),
             modifier = Modifier.padding(16.dp)
         )

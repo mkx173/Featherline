@@ -155,6 +155,12 @@
     <string name="field_medication_source">Selection</string>
     <string name="field_medication_name">Medication name</string>
     <string name="medication_editor_original_schedule">Scheduled for %1$s</string>
+    <string name="medication_editor_schedule_offset_minutes_later">+%1$dm</string>
+    <string name="medication_editor_schedule_offset_minutes_earlier">-%1$dm</string>
+    <string name="medication_editor_schedule_offset_hours_later">+%1$dh</string>
+    <string name="medication_editor_schedule_offset_hours_earlier">-%1$dh</string>
+    <string name="medication_editor_schedule_offset_days_later">+%1$dd</string>
+    <string name="medication_editor_schedule_offset_days_earlier">-%1$dd</string>
     <string name="field_dosage_mg">Dosage</string>
     <string name="field_count">Count</string>
     <string name="field_dose_type">Dose type</string>
