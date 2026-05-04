@@ -45,7 +45,6 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -767,7 +766,7 @@ private fun MedicationGroupEditorScreenContent(
                             },
                             enabled = !uiState.isDeleting,
                             trailingContent = {
-                                Switch(
+                                Checkbox(
                                     checked = shouldDeleteRelatedEntriesWithGroup,
                                     onCheckedChange = {
                                         shouldDeleteRelatedEntriesWithGroup = it
@@ -834,7 +833,7 @@ private fun MedicationGroupEditorScreenContent(
                         },
                         enabled = !isArchiveActionInProgress,
                         trailingContent = {
-                            Switch(
+                            Checkbox(
                                 checked = shouldCreateActiveCopyAfterArchive,
                                 onCheckedChange = { shouldCreateActiveCopyAfterArchive = it },
                                 enabled = !isArchiveActionInProgress
@@ -1332,7 +1331,7 @@ private fun MedicationGroupEditorScreenContent(
                                 )
                             },
                             trailingContent = {
-                                Switch(
+                                Checkbox(
                                     checked = uiState.includePastScheduledSlots,
                                     onCheckedChange = onIncludePastScheduledSlotsChange,
                                     enabled = backfillToggleEnabled,
@@ -1365,7 +1364,7 @@ private fun MedicationGroupEditorScreenContent(
                                     }
                                 },
                                 trailingContent = {
-                                    Switch(
+                                    Checkbox(
                                         checked = uiState.createPastScheduledSlotRecords,
                                         onCheckedChange = onCreatePastScheduledSlotRecordsChange,
                                     )

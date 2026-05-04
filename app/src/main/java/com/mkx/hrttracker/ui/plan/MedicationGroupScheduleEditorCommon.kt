@@ -11,11 +11,11 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -276,7 +276,7 @@ internal fun NotificationsCard(
             )
         },
         trailingContent = {
-            Switch(
+            Checkbox(
                 checked = enabled,
                 onCheckedChange = onToggle,
                 enabled = toggleEnabled
