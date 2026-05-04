@@ -205,7 +205,7 @@
     <string name="group_schedule_start_date_locked_note">Start date can’t be changed for recreated groups.</string>
     <string name="group_past_schedule_do_not_show">Do not show</string>
     <string name="group_past_schedule_show">Show</string>
-    <string name="group_past_schedule_show_and_generate_records">Show and generate past records</string>
+    <string name="group_past_schedule_show_and_generate_records">Show and generate past records as planned</string>
     <string name="group_past_schedule_recreated_locked_note">This setting can’t be changed for recreated groups.</string>
     <string name="group_schedule_backfill_records_empty">No records added.</string>
     <string name="group_schedule_backfill_records_failure">Group saved, but unable to add records.</string>
