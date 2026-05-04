@@ -192,7 +192,7 @@
     <string name="group_notifications_exact_alarm_settings">打开设置</string>
     <string name="group_notifications_exact_alarm_skip">跳过</string>
     <string name="group_schedule_title">计划</string>
-    <string name="group_past_plans_title">过去计划</string>
+    <string name="group_past_plans_title">过去的计划</string>
     <string name="group_schedule_weekly">每周</string>
     <string name="group_schedule_daily">每日</string>
     <string name="group_schedule_repeat_every">重复间隔</string>
@@ -200,6 +200,10 @@
     <string name="increase_schedule_interval">增加计划间隔</string>
     <string name="group_schedule_since">开始日期</string>
     <string name="group_schedule_start_date_locked_note">重新创建的计划会固定开始日期，以保持历史计划记录稳定</string>
+    <string name="group_past_schedule_do_not_show">不显示</string>
+    <string name="group_past_schedule_show">显示</string>
+    <string name="group_past_schedule_show_and_generate_records">显示并按计划生成记录</string>
+    <string name="group_past_schedule_recreated_locked_note">重新创建的分组会固定过去计划设置，以保持现有记录稳定</string>
     <string name="group_schedule_backfill_title">显示过去的计划</string>
     <string name="group_schedule_backfill_records_title">生成历史记录</string>
     <string name="group_schedule_backfill_records_summary">按计划自动添加从开始日期到现在的所有记录</string>

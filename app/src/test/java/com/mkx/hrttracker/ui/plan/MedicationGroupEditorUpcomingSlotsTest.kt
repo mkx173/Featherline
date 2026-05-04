@@ -49,6 +49,10 @@ class MedicationGroupEditorUpcomingSlotsTest {
             uiState = uiState,
             start = LocalDateTime.of(2026, 4, 18, 8, 59)
         )
+        val atScheduledTime = buildMedicationGroupEditorUpcomingOccurrences(
+            uiState = uiState,
+            start = LocalDateTime.of(2026, 4, 18, 9, 0)
+        )
         val afterScheduledTime = buildMedicationGroupEditorUpcomingOccurrences(
             uiState = uiState,
             start = LocalDateTime.of(2026, 4, 18, 9, 1)
@@ -60,6 +64,13 @@ class MedicationGroupEditorUpcomingSlotsTest {
                 LocalDateTime.of(2026, 4, 19, 9, 0)
             ),
             beforeScheduledTime
+        )
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 4, 18, 9, 0),
+                LocalDateTime.of(2026, 4, 19, 9, 0)
+            ),
+            atScheduledTime
         )
         assertEquals(
             listOf(

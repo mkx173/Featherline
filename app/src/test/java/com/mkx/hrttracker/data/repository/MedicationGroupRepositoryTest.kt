@@ -36,6 +36,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class MedicationGroupRepositoryTest {
@@ -100,9 +101,13 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveGroup_setsArchivedAtWithoutTouchingNotificationsInSingleTransaction() = runTest {
+    fun archiveGroup_setsArchivedAtMinuteWithoutTouchingNotificationsInSingleTransaction() = runTest {
         val groupUuid = UUID.fromString("38789ce3-9978-402c-8fd5-e660d436b8c4")
-        val now = Instant.parse("2026-04-30T08:00:00Z")
+        val now = Instant.parse("2026-04-30T08:00:45Z")
+        val expectedArchivedAtLocal = now.atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .toString()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
@@ -112,7 +117,7 @@ class MedicationGroupRepositoryTest {
             medicationGroupDao.updateGroupArchiveState(
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
-                archivedAtLocalIso = now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString(),
+                archivedAtLocalIso = expectedArchivedAtLocal,
                 updatedAtEpochMillis = now.toEpochMilli(),
             )
         } returns Unit
@@ -124,7 +129,7 @@ class MedicationGroupRepositoryTest {
             medicationGroupDao.updateGroupArchiveState(
                 uuid = groupUuid.toString(),
                 archivedAtEpochMillis = now.toEpochMilli(),
-                archivedAtLocalIso = now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString(),
+                archivedAtLocalIso = expectedArchivedAtLocal,
                 updatedAtEpochMillis = now.toEpochMilli(),
             )
         }
@@ -238,11 +243,14 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun saveGroup_forFreshGroupWithBackfillOff_setsInitialScheduleTimesEffectiveFromSaveTime() = runTest {
+    fun saveGroup_forFreshGroupWithBackfillOff_setsInitialScheduleTimesEffectiveFromCurrentMinute() = runTest {
         val savedGroup = slot<MedicationGroupEntity>()
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
-        val now = Instant.parse("2026-04-30T08:15:00Z")
-        val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString()
+        val now = Instant.parse("2026-04-30T08:15:45Z")
+        val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(ChronoUnit.MINUTES)
+            .toString()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {

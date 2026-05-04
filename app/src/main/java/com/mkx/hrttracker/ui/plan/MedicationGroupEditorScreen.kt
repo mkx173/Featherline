@@ -7,8 +7,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.animateColor
-import androidx.compose.animation.core.updateTransition
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,6 +44,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,7 +64,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -1340,85 +1338,84 @@ private fun MedicationGroupEditorScreenContent(
                 }
             }
 
-            if (!uiState.isArchived) {
+            if (
+                shouldShowPastScheduleSection(
+                    uiState = uiState,
+                    referenceTime = resolvedOccurrenceReferenceTime,
+                )
+            ) {
                 item {
                     EditorSectionHeader(title = stringResource(R.string.group_past_plans_title))
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                    ) {
-                        val backfillToggleEnabled = uiState.canEditBackfillOption ||
-                            (
-                                isNewGroupCreationFlow &&
-                                    isFinishingAfterSave &&
-                                    !uiState.isArchived
-                                )
-                        val showPastRecordToggle = shouldShowCreatePastScheduledSlotRecordsOption(
-                            uiState = uiState,
-                            isNewGroupCreationFlow = isNewGroupCreationFlow,
-                            isFinishingAfterSave = isFinishingAfterSave,
+                    if (shouldShowRecreatedPastScheduleMessage(uiState)) {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.group_past_schedule_recreated_locked_note),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            leadingIconSize = 24.dp,
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
-                        val pastRecordToggleEnabled = uiState.canCreatePastScheduledSlotRecords
-                        val backfillOptionCount = if (showPastRecordToggle) 2 else 1
-                        PreferenceSegmentedListItem(
-                            title = stringResource(R.string.group_schedule_backfill_title),
-                            index = 0,
-                            count = backfillOptionCount,
-                            onClick = {
-                                if (backfillToggleEnabled) {
-                                    onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
-                                }
-                            },
-                            enabled = backfillToggleEnabled,
-                            leadingContent = {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_calendar_add_on),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp).alpha(if (backfillToggleEnabled) 1f else 0.72f),
+                    } else {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                        ) {
+                            val showGeneratePastRecordsOption =
+                                shouldShowGeneratePastScheduledSlotRecordsOption(
+                                    uiState = uiState,
+                                    isNewGroupCreationFlow = isNewGroupCreationFlow,
+                                    isFinishingAfterSave = isFinishingAfterSave,
                                 )
-                            },
-                            trailingContent = {
-                                Checkbox(
-                                    checked = uiState.includePastScheduledSlots,
-                                    onCheckedChange = onIncludePastScheduledSlotsChange,
-                                    enabled = backfillToggleEnabled,
-                                )
-                            },
-                        )
-                        if (showPastRecordToggle) {
-                            PreferenceSegmentedListItem(
-                                title = stringResource(R.string.group_schedule_backfill_records_title),
-                                supportingText = stringResource(R.string.group_schedule_backfill_records_summary),
-                                index = 1,
-                                count = backfillOptionCount,
-                                onClick = {
-                                    if (pastRecordToggleEnabled) {
-                                        onCreatePastScheduledSlotRecordsChange(
-                                            !uiState.createPastScheduledSlotRecords
-                                        )
-                                    }
-                                },
-                                enabled = pastRecordToggleEnabled,
-                                leadingContent = {
-                                    Box(
-                                        modifier = Modifier.size(24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        PastPlansLeadingIcon(
-                                            painterRes = R.drawable.ic_add_task,
-                                            enabled = pastRecordToggleEnabled,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                },
-                                trailingContent = {
-                                    Checkbox(
-                                        checked = uiState.createPastScheduledSlotRecords,
-                                        onCheckedChange = onCreatePastScheduledSlotRecordsChange,
-                                        enabled = pastRecordToggleEnabled,
+                            val pastScheduleOptionCount = if (showGeneratePastRecordsOption) 3 else 2
+                            val pastScheduleOptionsEnabled = uiState.canEditBackfillOption &&
+                                !uiState.isLoadingGroupForEditing &&
+                                !uiState.isSaving &&
+                                !isFinishingAfterSave &&
+                                !uiState.isDeleting &&
+                                !uiState.isArchiving &&
+                                !uiState.isRecreatingAfterArchive &&
+                                !uiState.isDeletingRelatedEntries
+                            val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
+                            val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
+                                if (pastScheduleOptionsEnabled) {
+                                    applyPastScheduleOption(
+                                        option = option,
+                                        onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
+                                        onCreatePastScheduledSlotRecordsChange =
+                                            onCreatePastScheduledSlotRecordsChange,
                                     )
-                                },
+                                }
+                            }
+                            PastScheduleOptionListItem(
+                                title = stringResource(R.string.group_past_schedule_do_not_show),
+                                option = PastScheduleOption.DO_NOT_SHOW,
+                                selectedOption = selectedPastScheduleOption,
+                                enabled = pastScheduleOptionsEnabled,
+                                index = 0,
+                                count = pastScheduleOptionCount,
+                                onOptionSelected = onPastScheduleOptionSelected,
                             )
+                            PastScheduleOptionListItem(
+                                title = stringResource(R.string.group_past_schedule_show),
+                                option = PastScheduleOption.SHOW,
+                                selectedOption = selectedPastScheduleOption,
+                                enabled = pastScheduleOptionsEnabled,
+                                index = 1,
+                                count = pastScheduleOptionCount,
+                                onOptionSelected = onPastScheduleOptionSelected,
+                            )
+                            if (showGeneratePastRecordsOption) {
+                                PastScheduleOptionListItem(
+                                    title = stringResource(
+                                        R.string.group_past_schedule_show_and_generate_records
+                                    ),
+                                    option = PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
+                                    selectedOption = selectedPastScheduleOption,
+                                    enabled = pastScheduleOptionsEnabled,
+                                    index = 2,
+                                    count = pastScheduleOptionCount,
+                                    onOptionSelected = onPastScheduleOptionSelected,
+                                )
+                            }
                         }
                     }
                 }
@@ -1644,21 +1641,134 @@ internal fun shouldRenderMedicationGroupEditorAsEditing(
     return uiState.isEditing && !(isNewGroupCreationFlow && isFinishingAfterSave)
 }
 
-internal fun shouldShowCreatePastScheduledSlotRecordsOption(
+internal enum class PastScheduleOption {
+    DO_NOT_SHOW,
+    SHOW,
+    SHOW_AND_GENERATE_RECORDS,
+}
+
+internal fun resolvePastScheduleOption(
+    uiState: MedicationGroupEditorUiState,
+): PastScheduleOption {
+    return when {
+        uiState.includePastScheduledSlots && uiState.createPastScheduledSlotRecords ->
+            PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+
+        uiState.includePastScheduledSlots -> PastScheduleOption.SHOW
+        else -> PastScheduleOption.DO_NOT_SHOW
+    }
+}
+
+internal fun shouldShowPastScheduleSection(
+    uiState: MedicationGroupEditorUiState,
+    referenceTime: LocalDateTime,
+): Boolean {
+    return !uiState.isArchived &&
+        (
+            shouldShowRecreatedPastScheduleMessage(uiState) ||
+                hasPastScheduleOptionWindow(
+                    uiState = uiState,
+                    referenceTime = referenceTime,
+                )
+            )
+}
+
+internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
     isFinishingAfterSave: Boolean,
 ): Boolean {
-    return !shouldRenderMedicationGroupEditorAsEditing(
-        uiState = uiState,
-        isNewGroupCreationFlow = isNewGroupCreationFlow,
-        isFinishingAfterSave = isFinishingAfterSave,
-    ) &&
+    val isCreatingGroup = !uiState.isEditing ||
+        (isNewGroupCreationFlow && isFinishingAfterSave)
+    return isCreatingGroup &&
         !uiState.isArchived &&
-        (
-            uiState.canEditBackfillOption ||
-                (isNewGroupCreationFlow && isFinishingAfterSave)
+        !shouldShowRecreatedPastScheduleMessage(uiState)
+}
+
+internal fun shouldShowRecreatedPastScheduleMessage(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return !uiState.isArchived &&
+        (uiState.recreatedFromGroupId != null || uiState.pendingReplacementGroupId != null)
+}
+
+internal fun hasPastScheduleOptionWindow(
+    uiState: MedicationGroupEditorUiState,
+    referenceTime: LocalDateTime,
+): Boolean {
+    val currentDate = referenceTime.toLocalDate()
+    return when {
+        uiState.sinceDate.isBefore(currentDate) -> true
+        uiState.sinceDate.isAfter(currentDate) -> false
+        else -> firstPlannedDoseOnScheduleStartDate(uiState)?.let { firstDose ->
+            firstDose.isBefore(referenceTime)
+        } ?: false
+    }
+}
+
+internal fun firstPlannedDoseOnScheduleStartDate(
+    uiState: MedicationGroupEditorUiState,
+): LocalDateTime? {
+    val firstTime = when (uiState.scheduleType) {
+        MedicationGroupScheduleType.DAILY -> uiState.dailyTimes
+            .ifEmpty { listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))) }
+            .map(MedicationGroupScheduleTimeUiState::time)
+            .minOrNull()
+
+        MedicationGroupScheduleType.WEEKLY -> uiState.weeklyTime.takeIf {
+            uiState.sinceDate.dayOfWeek in uiState.weeklyDaysOfWeek
+        }
+    }
+    return firstTime?.let { time -> LocalDateTime.of(uiState.sinceDate, time) }
+}
+
+private fun applyPastScheduleOption(
+    option: PastScheduleOption,
+    onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
+    onCreatePastScheduledSlotRecordsChange: (Boolean) -> Unit,
+) {
+    when (option) {
+        PastScheduleOption.DO_NOT_SHOW -> {
+            onCreatePastScheduledSlotRecordsChange(false)
+            onIncludePastScheduledSlotsChange(false)
+        }
+
+        PastScheduleOption.SHOW -> {
+            onCreatePastScheduledSlotRecordsChange(false)
+            onIncludePastScheduledSlotsChange(true)
+        }
+
+        PastScheduleOption.SHOW_AND_GENERATE_RECORDS -> {
+            onIncludePastScheduledSlotsChange(true)
+            onCreatePastScheduledSlotRecordsChange(true)
+        }
+    }
+}
+
+@Composable
+private fun PastScheduleOptionListItem(
+    title: String,
+    option: PastScheduleOption,
+    selectedOption: PastScheduleOption,
+    enabled: Boolean,
+    index: Int,
+    count: Int,
+    onOptionSelected: (PastScheduleOption) -> Unit,
+) {
+    PreferenceSegmentedListItem(
+        title = title,
+        index = index,
+        count = count,
+        enabled = enabled,
+        onClick = { onOptionSelected(option) },
+        trailingContent = {
+            RadioButton(
+                selected = selectedOption == option,
+                onClick = { onOptionSelected(option) },
+                enabled = enabled,
             )
+        },
+    )
 }
 
 private data class DailyTimeEditRequest(
@@ -1670,32 +1780,6 @@ private data class MedicationRemovalRequest(
     val localId: String,
     val medicationName: String,
 )
-
-private data class PastPlansLeadingIconColorState(
-    val enabled: Boolean,
-)
-
-@Composable
-private fun PastPlansLeadingIcon(
-    painterRes: Int,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val colorState = PastPlansLeadingIconColorState(enabled)
-    val transition = updateTransition(colorState, "PastPlansLeadingIconColor")
-    val leadingColor by transition.animateColor(label = "LeadingIconColor") { state ->
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(
-            alpha = if (state.enabled) 1f else 0.72f
-        )
-    }
-
-    Icon(
-        painter = painterResource(painterRes),
-        contentDescription = null,
-        tint = leadingColor,
-        modifier = modifier,
-    )
-}
 
 internal enum class NotificationSupportState {
     NONE,

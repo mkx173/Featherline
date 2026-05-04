@@ -38,6 +38,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -501,4 +502,4 @@ data class MedicationGroupScheduleTimeInput(
 
 private fun Instant.toLocalDateTime(
     zoneId: ZoneId = ZoneId.systemDefault(),
-): LocalDateTime = atZone(zoneId).toLocalDateTime()
+): LocalDateTime = atZone(zoneId).toLocalDateTime().truncatedTo(ChronoUnit.MINUTES)

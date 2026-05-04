@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -517,9 +518,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
             uiState = currentState,
             resolvedDailyTimes = resolvedDailyTimes,
         )
-        val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
-            currentState.createPastScheduledSlotRecords
         val recordGenerationNow = currentMinute.value
+        val recordGenerationInstant = recordGenerationNow.toSystemInstant()
+        val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
+            currentState.createPastScheduledSlotRecords &&
+            hasPastScheduleOptionWindow(
+                uiState = currentState,
+                referenceTime = recordGenerationNow,
+            )
 
         viewModelScope.launch {
             _uiState.update {
@@ -570,6 +576,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     notificationsEnabled = currentState.notificationsEnabled,
                     includePastScheduledSlots = currentState.includePastScheduledSlots,
                     replacesGroupUuid = currentState.pendingReplacementGroupId?.let(UUID::fromString),
+                    now = recordGenerationInstant,
                 )
             }
             val saveResult = savedGroupUuidResult.fold(
@@ -714,6 +721,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
         val groupId = currentState.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
+        val archiveNow = currentMinute.value.toSystemInstant()
 
         viewModelScope.launch {
             _uiState.update {
@@ -725,7 +733,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             val archiveResult = runCatching {
-                medicationGroupRepository.archiveGroup(uuid)
+                medicationGroupRepository.archiveGroup(uuid, now = archiveNow)
             }.fold(
                 onSuccess = { null },
                 onFailure = { ArchiveMedicationGroupResult.FAILURE },
@@ -761,7 +769,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
             return
         }
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
-        val recreateScheduleStartDate = currentMinute.value.toLocalDate()
+        val recreateNow = currentMinute.value
+        val recreateNowInstant = recreateNow.toSystemInstant()
+        val recreateScheduleStartDate = recreateNow.toLocalDate()
         val resolvedGroupName = resolveMedicationGroupName(
             groupName = currentState.groupName,
             defaultGroupName = currentState.defaultGroupName,
@@ -783,7 +793,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             val archiveSucceeded = runCatching {
-                medicationGroupRepository.archiveGroup(uuid)
+                medicationGroupRepository.archiveGroup(uuid, now = recreateNowInstant)
             }.isSuccess
 
             if (!archiveSucceeded) {
@@ -804,6 +814,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 draftState = draftState,
                 resolvedGroupName = resolvedGroupName,
                 replacesGroupUuid = uuid,
+                now = recreateNowInstant,
             )
             if (savedGroupUuid != null) {
                 runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
@@ -838,6 +849,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         draftState: MedicationGroupEditorUiState,
         resolvedGroupName: String,
         replacesGroupUuid: UUID,
+        now: Instant,
     ): UUID? {
         val parsedWeeklyInterval = parseScheduleInterval(draftState.weeklyIntervalWeeks)
         val parsedDailyInterval = parseScheduleInterval(draftState.dailyIntervalDays)
@@ -882,6 +894,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 notificationsEnabled = draftState.notificationsEnabled,
                 includePastScheduledSlots = draftState.includePastScheduledSlots,
                 replacesGroupUuid = replacesGroupUuid,
+                now = now,
             )
         }.getOrNull()
     }
@@ -1686,6 +1699,9 @@ internal fun relatedEntryCountForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
 ): Int = entryCountsForGroup(entries, groupId).relatedEntryCount
+
+private fun LocalDateTime.toSystemInstant(): Instant =
+    atZone(ZoneId.systemDefault()).toInstant()
 
 internal fun scheduleTimeInputsForSave(
     uiState: MedicationGroupEditorUiState,

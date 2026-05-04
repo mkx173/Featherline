@@ -379,14 +379,15 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun newGroupCreatePastRecordsOption_staysVisibleButDisabledWhenBackfillDisabled() {
+    fun newGroupPastScheduleOption_resolvesDoNotShowWhenBackfillDisabled() {
         val newGroupState = MedicationGroupEditorUiState(
             includePastScheduledSlots = false,
         )
 
         assertFalse(newGroupState.canCreatePastScheduledSlotRecords)
+        assertEquals(PastScheduleOption.DO_NOT_SHOW, resolvePastScheduleOption(newGroupState))
         assertTrue(
-            shouldShowCreatePastScheduledSlotRecordsOption(
+            shouldShowGeneratePastScheduledSlotRecordsOption(
                 uiState = newGroupState,
                 isNewGroupCreationFlow = true,
                 isFinishingAfterSave = false,
@@ -404,7 +405,7 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(editingGroupState.canEditBackfillOption)
         assertFalse(editingGroupState.canCreatePastScheduledSlotRecords)
         assertFalse(
-            shouldShowCreatePastScheduledSlotRecordsOption(
+            shouldShowGeneratePastScheduledSlotRecordsOption(
                 uiState = editingGroupState,
                 isNewGroupCreationFlow = false,
                 isFinishingAfterSave = false,
@@ -422,7 +423,7 @@ class MedicationGroupEditorLoadStateTest {
 
         assertFalse(savedNewGroupState.canCreatePastScheduledSlotRecords)
         assertTrue(
-            shouldShowCreatePastScheduledSlotRecordsOption(
+            shouldShowGeneratePastScheduledSlotRecordsOption(
                 uiState = savedNewGroupState,
                 isNewGroupCreationFlow = true,
                 isFinishingAfterSave = true,
@@ -446,7 +447,7 @@ class MedicationGroupEditorLoadStateTest {
         )
 
         assertFalse(
-            shouldShowCreatePastScheduledSlotRecordsOption(
+            shouldShowGeneratePastScheduledSlotRecordsOption(
                 uiState = savedExistingGroupState,
                 isNewGroupCreationFlow = false,
                 isFinishingAfterSave = true,
@@ -457,6 +458,92 @@ class MedicationGroupEditorLoadStateTest {
                 uiState = savedExistingGroupState,
                 isNewGroupCreationFlow = false,
                 isFinishingAfterSave = true,
+            )
+        )
+    }
+
+    @Test
+    fun pastScheduleSection_forFreshGroupShowsOnlyWhenStartHasPastSlots() {
+        val today = LocalDate.of(2026, 4, 25)
+        val now = LocalDateTime.of(today, LocalTime.of(10, 0))
+
+        assertFalse(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    sinceDate = today.plusDays(1),
+                    dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))),
+                ),
+                referenceTime = now,
+            )
+        )
+        assertFalse(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    sinceDate = today,
+                    dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(11, 0))),
+                ),
+                referenceTime = now,
+            )
+        )
+        assertFalse(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    sinceDate = today,
+                    dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(10, 0))),
+                ),
+                referenceTime = now,
+            )
+        )
+        assertTrue(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    sinceDate = today,
+                    dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))),
+                ),
+                referenceTime = now,
+            )
+        )
+        assertTrue(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    sinceDate = today.minusDays(1),
+                    dailyTimes = listOf(MedicationGroupScheduleTimeUiState(time = LocalTime.of(11, 0))),
+                ),
+                referenceTime = now,
+            )
+        )
+    }
+
+    @Test
+    fun pastScheduleSection_forRecreatedAndArchivedGroupsFollowsSpecialRules() {
+        val now = LocalDateTime.of(2026, 4, 25, 10, 0)
+
+        assertTrue(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    sinceDate = LocalDate.of(2026, 4, 30),
+                ),
+                referenceTime = now,
+            )
+        )
+        assertTrue(
+            shouldShowRecreatedPastScheduleMessage(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                )
+            )
+        )
+        assertFalse(
+            shouldShowPastScheduleSection(
+                uiState = MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    isArchived = true,
+                ),
+                referenceTime = now,
             )
         )
     }

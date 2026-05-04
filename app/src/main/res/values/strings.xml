@@ -195,7 +195,7 @@
     <string name="group_notifications_exact_alarm_settings">Open settings</string>
     <string name="group_notifications_exact_alarm_skip">Skip</string>
     <string name="group_schedule_title">Schedule</string>
-    <string name="group_past_plans_title">Past plans</string>
+    <string name="group_past_plans_title">Past schedule</string>
     <string name="group_schedule_weekly">Weekly</string>
     <string name="group_schedule_daily">Daily</string>
     <string name="group_schedule_repeat_every">Repeat every</string>">
@@ -203,6 +203,10 @@
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
     <string name="group_schedule_start_date_locked_note">Recreated plans keep their start date fixed to keep past schedule records stable.</string>
+    <string name="group_past_schedule_do_not_show">Do not show</string>
+    <string name="group_past_schedule_show">Show</string>
+    <string name="group_past_schedule_show_and_generate_records">Show and generate past records</string>
+    <string name="group_past_schedule_recreated_locked_note">Past schedule settings are fixed for recreated groups to keep existing records stable.</string>
     <string name="group_schedule_backfill_title">Show past schedule</string>
     <string name="group_schedule_backfill_records_title">Generate past records</string>
     <string name="group_schedule_backfill_records_summary">Automatically add all scheduled records from the start date up to now.</string>
