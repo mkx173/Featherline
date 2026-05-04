@@ -605,11 +605,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     },
                     isSaving = false,
                     isSaved = isSaved,
-                    createPastScheduledSlotRecords = if (isSaved) {
-                        false
-                    } else {
-                        it.createPastScheduledSlotRecords
-                    },
                     saveMedicationGroupResult = saveResult,
                     createPastScheduledSlotRecordsResult = recordGenerationResult?.result,
                     createdPastScheduledSlotRecordCount = recordGenerationResult?.savedRecordCount,
@@ -633,7 +628,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun showArchiveConfirmation() {
-        if (_uiState.value.isEditing && !_uiState.value.isArchived) {
+        val currentState = _uiState.value
+        if (
+            currentState.isEditing &&
+            !currentState.isArchived &&
+            !currentState.isSaving &&
+            !currentState.isDeleting &&
+            !currentState.isArchiving &&
+            !currentState.isRecreatingAfterArchive &&
+            !currentState.isDeletingRelatedEntries
+        ) {
             _uiState.update {
                 it.copy(
                     isArchiveConfirmationVisible = true,
@@ -697,7 +701,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun archiveGroup() {
-        val groupId = _uiState.value.editingGroupId ?: return
+        val currentState = _uiState.value
+        if (
+            currentState.isArchived ||
+            currentState.isSaving ||
+            currentState.isDeleting ||
+            currentState.isArchiving ||
+            currentState.isRecreatingAfterArchive ||
+            currentState.isDeletingRelatedEntries
+        ) {
+            return
+        }
+        val groupId = currentState.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
 
         viewModelScope.launch {

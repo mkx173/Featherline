@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -357,6 +358,59 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(viewModel.uiState.value.deleteMedicationGroupResult)
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
         verify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
+    }
+
+    @Test
+    fun archiveActions_areIgnoredWhileSaving() = runTest {
+        val groupUuid = UUID.fromString("b06ccf6d-cf66-44cb-86c4-fd801b015d49")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = groupUuid,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } coAnswers {
+            delay(1)
+            groupUuid
+        }
+        coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.saveGroup()
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value.isSaving)
+
+        viewModel.showArchiveConfirmation()
+        viewModel.archiveGroup()
+
+        assertFalse(viewModel.uiState.value.isArchiveConfirmationVisible)
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(any(), any()) }
+
+        advanceUntilIdle()
     }
 
     @Test
@@ -683,6 +737,7 @@ class MedicationGroupEditorDeleteRecordsTest {
 
         assertFalse(viewModel.uiState.value.isSaving)
         assertTrue(viewModel.uiState.value.isSaved)
+        assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
         assertNull(viewModel.uiState.value.createPastScheduledSlotRecordsResult)
         assertEquals(3, viewModel.uiState.value.createdPastScheduledSlotRecordCount)
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)

@@ -377,6 +377,55 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
         assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
     }
+
+    @Test
+    fun newGroupSaveCompletion_keepsNewGroupOnlyOptionsStableUntilNavigation() {
+        val savedNewGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
+            includePastScheduledSlots = true,
+            isSaved = true,
+        )
+
+        assertFalse(savedNewGroupState.canCreatePastScheduledSlotRecords)
+        assertTrue(
+            shouldShowCreatePastScheduledSlotRecordsOption(
+                uiState = savedNewGroupState,
+                isNewGroupCreationFlow = true,
+                isFinishingAfterSave = true,
+            )
+        )
+        assertFalse(
+            shouldRenderMedicationGroupEditorAsEditing(
+                uiState = savedNewGroupState,
+                isNewGroupCreationFlow = true,
+                isFinishingAfterSave = true,
+            )
+        )
+    }
+
+    @Test
+    fun existingGroupSaveCompletion_doesNotShowNewGroupOnlyCreatePastRecordsOption() {
+        val savedExistingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            isSaved = true,
+        )
+
+        assertFalse(
+            shouldShowCreatePastScheduledSlotRecordsOption(
+                uiState = savedExistingGroupState,
+                isNewGroupCreationFlow = false,
+                isFinishingAfterSave = true,
+            )
+        )
+        assertTrue(
+            shouldRenderMedicationGroupEditorAsEditing(
+                uiState = savedExistingGroupState,
+                isNewGroupCreationFlow = false,
+                isFinishingAfterSave = true,
+            )
+        )
+    }
 }
 
 private fun testMedicationGroup(

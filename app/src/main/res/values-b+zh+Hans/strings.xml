@@ -198,6 +198,7 @@
     <string name="group_schedule_backfill_title">显示过去的计划</string>
     <string name="group_schedule_backfill_records_title">生成历史记录</string>
     <string name="group_schedule_backfill_records_summary">按计划自动添加从开始日期到现在的所有记录</string>
+    <string name="group_schedule_backfill_records_empty">未添加记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
     <string name="group_schedule_days_of_week">选择星期</string>
     <string name="group_schedule_time">时间</string>

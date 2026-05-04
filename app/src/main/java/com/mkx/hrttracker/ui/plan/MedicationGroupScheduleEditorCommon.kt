@@ -289,6 +289,7 @@ internal fun NotificationsCard(
 @Composable
 internal fun DeleteMedicationGroupRecordsCard(
     enabled: Boolean,
+    hasRelatedRecords: Boolean,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 2,
@@ -300,7 +301,11 @@ internal fun DeleteMedicationGroupRecordsCard(
         iconPainter = painterResource(R.drawable.ic_delete_history),
         index = index,
         count = count,
-        supportText = if (!enabled) stringResource(R.string.delete_group_related_records_disabled) else null
+        supportText = if (!hasRelatedRecords) {
+            stringResource(R.string.delete_group_related_records_disabled)
+        } else {
+            null
+        }
     )
 }
 
@@ -317,6 +322,7 @@ internal fun ArchiveMedicationGroupCard(
         index = index,
         count = count,
         enabled = enabled,
+        modifier = Modifier.alpha(if (enabled) 1f else 0.72f),
         onClick = onClick,
         leadingContent = {
             Icon(
