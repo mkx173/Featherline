@@ -239,7 +239,8 @@
     <string name="delete_group_medication_confirmation">Remove %1$s from this group?</string>
     <string name="archive_medication_group">Archive group</string>
     <string name="archive_medication_group_title">Archive group</string>
-    <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from the current plan and stop sending reminders. Existing records will not be deleted.</string>
+    <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from your current plan and reminders will stop. Existing records won’t be deleted.</string>
+    <string name="archive_medication_group_irreversible_acknowledgement">I understand that archived groups can’t be restored.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
     <string name="archive_and_recreate">Archive and recreate</string>
     <string name="archive_create_active_copy">Create copy after archive</string>

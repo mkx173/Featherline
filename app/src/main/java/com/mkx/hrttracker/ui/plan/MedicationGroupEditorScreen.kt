@@ -776,6 +776,7 @@ private fun MedicationGroupEditorScreenContent(
                         Spacer(modifier = Modifier.height(12.dp))
                         PreferenceSegmentedListItem(
                             title = stringResource(R.string.delete_group_also_related_records),
+                            titleTextStyle = MaterialTheme.typography.labelLarge,
                             index = 0,
                             count = 1,
                             onClick = {
@@ -807,6 +808,9 @@ private fun MedicationGroupEditorScreenContent(
                             onDeleteConfirm()
                         }
                     },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
@@ -824,6 +828,7 @@ private fun MedicationGroupEditorScreenContent(
 
     if (uiState.isArchiveConfirmationVisible) {
         var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
+        var hasAcknowledgedArchiveIsPermanent by rememberSaveable { mutableStateOf(false) }
         val isArchiveActionInProgress = uiState.isArchiving || uiState.isRecreatingAfterArchive
         AlertDialog(
             onDismissRequest = {
@@ -838,8 +843,9 @@ private fun MedicationGroupEditorScreenContent(
                     Spacer(modifier = Modifier.height(12.dp))
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_create_active_copy),
+                        titleTextStyle = MaterialTheme.typography.labelLarge,
                         index = 0,
-                        count = if (shouldCreateActiveCopyAfterArchive) 2 else 1,
+                        count = 2,
                         onClick = {
                             shouldCreateActiveCopyAfterArchive =
                                 !shouldCreateActiveCopyAfterArchive
@@ -854,20 +860,46 @@ private fun MedicationGroupEditorScreenContent(
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     )
+                    PreferenceSegmentedListItem(
+                        title = stringResource(
+                            R.string.archive_medication_group_irreversible_acknowledgement
+                        ),
+                        titleTextStyle = MaterialTheme.typography.labelLarge,
+                        index = 1,
+                        count = 2,
+                        onClick = {
+                            hasAcknowledgedArchiveIsPermanent =
+                                !hasAcknowledgedArchiveIsPermanent
+                        },
+                        enabled = !isArchiveActionInProgress,
+                        trailingContent = {
+                            Checkbox(
+                                checked = hasAcknowledgedArchiveIsPermanent,
+                                onCheckedChange = { hasAcknowledgedArchiveIsPermanent = it },
+                                enabled = !isArchiveActionInProgress
+                            )
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isArchiveActionInProgress,
+                    enabled = !isArchiveActionInProgress && hasAcknowledgedArchiveIsPermanent,
                     onClick = {
                         if (shouldCreateActiveCopyAfterArchive) {
                             onArchiveAndRecreateConfirm()
                         } else {
                             onArchiveConfirm()
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text(text = stringResource(R.string.archive))
+                    Text(
+                        text = stringResource(R.string.archive)
+                    )
                 }
             },
             dismissButton = {
@@ -904,6 +936,9 @@ private fun MedicationGroupEditorScreenContent(
                 TextButton(
                     enabled = !uiState.isDeletingRelatedEntries,
                     onClick = onDeleteRelatedEntriesConfirm,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
                     Text(text = stringResource(R.string.delete_entries_confirm))
                 }
