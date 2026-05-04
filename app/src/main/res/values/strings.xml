@@ -179,9 +179,10 @@
     <string name="group_notifications_title">Notifications</string>
     <string name="group_notifications_reminder">Remind me</string>
     <string name="group_notifications_summary">Remind me for this group.</string>
+    <string name="group_notifications_archived_disabled">Archived groups do not send reminders.</string>
     <string name="group_notifications_master_disabled">Reminders are off in Settings.</string>
-    <string name="group_notifications_reenable_title">Turn reminders back on?</string>
-    <string name="group_notifications_reenable_message">Turn reminders back on for this group?</string>
+    <string name="group_notifications_reenable_title">Turn on reminders?</string>
+    <string name="group_notifications_reenable_message">Reminders are turned off in Settings. Once turned on, reminders for this group will also be enabled.</string>
     <string name="group_notifications_reenable_confirm">Turn on</string>
     <string name="group_notifications_inexact_warning">Reminders may be delayed.</string>
     <string name="group_notifications_exact_alarm_title">Allow exact alarms?</string>

@@ -30,13 +30,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockClock
 import androidx.compose.material.icons.rounded.MonitorWeight
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -562,7 +560,7 @@ private fun SettingsScreenContent(
                     onClick = { showWeightDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.MonitorWeight
+                            painter = painterResource(R.drawable.ic_monitor_weight)
                         )
                     },
                 )
@@ -607,7 +605,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.Notifications
+                            painter = painterResource(R.drawable.ic_notifications)
                         )
                     },
                     trailingContent = {
@@ -622,7 +620,7 @@ private fun SettingsScreenContent(
                 if (!hasNotificationAccess) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
-                        icon = Icons.Rounded.ErrorOutline,
+                        painter = painterResource(R.drawable.ic_error_outline),
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
@@ -631,7 +629,7 @@ private fun SettingsScreenContent(
                 } else if (showInexactReminderWarning) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
-                        icon = Icons.Rounded.ErrorOutline,
+                        painter = painterResource(R.drawable.ic_error_outline),
                         onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
                         index = 1,
@@ -665,7 +663,7 @@ private fun SettingsScreenContent(
                     count = securityItemCount,
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.Lock
+                            painter = painterResource(R.drawable.ic_lock)
                         )
                     },
                     trailingContent = {
@@ -686,7 +684,7 @@ private fun SettingsScreenContent(
                             onClick = { setAppLockGracePeriodMenuExpanded(true) },
                             leadingContent = {
                                 SettingsLeadingIconSlot(
-                                    icon = Icons.Rounded.LockClock
+                                    painter = painterResource(R.drawable.ic_lock_clock)
                                 )
                             }
                         )
@@ -716,7 +714,7 @@ private fun SettingsScreenContent(
                     count = securityItemCount,
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.VisibilityOff
+                            painter = painterResource(R.drawable.ic_visibility_off)
                         )
                     },
                     trailingContent = {
@@ -756,7 +754,7 @@ private fun SettingsScreenContent(
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
-                                icon = Icons.Rounded.Language
+                                painter = painterResource(R.drawable.ic_language)
                             )
                         }
                     )
@@ -782,7 +780,7 @@ private fun SettingsScreenContent(
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
-                                icon = Icons.Rounded.DarkMode
+                                painter = painterResource(R.drawable.ic_dark_mode)
                             )
                         }
                     )
@@ -808,7 +806,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.Palette
+                            painter = painterResource(R.drawable.ic_palette)
                         )
                     },
                     trailingContent = {
@@ -905,7 +903,7 @@ private fun SettingsScreenContent(
                     onClick = { showPrivacyPolicyDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.PrivacyTip
+                            painter = painterResource(R.drawable.ic_privacy_tip)
                         )
                     },
                     trailingContent = {
@@ -969,7 +967,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            icon = Icons.Rounded.Info
+                            painter = painterResource(R.drawable.ic_info_filled)
                         )
                     }
                 )

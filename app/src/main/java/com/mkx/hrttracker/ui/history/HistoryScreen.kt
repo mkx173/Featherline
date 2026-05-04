@@ -37,7 +37,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -78,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -1339,7 +1339,7 @@ private fun HistoryCalendarTitle(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 HistoryCalendarNavigationButton(
-                    imageVector = Icons.Rounded.RestartAlt,
+                    painter = painterResource(R.drawable.ic_restart_alt),
                     enabled = canGoToCurrent,
                     contentDescription = stringResource(R.string.history_current_month),
                     onClick = onGoToCurrent,
@@ -1544,7 +1544,8 @@ private fun historyMonthPickerMonthLabel(
 @Composable
 private fun HistoryCalendarNavigationButton(
     modifier: Modifier = Modifier,
-    imageVector: ImageVector,
+    imageVector: ImageVector? = null,
+    painter: Painter? = null,
     enabled: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
@@ -1558,11 +1559,19 @@ private fun HistoryCalendarNavigationButton(
             enabled = enabled,
             modifier = modifier
         ) {
-            Icon(
-                imageVector = imageVector,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize)
-            )
+            if (painter != null) {
+                Icon(
+                    painter = painter,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.size(iconSize)
+                )
+            } else {
+                Icon(
+                    imageVector = checkNotNull(imageVector),
+                    contentDescription = contentDescription,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
         }
     }
 

@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -224,11 +222,13 @@ internal fun NotificationsCard(
         onClick = { onToggle(!enabled) },
         leadingContent = {
             Icon(
-                imageVector = if (enabled) {
-                    Icons.Rounded.Notifications
-                } else {
-                    Icons.Rounded.NotificationsOff
-                },
+                painter = painterResource(
+                    if (enabled) {
+                        R.drawable.ic_notifications
+                    } else {
+                        R.drawable.ic_notifications_off
+                    }
+                ),
                 contentDescription = null,
                 tint = if (enabled) {
                     MaterialTheme.colorScheme.onPrimaryContainer

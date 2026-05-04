@@ -217,7 +217,7 @@ private fun CalibrationScreenContent(
                 actions = {
                     IconButton(onClick = onUnitsClick) {
                         Icon(
-                            imageVector = Icons.Rounded.Tune,
+                            painter = painterResource(R.drawable.ic_tune),
                             contentDescription = stringResource(
                                 R.string.settings_calibration_settings
                             ),

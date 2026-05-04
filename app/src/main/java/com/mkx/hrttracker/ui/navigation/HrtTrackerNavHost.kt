@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -9,9 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -26,7 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -165,13 +163,13 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 
 private data class NavigationItemContent(
     val screen: Screen,
-    val icon: ImageVector,
+    @param:DrawableRes val icon: Int,
 )
 
 private val bottomNavItems = listOf(
-    NavigationItemContent(Screen.Main, Icons.Rounded.Home),
-    NavigationItemContent(Screen.Plan, Icons.Rounded.CalendarMonth),
-    NavigationItemContent(Screen.Settings, Icons.Rounded.Settings)
+    NavigationItemContent(Screen.Main, R.drawable.ic_home),
+    NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month),
+    NavigationItemContent(Screen.Settings, R.drawable.ic_settings)
 )
 
 internal enum class TopLevelNavigationTapAction {
@@ -262,7 +260,7 @@ fun HrtTrackerNavHost(
                         },
                         icon = {
                             Icon(
-                                imageVector = navItem.icon,
+                                painter = painterResource(navItem.icon),
                                 contentDescription = stringResource(navItem.screen.label)
                             )
                         },

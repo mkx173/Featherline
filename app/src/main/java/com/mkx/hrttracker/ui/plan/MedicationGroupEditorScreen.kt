@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditCalendar
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -1187,7 +1186,7 @@ private fun MedicationGroupEditorScreenContent(
                     if (uiState.isScheduleStartDateLocked && !uiState.isArchived) {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_schedule_start_date_locked_note),
-                            icon = Icons.Rounded.ErrorOutline,
+                            painter = painterResource(R.drawable.ic_error_outline),
                             leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -1278,133 +1277,148 @@ private fun MedicationGroupEditorScreenContent(
                 }
             }
 
-            item {
-                EditorSectionHeader(title = stringResource(R.string.group_past_plans_title))
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                ) {
-                    val backfillToggleEnabled = uiState.canEditBackfillOption
-                    val backfillSummaryRes = when {
-                        uiState.pendingReplacementGroupId != null ||
-                            uiState.recreatedFromGroupId != null ->
-                            R.string.group_schedule_backfill_recreated_summary
-                        else -> R.string.group_schedule_backfill_summary
-                    }
-                    val showPastRecordToggle = uiState.canCreatePastScheduledSlotRecords
-                    val backfillOptionCount = if (showPastRecordToggle) 2 else 1
-                    PreferenceSegmentedListItem(
-                        title = stringResource(R.string.group_schedule_backfill_title),
-                        supportingText = stringResource(backfillSummaryRes),
-                        index = 0,
-                        count = backfillOptionCount,
-                        onClick = {
-                            if (backfillToggleEnabled) {
-                                onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
-                            }
-                        },
-                        enabled = backfillToggleEnabled,
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_calendar_add_on),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = uiState.includePastScheduledSlots,
-                                onCheckedChange = onIncludePastScheduledSlotsChange,
-                                enabled = backfillToggleEnabled,
-                            )
-                        },
-                    )
-                    if (showPastRecordToggle) {
+            if (!uiState.isArchived) {
+                item {
+                    EditorSectionHeader(title = stringResource(R.string.group_past_plans_title))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                    ) {
+                        val backfillToggleEnabled = uiState.canEditBackfillOption
+                        val backfillSummaryRes = when {
+                            uiState.pendingReplacementGroupId != null ||
+                                uiState.recreatedFromGroupId != null ->
+                                R.string.group_schedule_backfill_recreated_summary
+                            else -> R.string.group_schedule_backfill_summary
+                        }
+                        val showPastRecordToggle = uiState.canCreatePastScheduledSlotRecords
+                        val backfillOptionCount = if (showPastRecordToggle) 2 else 1
                         PreferenceSegmentedListItem(
-                            title = stringResource(R.string.group_schedule_backfill_records_title),
-                            supportingText = stringResource(R.string.group_schedule_backfill_records_summary),
-                            index = 1,
+                            title = stringResource(R.string.group_schedule_backfill_title),
+                            supportingText = stringResource(backfillSummaryRes),
+                            index = 0,
                             count = backfillOptionCount,
                             onClick = {
-                                onCreatePastScheduledSlotRecordsChange(
-                                    !uiState.createPastScheduledSlotRecords
-                                )
-                            },
-                            enabled = true,
-                            leadingContent = {
-                                Box(
-                                    modifier = Modifier.size(24.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_add_task),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp),
-                                    )
+                                if (backfillToggleEnabled) {
+                                    onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
                                 }
+                            },
+                            enabled = backfillToggleEnabled,
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_calendar_add_on),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp),
+                                )
                             },
                             trailingContent = {
                                 Switch(
-                                    checked = uiState.createPastScheduledSlotRecords,
-                                    onCheckedChange = onCreatePastScheduledSlotRecordsChange,
+                                    checked = uiState.includePastScheduledSlots,
+                                    onCheckedChange = onIncludePastScheduledSlotsChange,
+                                    enabled = backfillToggleEnabled,
                                 )
                             },
                         )
+                        if (showPastRecordToggle) {
+                            PreferenceSegmentedListItem(
+                                title = stringResource(R.string.group_schedule_backfill_records_title),
+                                supportingText = stringResource(R.string.group_schedule_backfill_records_summary),
+                                index = 1,
+                                count = backfillOptionCount,
+                                onClick = {
+                                    onCreatePastScheduledSlotRecordsChange(
+                                        !uiState.createPastScheduledSlotRecords
+                                    )
+                                },
+                                enabled = true,
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier.size(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_add_task),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = uiState.createPastScheduledSlotRecords,
+                                        onCheckedChange = onCreatePastScheduledSlotRecordsChange,
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
             }
 
-            if (!uiState.isArchived) {
-                item {
-                    EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                    ) {
-                        NotificationsCard(
-                            enabled = uiState.notificationsEnabled,
-                            toggleEnabled = notificationsToggleEnabled,
-                            onToggle = onNotificationsEnabledChange,
-                            index = 0,
-                            count = if (notificationSupportState == NotificationSupportState.NONE) 1 else 2,
+            item {
+                val notificationItemCount = if (
+                    uiState.isArchived ||
+                    notificationSupportState != NotificationSupportState.NONE
+                ) 2 else 1
+                EditorSectionHeader(title = stringResource(R.string.group_notifications_title))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                ) {
+                    NotificationsCard(
+                        enabled = uiState.notificationsEnabled,
+                        toggleEnabled = notificationsToggleEnabled,
+                        onToggle = onNotificationsEnabledChange,
+                        index = 0,
+                        count = notificationItemCount,
+                    )
+                    if (uiState.isArchived) {
+                        SupportMessageListItem(
+                            text = stringResource(R.string.group_notifications_archived_disabled),
+                            painter = painterResource(R.drawable.ic_error_outline),
+                            leadingIconTint = MaterialTheme.colorScheme.tertiary,
+                            leadingIconSize = 24.dp,
+                            index = 1,
+                            count = notificationItemCount,
                         )
+                    } else {
                         when (notificationSupportState) {
                             NotificationSupportState.ACCESS_OFF -> {
                                 SupportMessageListItem(
                                     text = stringResource(R.string.settings_reminders_permission_off_summary),
-                                    icon = Icons.Rounded.ErrorOutline,
+                                    painter = painterResource(R.drawable.ic_error_outline),
                                     leadingIconTint = MaterialTheme.colorScheme.tertiary,
                                     leadingIconSize = 24.dp,
                                     onClick = onRecoverMasterReminders,
                                     showChevron = true,
                                     index = 1,
-                                    count = 2,
+                                    count = notificationItemCount,
                                 )
                             }
 
                             NotificationSupportState.MASTER_OFF -> {
                                 SupportMessageListItem(
                                     text = stringResource(R.string.group_notifications_master_disabled),
-                                    icon = Icons.Rounded.ErrorOutline,
+                                    painter = painterResource(R.drawable.ic_error_outline),
                                     leadingIconTint = MaterialTheme.colorScheme.tertiary,
                                     leadingIconSize = 24.dp,
                                     onClick = { isMasterReminderRecoveryDialogVisible = true },
                                     showChevron = true,
                                     index = 1,
-                                    count = 2,
+                                    count = notificationItemCount,
                                 )
                             }
 
                             NotificationSupportState.INEXACT -> {
                                 SupportMessageListItem(
                                     text = stringResource(R.string.group_notifications_inexact_warning),
-                                    icon = Icons.Rounded.ErrorOutline,
+                                    painter = painterResource(R.drawable.ic_error_outline),
                                     leadingIconTint = MaterialTheme.colorScheme.tertiary,
                                     leadingIconSize = 24.dp,
                                     onClick = onRequestExactAlarmAccess,
                                     showChevron = true,
                                     index = 1,
-                                    count = 2,
+                                    count = notificationItemCount,
                                 )
                             }
 

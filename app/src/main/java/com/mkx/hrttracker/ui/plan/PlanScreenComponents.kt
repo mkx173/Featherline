@@ -24,9 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Error
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ColorScheme
@@ -486,11 +483,13 @@ internal fun RegimenGroupCard(
                             groupNotificationsEnabled = group.notificationsEnabled
                         )
                         Icon(
-                            imageVector = if (notificationsEnabled) {
-                                Icons.Rounded.Notifications
-                            } else {
-                                Icons.Rounded.NotificationsOff
-                            },
+                            painter = painterResource(
+                                if (notificationsEnabled) {
+                                    R.drawable.ic_notifications
+                                } else {
+                                    R.drawable.ic_notifications_off
+                                }
+                            ),
                             contentDescription = stringResource(
                                 if (notificationsEnabled) {
                                     R.string.plan_group_notifications_enabled

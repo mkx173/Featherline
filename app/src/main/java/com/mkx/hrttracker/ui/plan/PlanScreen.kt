@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +54,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -556,7 +556,7 @@ private fun PlanWeekHeader(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlanWeekNavigationButton(
-                        imageVector = Icons.Rounded.RestartAlt,
+                        painter = painterResource(R.drawable.ic_restart_alt),
                         enabled = pageIndex != 1 || selectedDate != null,
                         contentDescription = stringResource(R.string.plan_week_current),
                         onClick = onCurrentClick,
@@ -604,7 +604,8 @@ private fun PlanWeekHeader(
 @Composable
 private fun PlanWeekNavigationButton(
     modifier: Modifier = Modifier,
-    imageVector: ImageVector,
+    imageVector: ImageVector? = null,
+    painter: Painter? = null,
     enabled: Boolean,
     contentDescription: String,
     onClick: () -> Unit,
@@ -618,11 +619,19 @@ private fun PlanWeekNavigationButton(
             enabled = enabled,
             modifier = modifier
         ) {
-            Icon(
-                imageVector = imageVector,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize)
-            )
+            if (painter != null) {
+                Icon(
+                    painter = painter,
+                    contentDescription = contentDescription,
+                    modifier = Modifier.size(iconSize)
+                )
+            } else {
+                Icon(
+                    imageVector = checkNotNull(imageVector),
+                    contentDescription = contentDescription,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
         }
     }
 }
