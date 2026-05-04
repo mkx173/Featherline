@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowRightAlt
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Remove
@@ -143,6 +144,7 @@ internal fun EditorFieldRow(
     value: String,
     icon: Painter,
     onClick: () -> Unit,
+    originalValue: String? = null,
     enabled: Boolean = true,
     locked: Boolean = false,
     index: Int = 0,
@@ -183,11 +185,47 @@ internal fun EditorFieldRow(
             }
         },
     ) {
+        ChangedScheduleTimeText(
+            value = value,
+            originalValue = originalValue,
+        )
+    }
+}
+
+@Composable
+internal fun ChangedScheduleTimeText(
+    value: String,
+    originalValue: String?,
+) {
+    val changedOriginalValue = originalValue?.takeIf { it != value }
+    if (changedOriginalValue == null) {
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
+    } else {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(
+                text = changedOriginalValue,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 

@@ -245,9 +245,6 @@
     <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录。因此您无法更改部分内容。如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
-    <string name="group_schedule_time_range_between">请选择 %1$s 之后，%2$s 之前的时间</string>
-    <string name="group_schedule_time_range_after">请选择 %1$s 之后的时间</string>
-    <string name="group_schedule_time_range_before">请选择 %1$s 之前的时间</string>
     <string name="group_field_locked">已锁定</string>
     <string name="add">添加</string>
     <string name="add_medication_to_group">添加药物</string>

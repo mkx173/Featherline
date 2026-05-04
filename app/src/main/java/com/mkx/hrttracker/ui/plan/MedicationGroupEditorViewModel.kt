@@ -301,16 +301,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 time = normalizedTime,
             )
             val updatedState = currentState.copy(
-                dailyTimes = sortDailyTimesByTime(updatedDailyTimesInCurrentOrder)
+                dailyTimes = sortDailyTimesByOriginalTime(updatedDailyTimesInCurrentOrder)
             )
-            if (
-                currentState.isLocked &&
-                !areScheduleTimesInLockedOrder(updatedDailyTimesInCurrentOrder.map { it.time })
-            ) {
-                currentState.copy(scheduleTimeOrderError = false)
-            } else {
-                updatedState.copy(scheduleTimeOrderError = false)
-            }
+            updatedState.copy(scheduleTimeOrderError = false)
         }
     }
 
@@ -1137,6 +1130,7 @@ private fun MedicationGroup.toEditorState(
                 MedicationGroupScheduleTimeUiState(
                     localId = slot.uuid.toString(),
                     time = slot.time,
+                    originalTime = slot.time,
                 )
             }
         } else {
@@ -1321,7 +1315,7 @@ internal fun appendDailyTime(
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
     time: LocalTime
 ): List<MedicationGroupScheduleTimeUiState> {
-    return sortDailyTimesByTime(
+    return sortDailyTimesByOriginalTime(
         dailyTimes + MedicationGroupScheduleTimeUiState(
             time = time.withSecond(0).withNano(0)
         )
@@ -1333,7 +1327,7 @@ internal fun dailyTimesWithUpdatedTime(
     localId: String,
     time: LocalTime,
 ): List<MedicationGroupScheduleTimeUiState> {
-    return sortDailyTimesByTime(
+    return sortDailyTimesByOriginalTime(
         dailyTimesWithUpdatedTimeInCurrentOrder(
             dailyTimes = dailyTimes,
             localId = localId,
@@ -1357,10 +1351,18 @@ private fun dailyTimesWithUpdatedTimeInCurrentOrder(
     }
 }
 
-internal fun sortDailyTimesByTime(
+internal fun sortDailyTimesByOriginalTime(
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
 ): List<MedicationGroupScheduleTimeUiState> {
-    return dailyTimes.sortedBy { dailyTime -> dailyTime.time }
+    return dailyTimes.sortedWith(
+        compareBy<MedicationGroupScheduleTimeUiState> { dailyTime ->
+            dailyTime.originalTime ?: dailyTime.time
+        }.thenBy { dailyTime ->
+            dailyTime.time
+        }.thenBy { dailyTime ->
+            dailyTime.localId
+        }
+    )
 }
 
 internal fun nextMedicationGroupEditorDefaultDateTime(
@@ -1716,10 +1718,6 @@ internal fun lockedScheduleTimesChanged(uiState: MedicationGroupEditorUiState): 
     return scheduleTimesForSave(uiState) != originalTimes
 }
 
-internal fun areScheduleTimesInLockedOrder(times: List<LocalTime>): Boolean {
-    return times.zipWithNext().all { (first, second) -> first.isBefore(second) }
-}
-
 data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
@@ -1749,4 +1747,5 @@ data class MedicationGroupMedicationEditorUiState(
 data class MedicationGroupScheduleTimeUiState(
     val localId: String = UUID.randomUUID().toString(),
     val time: LocalTime,
+    val originalTime: LocalTime? = null,
 )

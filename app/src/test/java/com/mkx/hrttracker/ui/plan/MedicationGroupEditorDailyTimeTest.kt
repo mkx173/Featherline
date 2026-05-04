@@ -65,6 +65,35 @@ class MedicationGroupEditorDailyTimeTest {
     }
 
     @Test
+    fun updated_daily_time_keeps_original_order_when_original_time_is_present() {
+        val updated = dailyTimesWithUpdatedTime(
+            dailyTimes = listOf(
+                MedicationGroupScheduleTimeUiState(
+                    localId = "morning",
+                    time = LocalTime.of(8, 0),
+                    originalTime = LocalTime.of(8, 0),
+                ),
+                MedicationGroupScheduleTimeUiState(
+                    localId = "evening",
+                    time = LocalTime.of(20, 0),
+                    originalTime = LocalTime.of(20, 0),
+                ),
+            ),
+            localId = "evening",
+            time = LocalTime.of(7, 30, 45)
+        )
+
+        assertEquals(
+            listOf("morning", "evening"),
+            updated.map(MedicationGroupScheduleTimeUiState::localId)
+        )
+        assertEquals(
+            listOf(LocalTime.of(8, 0), LocalTime.of(7, 30)),
+            updated.map(MedicationGroupScheduleTimeUiState::time)
+        )
+    }
+
+    @Test
     fun has_duplicate_daily_time_matches_existing_time() {
         assertTrue(
             hasDuplicateDailyTime(

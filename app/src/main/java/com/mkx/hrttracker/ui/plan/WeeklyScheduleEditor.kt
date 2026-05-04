@@ -43,6 +43,7 @@ internal fun WeeklyScheduleEditor(
     intervalWeeks: String,
     selectedDaysOfWeek: Set<DayOfWeek>,
     time: LocalTime,
+    originalTime: LocalTime? = null,
     previewOccurrences: List<LocalDateTime>,
     appLocale: Locale,
     dateFormatter: LocalDateFormatter,
@@ -129,6 +130,7 @@ internal fun WeeklyScheduleEditor(
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_time),
             value = time.format(timeFormatter),
+            originalValue = originalTime?.format(timeFormatter),
             icon = rememberVectorPainter(Icons.Rounded.Schedule),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,

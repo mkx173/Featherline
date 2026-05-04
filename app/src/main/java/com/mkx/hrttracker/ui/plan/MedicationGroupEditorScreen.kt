@@ -130,7 +130,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 import androidx.core.net.toUri
 
@@ -703,27 +702,10 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     pendingDailyTimeEdit?.let { dailyTimeEdit ->
-        val lockedTimeEditRange = if (uiState.isLocked) {
-            dailyTimeEditRange(
-                dailyTimes = uiState.dailyTimes,
-                localId = dailyTimeEdit.localId,
-            )
-        } else {
-            null
-        }
         TimePickerModal(
             onTimeSelected = { selectedTime ->
                 val normalizedSelectedTime = selectedTime.withSecond(0).withNano(0)
-                if (lockedTimeEditRange != null &&
-                    !lockedTimeEditRange.contains(normalizedSelectedTime)
-                ) {
-                    Toast.makeText(
-                        context,
-                        lockedTimeEditRange.formatForToast(context, timeFormatter),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                    false
-                } else if (hasDuplicateDailyTime(
+                if (hasDuplicateDailyTime(
                         dailyTimes = uiState.dailyTimes,
                         time = normalizedSelectedTime,
                         excludingLocalId = dailyTimeEdit.localId
@@ -1256,6 +1238,9 @@ private fun MedicationGroupEditorScreenContent(
                             intervalWeeks = uiState.weeklyIntervalWeeks,
                             selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
                             time = uiState.weeklyTime,
+                            originalTime = uiState.originalWeeklyTime.takeIf {
+                                uiState.originalScheduleType == MedicationGroupScheduleType.WEEKLY
+                            },
                             previewOccurrences = upcomingOccurrences,
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
@@ -1605,55 +1590,6 @@ private data class DailyTimeEditRequest(
     val localId: String,
     val initialTime: LocalTime,
 )
-
-private data class DailyTimeEditRange(
-    val lowerExclusive: LocalTime?,
-    val upperExclusive: LocalTime?,
-) {
-    fun contains(time: LocalTime): Boolean {
-        return (lowerExclusive == null || time.isAfter(lowerExclusive)) &&
-            (upperExclusive == null || time.isBefore(upperExclusive))
-    }
-
-    fun formatForToast(
-        context: android.content.Context,
-        timeFormatter: DateTimeFormatter,
-    ): String {
-        return when {
-            lowerExclusive != null && upperExclusive != null -> context.getString(
-                R.string.group_schedule_time_range_between,
-                lowerExclusive.format(timeFormatter),
-                upperExclusive.format(timeFormatter),
-            )
-
-            lowerExclusive != null -> context.getString(
-                R.string.group_schedule_time_range_after,
-                lowerExclusive.format(timeFormatter),
-            )
-
-            upperExclusive != null -> context.getString(
-                R.string.group_schedule_time_range_before,
-                upperExclusive.format(timeFormatter),
-            )
-
-            else -> ""
-        }
-    }
-}
-
-private fun dailyTimeEditRange(
-    dailyTimes: List<MedicationGroupScheduleTimeUiState>,
-    localId: String,
-): DailyTimeEditRange? {
-    val index = dailyTimes.indexOfFirst { dailyTime -> dailyTime.localId == localId }
-    if (index < 0 || dailyTimes.size <= 1) {
-        return null
-    }
-    return DailyTimeEditRange(
-        lowerExclusive = dailyTimes.getOrNull(index - 1)?.time,
-        upperExclusive = dailyTimes.getOrNull(index + 1)?.time,
-    )
-}
 
 private data class MedicationRemovalRequest(
     val localId: String,

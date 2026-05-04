@@ -249,9 +249,6 @@
     <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
     <string name="group_locked_banner">This group already has related records, so some settings can’t be changed. To make adjustments, archive the current group and create a new one.</string>
     <string name="group_locked_time_note">Changing the scheduled time also updates the scheduled time shown on past records.</string>
-    <string name="group_schedule_time_range_between">Choose a time after %1$s and before %2$s.</string>
-    <string name="group_schedule_time_range_after">Choose a time after %1$s.</string>
-    <string name="group_schedule_time_range_before">Choose a time before %1$s.</string>
     <string name="group_field_locked">Locked</string>
     <string name="add">Add</string>
     <string name="add_medication_to_group">Add medication</string>

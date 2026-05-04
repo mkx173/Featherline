@@ -143,18 +143,31 @@ class MedicationGroupRepository @Inject constructor(
                 updatedAtEpochMillis = now.toEpochMilli(),
             )
             groupDao.deleteScheduleTimesForGroup(groupUuid.toString())
+            val migratedScheduleTimes = normalizedNewTimes.mapIndexed { index, time ->
+                val oldTimeRow = oldTimeRows[index]
+                MedicationGroupScheduleTimeEntity(
+                    uuid = oldTimeRow.uuid,
+                    groupUuid = groupUuid.toString(),
+                    sortOrder = index,
+                    hourOfDay = time.hour,
+                    minuteOfHour = time.minute,
+                    effectiveFromLocalIso = oldTimeRow.effectiveFromLocalIso,
+                )
+            }
             groupDao.insertScheduleTimes(
-                normalizedNewTimes.mapIndexed { index, time ->
-                    val oldTimeRow = oldTimeRows[index]
-                    MedicationGroupScheduleTimeEntity(
-                        uuid = oldTimeRow.uuid,
-                        groupUuid = groupUuid.toString(),
-                        sortOrder = index,
-                        hourOfDay = time.hour,
-                        minuteOfHour = time.minute,
-                        effectiveFromLocalIso = oldTimeRow.effectiveFromLocalIso,
+                migratedScheduleTimes
+                    .sortedWith(
+                        compareBy<MedicationGroupScheduleTimeEntity> { scheduleTime ->
+                            scheduleTime.hourOfDay
+                        }.thenBy { scheduleTime ->
+                            scheduleTime.minuteOfHour
+                        }.thenBy { scheduleTime ->
+                            scheduleTime.uuid
+                        }
                     )
-                }
+                    .mapIndexed { index, scheduleTime ->
+                        scheduleTime.copy(sortOrder = index)
+                    }
             )
             entryIdsBySlot.forEachIndexed { index, entryUuids ->
                 if (entryUuids.isNotEmpty()) {
@@ -439,8 +452,8 @@ class ScheduleTimeCountMismatchException : IllegalArgumentException(
     "Schedule time count cannot change in locked mode."
 )
 
-class ScheduleTimeReorderNotAllowedException : IllegalArgumentException(
-    "Slot order must stay the same. Use archive to reorder slots."
+class ScheduleTimeDuplicateException : IllegalArgumentException(
+    "Schedule times must be unique."
 )
 
 internal fun validateScheduleTimeMigration(
@@ -450,8 +463,9 @@ internal fun validateScheduleTimeMigration(
     if (oldTimes.size != newTimes.size) {
         throw ScheduleTimeCountMismatchException()
     }
-    if (newTimes.zipWithNext().any { (first, second) -> !first.isBefore(second) }) {
-        throw ScheduleTimeReorderNotAllowedException()
+    val normalizedNewTimes = newTimes.map { time -> time.withSecond(0).withNano(0) }
+    if (normalizedNewTimes.distinct().size != normalizedNewTimes.size) {
+        throw ScheduleTimeDuplicateException()
     }
 }
 

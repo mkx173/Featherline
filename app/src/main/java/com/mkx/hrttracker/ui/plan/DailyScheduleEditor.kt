@@ -151,13 +151,15 @@ private fun DailyTimesCard(
                     AddChip(onClick = onAddTime)
                 }
             }
-            times.forEachIndexed { index, dailyTime ->
+            val sortedTimes = sortDailyTimesByOriginalTime(times)
+            sortedTimes.forEachIndexed { index, dailyTime ->
                 DailyTimeRow(
                     formattedTime = dailyTime.time.format(timeFormatter),
+                    formattedOriginalTime = dailyTime.originalTime?.format(timeFormatter),
                     onClick = { onTimeClick(dailyTime.localId, dailyTime.time) },
                     enabled = timeEditEnabled,
                     index = index,
-                    count = times.size
+                    count = sortedTimes.size
                 )
             }
         }
@@ -168,6 +170,7 @@ private fun DailyTimesCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun DailyTimeRow(
     formattedTime: String,
+    formattedOriginalTime: String?,
     onClick: () -> Unit,
     enabled: Boolean,
     index: Int = 0,
@@ -205,10 +208,9 @@ private fun DailyTimeRow(
             pressedShape = MaterialTheme.shapes.medium
         ),
     ) {
-        Text(
-            text = formattedTime,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+        ChangedScheduleTimeText(
+            value = formattedTime,
+            originalValue = formattedOriginalTime,
         )
     }
 }

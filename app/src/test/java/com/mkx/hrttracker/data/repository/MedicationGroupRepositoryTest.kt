@@ -843,7 +843,7 @@ class MedicationGroupRepositoryTest {
 
         repository.updateScheduleTimes(
             groupUuid = groupUuid,
-            newTimes = listOf(LocalTime.of(8, 30), LocalTime.of(9, 30)),
+            newTimes = listOf(LocalTime.of(9, 30), LocalTime.of(8, 30)),
             now = now,
         )
 
@@ -867,19 +867,19 @@ class MedicationGroupRepositoryTest {
                         sortOrder = 0,
                         hourOfDay = 8,
                         minuteOfHour = 30,
-                        uuid = testScheduleTimeUuid(0).toString(),
+                        uuid = testScheduleTimeUuid(1).toString(),
                     ),
                     MedicationGroupScheduleTimeEntity(
                         groupUuid = groupUuid.toString(),
                         sortOrder = 1,
                         hourOfDay = 9,
                         minuteOfHour = 30,
-                        uuid = testScheduleTimeUuid(1).toString(),
+                        uuid = testScheduleTimeUuid(0).toString(),
                     ),
                 )
             )
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-8"), "08:30")
-            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-9"), "09:30")
+            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-8"), "09:30")
+            medicationLogDao.updateScheduledForTimeForEntries(listOf("entry-9"), "08:30")
         }
     }
 
@@ -894,11 +894,19 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun validateScheduleTimeMigration_rejectsReorder() {
-        assertThrows(ScheduleTimeReorderNotAllowedException::class.java) {
+    fun validateScheduleTimeMigration_allowsReorder() {
+        validateScheduleTimeMigration(
+            oldTimes = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
+            newTimes = listOf(LocalTime.of(21, 0), LocalTime.of(20, 0)),
+        )
+    }
+
+    @Test
+    fun validateScheduleTimeMigration_rejectsDuplicateTimes() {
+        assertThrows(ScheduleTimeDuplicateException::class.java) {
             validateScheduleTimeMigration(
                 oldTimes = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
-                newTimes = listOf(LocalTime.of(21, 0), LocalTime.of(20, 0)),
+                newTimes = listOf(LocalTime.of(8, 0), LocalTime.of(8, 0)),
             )
         }
     }
