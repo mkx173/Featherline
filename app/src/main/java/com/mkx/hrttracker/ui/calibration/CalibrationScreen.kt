@@ -55,7 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -67,6 +66,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -524,67 +525,79 @@ private fun CalibrationPanelRow(
     val valueSummary = remember(panel.results, settingsState.calibrationDefaultUnits) {
         formatCalibrationPanelValueSummary(panel, settingsState)
     }
-
-    var dateTimeColumnWidth by remember { mutableIntStateOf(0) }
-    val density = LocalDensity.current
+    val testosteroneResultSummary = valueSummary.testosteroneResultSummary
 
     EditorSegmentedListItem(
         index = index,
         count = count,
         onClick = onClick,
     ) {
-        Box {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(28.dp)
-                ) {
-                    CalibrationPanelDateTimeColumn(
-                        labels = dateTimeLabels,
-                        modifier = Modifier.onSizeChanged {
-                            dateTimeColumnWidth = it.width
-                        }
-                    )
+        ConstraintLayout(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val (
+                dateTimeColumn,
+                divider,
+                summaryColumn,
+                chevron,
+                additionalSummary,
+            ) = createRefs()
+            val firstRowBottom = createBottomBarrier(dateTimeColumn, summaryColumn, chevron)
 
-                    CalibrationPanelResultSummaryColumn(
-                        modifier = Modifier.weight(1f),
-                        panel = panel,
-                        valueSummary = valueSummary,
-                    )
+            CalibrationPanelDateTimeColumn(
+                labels = dateTimeLabels,
+                modifier = Modifier.constrainAs(dateTimeColumn) {
+                    start.linkTo(parent.start)
+                    top.linkTo(parent.top)
+                }
+            )
 
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+            VerticalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                modifier = Modifier.constrainAs(divider) {
+                    start.linkTo(dateTimeColumn.end, margin = 14.dp)
+                    top.linkTo(parent.top, margin = 4.dp)
+                    bottom.linkTo(
+                        parent.bottom,
+                        margin = if (testosteroneResultSummary == null) 4.dp else 6.dp
                     )
+                    height = Dimension.fillToConstraints
                 }
-                valueSummary.testosteroneResultSummary?.let { testosteroneResultSummary ->
-                    CalibrationPanelResultAdditionalSummaryRow(
-                        resultSummary = testosteroneResultSummary,
-                        modifier = Modifier.padding(
-                            start = with(density) {
-                                dateTimeColumnWidth.toDp() + 28.dp
-                            }
-                        )
-                    )
+            )
+
+            CalibrationPanelResultSummaryColumn(
+                modifier = Modifier.constrainAs(summaryColumn) {
+                    start.linkTo(dateTimeColumn.end, margin = 28.dp)
+                    end.linkTo(chevron.start, margin = 12.dp)
+                    top.linkTo(dateTimeColumn.top)
+                    bottom.linkTo(dateTimeColumn.bottom)
+                    width = Dimension.fillToConstraints
+                },
+                panel = panel,
+                valueSummary = valueSummary,
+            )
+
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.constrainAs(chevron) {
+                    end.linkTo(parent.end)
+                    top.linkTo(dateTimeColumn.top)
+                    bottom.linkTo(dateTimeColumn.bottom)
                 }
-            }
-            if (dateTimeColumnWidth > 0) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(
-                            start = with(density) {
-                                dateTimeColumnWidth.toDp() + 14.dp
-                            },
-                            top = 4.dp,
-                            bottom = valueSummary.testosteroneResultSummary?.let { 6.dp } ?: 4.dp,
-                        )
-                ) {
-                    VerticalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    )
-                }
+            )
+
+            testosteroneResultSummary?.let { resultSummary ->
+                CalibrationPanelResultAdditionalSummaryRow(
+                    resultSummary = resultSummary,
+                    modifier = Modifier.constrainAs(additionalSummary) {
+                        start.linkTo(summaryColumn.start)
+                        end.linkTo(parent.end)
+                        top.linkTo(firstRowBottom)
+                        width = Dimension.fillToConstraints
+                    }
+                )
             }
         }
     }
