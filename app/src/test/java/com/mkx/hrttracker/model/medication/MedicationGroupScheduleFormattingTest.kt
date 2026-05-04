@@ -22,7 +22,7 @@ class MedicationGroupScheduleFormattingTest {
         )
 
         assertEquals(
-            "Every week • Mon/Tue • 9:00 AM",
+            "Every week · Mon/Tue · 9:00 AM",
             schedule.formatSummary(
                 locale = Locale.US,
                 timeFormatter = timeFormatter,
@@ -43,7 +43,7 @@ class MedicationGroupScheduleFormattingTest {
         )
 
         assertEquals(
-            "Every 2 days • 9:00 AM • 12:00 AM",
+            "Every 2 days · 9:00 AM/12:00 AM",
             schedule.formatSummary(
                 locale = Locale.US,
                 timeFormatter = timeFormatter,
