@@ -446,7 +446,7 @@ internal fun RegimenGroupCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .width(4.dp)
+                        .width(6.dp)
                         .padding(vertical = 4.dp)
                         .fillMaxHeight()
                         .background(
