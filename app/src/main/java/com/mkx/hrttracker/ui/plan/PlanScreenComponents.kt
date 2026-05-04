@@ -736,8 +736,8 @@ private fun SelectedDayMedicationIconSurface(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(10.dp)
-                    .offset(x = 2.dp, y = 2.dp)
+                    .size(12.dp)
+                    .offset(x = 3.dp, y = 3.dp)
             )
         }
         if (showDueBadge) {
@@ -747,8 +747,8 @@ private fun SelectedDayMedicationIconSurface(
                 tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(10.dp)
-                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(12.dp)
+                    .offset(x = 3.dp, y = (-3).dp)
             )
         }
         if (showPastDueBadge) {
@@ -758,8 +758,8 @@ private fun SelectedDayMedicationIconSurface(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(10.dp)
-                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(12.dp)
+                    .offset(x = 3.dp, y = (-3).dp)
             )
         }
     }
