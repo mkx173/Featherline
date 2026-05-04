@@ -820,7 +820,7 @@ private fun RegimenMedicationChip(
                 modifier = Modifier.size(14.dp),
             )
             val medicationString =
-                listOfNotNull(medicationName, doseSummary.takeIf { it.isNotBlank() })
+                listOfNotNull(medicationName, applicationTypeLabel, doseSummary.takeIf { it.isNotBlank() })
                 .joinToString(" · ")
             Text(
                 text = medicationString,
