@@ -134,7 +134,6 @@ internal fun SelectedDaySection(
             SupportMessageListItem(
                 text = stringResource(R.string.plan_selected_day_records_empty),
                 painter = painterResource(R.drawable.ic_info),
-                modifier = Modifier.padding(top = 4.dp)
             )
         } else {
             Column(
