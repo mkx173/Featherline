@@ -379,6 +379,40 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun newGroupCreatePastRecordsOption_staysVisibleButDisabledWhenBackfillDisabled() {
+        val newGroupState = MedicationGroupEditorUiState(
+            includePastScheduledSlots = false,
+        )
+
+        assertFalse(newGroupState.canCreatePastScheduledSlotRecords)
+        assertTrue(
+            shouldShowCreatePastScheduledSlotRecordsOption(
+                uiState = newGroupState,
+                isNewGroupCreationFlow = true,
+                isFinishingAfterSave = false,
+            )
+        )
+    }
+
+    @Test
+    fun editingGroupCreatePastRecordsOption_staysHidden() {
+        val editingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "a0438203-d2d6-45ac-8d55-b31040588cca",
+            includePastScheduledSlots = true,
+        )
+
+        assertTrue(editingGroupState.canEditBackfillOption)
+        assertFalse(editingGroupState.canCreatePastScheduledSlotRecords)
+        assertFalse(
+            shouldShowCreatePastScheduledSlotRecordsOption(
+                uiState = editingGroupState,
+                isNewGroupCreationFlow = false,
+                isFinishingAfterSave = false,
+            )
+        )
+    }
+
+    @Test
     fun newGroupSaveCompletion_keepsNewGroupOnlyOptionsStableUntilNavigation() {
         val savedNewGroupState = MedicationGroupEditorUiState(
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",

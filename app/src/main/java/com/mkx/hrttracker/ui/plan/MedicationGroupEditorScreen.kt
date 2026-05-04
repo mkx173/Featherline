@@ -1355,6 +1355,7 @@ private fun MedicationGroupEditorScreenContent(
                             isNewGroupCreationFlow = isNewGroupCreationFlow,
                             isFinishingAfterSave = isFinishingAfterSave,
                         )
+                        val pastRecordToggleEnabled = uiState.canCreatePastScheduledSlotRecords
                         val backfillOptionCount = if (showPastRecordToggle) 2 else 1
                         PreferenceSegmentedListItem(
                             title = stringResource(R.string.group_schedule_backfill_title),
@@ -1389,11 +1390,13 @@ private fun MedicationGroupEditorScreenContent(
                                 index = 1,
                                 count = backfillOptionCount,
                                 onClick = {
-                                    onCreatePastScheduledSlotRecordsChange(
-                                        !uiState.createPastScheduledSlotRecords
-                                    )
+                                    if (pastRecordToggleEnabled) {
+                                        onCreatePastScheduledSlotRecordsChange(
+                                            !uiState.createPastScheduledSlotRecords
+                                        )
+                                    }
                                 },
-                                enabled = true,
+                                enabled = pastRecordToggleEnabled,
                                 leadingContent = {
                                     Box(
                                         modifier = Modifier.size(24.dp),
@@ -1403,7 +1406,9 @@ private fun MedicationGroupEditorScreenContent(
                                             painter = painterResource(R.drawable.ic_add_task),
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp),
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .alpha(if (pastRecordToggleEnabled) 1f else 0.72f),
                                         )
                                     }
                                 },
@@ -1411,6 +1416,7 @@ private fun MedicationGroupEditorScreenContent(
                                     Checkbox(
                                         checked = uiState.createPastScheduledSlotRecords,
                                         onCheckedChange = onCreatePastScheduledSlotRecordsChange,
+                                        enabled = pastRecordToggleEnabled,
                                     )
                                 },
                             )
@@ -1644,12 +1650,15 @@ internal fun shouldShowCreatePastScheduledSlotRecordsOption(
     isNewGroupCreationFlow: Boolean,
     isFinishingAfterSave: Boolean,
 ): Boolean {
-    return uiState.canCreatePastScheduledSlotRecords ||
+    return !shouldRenderMedicationGroupEditorAsEditing(
+        uiState = uiState,
+        isNewGroupCreationFlow = isNewGroupCreationFlow,
+        isFinishingAfterSave = isFinishingAfterSave,
+    ) &&
+        !uiState.isArchived &&
         (
-            isNewGroupCreationFlow &&
-                isFinishingAfterSave &&
-                !uiState.isArchived &&
-                uiState.includePastScheduledSlots
+            uiState.canEditBackfillOption ||
+                (isNewGroupCreationFlow && isFinishingAfterSave)
             )
 }
 

@@ -570,6 +570,9 @@ private fun SettingsScreenContent(
                             painter = painterResource(R.drawable.ic_monitor_weight)
                         )
                     },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
+                    }
                 )
 
                 SettingsSegmentedListItem(
@@ -936,7 +939,7 @@ private fun SettingsScreenContent(
                         }
                     },
                     trailingContent = {
-                        SettingsChevronTrailingIcon()
+                        SettingsLinkTrailingIcon()
                     }
                 )
 
@@ -958,7 +961,7 @@ private fun SettingsScreenContent(
                         }
                     },
                     trailingContent = {
-                        SettingsChevronTrailingIcon()
+                        SettingsLinkTrailingIcon()
                     }
                 )
 
@@ -1094,6 +1097,15 @@ private fun SettingsChevronTrailingIcon() {
     )
 }
 
+@Composable
+private fun SettingsLinkTrailingIcon() {
+    Icon(
+        painter = painterResource(R.drawable.ic_link_alt),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(20.dp)
+    )
+}
 @Composable
 private fun SettingsSegmentedListItem(
     title: String,
