@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val cjkTextOffsetScripts = setOf(
@@ -26,11 +27,12 @@ internal fun CharSequence.containsCjkCharacters(): Boolean {
 internal fun Modifier.cjkTextOffset(
     text: CharSequence,
     enabled: Boolean = true,
+    amount: Dp = (-1).dp,
 ): Modifier {
     if (!enabled || !text.containsCjkCharacters()) {
         return this
     }
     return graphicsLayer {
-        translationY = (-1).dp.toPx()
+        translationY = amount.toPx()
     }
 }

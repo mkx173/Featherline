@@ -629,7 +629,7 @@ private fun HistoryScreenContent(
                         val title = stringResource(R.string.tab_history)
                         Text(
                             text = title,
-                            modifier = Modifier.cjkTextOffset(title),
+                            modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
                         )
                     },
                     navigationIcon = {
@@ -856,7 +856,7 @@ private fun HistorySelectionTopAppBar(
             )
             Text(
                 text = title,
-                modifier = Modifier.cjkTextOffset(title),
+                modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
             )
         },
         navigationIcon = {

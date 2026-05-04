@@ -98,7 +98,7 @@ private fun ArchivedMedicationGroupsScreenContent(
                     val title = stringResource(R.string.plan_archived_groups)
                     Text(
                         text = title,
-                        modifier = Modifier.cjkTextOffset(title),
+                        modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
                     )
                 },
                 navigationIcon = {
