@@ -215,7 +215,7 @@ internal fun ChangedScheduleTimeText(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowRightAlt,
+                painter = painterResource(R.drawable.ic_arrow_right_alt),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp),
