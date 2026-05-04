@@ -45,6 +45,7 @@ internal fun WeeklyScheduleEditor(
     time: LocalTime,
     originalTime: LocalTime? = null,
     previewOccurrences: List<LocalDateTime>,
+    currentDate: LocalDate,
     appLocale: Locale,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
@@ -143,6 +144,7 @@ internal fun WeeklyScheduleEditor(
             ScheduleOccurrencesCard(
                 title = stringResource(R.string.group_schedule_preview),
                 occurrences = previewOccurrences,
+                currentDate = currentDate,
                 dateFormatter = dateFormatter,
                 timeFormatter = timeFormatter,
                 index = 4,
@@ -167,10 +169,13 @@ private fun WeeklyScheduleEditorPreview() {
             ),
             time = LocalTime.of(9, 30),
             previewOccurrences = listOf(
+                LocalDateTime.of(2026, 4, 22, 9, 30),
+                LocalDateTime.of(2026, 4, 23, 9, 30),
                 LocalDateTime.of(2026, 4, 27, 9, 30),
                 LocalDateTime.of(2026, 4, 29, 9, 30),
                 LocalDateTime.of(2026, 5, 1, 9, 30)
             ),
+            currentDate = LocalDate.of(2026, 4, 22),
             appLocale = previewLocale,
             dateFormatter = medicationGroupScheduleDateFormatter(
                 locale = previewLocale,

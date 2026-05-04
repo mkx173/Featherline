@@ -43,6 +43,7 @@ internal fun DailyScheduleEditor(
     intervalDays: String,
     dailyTimes: List<MedicationGroupScheduleTimeUiState>,
     previewOccurrences: List<LocalDateTime>,
+    currentDate: LocalDate,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onSinceDateChange: (LocalDate) -> Unit,
@@ -101,6 +102,7 @@ internal fun DailyScheduleEditor(
             ScheduleOccurrencesCard(
                 title = stringResource(R.string.group_schedule_preview),
                 occurrences = previewOccurrences,
+                currentDate = currentDate,
                 dateFormatter = dateFormatter,
                 timeFormatter = timeFormatter,
                 index = 3,
@@ -222,6 +224,7 @@ internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount >
 internal fun ScheduleOccurrencesCard(
     title: String,
     occurrences: List<LocalDateTime>,
+    currentDate: LocalDate,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     index: Int = 0,
@@ -242,16 +245,39 @@ internal fun ScheduleOccurrencesCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+            val todayLabel = stringResource(R.string.plan_group_upcoming_today)
+            val tomorrowLabel = stringResource(R.string.plan_group_upcoming_tomorrow)
             occurrences.forEachIndexed { occurrenceIndex, occurrence ->
+                val occurrenceDate = occurrence.toLocalDate()
+                val relativeDateLabel = schedulePreviewRelativeDateLabel(
+                    date = occurrenceDate,
+                    currentDate = currentDate,
+                    todayLabel = todayLabel,
+                    tomorrowLabel = tomorrowLabel
+                )
+                val formattedDate = dateFormatter(occurrenceDate)
                 ScheduleOccurrenceRow(
                     formattedTime = occurrence.toLocalTime().format(timeFormatter),
-                    formattedDate = dateFormatter(occurrence.toLocalDate()),
+                    formattedDate = relativeDateLabel?.let { label ->
+                        stringResource(R.string.plan_group_upcoming_format, label, formattedDate)
+                    } ?: formattedDate,
                     index = occurrenceIndex,
                     count = occurrences.size
                 )
             }
         }
     }
+}
+
+internal fun schedulePreviewRelativeDateLabel(
+    date: LocalDate,
+    currentDate: LocalDate,
+    todayLabel: String,
+    tomorrowLabel: String,
+): String? = when (date) {
+    currentDate -> todayLabel
+    currentDate.plusDays(1) -> tomorrowLabel
+    else -> null
 }
 
 @Composable
@@ -306,10 +332,13 @@ private fun DailyScheduleEditorPreview() {
                 MedicationGroupScheduleTimeUiState(time = LocalTime.of(21, 30))
             ),
             previewOccurrences = listOf(
+                LocalDateTime.of(2026, 4, 22, 9, 0),
+                LocalDateTime.of(2026, 4, 23, 21, 30),
                 LocalDateTime.of(2026, 4, 25, 21, 30),
                 LocalDateTime.of(2026, 4, 28, 9, 0),
                 LocalDateTime.of(2026, 4, 28, 21, 30)
             ),
+            currentDate = LocalDate.of(2026, 4, 22),
             dateFormatter = medicationGroupScheduleDateFormatter(
                 locale = previewLocale,
                 today = LocalDate.of(2026, 4, 22),

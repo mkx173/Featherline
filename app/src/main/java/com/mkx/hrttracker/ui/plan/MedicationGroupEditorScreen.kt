@@ -1241,6 +1241,7 @@ private fun MedicationGroupEditorScreenContent(
                                 uiState.originalScheduleType == MedicationGroupScheduleType.WEEKLY
                             },
                             previewOccurrences = upcomingOccurrences,
+                            currentDate = currentDate,
                             appLocale = appLocale,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
@@ -1261,6 +1262,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalDays = uiState.dailyIntervalDays,
                             dailyTimes = uiState.dailyTimes,
                             previewOccurrences = upcomingOccurrences,
+                            currentDate = currentDate,
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             onSinceDateChange = { currentDate -> pendingSinceDate = currentDate },
