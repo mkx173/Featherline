@@ -568,6 +568,7 @@ private fun MedicationGroupEditorScreenContent(
         isFinishingAfterSave = isFinishingAfterSave,
     )
     val upcomingOccurrences = remember(
+        uiState.isArchived,
         uiState.scheduleType,
         uiState.sinceDate,
         uiState.weeklyIntervalWeeks,
@@ -577,10 +578,14 @@ private fun MedicationGroupEditorScreenContent(
         uiState.dailyTimes,
         resolvedOccurrenceReferenceTime
     ) {
-        buildMedicationGroupEditorUpcomingOccurrences(
-            uiState = uiState,
-            start = resolvedOccurrenceReferenceTime
-        )
+        if (uiState.isArchived) {
+            emptyList()
+        } else {
+            buildMedicationGroupEditorUpcomingOccurrences(
+                uiState = uiState,
+                start = resolvedOccurrenceReferenceTime
+            )
+        }
     }
 
     LaunchedEffect(uiState.isMedicationEditorSaved, medicationEditorInfoMessage) {

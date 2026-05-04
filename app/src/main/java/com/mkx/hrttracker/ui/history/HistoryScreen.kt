@@ -1743,7 +1743,6 @@ private fun HistoryStatusIndicator(
                 containerColor = colors.unplanned,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-//                    .offset(x = 2.dp, y = (-2).dp)
                     .size(4.dp)
             )
         }
