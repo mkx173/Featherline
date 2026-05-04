@@ -1099,12 +1099,17 @@ private fun SettingsChevronTrailingIcon() {
 
 @Composable
 private fun SettingsLinkTrailingIcon() {
-    Icon(
-        painter = painterResource(R.drawable.ic_link_alt),
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(20.dp)
-    )
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_link),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
 }
 @Composable
 private fun SettingsSegmentedListItem(

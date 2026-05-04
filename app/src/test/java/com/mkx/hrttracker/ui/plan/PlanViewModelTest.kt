@@ -113,6 +113,12 @@ class PlanViewModelTest {
         appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 18, 8, 1))
         advanceUntilIdle()
 
+        assertTrue(viewModel.uiState.value.daySchedule.scheduledEntries.single().isDueSoon)
+        assertFalse(viewModel.uiState.value.daySchedule.scheduledEntries.single().isPastDue)
+
+        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 4, 18, 9, 1))
+        advanceUntilIdle()
+
         assertTrue(viewModel.uiState.value.daySchedule.scheduledEntries.single().isPastDue)
     }
 

@@ -58,6 +58,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
@@ -234,7 +235,7 @@ private fun SelectedDayRow(
     val scheduleOffsetText = when (row) {
         is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
             row.entry.loggedAt?.let { loggedAt ->
-                medicationLogScheduleOffset(
+                selectedDayScheduleOffset(
                     scheduledFor = row.entry.scheduledFor,
                     appliedAt = loggedAt
                 )?.let { offset ->
@@ -392,6 +393,20 @@ internal fun selectedDayLoggedTimeLabel(
     } else {
         "$loggedTimeText ($loggedDayOffsetText)"
     }
+}
+
+internal fun selectedDayScheduleOffset(
+    scheduledFor: LocalDateTime,
+    appliedAt: LocalDateTime,
+): MedicationLogScheduleOffset? {
+    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, appliedAt)
+    if (kotlin.math.abs(deltaMinutes) < MINUTES_PER_HOUR) {
+        return null
+    }
+    return medicationLogScheduleOffset(
+        scheduledFor = scheduledFor,
+        appliedAt = appliedAt,
+    )
 }
 
 @Composable
@@ -1010,3 +1025,5 @@ private fun PlanScreenComponentPreviewContainer(
         }
     }
 }
+
+private const val MINUTES_PER_HOUR = 60L

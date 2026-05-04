@@ -23,14 +23,14 @@ import java.util.UUID
 
 class PlanDayOccurrenceTest {
     @Test
-    fun buildPlanDaySchedule_marks_upcoming_slot_within_one_hour_as_due_soon() {
+    fun buildPlanDaySchedule_marks_slots_within_one_hour_of_schedule_as_due_soon() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = LocalDate.of(2026, 4, 1),
                 weeklyDaysOfWeek = emptySet(),
-                times = listOf(LocalTime.of(9, 0), LocalTime.of(10, 30))
+                times = listOf(LocalTime.of(8, 30), LocalTime.of(9, 0), LocalTime.of(10, 30))
             )
         )
 
@@ -45,7 +45,21 @@ class PlanDayOccurrenceTest {
         assertTrue(schedule.scheduledEntries[0].isPastDue)
         assertTrue(schedule.scheduledEntries[1].isDueSoon)
         assertFalse(schedule.scheduledEntries[1].isPastDue)
+        assertTrue(schedule.scheduledEntries[2].isDueSoon)
+        assertFalse(schedule.scheduledEntries[2].isPastDue)
         assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
+    }
+
+    @Test
+    fun dueSoonAndPastDue_useOneHourGracePeriodAroundScheduledTime() {
+        val scheduledAt = LocalDateTime.of(2026, 4, 18, 9, 0)
+
+        assertTrue(isDueSoon(scheduledAt, scheduledAt.minusHours(1)))
+        assertTrue(isDueSoon(scheduledAt, scheduledAt.plusHours(1)))
+        assertFalse(isDueSoon(scheduledAt, scheduledAt.minusHours(1).minusMinutes(1)))
+        assertFalse(isDueSoon(scheduledAt, scheduledAt.plusHours(1).plusMinutes(1)))
+        assertFalse(isPastDue(scheduledAt, scheduledAt.plusHours(1)))
+        assertTrue(isPastDue(scheduledAt, scheduledAt.plusHours(1).plusMinutes(1)))
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -119,12 +120,14 @@ internal fun isDueSoon(
     scheduledAt: LocalDateTime,
     now: LocalDateTime
 ): Boolean {
-    return !scheduledAt.isBefore(now) && !scheduledAt.isAfter(now.plusHours(1))
+    return Duration.between(scheduledAt, now).abs() <= planDueSoonGracePeriod
 }
 
 internal fun isPastDue(
     scheduledAt: LocalDateTime,
     now: LocalDateTime
 ): Boolean {
-    return scheduledAt.isBefore(now)
+    return scheduledAt.isBefore(now.minus(planDueSoonGracePeriod))
 }
+
+private val planDueSoonGracePeriod: Duration = Duration.ofHours(1)

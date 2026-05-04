@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -64,6 +66,40 @@ class PlanScreenComponentsTest {
                 fallbackScheduledTime = LocalTime.of(21, 0),
                 timeFormatter = timeFormatter,
                 loggedDayOffsetText = null
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayScheduleOffset_omitsSubHourDelta() {
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+
+        assertNull(
+            selectedDayScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusMinutes(59),
+            )
+        )
+        assertNull(
+            selectedDayScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusMinutes(59),
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayScheduleOffset_keepsHourDelta() {
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_hours_later,
+                value = 1,
+            ),
+            selectedDayScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusHours(1),
             )
         )
     }
