@@ -38,6 +38,7 @@ data class BackupUserProfileSnapshot(
     val weightKg: Double?,
     val weightOriginalValue: Double?,
     val weightOriginalUnit: String,
+    val updatedAtEpochMillis: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)

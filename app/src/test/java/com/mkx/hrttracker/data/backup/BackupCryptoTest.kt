@@ -71,24 +71,20 @@ class BackupCryptoTest {
     }
 
     @Test
-    fun decrypt_accepts_legacy_pbkdf2_container() {
-        val encryptedBytes = backupCrypto.encryptLegacyPbkdf2(
-            plaintext = """{"snapshotVersion":1}""".toByteArray(),
-            password = "secret".toCharArray(),
-            pbkdf2Iterations = 1_000,
-            secureRandom = SecureRandom(),
-        )
+    fun decrypt_rejects_unsupported_container_version() {
+        val encryptedBytes = ByteArray(BackupCrypto.MAGIC_BYTES.size + 1)
+        BackupCrypto.MAGIC_BYTES.copyInto(encryptedBytes, destinationOffset = 0)
+        encryptedBytes[BackupCrypto.MAGIC_BYTES.size] = 1
 
-        val decryptedBytes = backupCrypto.decrypt(
-            encryptedBytes = encryptedBytes,
-            password = "secret".toCharArray(),
-        )
-
-        assertEquals(
-            BackupCrypto.LEGACY_BACKUP_CONTAINER_VERSION.toByte(),
-            encryptedBytes[BackupCrypto.MAGIC_BYTES.size],
-        )
-        assertEquals("""{"snapshotVersion":1}""", decryptedBytes.toString(Charsets.UTF_8))
+        try {
+            backupCrypto.decrypt(
+                encryptedBytes = encryptedBytes,
+                password = "secret".toCharArray(),
+            )
+            fail("Expected unsupported backup container versions to be rejected.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
     }
 
     @Test

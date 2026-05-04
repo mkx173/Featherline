@@ -22,6 +22,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
@@ -93,6 +94,8 @@ class BackupExportServiceTest {
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
         val groupMedicationUuid = UUID.fromString("00000000-0000-0000-0000-000000000011")
         val sourceGroupUuid = UUID.fromString("00000000-0000-0000-0000-000000000012")
+        val morningScheduleTimeUuid = UUID.fromString("00000000-0000-0000-0000-000000000013")
+        val eveningScheduleTimeUuid = UUID.fromString("00000000-0000-0000-0000-000000000014")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000020")
         val analyteUuid = UUID.fromString("00000000-0000-0000-0000-000000000030")
         val panelUuid = UUID.fromString("00000000-0000-0000-0000-000000000040")
@@ -130,6 +133,18 @@ class BackupExportServiceTest {
                     since = LocalDate.of(2026, 4, 1),
                     weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY),
                     times = listOf(LocalTime.of(9, 0), LocalTime.of(21, 30)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTime(
+                            uuid = morningScheduleTimeUuid,
+                            time = LocalTime.of(9, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 1, 0, 0),
+                        ),
+                        MedicationGroupScheduleTime(
+                            uuid = eveningScheduleTimeUuid,
+                            time = LocalTime.of(21, 30),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 2, 0, 0),
+                        ),
+                    ),
                 ),
                 medications = listOf(
                     MedicationGroupMedication(
@@ -166,8 +181,9 @@ class BackupExportServiceTest {
                 sourceGroupUuid = groupUuid,
                 appliedAt = Instant.parse("2026-04-26T01:00:00Z"),
                 appliedAtTimeZoneId = "Asia/Tokyo",
-                scheduledFor = LocalDateTime.of(2026, 4, 26, 10, 0),
+                scheduledFor = LocalDateTime.of(2026, 4, 26, 9, 0),
                 count = 2,
+                scheduleTimeUuid = morningScheduleTimeUuid,
             )
         )
         coEvery { bloodTestRepository.getCustomAnalytes() } returns listOf(
@@ -243,6 +259,10 @@ class BackupExportServiceTest {
         assertEquals(52.2, snapshot.userProfile.weightKg!!, 1e-9)
         assertEquals(115.0, snapshot.userProfile.weightOriginalValue!!, 1e-9)
         assertEquals("POUNDS", snapshot.userProfile.weightOriginalUnit)
+        assertEquals(
+            Instant.parse("2026-04-25T00:00:00Z").toEpochMilli(),
+            snapshot.userProfile.updatedAtEpochMillis,
+        )
 
         val group = snapshot.medicationGroups.single()
         assertEquals(groupUuid.toString(), group.uuid)
@@ -255,9 +275,12 @@ class BackupExportServiceTest {
         assertEquals(listOf(1, 3), group.schedule.weeklyDaysOfWeek)
         assertEquals(listOf(9, 21), group.schedule.times.map { it.hourOfDay })
         assertEquals(listOf(0, 30), group.schedule.times.map { it.minuteOfHour })
-        assertTrue(group.schedule.times.all { it.uuid != null })
         assertEquals(
-            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
+            listOf(morningScheduleTimeUuid.toString(), eveningScheduleTimeUuid.toString()),
+            group.schedule.times.map { it.uuid },
+        )
+        assertEquals(
+            listOf("2026-04-01T00:00", "2026-04-02T00:00"),
             group.schedule.times.map { it.effectiveFromLocalIso },
         )
         assertEquals(
@@ -307,9 +330,10 @@ class BackupExportServiceTest {
         assertEquals("DEFAULT", log.gelApplicationArea)
         assertEquals(0.2, log.dosageMgAsEstradiol!!, 1e-9)
         assertEquals(groupUuid.toString(), log.sourceGroupUuid)
+        assertEquals(morningScheduleTimeUuid.toString(), log.scheduleTimeUuid)
         assertEquals(Instant.parse("2026-04-26T01:00:00Z").toEpochMilli(), log.appliedAtEpochMillis)
         assertEquals("Asia/Tokyo", log.appliedAtTimeZoneId)
-        assertEquals("2026-04-26T10:00", log.scheduledForIso)
+        assertEquals("2026-04-26T09:00", log.scheduledForIso)
         assertEquals(2, log.count)
 
         val analyte = snapshot.customBloodAnalytes.single()

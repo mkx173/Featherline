@@ -18,6 +18,7 @@ class BackupRestoreValidationTest {
     @Test
     fun toValidatedSnapshot_maps_current_snapshot_shape_to_restorable_entities() {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
+        val profileUpdatedAt = Instant.parse("2026-04-25T00:00:00Z").toEpochMilli()
         val groupUuid = UUID.fromString("00000000-0000-0000-0000-000000000001")
         val itemUuid = UUID.fromString("00000000-0000-0000-0000-000000000002")
         val logUuid = UUID.fromString("00000000-0000-0000-0000-000000000003")
@@ -45,6 +46,7 @@ class BackupRestoreValidationTest {
                 weightKg = 52.16312255,
                 weightOriginalValue = 115.0,
                 weightOriginalUnit = "POUNDS",
+                updatedAtEpochMillis = profileUpdatedAt,
             ),
             medicationGroups = listOf(
                 BackupMedicationGroupSnapshot(
@@ -173,7 +175,7 @@ class BackupRestoreValidationTest {
         checkNotNull(validatedSnapshot.userProfile)
         assertEquals(52.16312255, validatedSnapshot.userProfile.weightKg!!, 1e-9)
         assertEquals("POUNDS", validatedSnapshot.userProfile.weightOriginalUnit)
-        assertEquals(exportedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
+        assertEquals(profileUpdatedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
 
         val restoredGroup = validatedSnapshot.medicationGroups.single()
         assertEquals(groupUuid.toString(), restoredGroup.uuid)
@@ -210,6 +212,39 @@ class BackupRestoreValidationTest {
         assertEquals(100.0, restoredResults[0].canonicalValue, 1e-9)
         assertEquals(customResultUuid.toString(), restoredResults[1].uuid)
         assertEquals(analyteUuid.toString(), restoredResults[1].customAnalyteUuid)
+    }
+
+    @Test
+    fun toValidatedSnapshot_backfillsLegacyUserProfileUpdatedAtFromExportTime() {
+        val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = exportedAt,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = BackupSettingsSnapshot(
+                darkModeOption = "FOLLOW_SYSTEM",
+                adaptiveColorEnabled = true,
+                remindersEnabled = true,
+                appLockGracePeriodOption = "IMMEDIATELY",
+                hideScreenContentEnabled = false,
+                onboardingCompleted = true,
+                appLanguageOption = "ENGLISH",
+                calibrationDefaultUnits = emptyMap(),
+            ),
+            userProfile = BackupUserProfileSnapshot(
+                weightKg = 70.0,
+                weightOriginalValue = 70.0,
+                weightOriginalUnit = "KILOGRAMS",
+            ),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        checkNotNull(validatedSnapshot.userProfile)
+        assertEquals(exportedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
     }
 
     @Test

@@ -581,7 +581,7 @@ private fun BackupUserProfileSnapshot.toValidatedEntity(
         weightKg = resolvedWeightKg,
         weightOriginalValue = resolvedOriginalValue,
         weightOriginalUnit = weightUnit.name,
-        updatedAtEpochMillis = restoredAtEpochMillis,
+        updatedAtEpochMillis = updatedAtEpochMillis ?: restoredAtEpochMillis,
     )
 }
 

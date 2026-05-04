@@ -171,6 +171,7 @@ class BackupExportService @Inject constructor(
                 adaptiveColorEnabled = settings.adaptiveColorEnabled,
                 remindersEnabled = settings.remindersEnabled,
                 showArchivedGroupRecords = settings.showArchivedGroupRecords,
+                // Do not include screenLockProtectionEnabled; app-lock protection stays local.
                 appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
                 hideScreenContentEnabled = settings.hideScreenContentEnabled,
                 onboardingCompleted = onboardingCompleted,
@@ -184,6 +185,7 @@ class BackupExportService @Inject constructor(
                 weightKg = userProfile.weightKg,
                 weightOriginalValue = userProfile.weightOriginalValue,
                 weightOriginalUnit = userProfile.weightOriginalUnit.name,
+                updatedAtEpochMillis = userProfile.updatedAt?.toEpochMilli(),
             ),
             medicationGroups = medicationGroups.map { group -> group.toBackupSnapshot() },
             medicationLogs = medicationLogs.map { entry -> entry.toBackupSnapshot() },
