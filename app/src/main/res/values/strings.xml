@@ -63,8 +63,8 @@
     <string name="plan_selected_day_summary_empty_future">Nothing planned yet</string>
     <string name="plan_schedule_entry_not_logged">Not logged yet</string>
     <string name="plan_schedule_entry_logged">Logged</string>
-    <string name="plan_schedule_entry_logged_day_offset_later">+%1$dd</string>
-    <string name="plan_schedule_entry_logged_day_offset_earlier">-%1$dd</string>
+    <string name="plan_schedule_entry_logged_day_offset_later">+%1$d</string>
+    <string name="plan_schedule_entry_logged_day_offset_earlier">-%1$d</string>
     <string name="plan_schedule_entry_due_soon">Due soon</string>
     <string name="plan_schedule_entry_past_due">Past due</string>
     <string name="plan_schedule_entry_missed">Missed</string>

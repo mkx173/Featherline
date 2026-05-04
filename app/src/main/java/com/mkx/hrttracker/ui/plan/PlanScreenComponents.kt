@@ -60,6 +60,7 @@ import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
+import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
@@ -230,10 +231,26 @@ private fun SelectedDayRow(
 
         is SelectedDayRowModel.Unplanned -> null
     }
-    val labelDisplayText = if (loggedDayOffsetText == null) {
+    val scheduleOffsetText = when (row) {
+        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
+            row.entry.loggedAt?.let { loggedAt ->
+                medicationLogScheduleOffset(
+                    scheduledFor = row.entry.scheduledFor,
+                    appliedAt = loggedAt
+                )?.let { offset ->
+                    stringResource(offset.labelRes, offset.value)
+                }
+            }
+        } else {
+            null
+        }
+
+        is SelectedDayRowModel.Unplanned -> null
+    }
+    val labelDisplayText = if (scheduleOffsetText == null) {
         labelText.uppercase()
     } else {
-        "${labelText.uppercase()} $loggedDayOffsetText"
+        "${labelText.uppercase()} $scheduleOffsetText"
     }
     val labelColor = when (rowState) {
         SelectedDayRowState.LOGGED -> MaterialTheme.colorScheme.primary
@@ -250,8 +267,12 @@ private fun SelectedDayRow(
     )
     val timeLabel = when (row) {
         is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
-            row.entry.loggedAt?.format(timeFormatter)
-                ?: row.entry.scheduledTime.format(timeFormatter)
+            selectedDayLoggedTimeLabel(
+                loggedAt = row.entry.loggedAt,
+                fallbackScheduledTime = row.entry.scheduledTime,
+                timeFormatter = timeFormatter,
+                loggedDayOffsetText = loggedDayOffsetText
+            )
         } else {
             row.entry.scheduledTime.format(timeFormatter)
         }
@@ -266,41 +287,11 @@ private fun SelectedDayRow(
         count = itemCount,
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        trailingContent = {
-            Column(horizontalAlignment = Alignment.End) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (isFromArchivedGroup) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_archive),
-                            contentDescription = stringResource(
-                                R.string.archived_group_record_indicator
-                            ),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Text(
-                        text = timeLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.End
-                    )
-                }
-                Text(
-                    text = labelDisplayText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = labelColor,
-                    textAlign = TextAlign.End
-                )
-            }
-        }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
             SelectedDayMedicationIconSurface(
                 state = rowState,
@@ -310,22 +301,66 @@ private fun SelectedDayRow(
             Column(
                 modifier = Modifier.weight(1f),
             ) {
-                Text(
-                    text = titleText,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.cjkTextOffset(titleText),
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = titleText,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f).alignByBaseline(),
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = timeLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = supportingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isFromArchivedGroup) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_archive),
+                                contentDescription = stringResource(
+                                    R.string.archived_group_record_indicator
+                                ),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = labelDisplayText,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = labelColor,
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            modifier = Modifier.alignByBaseline().cjkTextOffset(titleText)
+                        )
+                    }
+                }
             }
         }
     }
@@ -342,6 +377,21 @@ internal fun selectedDayLoggedDayOffsetDays(
     }
 
     return dayOffset
+}
+
+internal fun selectedDayLoggedTimeLabel(
+    loggedAt: LocalDateTime?,
+    fallbackScheduledTime: LocalTime,
+    timeFormatter: DateTimeFormatter,
+    loggedDayOffsetText: String?
+): String {
+    val loggedTimeText = loggedAt?.format(timeFormatter)
+        ?: fallbackScheduledTime.format(timeFormatter)
+    return if (loggedDayOffsetText == null) {
+        loggedTimeText
+    } else {
+        "$loggedTimeText ($loggedDayOffsetText)"
+    }
 }
 
 @Composable
