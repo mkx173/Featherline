@@ -168,10 +168,16 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateIncludePastScheduledSlots(true)
 
         assertEquals(true, viewModel.uiState.value.includePastScheduledSlots)
+        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+
+        viewModel.updateCreatePastScheduledSlotRecords(true)
+
+        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
 
         viewModel.updateIncludePastScheduledSlots(false)
 
         assertEquals(false, viewModel.uiState.value.includePastScheduledSlots)
+        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
 
         viewModel.updateSinceDate(LocalDate.of(2026, 3, 31))
 
@@ -252,6 +258,7 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
         assertEquals(parentGroupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertFalse(viewModel.uiState.value.canEditBackfillOption)
+        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
 
         viewModel.updateIncludePastScheduledSlots(true)
 
@@ -333,6 +340,42 @@ class MedicationGroupEditorLoadStateTest {
             listOf(expectedDefaultTime),
             viewModel.uiState.value.dailyTimes.map(MedicationGroupScheduleTimeUiState::time),
         )
+    }
+
+    @Test
+    fun newGroup_createPastRecordsOption_defaultsOffAndResetsWhenBackfillDisabled() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.includePastScheduledSlots)
+        assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+
+        viewModel.updateCreatePastScheduledSlotRecords(true)
+
+        assertTrue(viewModel.uiState.value.createPastScheduledSlotRecords)
+
+        viewModel.updateIncludePastScheduledSlots(false)
+
+        assertFalse(viewModel.uiState.value.includePastScheduledSlots)
+        assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
+
+        viewModel.updateIncludePastScheduledSlots(true)
+
+        assertTrue(viewModel.uiState.value.includePastScheduledSlots)
+        assertTrue(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
+        assertFalse(viewModel.uiState.value.createPastScheduledSlotRecords)
     }
 }
 

@@ -46,6 +46,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 
@@ -231,7 +232,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (!it.canEditBackfillOption) {
                 it
             } else {
-                it.copy(includePastScheduledSlots = includePastScheduledSlots)
+                it.copy(
+                    includePastScheduledSlots = includePastScheduledSlots,
+                    createPastScheduledSlotRecords = if (includePastScheduledSlots) {
+                        it.createPastScheduledSlotRecords
+                    } else {
+                        false
+                    },
+                )
+            }
+        }
+    }
+
+    fun updateCreatePastScheduledSlotRecords(createPastScheduledSlotRecords: Boolean) {
+        _uiState.update {
+            if (!it.canCreatePastScheduledSlotRecords) {
+                it
+            } else {
+                it.copy(createPastScheduledSlotRecords = createPastScheduledSlotRecords)
             }
         }
     }
@@ -506,12 +524,17 @@ class MedicationGroupEditorViewModel @Inject constructor(
             uiState = currentState,
             resolvedDailyTimes = resolvedDailyTimes,
         )
+        val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
+            currentState.createPastScheduledSlotRecords
+        val recordGenerationNow = currentMinute.value
 
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isSaving = true,
                     saveMedicationGroupResult = null,
+                    createPastScheduledSlotRecordsResult = null,
+                    createdPastScheduledSlotRecordCount = null,
                 )
             }
 
@@ -562,6 +585,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val isSaved = saveResult == null
             val savedGroupUuid = savedGroupUuidResult.getOrNull()
+            val recordGenerationResult = if (isSaved && shouldCreatePastRecords && savedGroupUuid != null) {
+                savePastScheduledSlotRecords(
+                    groupUuid = savedGroupUuid,
+                    now = recordGenerationNow,
+                )
+            } else {
+                null
+            }
             if (savedGroupUuid != null) {
                 runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
             }
@@ -581,7 +612,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     },
                     isSaving = false,
                     isSaved = isSaved,
+                    createPastScheduledSlotRecords = if (isSaved) {
+                        false
+                    } else {
+                        it.createPastScheduledSlotRecords
+                    },
                     saveMedicationGroupResult = saveResult,
+                    createPastScheduledSlotRecordsResult = recordGenerationResult?.result,
+                    createdPastScheduledSlotRecordCount = recordGenerationResult?.savedRecordCount,
                 )
             }
         }
@@ -904,7 +942,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun consumeSavedState() {
-        _uiState.update { it.copy(isSaved = false) }
+        _uiState.update {
+            it.copy(
+                isSaved = false,
+                createPastScheduledSlotRecordsResult = null,
+                createdPastScheduledSlotRecordCount = null,
+            )
+        }
     }
 
     fun consumeSaveMedicationGroupResult() {
@@ -947,6 +991,34 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     plannedEntryCount = currentState.plannedEntryCount,
                 )
             }
+        }
+    }
+
+    private suspend fun savePastScheduledSlotRecords(
+        groupUuid: UUID,
+        now: LocalDateTime,
+    ): CreatePastScheduledSlotRecordsSaveState {
+        return runCatching {
+            val savedGroup = medicationGroupRepository.getGroup(groupUuid)
+                ?: throw NoSuchElementException("Medication group $groupUuid was not found.")
+            val entriesToSave = buildPlanBatchAddEntries(
+                group = savedGroup,
+                existingEntries = medicationLogRepository.getEntries(),
+                startDate = savedGroup.schedule.since,
+                endDate = now.toLocalDate(),
+                now = now,
+                zoneId = ZoneId.systemDefault(),
+            )
+            medicationLogRepository.saveNewEntries(entriesToSave)
+            CreatePastScheduledSlotRecordsSaveState(
+                result = null,
+                savedRecordCount = entriesToSave.size,
+            )
+        }.getOrElse {
+            CreatePastScheduledSlotRecordsSaveState(
+                result = CreatePastScheduledSlotRecordsResult.FAILURE,
+                savedRecordCount = null,
+            )
         }
     }
 
@@ -1186,6 +1258,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         isDeleted = false,
         isArchived = false,
         includePastScheduledSlots = includePastScheduledSlots,
+        createPastScheduledSlotRecords = false,
         isScheduleStartDateLocked = isScheduleStartDateLocked,
         saveMedicationGroupResult = null,
         relatedEntryCount = 0,
@@ -1364,6 +1437,11 @@ internal fun upsertMedication(
     )
 }
 
+private data class CreatePastScheduledSlotRecordsSaveState(
+    val result: CreatePastScheduledSlotRecordsResult?,
+    val savedRecordCount: Int?,
+)
+
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
     val groupName: String = "",
@@ -1399,8 +1477,11 @@ data class MedicationGroupEditorUiState(
     val isDeleted: Boolean = false,
     val isArchived: Boolean = false,
     val includePastScheduledSlots: Boolean = true,
+    val createPastScheduledSlotRecords: Boolean = false,
     val isScheduleStartDateLocked: Boolean = false,
     val saveMedicationGroupResult: SaveMedicationGroupResult? = null,
+    val createPastScheduledSlotRecordsResult: CreatePastScheduledSlotRecordsResult? = null,
+    val createdPastScheduledSlotRecordCount: Int? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
     val scheduleTimeOrderError: Boolean = false,
@@ -1446,6 +1527,15 @@ data class MedicationGroupEditorUiState(
                             plannedEntryCount == 0
                     )
             )
+
+    val canCreatePastScheduledSlotRecords: Boolean
+        get() = !isEditing &&
+            includePastScheduledSlots &&
+            canEditBackfillOption
+}
+
+enum class CreatePastScheduledSlotRecordsResult {
+    FAILURE,
 }
 
 enum class SaveMedicationGroupResult {

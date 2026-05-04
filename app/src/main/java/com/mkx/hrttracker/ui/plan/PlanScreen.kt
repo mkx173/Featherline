@@ -314,7 +314,7 @@ private fun PlanScreenContent(
                 actions = {
                     IconButton(onClick = onHistoryClick) {
                         Icon(
-                            imageVector = Icons.Rounded.History,
+                            painter = painterResource(R.drawable.ic_history),
                             contentDescription = stringResource(R.string.plan_open_history)
                         )
                     }

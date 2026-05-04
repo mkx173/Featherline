@@ -154,6 +154,14 @@ fun MedicationGroupEditorScreen(
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    val createdPastScheduledSlotRecordCount = uiState.createdPastScheduledSlotRecordCount ?: 0
+    val createPastScheduledSlotRecordsSuccessMessage = pluralStringResource(
+        R.plurals.plan_batch_add_success,
+        createdPastScheduledSlotRecordCount,
+        createdPastScheduledSlotRecordCount,
+    )
+    val createPastScheduledSlotRecordsFailureMessage =
+        stringResource(R.string.group_schedule_backfill_records_failure)
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -253,8 +261,29 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(uiState.isSaved) {
+    LaunchedEffect(
+        uiState.isSaved,
+        uiState.createPastScheduledSlotRecordsResult,
+        uiState.createdPastScheduledSlotRecordCount,
+    ) {
         if (uiState.isSaved) {
+            when (uiState.createPastScheduledSlotRecordsResult) {
+                CreatePastScheduledSlotRecordsResult.FAILURE -> Toast.makeText(
+                    context,
+                    createPastScheduledSlotRecordsFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+
+                null -> {
+                    if (uiState.createdPastScheduledSlotRecordCount != null) {
+                        Toast.makeText(
+                            context,
+                            createPastScheduledSlotRecordsSuccessMessage,
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
             viewModel.consumeSavedState()
             onGroupSaved()
         }
@@ -303,6 +332,7 @@ fun MedicationGroupEditorScreen(
         onScheduleTypeChange = viewModel::updateScheduleType,
         onSinceDateChange = viewModel::updateSinceDate,
         onIncludePastScheduledSlotsChange = viewModel::updateIncludePastScheduledSlots,
+        onCreatePastScheduledSlotRecordsChange = viewModel::updateCreatePastScheduledSlotRecords,
         onNotificationsEnabledChange = { enabled ->
             if (!enabled) {
                 viewModel.updateNotificationsEnabled(false)
@@ -404,6 +434,7 @@ private fun MedicationGroupEditorScreenContent(
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
+    onCreatePastScheduledSlotRecordsChange: (Boolean) -> Unit,
     onNotificationsEnabledChange: (Boolean) -> Unit,
     onRequestExactAlarmAccess: () -> Unit,
     onRecoverMasterReminders: () -> Unit,
@@ -1162,41 +1193,6 @@ private fun MedicationGroupEditorScreenContent(
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     }
-                    val backfillToggleEnabled = uiState.canEditBackfillOption
-                    val backfillSummaryRes = when {
-                        uiState.pendingReplacementGroupId != null ||
-                            uiState.recreatedFromGroupId != null ->
-                            R.string.group_schedule_backfill_recreated_summary
-                        !uiState.canEditBackfillOption -> R.string.group_schedule_backfill_locked_summary
-                        else -> R.string.group_schedule_backfill_summary
-                    }
-                    PreferenceSegmentedListItem(
-                        title = stringResource(R.string.group_schedule_backfill_title),
-                        supportingText = stringResource(backfillSummaryRes),
-                        index = 0,
-                        count = 1,
-                        onClick = {
-                            if (backfillToggleEnabled) {
-                                onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
-                            }
-                        },
-                        enabled = backfillToggleEnabled,
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_edit_calendar),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = uiState.includePastScheduledSlots,
-                                onCheckedChange = onIncludePastScheduledSlotsChange,
-                                enabled = backfillToggleEnabled,
-                            )
-                        },
-                    )
                     CompositionLocalProvider(
                         LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                     ) {
@@ -1277,6 +1273,83 @@ private fun MedicationGroupEditorScreenContent(
                             leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+
+            item {
+                EditorSectionHeader(title = stringResource(R.string.group_past_plans_title))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                ) {
+                    val backfillToggleEnabled = uiState.canEditBackfillOption
+                    val backfillSummaryRes = when {
+                        uiState.pendingReplacementGroupId != null ||
+                            uiState.recreatedFromGroupId != null ->
+                            R.string.group_schedule_backfill_recreated_summary
+                        else -> R.string.group_schedule_backfill_summary
+                    }
+                    val showPastRecordToggle = uiState.canCreatePastScheduledSlotRecords
+                    val backfillOptionCount = if (showPastRecordToggle) 2 else 1
+                    PreferenceSegmentedListItem(
+                        title = stringResource(R.string.group_schedule_backfill_title),
+                        supportingText = stringResource(backfillSummaryRes),
+                        index = 0,
+                        count = backfillOptionCount,
+                        onClick = {
+                            if (backfillToggleEnabled) {
+                                onIncludePastScheduledSlotsChange(!uiState.includePastScheduledSlots)
+                            }
+                        },
+                        enabled = backfillToggleEnabled,
+                        leadingContent = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_calendar_add_on),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = uiState.includePastScheduledSlots,
+                                onCheckedChange = onIncludePastScheduledSlotsChange,
+                                enabled = backfillToggleEnabled,
+                            )
+                        },
+                    )
+                    if (showPastRecordToggle) {
+                        PreferenceSegmentedListItem(
+                            title = stringResource(R.string.group_schedule_backfill_records_title),
+                            supportingText = stringResource(R.string.group_schedule_backfill_records_summary),
+                            index = 1,
+                            count = backfillOptionCount,
+                            onClick = {
+                                onCreatePastScheduledSlotRecordsChange(
+                                    !uiState.createPastScheduledSlotRecords
+                                )
+                            },
+                            enabled = true,
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_add_task),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = uiState.createPastScheduledSlotRecords,
+                                    onCheckedChange = onCreatePastScheduledSlotRecordsChange,
+                                )
+                            },
                         )
                     }
                 }
@@ -1628,6 +1701,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onIncludePastScheduledSlotsChange = { },
+            onCreatePastScheduledSlotRecordsChange = { },
             onNotificationsEnabledChange = { },
             onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
@@ -1697,6 +1771,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onIncludePastScheduledSlotsChange = { },
+            onCreatePastScheduledSlotRecordsChange = { },
             onNotificationsEnabledChange = { },
             onRequestExactAlarmAccess = { },
             onRecoverMasterReminders = { },
@@ -1807,6 +1882,7 @@ private fun MedicationGroupEditorPreviewContent(
         onScheduleTypeChange = { },
         onSinceDateChange = { },
         onIncludePastScheduledSlotsChange = { },
+        onCreatePastScheduledSlotRecordsChange = { },
         onNotificationsEnabledChange = { },
         onRequestExactAlarmAccess = { },
         onRecoverMasterReminders = { },
