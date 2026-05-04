@@ -564,8 +564,7 @@ private fun MedicationGroupEditorScreenContent(
     )
     val shouldRenderSaveCompletionAsNewGroup = isNewGroupCreationFlow && isFinishingAfterSave
     val shouldRenderLockedState = uiState.isLocked && !shouldRenderSaveCompletionAsNewGroup
-    val areScheduleShapeFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
-    val areMedicationsRenderedLocked = shouldRenderLockedState || uiState.isArchived
+    val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.isArchived,
         uiState.scheduleType,
@@ -750,7 +749,7 @@ private fun MedicationGroupEditorScreenContent(
             initialTime = dailyTimeEdit.initialTime,
             is24Hour = is24Hour,
             onRemove = if (
-                !areScheduleShapeFieldsRenderedLocked &&
+                !areFieldsRenderedLocked &&
                 canRemoveDailyTime(uiState.dailyTimes.size)
             ) {
                 { onRemoveDailyTime(dailyTimeEdit.localId) }
@@ -1183,7 +1182,7 @@ private fun MedicationGroupEditorScreenContent(
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
                                 val medicationName = medicationDisplayName(medication.details)
-                                val medicationEditable = !areMedicationsRenderedLocked
+                                val medicationEditable = !areFieldsRenderedLocked
                                 MedicationCard(
                                     details = medication.details,
                                     medicationCount = medication.count,
@@ -1210,7 +1209,7 @@ private fun MedicationGroupEditorScreenContent(
                             }
                         }
                     }
-                    if (!areMedicationsRenderedLocked) {
+                    if (!areFieldsRenderedLocked) {
                         HrtFilledTonalButton(
                             text = stringResource(R.string.add),
                             onClick = onAddMedication,
@@ -1263,7 +1262,7 @@ private fun MedicationGroupEditorScreenContent(
                                 )
                             },
                             onOptionSelected = onScheduleTypeChange,
-                            enabled = !areScheduleShapeFieldsRenderedLocked,
+                            enabled = !areFieldsRenderedLocked,
                             layout = ConnectedButtonGroupLayout.ROW,
                             expandOptions = true,
                         )
@@ -1346,12 +1345,12 @@ private fun MedicationGroupEditorScreenContent(
                             onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !areScheduleShapeFieldsRenderedLocked &&
+                            sinceEnabled = !areFieldsRenderedLocked &&
                                 !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !areScheduleShapeFieldsRenderedLocked,
-                            daySelectionEnabled = !areScheduleShapeFieldsRenderedLocked,
+                            intervalEnabled = !areFieldsRenderedLocked,
+                            daySelectionEnabled = !areFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = areScheduleShapeFieldsRenderedLocked,
+                            shapeLocked = areFieldsRenderedLocked,
                         )
                     } else {
                         DailyScheduleEditor(
@@ -1377,12 +1376,12 @@ private fun MedicationGroupEditorScreenContent(
                             },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !areScheduleShapeFieldsRenderedLocked &&
+                            sinceEnabled = !areFieldsRenderedLocked &&
                                 !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !areScheduleShapeFieldsRenderedLocked,
-                            addRemoveTimeEnabled = !areScheduleShapeFieldsRenderedLocked,
+                            intervalEnabled = !areFieldsRenderedLocked,
+                            addRemoveTimeEnabled = !areFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = areScheduleShapeFieldsRenderedLocked,
+                            shapeLocked = areFieldsRenderedLocked,
                         )
                     }
                     if (shouldRenderLockedState) {
