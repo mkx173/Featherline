@@ -306,7 +306,13 @@ private fun PlanScreenContent(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
                 },
-                title = { Text(text = stringResource(R.string.tab_plan)) },
+                title = {
+                    val title = stringResource(R.string.tab_plan)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),

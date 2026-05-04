@@ -63,6 +63,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -236,7 +237,13 @@ private fun PlanBatchAddScreenContent(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
                 },
-                title = { Text(text = stringResource(R.string.plan_batch_add_title)) },
+                title = {
+                    val title = stringResource(R.string.plan_batch_add_title)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
+                    )
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = {

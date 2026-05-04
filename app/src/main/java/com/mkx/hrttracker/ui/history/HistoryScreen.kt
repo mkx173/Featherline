@@ -625,7 +625,13 @@ private fun HistoryScreenContent(
                     modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                         listState.animateScrollToItem(0)
                     },
-                    title = { Text(text = stringResource(R.string.tab_history)) },
+                    title = {
+                        val title = stringResource(R.string.tab_history)
+                        Text(
+                            text = title,
+                            modifier = Modifier.cjkTextOffset(title),
+                        )
+                    },
                     navigationIcon = {
                         if (onNavigateBack != null) {
                             IconButton(onClick = onNavigateBack) {
@@ -843,12 +849,14 @@ private fun HistorySelectionTopAppBar(
     TopAppBar(
         modifier = Modifier.topAppBarScrollToTop(scrollBehavior, onScrollToTop),
         title = {
+            val title = pluralStringResource(
+                R.plurals.history_selected_entries_title,
+                selectedEntryCount,
+                selectedEntryCount,
+            )
             Text(
-                text = pluralStringResource(
-                    R.plurals.history_selected_entries_title,
-                    selectedEntryCount,
-                    selectedEntryCount,
-                ),
+                text = title,
+                modifier = Modifier.cjkTextOffset(title),
             )
         },
         navigationIcon = {

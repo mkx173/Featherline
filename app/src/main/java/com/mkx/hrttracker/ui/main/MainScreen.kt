@@ -22,6 +22,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import java.time.LocalDateTime
 import java.util.UUID
@@ -63,7 +64,13 @@ fun MainScreen(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
                 },
-                title = { Text(text = stringResource(R.string.tab_main)) },
+                title = {
+                    val title = stringResource(R.string.tab_main)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
+                    )
+                },
                 scrollBehavior = scrollBehavior
             )
         }

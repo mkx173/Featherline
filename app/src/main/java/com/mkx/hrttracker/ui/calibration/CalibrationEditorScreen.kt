@@ -68,6 +68,7 @@ import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -304,14 +305,16 @@ private fun CalibrationEditorScreenContent(
                     listState.animateScrollToItem(0)
                 },
                 title = {
+                    val title = stringResource(
+                        if (uiState.isEditing) {
+                            R.string.settings_calibration_edit_result
+                        } else {
+                            R.string.settings_calibration_add_result
+                        }
+                    )
                     Text(
-                        text = stringResource(
-                            if (uiState.isEditing) {
-                                R.string.settings_calibration_edit_result
-                            } else {
-                                R.string.settings_calibration_add_result
-                            }
-                        )
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

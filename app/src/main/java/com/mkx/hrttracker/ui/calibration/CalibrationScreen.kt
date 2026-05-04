@@ -203,7 +203,13 @@ private fun CalibrationScreenContent(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
                     listState.animateScrollToItem(0)
                 },
-                title = { Text(text = stringResource(R.string.settings_personalization_calibration)) },
+                title = {
+                    val title = stringResource(R.string.settings_personalization_calibration)
+                    Text(
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),

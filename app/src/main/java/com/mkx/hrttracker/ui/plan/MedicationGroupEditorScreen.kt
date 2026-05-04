@@ -111,6 +111,7 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
@@ -1050,16 +1051,18 @@ private fun MedicationGroupEditorScreenContent(
                     listState.animateScrollToItem(0)
                 },
                 title = {
+                    val title = stringResource(
+                        if (openedFromArchivedGroupsPage) {
+                            R.string.archived_medication_group
+                        } else if (shouldRenderAsEditing) {
+                            R.string.edit_medication_group
+                        } else {
+                            R.string.add_medication_group
+                        }
+                    )
                     Text(
-                        text = stringResource(
-                            if (openedFromArchivedGroupsPage) {
-                                R.string.archived_medication_group
-                            } else if (shouldRenderAsEditing) {
-                                R.string.edit_medication_group
-                            } else {
-                                R.string.add_medication_group
-                            }
-                        )
+                        text = title,
+                        modifier = Modifier.cjkTextOffset(title),
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
