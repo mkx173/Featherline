@@ -9,6 +9,7 @@
     <string name="edit_entry">编辑记录</string>
     <string name="add_medication_group">添加分组</string>
     <string name="edit_medication_group">编辑分组</string>
+    <string name="archived_medication_group">已归档的分组</string>
     <string name="main_empty_state">在这里记录下一次用药。</string>
     <string name="main_today_title">今天</string>
     <string name="main_tomorrow_title">明天</string>

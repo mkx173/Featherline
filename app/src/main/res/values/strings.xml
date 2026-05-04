@@ -9,6 +9,7 @@
     <string name="edit_entry">Edit Entry</string>
     <string name="add_medication_group">Add Group</string>
     <string name="edit_medication_group">Edit Group</string>
+    <string name="archived_medication_group">Archived Group</string>
     <string name="main_empty_state">Log your next dose from here.</string>
     <string name="main_today_title">Today</string>
     <string name="main_tomorrow_title">Tomorrow</string>

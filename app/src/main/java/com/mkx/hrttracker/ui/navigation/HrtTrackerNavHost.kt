@@ -132,20 +132,23 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     data object EditMedicationGroup : Screen(
         "edit_medication_group?" +
             "${MedicationGroupEditorViewModel.GROUP_ID_ARG}={${MedicationGroupEditorViewModel.GROUP_ID_ARG}}" +
-            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}" +
+            "&$MEDICATION_GROUP_EDITOR_SOURCE_ARG={$MEDICATION_GROUP_EDITOR_SOURCE_ARG}",
         R.string.add_medication_group
     ) {
         const val baseRoute = "edit_medication_group"
 
         fun createRoute(
             topLevelParentRoute: String,
-            groupId: String? = null
+            groupId: String? = null,
+            source: String? = null,
         ): String {
-            return if (groupId == null) {
-                "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
-            } else {
-                "$baseRoute?${MedicationGroupEditorViewModel.GROUP_ID_ARG}=$groupId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+            val queryParameters = buildList {
+                groupId?.let { add("${MedicationGroupEditorViewModel.GROUP_ID_ARG}=$it") }
+                add("$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute")
+                source?.let { add("$MEDICATION_GROUP_EDITOR_SOURCE_ARG=$it") }
             }
+            return "$baseRoute?${queryParameters.joinToString("&")}"
         }
     }
 
@@ -403,7 +406,8 @@ fun HrtTrackerNavHost(
                         navController.navigate(
                             Screen.EditMedicationGroup.createRoute(
                                 topLevelParentRoute = Screen.Plan.route,
-                                groupId = groupId.toString()
+                                groupId = groupId.toString(),
+                                source = MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS,
                             )
                         )
                     }
@@ -516,13 +520,21 @@ fun HrtTrackerNavHost(
                     navArgument(TOP_LEVEL_PARENT_ARG) {
                         type = NavType.StringType
                         defaultValue = Screen.Plan.route
+                    },
+                    navArgument(MEDICATION_GROUP_EDITOR_SOURCE_ARG) {
+                        type = NavType.StringType
+                        defaultValue = ""
                     }
                 )
-            ) {
+            ) { backStackEntry ->
+                val openedFromArchivedGroupsPage =
+                    backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
+                        MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
                 MedicationGroupEditorScreen(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
                     onGroupSaved = { navController.popBackStack() },
+                    openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
                 )
             }
         }
@@ -540,6 +552,8 @@ fun HrtTrackerNavHost(
 }
 
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+private const val MEDICATION_GROUP_EDITOR_SOURCE_ARG = "source"
+private const val MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS = "archivedGroups"
 
 private data class AddEntrySheetRequest(
     val entryIds: List<String> = emptyList(),

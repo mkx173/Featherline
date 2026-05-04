@@ -63,6 +63,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -137,6 +138,7 @@ fun MedicationGroupEditorScreen(
     onNavigateBack: () -> Unit,
     onGroupSaved: () -> Unit,
     modifier: Modifier = Modifier,
+    openedFromArchivedGroupsPage: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -430,6 +432,7 @@ fun MedicationGroupEditorScreen(
         occurrenceReferenceTime = currentMinute,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
         isFinishingAfterSave = shouldRenderSaveCompletionState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
         modifier = modifier
     )
 }
@@ -488,6 +491,7 @@ private fun MedicationGroupEditorScreenContent(
     occurrenceReferenceTime: LocalDateTime? = null,
     isNewGroupCreationFlow: Boolean = !uiState.isEditing,
     isFinishingAfterSave: Boolean = false,
+    openedFromArchivedGroupsPage: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -1043,7 +1047,9 @@ private fun MedicationGroupEditorScreenContent(
                 title = {
                     Text(
                         text = stringResource(
-                            if (shouldRenderAsEditing) {
+                            if (openedFromArchivedGroupsPage) {
+                                R.string.archived_medication_group
+                            } else if (shouldRenderAsEditing) {
                                 R.string.edit_medication_group
                             } else {
                                 R.string.add_medication_group
@@ -1063,12 +1069,14 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 },
                 actions = {
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = onSaveClick,
-                        enabled = canSave,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
+                    if (!openedFromArchivedGroupsPage) {
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = onSaveClick,
+                            enabled = canSave,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
                 },
                 scrollBehavior = scrollBehavior
             )
@@ -1355,7 +1363,7 @@ private fun MedicationGroupEditorScreenContent(
                                     painter = painterResource(R.drawable.ic_calendar_add_on),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp),
+                                    modifier = Modifier.size(24.dp).alpha(if (backfillToggleEnabled) 1f else 0.72f),
                                 )
                             },
                             trailingContent = {

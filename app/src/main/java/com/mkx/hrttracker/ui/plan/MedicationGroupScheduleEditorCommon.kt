@@ -255,7 +255,6 @@ internal fun NotificationsCard(
         supportingText = stringResource(R.string.group_notifications_summary),
         index = index,
         count = count,
-        modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f),
         enabled = toggleEnabled,
         onClick = { onToggle(!enabled) },
         leadingContent = {
@@ -268,11 +267,8 @@ internal fun NotificationsCard(
                     }
                 ),
                 contentDescription = null,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f)
             )
         },
         trailingContent = {
@@ -322,14 +318,13 @@ internal fun ArchiveMedicationGroupCard(
         index = index,
         count = count,
         enabled = enabled,
-        modifier = Modifier.alpha(if (enabled) 1f else 0.72f),
         onClick = onClick,
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_archive),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(24.dp).alpha(if (enabled) 1f else 0.72f),
             )
         },
         trailingContent = {
@@ -337,6 +332,7 @@ internal fun ArchiveMedicationGroupCard(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(if (enabled) 1f else 0.72f)
             )
         },
     )
