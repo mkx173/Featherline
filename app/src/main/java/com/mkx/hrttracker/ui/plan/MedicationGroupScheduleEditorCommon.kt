@@ -259,13 +259,7 @@ internal fun NotificationsCard(
         onClick = { onToggle(!enabled) },
         leadingContent = {
             Icon(
-                painter = painterResource(
-                    if (enabled) {
-                        R.drawable.ic_notifications
-                    } else {
-                        R.drawable.ic_notifications_off
-                    }
-                ),
+                painter = painterResource(R.drawable.ic_notifications),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.alpha(if (toggleEnabled) 1f else 0.72f)

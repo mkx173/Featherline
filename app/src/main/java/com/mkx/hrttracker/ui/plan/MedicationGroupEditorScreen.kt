@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.animateColor
+import androidx.compose.animation.core.updateTransition
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1402,13 +1404,10 @@ private fun MedicationGroupEditorScreenContent(
                                         modifier = Modifier.size(24.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_add_task),
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .alpha(if (pastRecordToggleEnabled) 1f else 0.72f),
+                                        PastPlansLeadingIcon(
+                                            painterRes = R.drawable.ic_add_task,
+                                            enabled = pastRecordToggleEnabled,
+                                            modifier = Modifier.size(20.dp),
                                         )
                                     }
                                 },
@@ -1671,6 +1670,32 @@ private data class MedicationRemovalRequest(
     val localId: String,
     val medicationName: String,
 )
+
+private data class PastPlansLeadingIconColorState(
+    val enabled: Boolean,
+)
+
+@Composable
+private fun PastPlansLeadingIcon(
+    painterRes: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colorState = PastPlansLeadingIconColorState(enabled)
+    val transition = updateTransition(colorState, "PastPlansLeadingIconColor")
+    val leadingColor by transition.animateColor(label = "LeadingIconColor") { state ->
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+            alpha = if (state.enabled) 1f else 0.72f
+        )
+    }
+
+    Icon(
+        painter = painterResource(painterRes),
+        contentDescription = null,
+        tint = leadingColor,
+        modifier = modifier,
+    )
+}
 
 internal enum class NotificationSupportState {
     NONE,
