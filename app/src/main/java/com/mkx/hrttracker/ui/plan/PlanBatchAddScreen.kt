@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -247,8 +248,18 @@ private fun PlanBatchAddScreenContent(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_back)
+                            imageVector = if (shouldDeselectOnBack) {
+                                Icons.Rounded.Close
+                            } else {
+                                Icons.AutoMirrored.Rounded.ArrowBack
+                            },
+                            contentDescription = stringResource(
+                                if (shouldDeselectOnBack) {
+                                    R.string.history_cancel_selection
+                                } else {
+                                    R.string.navigate_back
+                                }
+                            )
                         )
                     }
                 },
