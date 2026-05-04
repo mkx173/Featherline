@@ -562,6 +562,10 @@ private fun MedicationGroupEditorScreenContent(
         isNewGroupCreationFlow = isNewGroupCreationFlow,
         isFinishingAfterSave = isFinishingAfterSave,
     )
+    val shouldRenderSaveCompletionAsNewGroup = isNewGroupCreationFlow && isFinishingAfterSave
+    val shouldRenderLockedState = uiState.isLocked && !shouldRenderSaveCompletionAsNewGroup
+    val areScheduleShapeFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
+    val areMedicationsRenderedLocked = shouldRenderLockedState || uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.isArchived,
         uiState.scheduleType,
@@ -746,7 +750,7 @@ private fun MedicationGroupEditorScreenContent(
             initialTime = dailyTimeEdit.initialTime,
             is24Hour = is24Hour,
             onRemove = if (
-                !uiState.areScheduleShapeFieldsLocked &&
+                !areScheduleShapeFieldsRenderedLocked &&
                 canRemoveDailyTime(uiState.dailyTimes.size)
             ) {
                 { onRemoveDailyTime(dailyTimeEdit.localId) }
@@ -1104,7 +1108,7 @@ private fun MedicationGroupEditorScreenContent(
             contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (uiState.isLocked) {
+            if (shouldRenderLockedState) {
                 item {
                     SupportMessageListItem(
                         text = stringResource(R.string.group_locked_banner),
@@ -1179,7 +1183,7 @@ private fun MedicationGroupEditorScreenContent(
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
                                 val medicationName = medicationDisplayName(medication.details)
-                                val medicationEditable = !uiState.areMedicationsLocked
+                                val medicationEditable = !areMedicationsRenderedLocked
                                 MedicationCard(
                                     details = medication.details,
                                     medicationCount = medication.count,
@@ -1206,7 +1210,7 @@ private fun MedicationGroupEditorScreenContent(
                             }
                         }
                     }
-                    if (!uiState.areMedicationsLocked) {
+                    if (!areMedicationsRenderedLocked) {
                         HrtFilledTonalButton(
                             text = stringResource(R.string.add),
                             onClick = onAddMedication,
@@ -1259,7 +1263,7 @@ private fun MedicationGroupEditorScreenContent(
                                 )
                             },
                             onOptionSelected = onScheduleTypeChange,
-                            enabled = !uiState.areScheduleShapeFieldsLocked,
+                            enabled = !areScheduleShapeFieldsRenderedLocked,
                             layout = ConnectedButtonGroupLayout.ROW,
                             expandOptions = true,
                         )
@@ -1278,31 +1282,41 @@ private fun MedicationGroupEditorScreenContent(
                                 } else {
                                     null
                                 }
-                            val pastScheduleOptionsEnabled = recreatedLockedMessage == null &&
-                                uiState.canEditBackfillOption &&
+                            val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
+                            val isPastScheduleSaveInProgress = uiState.isSaving || isFinishingAfterSave
+                            val pastScheduleOptionsAllowed = recreatedLockedMessage == null &&
                                 !uiState.isLoadingGroupForEditing &&
-                                !uiState.isSaving &&
-                                !isFinishingAfterSave &&
                                 !uiState.isDeleting &&
                                 !uiState.isArchiving &&
                                 !uiState.isRecreatingAfterArchive &&
                                 !uiState.isDeletingRelatedEntries
+                            val pastScheduleOptionsInteractive = pastScheduleOptionsAllowed &&
+                                uiState.canEditBackfillOption &&
+                                !isPastScheduleSaveInProgress
+                            val shouldKeepNewGroupPastScheduleOptionsStable =
+                                isNewGroupCreationFlow && isPastScheduleSaveInProgress
+                            val pastScheduleOptionsEnabled = pastScheduleOptionsAllowed &&
+                                (uiState.canEditBackfillOption || shouldKeepNewGroupPastScheduleOptionsStable)
+                            val showGeneratePastRecordsOption =
+                                shouldShowGeneratePastScheduledSlotRecordsOption(
+                                    uiState = uiState,
+                                    isNewGroupCreationFlow = isNewGroupCreationFlow,
+                                    isFinishingAfterSave = isFinishingAfterSave,
+                                ) ||
+                                    selectedPastScheduleOption ==
+                                    PastScheduleOption.SHOW_AND_GENERATE_RECORDS
                             PastScheduleSelectorUiState(
-                                selectedOption = resolvePastScheduleOption(uiState),
-                                showGeneratePastRecordsOption =
-                                    shouldShowGeneratePastScheduledSlotRecordsOption(
-                                        uiState = uiState,
-                                        isNewGroupCreationFlow = isNewGroupCreationFlow,
-                                        isFinishingAfterSave = isFinishingAfterSave,
-                                    ),
+                                selectedOption = selectedPastScheduleOption,
+                                showGeneratePastRecordsOption = showGeneratePastRecordsOption,
                                 enabled = pastScheduleOptionsEnabled,
+                                interactive = pastScheduleOptionsInteractive,
                                 lockedMessage = recreatedLockedMessage,
                             )
                         } else {
                             null
                         }
                     val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
-                        if (pastScheduleSelectorState?.enabled == true) {
+                        if (pastScheduleSelectorState?.interactive == true) {
                             applyPastScheduleOption(
                                 option = option,
                                 onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
@@ -1332,12 +1346,12 @@ private fun MedicationGroupEditorScreenContent(
                             onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !uiState.areScheduleShapeFieldsLocked &&
+                            sinceEnabled = !areScheduleShapeFieldsRenderedLocked &&
                                 !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
-                            daySelectionEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            intervalEnabled = !areScheduleShapeFieldsRenderedLocked,
+                            daySelectionEnabled = !areScheduleShapeFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = uiState.areScheduleShapeFieldsLocked,
+                            shapeLocked = areScheduleShapeFieldsRenderedLocked,
                         )
                     } else {
                         DailyScheduleEditor(
@@ -1363,15 +1377,15 @@ private fun MedicationGroupEditorScreenContent(
                             },
                             pastScheduleSelectorState = pastScheduleSelectorState,
                             onPastScheduleOptionSelected = onPastScheduleOptionSelected,
-                            sinceEnabled = !uiState.areScheduleShapeFieldsLocked &&
+                            sinceEnabled = !areScheduleShapeFieldsRenderedLocked &&
                                 !uiState.isScheduleStartDateLocked,
-                            intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
-                            addRemoveTimeEnabled = !uiState.areScheduleShapeFieldsLocked,
+                            intervalEnabled = !areScheduleShapeFieldsRenderedLocked,
+                            addRemoveTimeEnabled = !areScheduleShapeFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
-                            shapeLocked = uiState.areScheduleShapeFieldsLocked,
+                            shapeLocked = areScheduleShapeFieldsRenderedLocked,
                         )
                     }
-                    if (uiState.isLocked) {
+                    if (shouldRenderLockedState) {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_locked_time_note),
                             icon = Icons.Rounded.EditCalendar,

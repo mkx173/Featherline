@@ -27,6 +27,7 @@ internal data class PastScheduleSelectorUiState(
     val selectedOption: PastScheduleOption,
     val showGeneratePastRecordsOption: Boolean,
     val enabled: Boolean,
+    val interactive: Boolean = enabled,
     val lockedMessage: String? = null,
 )
 
@@ -92,6 +93,7 @@ private fun PastScheduleSelectorRows(
             option = option,
             selectedOption = state.selectedOption,
             enabled = state.enabled,
+            interactive = state.interactive,
             index = optionIndex,
             count = optionLabels.size,
             onOptionSelected = onOptionSelected,
@@ -106,6 +108,7 @@ private fun PastScheduleOptionRow(
     option: PastScheduleOption,
     selectedOption: PastScheduleOption,
     enabled: Boolean,
+    interactive: Boolean,
     index: Int,
     count: Int,
     onOptionSelected: (PastScheduleOption) -> Unit,
@@ -122,11 +125,15 @@ private fun PastScheduleOptionRow(
         trailingContent = {
             RadioButton(
                 selected = selectedOption == option,
-                onClick = { onOptionSelected(option) },
+                onClick = if (interactive) {
+                    { onOptionSelected(option) }
+                } else {
+                    null
+                },
                 enabled = enabled,
             )
         },
-        onClick = if (enabled) {
+        onClick = if (interactive) {
             { onOptionSelected(option) }
         } else {
             {}
