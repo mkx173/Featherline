@@ -1303,17 +1303,10 @@ private fun MedicationGroupEditorScreenContent(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
                         val backfillToggleEnabled = uiState.canEditBackfillOption
-                        val backfillSummaryRes = when {
-                            uiState.pendingReplacementGroupId != null ||
-                                uiState.recreatedFromGroupId != null ->
-                                R.string.group_schedule_backfill_recreated_summary
-                            else -> R.string.group_schedule_backfill_summary
-                        }
                         val showPastRecordToggle = uiState.canCreatePastScheduledSlotRecords
                         val backfillOptionCount = if (showPastRecordToggle) 2 else 1
                         PreferenceSegmentedListItem(
                             title = stringResource(R.string.group_schedule_backfill_title),
-                            supportingText = stringResource(backfillSummaryRes),
                             index = 0,
                             count = backfillOptionCount,
                             onClick = {

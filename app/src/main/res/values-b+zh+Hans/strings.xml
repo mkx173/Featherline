@@ -196,8 +196,6 @@
     <string name="group_schedule_since">开始日期</string>
     <string name="group_schedule_start_date_locked_note">重新创建的计划会固定开始日期，以保持历史计划记录稳定</string>
     <string name="group_schedule_backfill_title">显示过去的计划</string>
-    <string name="group_schedule_backfill_summary">从开始日期显示错过的计划时间</string>
-    <string name="group_schedule_backfill_recreated_summary">重新创建的分组会从保存时间开始</string>
     <string name="group_schedule_backfill_records_title">生成历史记录</string>
     <string name="group_schedule_backfill_records_summary">按计划自动添加从开始日期到现在的所有记录</string>
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
