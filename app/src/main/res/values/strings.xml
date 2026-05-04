@@ -202,14 +202,11 @@
     <string name="decrease_schedule_interval">Decrease schedule interval</string>
     <string name="increase_schedule_interval">Increase schedule interval</string>
     <string name="group_schedule_since">Start date</string>
-    <string name="group_schedule_start_date_locked_note">Recreated plans keep their start date fixed to keep past schedule records stable.</string>
+    <string name="group_schedule_start_date_locked_note">Start date can’t be changed for recreated groups.</string>
     <string name="group_past_schedule_do_not_show">Do not show</string>
     <string name="group_past_schedule_show">Show</string>
     <string name="group_past_schedule_show_and_generate_records">Show and generate past records</string>
-    <string name="group_past_schedule_recreated_locked_note">Past schedule settings are fixed for recreated groups to keep existing records stable.</string>
-    <string name="group_schedule_backfill_title">Show past schedule</string>
-    <string name="group_schedule_backfill_records_title">Generate past records</string>
-    <string name="group_schedule_backfill_records_summary">Automatically add all scheduled records from the start date up to now.</string>
+    <string name="group_past_schedule_recreated_locked_note">This setting can’t be changed for recreated groups.</string>
     <string name="group_schedule_backfill_records_empty">No records added.</string>
     <string name="group_schedule_backfill_records_failure">Group saved, but unable to add records.</string>
     <string name="group_schedule_days_of_week">Days of week</string>

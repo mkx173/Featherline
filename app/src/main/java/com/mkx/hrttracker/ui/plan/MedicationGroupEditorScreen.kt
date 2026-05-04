@@ -1241,7 +1241,7 @@ private fun MedicationGroupEditorScreenContent(
                     if (uiState.isScheduleStartDateLocked && !uiState.isArchived) {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_schedule_start_date_locked_note),
-                            painter = painterResource(R.drawable.ic_error_outline),
+                            painter = painterResource(R.drawable.ic_calendar_lock),
                             leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer,

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -166,7 +167,7 @@ private fun PastScheduleLockedRow(
     SegmentedListItem(
         leadingContent = {
             Icon(
-                painter = painterResource(R.drawable.ic_error_outline),
+                painter = painterResource(R.drawable.ic_calendar_lock),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
@@ -183,8 +184,9 @@ private fun PastScheduleLockedRow(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Normal,
             modifier = Modifier.cjkTextOffset(text)
         )
     }
