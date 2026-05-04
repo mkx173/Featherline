@@ -2004,14 +2004,14 @@ private fun HistoryEntryCard(
                             R.string.archived_group_record_indicator
                         ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
                 Text(
                     text = entry.appliedAt
                         .atZone(ZoneId.systemDefault())
                         .format(timeFormatter),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
                 )
