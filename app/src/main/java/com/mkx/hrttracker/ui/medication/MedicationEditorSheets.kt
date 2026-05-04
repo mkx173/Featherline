@@ -998,7 +998,7 @@ private fun MedicationEditorGroupInfoCard(
                     Text(
                         text = offsetText,
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
                 }

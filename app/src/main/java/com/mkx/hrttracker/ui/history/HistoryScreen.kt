@@ -2017,7 +2017,7 @@ private fun HistoryEntryCard(
                             R.string.archived_group_record_indicator
                         ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
                 Text(
