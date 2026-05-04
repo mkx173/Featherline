@@ -108,6 +108,8 @@
     <string name="history_cancel_selection">Cancel selection</string>
     <string name="history_select_all">Select all</string>
     <string name="history_reverse_selection">Reverse</string>
+    <string name="history_select_entry">Select entry</string>
+    <string name="history_entry_selected">Entry selected</string>
     <string name="history_previous_month">Previous month</string>
     <string name="history_current_month">Current month</string>
     <string name="history_next_month">Next month</string>

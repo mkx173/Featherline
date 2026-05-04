@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -23,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +61,9 @@ internal fun MedicationCard(
     extraSupportingText: String? = null,
     colorScheme: ColorScheme? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    isSelected: Boolean = false,
+    onLeadingIconClick: (() -> Unit)? = null,
+    leadingIconContentDescription: String? = null,
     enabled: Boolean = true,
     index: Int = 0,
     itemCount: Int = 1
@@ -71,6 +77,28 @@ internal fun MedicationCard(
         medicationCount = medicationCount,
         extraSupportingText = extraSupportingText
     )
+    val leadingSurfaceColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        groupColorScheme.secondaryContainer
+    }
+    val leadingContentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        groupColorScheme.onSecondaryContainer
+    }
+    val leadingIconModifier = Modifier
+        .size(36.dp)
+        .then(
+            if (onLeadingIconClick != null) {
+                Modifier.clickable(
+                    enabled = enabled,
+                    onClick = onLeadingIconClick
+                )
+            } else {
+                Modifier
+            }
+        )
     val resolvedTrailingContent = trailingContent ?: onDeleteClick?.let { deleteClick ->
         @Composable {
             CompositionLocalProvider(
@@ -105,20 +133,28 @@ internal fun MedicationCard(
             verticalAlignment = Alignment.CenterVertically,
             ) {
             Surface(
-                modifier = Modifier.size(36.dp),
+                modifier = leadingIconModifier,
                 shape = MaterialTheme.shapes.small,
-                color = groupColorScheme.secondaryContainer,
-                contentColor = groupColorScheme.onSecondaryContainer
+                color = leadingSurfaceColor,
+                contentColor = leadingContentColor
             ) {
                 Box(
                     modifier = Modifier.size(36.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    MedicationApplicationIcon(
-                        applicationType = details.applicationType,
-                        contentDescription = applicationTypeLabel,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = leadingIconContentDescription,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        MedicationApplicationIcon(
+                            applicationType = details.applicationType,
+                            contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))

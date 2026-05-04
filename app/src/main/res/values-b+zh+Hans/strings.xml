@@ -108,6 +108,8 @@
     <string name="history_cancel_selection">取消选择</string>
     <string name="history_select_all">全选</string>
     <string name="history_reverse_selection">反选</string>
+    <string name="history_select_entry">选择记录</string>
+    <string name="history_entry_selected">已选择记录</string>
     <string name="history_previous_month">上个月</string>
     <string name="history_current_month">当前月份</string>
     <string name="history_next_month">下个月</string>

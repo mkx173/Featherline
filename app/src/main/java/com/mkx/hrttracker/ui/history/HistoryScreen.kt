@@ -776,10 +776,12 @@ private fun HistoryScreenContent(
                                     isFromArchivedGroup = entry.sourceGroupUuid != null &&
                                         entry.sourceGroupUuid in archivedGroupUuids,
                                     isSelected = entry.uuid in uiState.selectedEntryIds,
+                                    isSelectionMode = uiState.isSelectionMode,
                                     index = index,
                                     count = dateEntries.size,
                                     onClick = { onEntryClick(entry) },
-                                    onLongClick = { onEntryLongClick(entry) }
+                                    onLongClick = { onEntryLongClick(entry) },
+                                    onSelectionClick = { onEntryLongClick(entry) }
                                 )
                             }
                             if (groupIndex < groupedEntries.size - 1) {
@@ -1963,10 +1965,12 @@ private fun HistoryEntryCard(
     groupColorKey: MedicationGroupColorKey?,
     isFromArchivedGroup: Boolean,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     index: Int = 0,
     count: Int = 1,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onSelectionClick: () -> Unit
 ) {
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.secondaryContainer
@@ -1992,6 +1996,15 @@ private fun HistoryEntryCard(
         itemCount = count,
         modifier = Modifier.fillMaxWidth(),
         containerColor = containerColor,
+        isSelected = isSelected,
+        onLeadingIconClick = if (isSelectionMode) null else onSelectionClick,
+        leadingIconContentDescription = stringResource(
+            if (isSelected) {
+                R.string.history_entry_selected
+            } else {
+                R.string.history_select_entry
+            }
+        ),
         trailingContent = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
