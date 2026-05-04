@@ -837,7 +837,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_hide_source)
+                            painter = painterResource(R.drawable.ic_history_off)
                         )
                     },
                     trailingContent = {
@@ -1104,10 +1104,10 @@ private fun SettingsLinkTrailingIcon() {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_link),
+            painter = painterResource(R.drawable.ic_open_in_new),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(18.dp)
         )
     }
 }
