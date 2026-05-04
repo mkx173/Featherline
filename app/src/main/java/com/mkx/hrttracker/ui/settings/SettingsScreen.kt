@@ -834,7 +834,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_archive)
+                            painter = painterResource(R.drawable.ic_hide_source)
                         )
                     },
                     trailingContent = {
