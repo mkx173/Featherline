@@ -44,7 +44,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -1271,6 +1270,53 @@ private fun MedicationGroupEditorScreenContent(
                         )
                     }
 
+                    val pastScheduleSelectorState =
+                        if (
+                            shouldShowPastScheduleSection(
+                                uiState = uiState,
+                                referenceTime = resolvedOccurrenceReferenceTime,
+                            )
+                        ) {
+                            val recreatedLockedMessage =
+                                if (shouldShowRecreatedPastScheduleMessage(uiState)) {
+                                    stringResource(R.string.group_past_schedule_recreated_locked_note)
+                                } else {
+                                    null
+                                }
+                            val pastScheduleOptionsEnabled = recreatedLockedMessage == null &&
+                                uiState.canEditBackfillOption &&
+                                !uiState.isLoadingGroupForEditing &&
+                                !uiState.isSaving &&
+                                !isFinishingAfterSave &&
+                                !uiState.isDeleting &&
+                                !uiState.isArchiving &&
+                                !uiState.isRecreatingAfterArchive &&
+                                !uiState.isDeletingRelatedEntries
+                            PastScheduleSelectorUiState(
+                                selectedOption = resolvePastScheduleOption(uiState),
+                                showGeneratePastRecordsOption =
+                                    shouldShowGeneratePastScheduledSlotRecordsOption(
+                                        uiState = uiState,
+                                        isNewGroupCreationFlow = isNewGroupCreationFlow,
+                                        isFinishingAfterSave = isFinishingAfterSave,
+                                    ),
+                                enabled = pastScheduleOptionsEnabled,
+                                lockedMessage = recreatedLockedMessage,
+                            )
+                        } else {
+                            null
+                        }
+                    val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
+                        if (pastScheduleSelectorState?.enabled == true) {
+                            applyPastScheduleOption(
+                                option = option,
+                                onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
+                                onCreatePastScheduledSlotRecordsChange =
+                                    onCreatePastScheduledSlotRecordsChange,
+                            )
+                        }
+                    }
+
                     if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
                         WeeklyScheduleEditor(
                             sinceDate = uiState.sinceDate,
@@ -1289,6 +1335,8 @@ private fun MedicationGroupEditorScreenContent(
                             onIntervalChange = onWeeklyIntervalChange,
                             onDayChange = onWeeklyDayChange,
                             onTimeChange = { currentTime -> pendingWeeklyTime = currentTime },
+                            pastScheduleSelectorState = pastScheduleSelectorState,
+                            onPastScheduleOptionSelected = onPastScheduleOptionSelected,
                             sinceEnabled = !uiState.areScheduleShapeFieldsLocked &&
                                 !uiState.isScheduleStartDateLocked,
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
@@ -1318,6 +1366,8 @@ private fun MedicationGroupEditorScreenContent(
                                     initialTime = currentTime
                                 )
                             },
+                            pastScheduleSelectorState = pastScheduleSelectorState,
+                            onPastScheduleOptionSelected = onPastScheduleOptionSelected,
                             sinceEnabled = !uiState.areScheduleShapeFieldsLocked &&
                                 !uiState.isScheduleStartDateLocked,
                             intervalEnabled = !uiState.areScheduleShapeFieldsLocked,
@@ -1334,89 +1384,6 @@ private fun MedicationGroupEditorScreenContent(
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             titleColor = MaterialTheme.colorScheme.onTertiaryContainer
                         )
-                    }
-                }
-            }
-
-            if (
-                shouldShowPastScheduleSection(
-                    uiState = uiState,
-                    referenceTime = resolvedOccurrenceReferenceTime,
-                )
-            ) {
-                item {
-                    EditorSectionHeader(title = stringResource(R.string.group_past_plans_title))
-                    if (shouldShowRecreatedPastScheduleMessage(uiState)) {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.group_past_schedule_recreated_locked_note),
-                            painter = painterResource(R.drawable.ic_error_outline),
-                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            leadingIconSize = 24.dp,
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    } else {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-                        ) {
-                            val showGeneratePastRecordsOption =
-                                shouldShowGeneratePastScheduledSlotRecordsOption(
-                                    uiState = uiState,
-                                    isNewGroupCreationFlow = isNewGroupCreationFlow,
-                                    isFinishingAfterSave = isFinishingAfterSave,
-                                )
-                            val pastScheduleOptionCount = if (showGeneratePastRecordsOption) 3 else 2
-                            val pastScheduleOptionsEnabled = uiState.canEditBackfillOption &&
-                                !uiState.isLoadingGroupForEditing &&
-                                !uiState.isSaving &&
-                                !isFinishingAfterSave &&
-                                !uiState.isDeleting &&
-                                !uiState.isArchiving &&
-                                !uiState.isRecreatingAfterArchive &&
-                                !uiState.isDeletingRelatedEntries
-                            val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
-                            val onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = { option ->
-                                if (pastScheduleOptionsEnabled) {
-                                    applyPastScheduleOption(
-                                        option = option,
-                                        onIncludePastScheduledSlotsChange = onIncludePastScheduledSlotsChange,
-                                        onCreatePastScheduledSlotRecordsChange =
-                                            onCreatePastScheduledSlotRecordsChange,
-                                    )
-                                }
-                            }
-                            PastScheduleOptionListItem(
-                                title = stringResource(R.string.group_past_schedule_do_not_show),
-                                option = PastScheduleOption.DO_NOT_SHOW,
-                                selectedOption = selectedPastScheduleOption,
-                                enabled = pastScheduleOptionsEnabled,
-                                index = 0,
-                                count = pastScheduleOptionCount,
-                                onOptionSelected = onPastScheduleOptionSelected,
-                            )
-                            PastScheduleOptionListItem(
-                                title = stringResource(R.string.group_past_schedule_show),
-                                option = PastScheduleOption.SHOW,
-                                selectedOption = selectedPastScheduleOption,
-                                enabled = pastScheduleOptionsEnabled,
-                                index = 1,
-                                count = pastScheduleOptionCount,
-                                onOptionSelected = onPastScheduleOptionSelected,
-                            )
-                            if (showGeneratePastRecordsOption) {
-                                PastScheduleOptionListItem(
-                                    title = stringResource(
-                                        R.string.group_past_schedule_show_and_generate_records
-                                    ),
-                                    option = PastScheduleOption.SHOW_AND_GENERATE_RECORDS,
-                                    selectedOption = selectedPastScheduleOption,
-                                    enabled = pastScheduleOptionsEnabled,
-                                    index = 2,
-                                    count = pastScheduleOptionCount,
-                                    onOptionSelected = onPastScheduleOptionSelected,
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -1743,32 +1710,6 @@ private fun applyPastScheduleOption(
             onCreatePastScheduledSlotRecordsChange(true)
         }
     }
-}
-
-@Composable
-private fun PastScheduleOptionListItem(
-    title: String,
-    option: PastScheduleOption,
-    selectedOption: PastScheduleOption,
-    enabled: Boolean,
-    index: Int,
-    count: Int,
-    onOptionSelected: (PastScheduleOption) -> Unit,
-) {
-    PreferenceSegmentedListItem(
-        title = title,
-        index = index,
-        count = count,
-        enabled = enabled,
-        onClick = { onOptionSelected(option) },
-        trailingContent = {
-            RadioButton(
-                selected = selectedOption == option,
-                onClick = { onOptionSelected(option) },
-                enabled = enabled,
-            )
-        },
-    )
 }
 
 private data class DailyTimeEditRequest(

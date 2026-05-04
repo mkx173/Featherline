@@ -53,13 +53,18 @@ internal fun WeeklyScheduleEditor(
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
     onTimeChange: (LocalTime) -> Unit,
+    pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
+    onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = {},
     sinceEnabled: Boolean = true,
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
     shapeLocked: Boolean = false,
 ) {
-    val totalCount = if (previewOccurrences.isNotEmpty()) 5 else 4
+    val totalCount = 4 +
+        (if (previewOccurrences.isNotEmpty()) 1 else 0) +
+        (if (pastScheduleSelectorState != null) 1 else 0)
+    var itemIndex = 0
     Column(
         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
     ) {
@@ -70,7 +75,7 @@ internal fun WeeklyScheduleEditor(
             onClick = { onSinceDateChange(sinceDate) },
             enabled = sinceEnabled,
             locked = shapeLocked,
-            index = 0,
+            index = itemIndex++,
             count = totalCount
         )
 
@@ -86,12 +91,12 @@ internal fun WeeklyScheduleEditor(
             onIncreaseClick = { onIntervalChange(incrementScheduleInterval(intervalWeeks)) },
             enabled = intervalEnabled,
             locked = shapeLocked,
-            index = 1,
+            index = itemIndex++,
             count = totalCount
         )
 
         EditorSegmentedListItem(
-            index = 2,
+            index = itemIndex++,
             count = totalCount,
             onClick = {},
             enabled = true,
@@ -136,7 +141,7 @@ internal fun WeeklyScheduleEditor(
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
             locked = !timeEditEnabled,
-            index = 3,
+            index = itemIndex++,
             count = totalCount
         )
 
@@ -147,8 +152,17 @@ internal fun WeeklyScheduleEditor(
                 currentDate = currentDate,
                 dateFormatter = dateFormatter,
                 timeFormatter = timeFormatter,
-                index = 4,
+                index = itemIndex++,
                 count = totalCount
+            )
+        }
+
+        pastScheduleSelectorState?.let { selectorState ->
+            PastScheduleSelectorCard(
+                state = selectorState,
+                onOptionSelected = onPastScheduleOptionSelected,
+                index = itemIndex,
+                count = totalCount,
             )
         }
     }
