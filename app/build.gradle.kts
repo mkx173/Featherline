@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val gitCommitCount = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+}.standardOutput.asText.get().trim().toInt()
+
 android {
     namespace = "com.mkx.hrttracker"
     compileSdk = 37
@@ -13,7 +17,7 @@ android {
         applicationId = "com.mkx.hrttracker"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
+        versionCode = gitCommitCount
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
