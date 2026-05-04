@@ -184,7 +184,7 @@
     <string name="group_notifications_archived_disabled">已归档的分组不会发送提醒</string>
     <string name="group_notifications_master_disabled">设置中的提醒已关闭</string>
     <string name="group_notifications_reenable_title">开启提醒？</string>
-    <string name="group_notifications_reenable_message">提醒已在设置中关闭。重新开启后，此分组的提醒也会生效</string>
+    <string name="group_notifications_reenable_message">提醒已在设置中关闭，重新开启后，此分组的提醒也会生效</string>
     <string name="group_notifications_reenable_confirm">开启</string>
     <string name="group_notifications_inexact_warning">提醒可能会延迟</string>
     <string name="group_notifications_exact_alarm_title">允许精确闹钟？</string>
@@ -215,8 +215,8 @@
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
     <string name="group_schedule_preview">预览</string>
     <string name="group_schedule_time_item">%1$s</string>
-    <string name="group_schedule_duplicate_time">该时间已存在于计划中。</string>
-    <string name="group_medication_duplicate_merged">该药物已存在于分组中，已改为增加数量。</string>
+    <string name="group_schedule_duplicate_time">该时间已存在于计划中</string>
+    <string name="group_medication_duplicate_merged">该药物已存在于分组中，已改为增加数量</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>
     <string name="field_date_of_application">用药日期</string>
     <string name="field_time_of_application">用药时间</string>
@@ -243,7 +243,7 @@
     <string name="delete_group_medication_confirmation">要将 %1$s 从这个分组中移除吗？</string>
     <string name="archive_medication_group">归档分组</string>
     <string name="archive_medication_group_title">归档分组</string>
-    <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒。现有记录不会被删除</string>
+    <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_irreversible_acknowledgement">我理解归档后无法恢复</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
     <string name="archive_and_recreate">归档并重建</string>
@@ -251,7 +251,7 @@
     <string name="duplicate_medication_group">复制为新分组</string>
     <string name="archive_and_recreate_medication_group_success">已归档</string>
     <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
-    <string name="group_locked_banner">这个分组已有相关的记录。因此您无法更改部分内容。如需调整，请归档当前分组并重新创建</string>
+    <string name="group_locked_banner">这个分组已有相关的记录，因此您无法更改部分内容，如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
     <string name="group_field_locked">已锁定</string>
     <string name="add">添加</string>
