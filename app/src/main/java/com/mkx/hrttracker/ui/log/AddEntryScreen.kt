@@ -32,6 +32,7 @@ import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -121,6 +122,8 @@ fun AddEntryScreen(
         onAppliedTimeChange = viewModel::updateAppliedTime,
         onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
+        onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
+        onScheduleFulfillmentWarningDismiss = viewModel::dismissScheduleFulfillmentWarning,
         modifier = modifier
     )
 }
@@ -140,6 +143,8 @@ private fun AddEntryScreenContent(
     onAppliedTimeChange: (LocalTime) -> Unit,
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
+    onSaveAfterFulfillmentWarningClick: () -> Unit,
+    onScheduleFulfillmentWarningDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
@@ -156,6 +161,9 @@ private fun AddEntryScreenContent(
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,
+        sourceGroupScheduleOffsetOutsideFulfillmentWindow = uiState.shouldWarnScheduleWillNotBeFulfilled(
+            LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
+        ),
         onCategoryChange = { category ->
             onMedicationDraftChange { draft -> draft.changeCategory(category) }
         },
@@ -245,6 +253,38 @@ private fun AddEntryScreenContent(
             }
         )
     }
+
+    if (uiState.isScheduleFulfillmentWarningVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isSaving) {
+                    onScheduleFulfillmentWarningDismiss()
+                }
+            },
+            title = {
+                Text(text = stringResource(R.string.schedule_fulfillment_warning_title))
+            },
+            text = {
+                Text(text = stringResource(R.string.schedule_fulfillment_warning_message))
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isSaving,
+                    onClick = onSaveAfterFulfillmentWarningClick
+                ) {
+                    Text(text = stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isSaving,
+                    onClick = onScheduleFulfillmentWarningDismiss,
+                ) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @Preview(showBackground = true)
@@ -273,7 +313,9 @@ private fun AddEntryScreenPreview() {
             onAppliedDateChange = { },
             onAppliedTimeChange = { },
             onDeleteClick = { },
-            onSaveClick = { }
+            onSaveClick = { },
+            onSaveAfterFulfillmentWarningClick = { },
+            onScheduleFulfillmentWarningDismiss = { }
         )
     }
 }

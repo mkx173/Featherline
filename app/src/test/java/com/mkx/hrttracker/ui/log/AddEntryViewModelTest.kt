@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
@@ -31,6 +32,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -315,11 +317,110 @@ class AddEntryViewModelTest {
         assertEquals("Nightly estradiol", uiState.sourceGroupName)
         assertEquals(MedicationGroupColorKey.INDIGO, uiState.sourceGroupColorKey)
         assertEquals(scheduledFor, uiState.scheduledFor)
+        assertEquals(LocalDateTime.of(2026, 4, 21, 21, 0), uiState.sourceGroupPreviousScheduledFor)
+        assertEquals(LocalDateTime.of(2026, 4, 23, 21, 0), uiState.sourceGroupNextScheduledFor)
         assertEquals(2, uiState.count)
         assertEquals(LocalDate.of(2026, 4, 22), uiState.appliedDate)
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
         assertFalse(uiState.canEditMedicationIdentity)
         assertFalse(uiState.canDelete)
+    }
+
+    @Test
+    fun scheduleFulfillmentWindow_uses_previous_and_next_dose_offsets() {
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+        val previousScheduledFor = LocalDateTime.of(2026, 4, 22, 7, 0)
+        val nextScheduledFor = LocalDateTime.of(2026, 4, 22, 13, 0)
+
+        assertEquals(
+            Duration.ofHours(2),
+            scheduleFulfillmentAllowedOffset(
+                scheduledFor = scheduledFor,
+                adjacentScheduledFor = nextScheduledFor
+            )
+        )
+        assertEquals(
+            Duration.ofHours(1),
+            scheduleFulfillmentAllowedOffset(
+                scheduledFor = scheduledFor,
+                adjacentScheduledFor = previousScheduledFor
+            )
+        )
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0)
+            )
+        )
+        assertTrue(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59)
+            )
+        )
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0)
+            )
+        )
+        assertTrue(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 11, 1)
+            )
+        )
+    }
+
+    @Test
+    fun scheduleFulfillmentWindow_falls_back_to_next_dose_when_previous_is_missing() {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+        val nextScheduledFor = LocalDateTime.of(2026, 4, 22, 13, 0)
+
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = groupId,
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = null,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0)
+            )
+        )
+        assertTrue(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = groupId,
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = null,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 6, 59)
+            )
+        )
+    }
+
+    @Test
+    fun scheduleFulfillmentAllowedOffset_caps_at_twenty_four_hours() {
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+
+        assertEquals(
+            Duration.ofHours(24),
+            scheduleFulfillmentAllowedOffset(
+                scheduledFor = scheduledFor,
+                adjacentScheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0)
+            )
+        )
     }
 
     @Test
@@ -396,6 +497,8 @@ class AddEntryViewModelTest {
             medicationCount = 2
         )
         advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime().plusMinutes(15))
 
         viewModel.saveEntry()
         advanceUntilIdle()
@@ -409,6 +512,188 @@ class AddEntryViewModelTest {
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
                 count = 2,
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun saveEntry_forFarQuickLog_showsFulfillmentWarning() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Morning estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+            times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+        )
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicationDetails = details,
+            medicationCount = 2
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(LocalDate.of(2026, 4, 22))
+        viewModel.updateAppliedTime(LocalTime.of(10, 30))
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isScheduleFulfillmentWarningVisible)
+        assertFalse(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 0) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medication = details,
+                sourceGroupUuid = any(),
+                appliedAt = any(),
+                scheduledFor = any(),
+                count = any(),
+            )
+        }
+    }
+
+    @Test
+    fun saveEntryAfterFulfillmentWarning_forFarQuickLog_keepsScheduledGroupEntry() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Morning estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+            times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+        )
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medication = details,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 2,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicationDetails = details,
+            medicationCount = 2
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(LocalDate.of(2026, 4, 22))
+        viewModel.updateAppliedTime(LocalTime.of(10, 30))
+
+        viewModel.saveEntry()
+        assertTrue(viewModel.uiState.value.isScheduleFulfillmentWarningVisible)
+        viewModel.saveEntryAfterFulfillmentWarning()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medication = details,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 2,
+            )
+        }
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun saveEntryAfterFulfillmentWarning_forFarEditedGroupEntry_keepsScheduledGroupEntry() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val entryId = UUID.fromString("73ef6a29-2149-4f13-8b2c-7f4baf23e3a6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            details = details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 9, 15)),
+            scheduledFor = scheduledFor
+        )
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Morning estradiol",
+            colorKey = MedicationGroupColorKey.INDIGO,
+            times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(entry)
+        coEvery { medicationGroupRepository.getGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medication = details,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(LocalDate.of(2026, 4, 22))
+        viewModel.updateAppliedTime(LocalTime.of(10, 30))
+
+        viewModel.saveEntry()
+        assertTrue(viewModel.uiState.value.isScheduleFulfillmentWarningVisible)
+        viewModel.saveEntryAfterFulfillmentWarning()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medication = details,
+                sourceGroupUuid = groupId,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
             )
         }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
@@ -599,6 +884,7 @@ private fun testMedicationGroup(
     groupId: UUID,
     name: String,
     colorKey: MedicationGroupColorKey,
+    times: List<LocalTime> = listOf(LocalTime.of(21, 0)),
 ): MedicationGroup {
     return MedicationGroup(
         uuid = groupId,
@@ -609,7 +895,7 @@ private fun testMedicationGroup(
             interval = 1,
             since = LocalDate.of(2026, 4, 1),
             weeklyDaysOfWeek = emptySet(),
-            times = listOf(LocalTime.of(21, 0))
+            times = times
         ),
         medications = emptyList(),
         createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 12, 0)),

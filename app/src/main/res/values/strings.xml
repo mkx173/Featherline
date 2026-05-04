@@ -133,6 +133,8 @@
     <string name="delete_entries_confirm">Delete</string>
     <string name="save_entry_failure">Unable to save entry.</string>
     <string name="delete_entry_failure">Unable to delete entry.</string>
+    <string name="schedule_fulfillment_warning_title">Won’t Count as Completed</string>
+    <string name="schedule_fulfillment_warning_message">The time you entered is far from the original scheduled time, so this record won’t count as completing this schedule.</string>
     <string name="history_delete_all_entries">Delete all records</string>
     <string name="history_delete_all_entries_title">Delete all records</string>
     <string name="history_delete_all_entries_success">Deleted all records.</string>
@@ -339,6 +341,7 @@
     <string name="medication_name_cyproterone_acetate">Cyproterone acetate</string>
     <string name="medication_name_bicalutamide">Bicalutamide</string>
     <string name="medication_editor_dose_warning">Dose above warning threshold</string>
+    <string name="medication_editor_schedule_offset_warning">Outside fulfillment window</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/day</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>
@@ -380,7 +383,7 @@
     <string name="settings_calibration_error_invalid_number">Enter a valid value.</string>
     <string name="settings_calibration_target_range">Target %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">Target &lt;%1$s %2$s</string>
-    <string name="settings_calibration_target_range_value">%1$s-%2$s %3$s</string>
+    <string name="settings_calibration_target_range_value">%1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper_value">&lt;%1$s %2$s</string>
     <string name="settings_calibration_range_status_above">Above</string>
     <string name="settings_calibration_range_status_below">Below</string>

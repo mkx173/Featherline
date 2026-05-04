@@ -448,7 +448,10 @@ private fun PlanScreenContent(
                         archivedGroupUuids = archivedGroupUuids,
                         onScheduledClick = { scheduled ->
                             val editingEntryIds = plannedEntryEditorIds(scheduled)
-                            if (scheduled.isFulfilled && editingEntryIds.isNotEmpty()) {
+                            if (
+                                editingEntryIds.isNotEmpty() &&
+                                (scheduled.isFulfilled || scheduled.hasOutsideScheduleWindowEntry)
+                            ) {
                                 onEntryClick(editingEntryIds)
                             } else {
                                 onQuickLogClick(
@@ -502,7 +505,7 @@ private fun PlanScreenContent(
 }
 
 internal fun plannedEntryEditorIds(scheduled: PlanDayScheduleEntry): Set<UUID> {
-    return scheduled.fulfillingEntryUuids.toSet()
+    return (scheduled.fulfillingEntryUuids + scheduled.outsideScheduleWindowEntryUuids).toSet()
 }
 
 internal fun unplannedEntryEditorIds(entry: MedicationLogEntry): Set<UUID> {

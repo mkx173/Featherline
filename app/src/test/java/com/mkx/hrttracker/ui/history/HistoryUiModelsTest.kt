@@ -745,6 +745,67 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun buildHistoryCalendarDayUiState_marks_outside_window_linked_record_off_plan_on_applied_date_only() {
+        val scheduledDate = LocalDate.of(2026, 5, 2)
+        val appliedDate = LocalDate.of(2026, 5, 1)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("4d9f2fd3-dd09-4d82-953e-6558d1293f20"),
+            name = "Weekly estradiol",
+            colorKey = MedicationGroupColorKey.TEAL,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = setOf(scheduledDate.dayOfWeek),
+                times = listOf(LocalTime.of(17, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("44ad043e-d440-40ef-b20d-2d265cb08d58"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            ),
+            createdAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0)),
+            updatedAt = testInstant(LocalDateTime.of(2026, 4, 1, 0, 0))
+        )
+
+        val dayStates = buildHistoryCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("0e0d2d8c-3cdd-4747-8bcc-cc1de4f00809"),
+                    details = group.medications.single().details,
+                    dosageMgAsEstradiol = 2.0,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(LocalDateTime.of(2026, 5, 1, 12, 0)),
+                    scheduledFor = LocalDateTime.of(2026, 5, 2, 17, 0)
+                )
+            ),
+            startDate = appliedDate,
+            endDate = scheduledDate
+        )
+
+        assertEquals(
+            HistoryCalendarDayUiState(
+                status = PlanCalendarDayStatus.OFFPLAN,
+                hasOffPlanRecord = true
+            ),
+            dayStates.getValue(appliedDate)
+        )
+        assertEquals(
+            HistoryCalendarDayUiState(
+                status = PlanCalendarDayStatus.MISSED,
+                hasOffPlanRecord = false
+            ),
+            dayStates.getValue(scheduledDate)
+        )
+    }
+
+    @Test
     fun buildHistoryCalendarDayUiState_countsArchivedLinkedRecordWithoutOffPlan() {
         val archivedGroup = MedicationGroup(
             uuid = UUID.fromString("b5dfc5d9-bd18-47c2-bd0f-62f5d36c3723"),

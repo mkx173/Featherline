@@ -133,6 +133,8 @@
     <string name="delete_entries_confirm">删除</string>
     <string name="save_entry_failure">无法保存记录</string>
     <string name="delete_entry_failure">无法删除记录</string>
+    <string name="schedule_fulfillment_warning_title">不会计为完成计划</string>
+    <string name="schedule_fulfillment_warning_message">您输入的时间距离原计划时间较远，因此这条记录不会计为完成此次计划</string>
     <string name="history_delete_all_entries">删除全部记录</string>
     <string name="history_delete_all_entries_title">删除全部记录</string>
     <string name="history_delete_all_entries_success">已删除全部记录</string>
@@ -335,6 +337,7 @@
     <string name="medication_name_cyproterone_acetate">醋酸环丙孕酮</string>
     <string name="medication_name_bicalutamide">比卡鲁胺</string>
     <string name="medication_editor_dose_warning">剂量超过警告阈值</string>
+    <string name="medication_editor_schedule_offset_warning">在完成窗口外</string>
     <string name="medication_editor_dose_assist_mg">%1$s mg</string>
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/天</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>
@@ -376,7 +379,7 @@
     <string name="settings_calibration_error_invalid_number">请输入有效的数值</string>
     <string name="settings_calibration_target_range">目标 %1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper">目标 &lt;%1$s %2$s</string>
-    <string name="settings_calibration_target_range_value">%1$s-%2$s %3$s</string>
+    <string name="settings_calibration_target_range_value">%1$s–%2$s %3$s</string>
     <string name="settings_calibration_target_upper_value">&lt;%1$s %2$s</string>
     <string name="settings_calibration_range_status_above">偏高</string>
     <string name="settings_calibration_range_status_below">偏低</string>

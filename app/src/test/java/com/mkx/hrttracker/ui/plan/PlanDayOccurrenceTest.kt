@@ -539,6 +539,43 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
+    fun buildPlanDaySchedule_keeps_far_group_entry_on_scheduled_row_without_fulfilling_slot() {
+        val group = medicationGroup(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val linkedEntry = com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = LocalDateTime.of(2026, 4, 18, 10, 1)
+                .atZone(ZoneId.systemDefault())
+                .toInstant(),
+            scheduledFor = scheduledFor
+        )
+
+        val schedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(group),
+            entries = listOf(linkedEntry),
+            now = LocalDateTime.of(2026, 4, 18, 10, 30)
+        )
+
+        val firstScheduledEntry = schedule.scheduledEntries.first()
+        assertFalse(firstScheduledEntry.isFulfilled)
+        assertTrue(firstScheduledEntry.fulfillingEntryUuids.isEmpty())
+        assertEquals(listOf(linkedEntry.uuid), firstScheduledEntry.outsideScheduleWindowEntryUuids)
+        assertEquals(LocalDateTime.of(2026, 4, 18, 10, 1), firstScheduledEntry.outsideScheduleWindowLoggedAt)
+        assertTrue(schedule.unplannedEntries.isEmpty())
+    }
+
+    @Test
     fun plannedEntryEditorIds_returns_single_backing_id_for_counted_fulfilled_entry() {
         val countedEntryId = UUID.fromString("5a09f5d0-4f91-44d7-8f51-9ff0e9b1498a")
         val scheduledEntry = PlanDayScheduleEntry(
@@ -563,6 +600,32 @@ class PlanDayOccurrenceTest {
         )
 
         assertEquals(setOf(countedEntryId), plannedEntryEditorIds(scheduledEntry))
+    }
+
+    @Test
+    fun plannedEntryEditorIds_returns_outside_schedule_window_entry_id() {
+        val outsideWindowEntryId = UUID.fromString("6e5b7213-dbb4-443b-9446-e4751c16a941")
+        val scheduledEntry = PlanDayScheduleEntry(
+            groupUuid = UUID.fromString("77365b1a-aa5d-427e-9313-0c56241ecbaa"),
+            groupName = "Test group",
+            groupColorKey = MedicationGroupColorKey.TEAL,
+            scheduledTime = LocalTime.of(9, 0),
+            medication = testMedicationGroupMedication(
+                uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0)
+                )
+            ),
+            fulfillingEntryUuids = emptyList(),
+            outsideScheduleWindowEntryUuids = listOf(outsideWindowEntryId),
+            isFulfilled = false,
+            isDueSoon = false,
+            isPastDue = true
+        )
+
+        assertEquals(setOf(outsideWindowEntryId), plannedEntryEditorIds(scheduledEntry))
     }
 
     private fun medicationGroup(schedule: MedicationGroupSchedule): MedicationGroup {

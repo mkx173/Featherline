@@ -181,6 +181,7 @@ fun MedicationLogEntryEditorSheet(
     sourceGroupName: String? = null,
     sourceGroupColorKey: MedicationGroupColorKey? = null,
     sourceGroupScheduledFor: LocalDateTime? = null,
+    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean = false,
     onCategoryChange: (MedicationCategory) -> Unit,
     onApplicationTypeChange: (MedicationApplicationType) -> Unit,
     onMedicationKeyChange: (MedicationKey) -> Unit,
@@ -271,6 +272,7 @@ fun MedicationLogEntryEditorSheet(
                 sourceGroupColorKey = sourceGroupColorKey,
                 sourceGroupScheduledForText = sourceGroupScheduledForText,
                 sourceGroupScheduleOffsetText = sourceGroupScheduleOffsetText,
+                sourceGroupScheduleOffsetOutsideFulfillmentWindow = sourceGroupScheduleOffsetOutsideFulfillmentWindow,
             )
         }
 
@@ -856,6 +858,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
     sourceGroupColorKey: MedicationGroupColorKey?,
     sourceGroupScheduledForText: String?,
     sourceGroupScheduleOffsetText: String?,
+    sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean,
 ) {
     val groupName = sourceGroupName?.takeIf(String::isNotBlank)
     val hasGroupInfo = groupName != null && sourceGroupScheduledForText != null
@@ -867,6 +870,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
             groupColorKey = sourceGroupColorKey,
             scheduledForText = checkNotNull(sourceGroupScheduledForText),
             scheduleOffsetText = sourceGroupScheduleOffsetText,
+            showScheduleOffsetWarning = sourceGroupScheduleOffsetOutsideFulfillmentWindow,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
@@ -982,6 +986,7 @@ private fun MedicationEditorGroupInfoCard(
     groupColorKey: MedicationGroupColorKey?,
     scheduledForText: String,
     scheduleOffsetText: String? = null,
+    showScheduleOffsetWarning: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
@@ -995,12 +1000,28 @@ private fun MedicationEditorGroupInfoCard(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             trailingContent = scheduleOffsetText?.let { offsetText ->
                 {
-                    Text(
-                        text = offsetText,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = offsetText,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.cjkTextOffset(offsetText)
+                        )
+                        if (showScheduleOffsetWarning) {
+                            Icon(
+                                imageVector = Icons.Rounded.WarningAmber,
+                                contentDescription = stringResource(
+                                    R.string.medication_editor_schedule_offset_warning
+                                ),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         ) {

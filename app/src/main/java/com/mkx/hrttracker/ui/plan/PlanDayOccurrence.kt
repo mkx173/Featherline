@@ -20,12 +20,17 @@ data class PlanDayScheduleEntry(
     val scheduledFor: LocalDateTime = LocalDateTime.of(LocalDate.now(), scheduledTime),
     val medication: MedicationGroupMedication,
     val fulfillingEntryUuids: List<UUID>,
+    val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
+    val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
     val isDueSoon: Boolean,
     val isPastDue: Boolean,
-)
+) {
+    val hasOutsideScheduleWindowEntry: Boolean
+        get() = outsideScheduleWindowEntryUuids.isNotEmpty()
+}
 
 data class PlanDaySchedule(
     val date: LocalDate,
@@ -58,19 +63,38 @@ fun buildPlanDaySchedule(
                 unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
             ).flatMap { slot ->
                 val slotDateTime = slot.scheduledFor
-                val slotLogs = entries.filter { entry ->
+                val matchingSlotLogs = entries.filter { entry ->
                     isEntryForPlanSlot(
                         group = group,
                         slot = slot,
                         entry = entry,
                     )
                 }
+                val slotLogs = matchingSlotLogs.filter { entry ->
+                    isEntryFulfillingPlanSlot(
+                        group = group,
+                        slot = slot,
+                        entry = entry,
+                        zoneId = zoneId,
+                    )
+                }
                 val logsBySignature = slotLogs.groupBy(MedicationSignature::fromLogEntry)
+                val outsideWindowLogsBySignature = matchingSlotLogs
+                    .filter { entry ->
+                        !isEntryWithinScheduleFulfillmentWindow(
+                            group = group,
+                            entry = entry,
+                            zoneId = zoneId,
+                        )
+                    }
+                    .groupBy(MedicationSignature::fromLogEntry)
                 val isDueSoonSlot = isDueSoon(slotDateTime, now)
 
                 medicationsBySignature.map { (signature, medicationsForSignature) ->
                     val requiredCount = medicationsForSignature.sumOf { medication -> medication.count }
                     val matchingLogs = logsBySignature[signature].orEmpty()
+                        .sortedBy(MedicationLogEntry::appliedAt)
+                    val outsideWindowLogs = outsideWindowLogsBySignature[signature].orEmpty()
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val loggedCount = matchingLogs.sumOf { entry -> entry.count }
                     val isFulfilled = loggedCount >= requiredCount
@@ -83,7 +107,12 @@ fun buildPlanDaySchedule(
                         scheduledTime = slot.time,
                         medication = medicationsForSignature.first().copy(count = requiredCount),
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
+                        outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
                         loggedAt = matchingLogs.lastOrNull()
+                            ?.appliedAt
+                            ?.atZone(zoneId)
+                            ?.toLocalDateTime(),
+                        outsideScheduleWindowLoggedAt = outsideWindowLogs.lastOrNull()
                             ?.appliedAt
                             ?.atZone(zoneId)
                             ?.toLocalDateTime(),

@@ -193,6 +193,8 @@ private fun SelectedDayRow(
     val rowState = when (row) {
         is SelectedDayRowModel.Scheduled -> when {
             row.entry.isFulfilled -> SelectedDayRowState.LOGGED
+            row.entry.hasOutsideScheduleWindowEntry && date.isBefore(today) -> SelectedDayRowState.MISSED
+            row.entry.hasOutsideScheduleWindowEntry && date == today -> SelectedDayRowState.PAST_DUE
             row.entry.isDueSoon -> SelectedDayRowState.DUE
             date == today && row.entry.isPastDue -> SelectedDayRowState.PAST_DUE
             date.isBefore(today) -> SelectedDayRowState.MISSED
@@ -209,11 +211,24 @@ private fun SelectedDayRow(
         SelectedDayRowState.PLANNED -> stringResource(R.string.plan_schedule_entry_planned)
         SelectedDayRowState.MANUAL -> stringResource(R.string.plan_entry_label_manual)
     }
+    val outsideScheduleWindowLoggedAt = when (row) {
+        is SelectedDayRowModel.Scheduled -> if (!row.entry.isFulfilled) {
+            row.entry.outsideScheduleWindowLoggedAt
+        } else {
+            null
+        }
+
+        is SelectedDayRowModel.Unplanned -> null
+    }
+    val displayedLoggedAt = when (row) {
+        is SelectedDayRowModel.Scheduled -> row.entry.loggedAt ?: outsideScheduleWindowLoggedAt
+        is SelectedDayRowModel.Unplanned -> null
+    }
     val loggedDayOffsetText = when (row) {
-        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
+        is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedDayOffsetDays(
                 scheduledDate = date,
-                loggedAt = row.entry.loggedAt
+                loggedAt = displayedLoggedAt
             )?.let { dayOffset ->
                 val absoluteDayOffset = kotlin.math.abs(dayOffset).toInt()
                 stringResource(
@@ -232,8 +247,8 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Unplanned -> null
     }
     val scheduleOffsetText = when (row) {
-        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
-            row.entry.loggedAt?.let { loggedAt ->
+        is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
+            displayedLoggedAt.let { loggedAt ->
                 selectedDayScheduleOffset(
                     scheduledFor = row.entry.scheduledFor,
                     appliedAt = loggedAt
@@ -266,9 +281,9 @@ private fun SelectedDayRow(
         extraSupportingText = row.groupName
     )
     val timeLabel = when (row) {
-        is SelectedDayRowModel.Scheduled -> if (row.entry.isFulfilled) {
+        is SelectedDayRowModel.Scheduled -> if (displayedLoggedAt != null) {
             selectedDayLoggedTimeLabel(
-                loggedAt = row.entry.loggedAt,
+                loggedAt = displayedLoggedAt,
                 fallbackScheduledTime = row.entry.scheduledTime,
                 timeFormatter = timeFormatter,
                 loggedDayOffsetText = loggedDayOffsetText
@@ -296,7 +311,8 @@ private fun SelectedDayRow(
             SelectedDayMedicationIconSurface(
                 state = rowState,
                 applicationType = row.details.applicationType,
-                colorScheme = rowColorScheme
+                colorScheme = rowColorScheme,
+                showUnreadLoggedBadge = outsideScheduleWindowLoggedAt != null
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -712,14 +728,16 @@ private fun scheduleIntervalLabel(
 private fun SelectedDayMedicationIconSurface(
     state: SelectedDayRowState,
     applicationType: MedicationApplicationType,
-    colorScheme: ColorScheme
+    colorScheme: ColorScheme,
+    showUnreadLoggedBadge: Boolean = false,
 ) {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
     val showLoggedBadge = state == SelectedDayRowState.LOGGED
     val showDueBadge = state == SelectedDayRowState.DUE
-    val showPastDueBadge = state == SelectedDayRowState.PAST_DUE
+    val showPastDueBadge = state == SelectedDayRowState.PAST_DUE && !showUnreadLoggedBadge
     val useOutlinedIcon = state == SelectedDayRowState.PAST_DUE ||
-        state == SelectedDayRowState.MISSED
+        state == SelectedDayRowState.MISSED ||
+        showUnreadLoggedBadge
 
     Box(
         modifier = Modifier.size(36.dp),
@@ -754,7 +772,18 @@ private fun SelectedDayMedicationIconSurface(
                     .offset(x = 3.dp, y = 3.dp)
             )
         }
-        if (showDueBadge) {
+        if (showUnreadLoggedBadge) {
+            Icon(
+                painter = painterResource(R.drawable.ic_check_circle_unread),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(12.dp)
+                    .offset(x = 3.dp, y = 3.dp)
+            )
+        }
+        if (showDueBadge && !showUnreadLoggedBadge) {
             Icon(
                 painter = painterResource(R.drawable.ic_circle),
                 contentDescription = null,

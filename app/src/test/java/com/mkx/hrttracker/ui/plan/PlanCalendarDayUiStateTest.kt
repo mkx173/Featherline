@@ -741,6 +741,140 @@ class PlanCalendarDayUiStateTest {
         )
     }
 
+    @Test
+    fun isSlotFulfilled_ignores_group_entry_outside_schedule_fulfillment_window() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("570b5e05-5409-4979-971e-140f26eba0fd"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(7, 0), LocalTime.of(9, 0), LocalTime.of(11, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("3334cfa5-a2e8-4f82-889f-4f9a7d45e6b7"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+
+        assertEquals(
+            true,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.plusHours(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+        assertEquals(
+            true,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.minusHours(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+        assertEquals(
+            false,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.minusHours(1).minusMinutes(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+        assertEquals(
+            false,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.plusHours(1).plusMinutes(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+    }
+
+    @Test
+    fun buildPlanCalendarDayUiState_treats_far_group_entry_as_missed_not_off_plan() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("570b5e05-5409-4979-971e-140f26eba0fd"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 16),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(7, 0), LocalTime.of(9, 0), LocalTime.of(11, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("3334cfa5-a2e8-4f82-889f-4f9a7d45e6b7"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
+
+        val dayStates = buildPlanCalendarDayUiState(
+            groups = listOf(group),
+            entries = listOf(
+                groupEntry(
+                    groupUuid = group.uuid,
+                    details = group.medications.single().details,
+                    appliedAt = scheduledFor.plusHours(1).plusMinutes(1),
+                    scheduledFor = scheduledFor
+                )
+            ),
+            startDate = LocalDate.of(2026, 4, 16),
+            endDate = LocalDate.of(2026, 4, 16)
+        )
+
+        val dayState = dayStates.getValue(LocalDate.of(2026, 4, 16))
+        assertEquals(3, dayState.expectedOccurrenceCount)
+        assertEquals(0, dayState.matchedOccurrenceCount)
+        assertEquals(false, dayState.hasMatchingScheduledRecord)
+        assertEquals(false, dayState.hasOffPlanRecord)
+        assertEquals(PlanCalendarDayStatus.MISSED, dayState.status)
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         schedule: MedicationGroupSchedule,

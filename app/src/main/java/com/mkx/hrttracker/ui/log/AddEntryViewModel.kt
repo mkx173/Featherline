@@ -8,6 +8,9 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
+import com.mkx.hrttracker.model.medication.nextScheduledForAfter
+import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
@@ -102,6 +105,8 @@ class AddEntryViewModel @Inject constructor(
                     currentState.copy(
                         sourceGroupName = group.name,
                         sourceGroupColorKey = group.colorKey,
+                        sourceGroupPreviousScheduledFor = group.previousScheduledForBefore(scheduledFor),
+                        sourceGroupNextScheduledFor = group.nextScheduledForAfter(scheduledFor),
                         isLoading = false,
                     )
                 } else {
@@ -123,7 +128,8 @@ class AddEntryViewModel @Inject constructor(
                     updatedDraft = updatedDraft,
                     currentCountText = currentState.countText
                 ),
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
@@ -132,7 +138,8 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 countText = sanitizeMedicationCountText(countText),
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
@@ -145,7 +152,8 @@ class AddEntryViewModel @Inject constructor(
                     countText = currentState.countText,
                     delta = -1
                 ).toString(),
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
@@ -158,7 +166,8 @@ class AddEntryViewModel @Inject constructor(
                     countText = currentState.countText,
                     delta = 1
                 ).toString(),
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
@@ -167,7 +176,8 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 appliedDate = appliedDate,
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
@@ -176,20 +186,36 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 appliedTime = appliedTime.withSecond(0).withNano(0),
-                errorMessageRes = null
+                errorMessageRes = null,
+                isScheduleFulfillmentWarningVisible = false
             )
         }
     }
 
     fun saveEntry() {
+        saveEntry(skipFulfillmentWarning = false)
+    }
+
+    fun saveEntryAfterFulfillmentWarning() {
+        saveEntry(skipFulfillmentWarning = true)
+    }
+
+    fun dismissScheduleFulfillmentWarning() {
+        _uiState.update {
+            it.copy(isScheduleFulfillmentWarningVisible = false)
+        }
+    }
+
+    private fun saveEntry(skipFulfillmentWarning: Boolean) {
         val currentState = _uiState.value
         if (currentState.isLoading || currentState.isSaving || currentState.isDeleting) {
             return
         }
-        val appliedAt = LocalDateTime.of(
+        val appliedAtLocal = LocalDateTime.of(
             currentState.appliedDate,
             currentState.appliedTime
-        ).atZone(ZoneId.systemDefault()).toInstant()
+        )
+        val appliedAt = appliedAtLocal.atZone(ZoneId.systemDefault()).toInstant()
         val errorRes = currentState.medicationDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
                 applicationType = currentState.medicationDraft.applicationType,
@@ -201,6 +227,18 @@ class AddEntryViewModel @Inject constructor(
                 it.copy(
                     errorMessageRes = errorRes,
                     saveEntryResult = null,
+                    isScheduleFulfillmentWarningVisible = false,
+                )
+            }
+            return
+        }
+
+        if (!skipFulfillmentWarning && currentState.shouldWarnScheduleWillNotBeFulfilled(appliedAtLocal)) {
+            _uiState.update {
+                it.copy(
+                    errorMessageRes = null,
+                    saveEntryResult = null,
+                    isScheduleFulfillmentWarningVisible = true,
                 )
             }
             return
@@ -212,6 +250,7 @@ class AddEntryViewModel @Inject constructor(
                     isSaving = true,
                     errorMessageRes = null,
                     saveEntryResult = null,
+                    isScheduleFulfillmentWarningVisible = false,
                 )
             }
 
@@ -220,11 +259,12 @@ class AddEntryViewModel @Inject constructor(
                 applicationType = currentState.medicationDraft.applicationType,
                 countText = currentState.countText,
             )
+            val medicationDetails = currentState.medicationDraft.toMedicationDetails()
             val saveResult = runCatching {
                 if (editingEntryUuids.size > 1) {
                     medicationLogRepository.saveEntries(
                         uuids = editingEntryUuids,
-                        medication = currentState.medicationDraft.toMedicationDetails(),
+                        medication = medicationDetails,
                         sourceGroupUuid = currentState.sourceGroupUuid,
                         scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
@@ -234,7 +274,7 @@ class AddEntryViewModel @Inject constructor(
                 } else {
                     medicationLogRepository.saveEntry(
                         uuid = editingEntryUuids.firstOrNull(),
-                        medication = currentState.medicationDraft.toMedicationDetails(),
+                        medication = medicationDetails,
                         sourceGroupUuid = currentState.sourceGroupUuid,
                         scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
@@ -257,6 +297,7 @@ class AddEntryViewModel @Inject constructor(
                     isSaved = isSaved,
                     errorMessageRes = null,
                     saveEntryResult = saveResult,
+                    isScheduleFulfillmentWarningVisible = false,
                 )
             }
         }
@@ -338,6 +379,8 @@ data class AddEntryUiState(
     val sourceGroupName: String? = null,
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
     val scheduledFor: LocalDateTime? = null,
+    val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    val sourceGroupNextScheduledFor: LocalDateTime? = null,
     val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
@@ -348,6 +391,7 @@ data class AddEntryUiState(
     val errorMessageRes: Int? = null,
     val saveEntryResult: SaveEntryResult? = null,
     val deleteEntryResult: DeleteEntryResult? = null,
+    val isScheduleFulfillmentWarningVisible: Boolean = false,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)
@@ -363,6 +407,16 @@ data class AddEntryUiState(
 
     val canDelete: Boolean
         get() = isEditing
+
+    fun shouldWarnScheduleWillNotBeFulfilled(appliedAt: LocalDateTime): Boolean {
+        return shouldWarnScheduleWillNotBeFulfilled(
+            sourceGroupUuid = sourceGroupUuid,
+            scheduledFor = scheduledFor,
+            sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
+            sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
+            appliedAt = appliedAt
+        )
+    }
 }
 
 data class AddEntryQuickLogRequest(
@@ -406,6 +460,12 @@ internal fun buildEditingUiState(
         sourceGroupName = matchingSourceGroup?.name,
         sourceGroupColorKey = matchingSourceGroup?.colorKey,
         scheduledFor = representativeEntry.scheduledFor,
+        sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
+            matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
+        },
+        sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
+            matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
+        },
         countText = normalizeMedicationCount(
             representativeEntry.details.applicationType,
             representativeEntry.count
@@ -432,6 +492,8 @@ internal fun buildQuickLogUiState(
         sourceGroupName = group?.name,
         sourceGroupColorKey = group?.colorKey,
         scheduledFor = scheduledFor,
+        sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(scheduledFor),
+        sourceGroupNextScheduledFor = group?.nextScheduledForAfter(scheduledFor),
         countText = normalizeMedicationCount(
             medicationDetails.applicationType,
             medicationCount
@@ -456,4 +518,23 @@ internal fun canBulkEditTogether(entries: List<MedicationLogEntry>): Boolean {
             entry.scheduledFor == firstEntry.scheduledFor &&
             entry.count == firstEntry.count
     }
+}
+
+internal fun shouldWarnScheduleWillNotBeFulfilled(
+    sourceGroupUuid: UUID?,
+    scheduledFor: LocalDateTime?,
+    sourceGroupPreviousScheduledFor: LocalDateTime?,
+    sourceGroupNextScheduledFor: LocalDateTime?,
+    appliedAt: LocalDateTime,
+): Boolean {
+    if (sourceGroupUuid == null || scheduledFor == null) {
+        return false
+    }
+
+    return !isWithinScheduleFulfillmentWindow(
+        scheduledFor = scheduledFor,
+        appliedAt = appliedAt,
+        previousScheduledFor = sourceGroupPreviousScheduledFor,
+        nextScheduledFor = sourceGroupNextScheduledFor
+    )
 }
