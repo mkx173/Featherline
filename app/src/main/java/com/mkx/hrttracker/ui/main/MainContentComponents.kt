@@ -42,12 +42,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -750,8 +747,9 @@ private fun MainTodayDoseRow(
                 ) {
                     Text(
                         text = supportingText,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Normal,
                         modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -775,26 +773,16 @@ private fun MainUpcomingDoseRow(
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val headline = medicationDisplayName(details)
+    val routeLabel = stringResource(details.applicationType.labelRes)
     val doseText = medicationDoseText(details)
-    val headlinePlainText = listOfNotNull(
-        headline,
-        doseText
-    ).joinToString(separator = " · ")
-    val headlineText = buildAnnotatedString {
-        append(headline)
-        if (doseText != null) {
-            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
-                append(" · ")
-                append(doseText)
-            }
-        }
-    }
     val extraSupportingText = if (showDate) {
         dateFormatter(row.scheduledAt.toLocalDate())
     } else {
         null
     }
     val supportingText = listOfNotNull(
+        routeLabel,
+        doseText,
         medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
         extraSupportingText
     ).joinToString(separator = " · ")
@@ -821,7 +809,7 @@ private fun MainUpcomingDoseRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            MainRoutePill(
+            MainRouteIconSurface(
                 applicationType = details.applicationType,
                 groupColorScheme = groupColorScheme,
             )
@@ -830,9 +818,9 @@ private fun MainUpcomingDoseRow(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
-                    text = headlineText,
+                    text = headline,
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.cjkTextOffset(headlinePlainText),
+                    modifier = Modifier.cjkTextOffset(headline),
                     fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
