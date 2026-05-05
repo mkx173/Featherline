@@ -656,10 +656,14 @@ internal fun MainE2ChartCard(
                                     valueFormatter = CartesianValueFormatter { _, value, _ ->
                                         value.toInt().toString()
                                     },
+                                    line = null,
+                                    tick = null,
                                     itemPlacer = startAxisItemPlacer,
                                 ),
                                 bottomAxis = HorizontalAxis.rememberBottom(
                                     valueFormatter = bottomAxisValueFormatter,
+                                    tick = null,
+                                    guideline = null,
                                     itemPlacer = bottomAxisItemPlacer,
                                 ),
                                 getXStep = { 1.0 },
