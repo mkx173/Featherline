@@ -42,9 +42,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -688,28 +691,25 @@ private fun MainTodayDoseRow(
             )
         )
     }
+    val onStatusClick = {
+        if (entryEditorIds.isNotEmpty()) {
+            onEntryClick(entryEditorIds)
+        } else {
+            onQuickLogClick()
+        }
+    }
 
     EditorSegmentedListItem(
         index = index,
         count = itemCount,
-        onClick = {
-            if (row.status != MainTodayDoseStatus.DONE) {
-                onQuickLogClick()
-            }
-        },
+        onClick = onStatusClick,
         modifier = modifier.fillMaxWidth(),
         trailingContent = {
             MainTodayTrailingContent(
                 row = row,
                 now = now,
                 timeFormatter = timeFormatter,
-                onStatusClick = {
-                    if (entryEditorIds.isNotEmpty()) {
-                        onEntryClick(entryEditorIds)
-                    } else {
-                        onQuickLogClick()
-                    }
-                }
+                onStatusClick = onStatusClick
             )
         }
     ) {
@@ -775,10 +775,19 @@ private fun MainUpcomingDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val headline = medicationDisplayName(details)
     val doseText = medicationDoseText(details)
-    val headlineText = listOfNotNull(
+    val headlinePlainText = listOfNotNull(
         headline,
         doseText
     ).joinToString(separator = " · ")
+    val headlineText = buildAnnotatedString {
+        append(headline)
+        if (doseText != null) {
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                append(" · ")
+                append(doseText)
+            }
+        }
+    }
     val extraSupportingText = if (showDate) {
         dateFormatter(row.scheduledAt.toLocalDate())
     } else {
@@ -800,7 +809,7 @@ private fun MainUpcomingDoseRow(
                 text = timeLabel,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.End,
                 maxLines = 1
             )
@@ -822,9 +831,9 @@ private fun MainUpcomingDoseRow(
                 Text(
                     text = headlineText,
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.cjkTextOffset(headlineText),
+                    modifier = Modifier.cjkTextOffset(headlinePlainText),
                     fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -856,7 +865,7 @@ private fun MainTodayTrailingContent(
         scheduledFor = row.scheduledAt,
         now = now
     )
-    val textLabel = when (val appliedAt = loggedAt) {
+    val textLabel = when (loggedAt) {
         null -> when {
             mainTodayIsBeforeOrInGracePeriod(
                 scheduledFor = row.scheduledAt,
@@ -880,7 +889,7 @@ private fun MainTodayTrailingContent(
         else -> {
             mainTodayScheduleOffsetText(
                 scheduledFor = row.scheduledAt,
-                comparedAt = appliedAt
+                comparedAt = loggedAt
             )?.let { text ->
                 MainTodayTrailingText(
                     text = text,
@@ -897,15 +906,16 @@ private fun MainTodayTrailingContent(
         if (textLabel != null && textLabel.text.isNotBlank()) {
             Text(
                 text = textLabel.text,
-                style = if (textLabel.isDelta) {
-                    MaterialTheme.typography.labelLarge
-                } else {
-                    MaterialTheme.typography.titleMedium
-                },
+                style = MaterialTheme.typography.titleMedium,
                 color = if (textLabel.isDelta) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
                     MaterialTheme.colorScheme.onSurface
+                },
+                fontWeight = if (textLabel.isDelta) {
+                    FontWeight.Normal
+                } else {
+                    FontWeight.Medium
                 },
                 textAlign = TextAlign.End,
                 maxLines = 1
@@ -1116,10 +1126,10 @@ private fun MainRoutePill(
 
 @Composable
 private fun MainSectionHeader(
+    modifier: Modifier = Modifier,
     title: String,
     summary: String? = null,
     emphasize: Boolean = false,
-    modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),

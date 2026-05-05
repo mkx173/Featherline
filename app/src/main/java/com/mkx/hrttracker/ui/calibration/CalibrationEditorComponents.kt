@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -120,7 +121,7 @@ internal fun CalibrationDateTimeCard(
                 CalibrationMetadataChip(
                     label = stringResource(R.string.settings_calibration_time_label).uppercase(),
                     value = timeLabel,
-                    icon = Icons.Rounded.AccessTime,
+                    icon = Icons.Rounded.Schedule,
                     onClick = onTimeClick,
                 )
             }

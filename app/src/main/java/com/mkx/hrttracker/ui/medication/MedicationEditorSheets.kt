@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AssistChip
@@ -974,7 +975,7 @@ private fun MedicationLogAppliedAtFields(
                 }
             },
         leadingIcon = {
-            Icon(Icons.Rounded.AccessTime, contentDescription = stringResource(R.string.select_time))
+            Icon(Icons.Rounded.Schedule, contentDescription = stringResource(R.string.select_time))
         },
         singleLine = true,
     )
