@@ -1319,9 +1319,12 @@ internal fun MainTodaySection(
     val sectionSummary = listOf(
         dateFormatter(section.date),
         stringResource(
-            R.string.main_today_progress,
-            section.doneCount,
-            section.totalCount
+            R.string.main_today_progress_count_label,
+            mainTodayCountLabel(
+                doneCount = section.doneCount,
+                totalCount = section.totalCount,
+                manualCount = section.manualCount
+            )
         )
     ).joinToString(separator = " · ")
 
@@ -1344,11 +1347,13 @@ internal fun MainTodaySection(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
                 groupedRows.forEachIndexed { groupIndex, (timeRange, rows) ->
+                    val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MainTodayTimeRangeHeader(
                         timeRange = timeRange,
                         isCurrent = timeRange == mainTodayTimeRange(now.toLocalTime()),
-                        doneCount = rows.count { row -> row.status == MainTodayDoseStatus.DONE },
-                        totalCount = rows.size,
+                        doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
+                        totalCount = scheduledRows.size,
+                        manualCount = rows.count { row -> row.isManualRecord },
                         timeFormatter = timeFormatter,
                         modifier = Modifier.padding(
                             top = if (groupIndex == 0) 0.dp else 2.dp
@@ -1912,6 +1917,7 @@ private fun MainTodayTimeRangeHeader(
     isCurrent: Boolean,
     doneCount: Int,
     totalCount: Int,
+    manualCount: Int,
     timeFormatter: DateTimeFormatter,
     modifier: Modifier = Modifier
 ) {
@@ -1921,7 +1927,11 @@ private fun MainTodayTimeRangeHeader(
         timeRange = timeRange,
         timeFormatter = timeFormatter
     )
-    val countLabel = "$doneCount/$totalCount"
+    val countLabel = mainTodayCountLabel(
+        doneCount = doneCount,
+        totalCount = totalCount,
+        manualCount = manualCount
+    )
 
     Row(
         modifier = modifier
@@ -1985,6 +1995,21 @@ private fun MainTodayTimeRangeHeader(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+internal fun mainTodayCountLabel(
+    doneCount: Int,
+    totalCount: Int,
+    manualCount: Int,
+): String = buildString {
+    append(doneCount)
+    append("/")
+    append(totalCount)
+    if (manualCount > 0) {
+        append(" (")
+        append(manualCount)
+        append(")")
     }
 }
 
@@ -2259,7 +2284,7 @@ private fun MainSectionHeaderPreview() {
     MainContentComponentPreviewContainer {
         MainSectionHeader(
             title = "Today",
-            summary = "May 5 Tue · 1/4 done",
+            summary = "May 5 Tue · 1/4 (1) done",
             emphasize = true
         )
     }
@@ -2275,7 +2300,8 @@ private fun MainTodayTimeRangeHeaderPreview() {
             timeRange = MainTodayTimeRange.MORNING,
             isCurrent = true,
             doneCount = 1,
-            totalCount = 3,
+            totalCount = 2,
+            manualCount = 1,
             timeFormatter = timeFormatter
         )
     }
@@ -2353,8 +2379,9 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         ),
         todaySection = MainTodaySectionUiState(
             date = now.toLocalDate(),
-            doneCount = 2,
-            totalCount = 5,
+            doneCount = 1,
+            totalCount = 4,
+            manualCount = 1,
             rows = listOf(
                 MainTodayDoseRowUiState(
                     groupUuid = PreviewEstradiolGroupUuid,

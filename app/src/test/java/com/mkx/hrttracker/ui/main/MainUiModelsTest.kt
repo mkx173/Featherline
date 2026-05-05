@@ -597,8 +597,9 @@ class MainUiModelsTest {
             zoneId = testZoneId
         )
 
-        assertEquals(2, todaySection.doneCount)
-        assertEquals(2, todaySection.totalCount)
+        assertEquals(0, todaySection.doneCount)
+        assertEquals(0, todaySection.totalCount)
+        assertEquals(2, todaySection.manualCount)
         assertEquals(2, todaySection.rows.size)
         assertEquals(
             listOf(earlierManualEntryUuid, manualEntryUuid),

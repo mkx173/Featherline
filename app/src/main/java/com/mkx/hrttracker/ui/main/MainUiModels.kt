@@ -30,6 +30,7 @@ data class MainTodaySectionUiState(
     val date: LocalDate,
     val doneCount: Int = 0,
     val totalCount: Int = 0,
+    val manualCount: Int = 0,
     val rows: List<MainTodayDoseRowUiState> = emptyList(),
 )
 
@@ -401,8 +402,9 @@ internal fun buildMainTodaySection(
 
     return MainTodaySectionUiState(
         date = today,
-        doneCount = rows.count { it.status == MainTodayDoseStatus.DONE },
-        totalCount = rows.size,
+        doneCount = scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
+        totalCount = scheduledRows.size,
+        manualCount = manualRows.size,
         rows = rows
     )
 }
