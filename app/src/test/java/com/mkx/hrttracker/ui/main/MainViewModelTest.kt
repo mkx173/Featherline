@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -10,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
@@ -38,6 +40,7 @@ import java.util.UUID
 class MainViewModelTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val userProfileRepository: UserProfileRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -57,10 +60,12 @@ class MainViewModelTest {
             listOf(medicationGroup())
         )
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { userProfileRepository.observeProfile() } returns flowOf(UserProfile(weightKg = 60.0))
 
         val viewModel = MainViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            userProfileRepository = userProfileRepository,
             appTimeSource = appTimeSource,
         )
         startUiStateCollection(viewModel)

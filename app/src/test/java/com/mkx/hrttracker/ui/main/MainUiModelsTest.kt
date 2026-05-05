@@ -13,6 +13,9 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkDoseMarker
+import com.mkx.hrttracker.model.pk.PkTrendResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -27,12 +30,18 @@ class MainUiModelsTest {
     private val testZoneId: ZoneId = ZoneId.systemDefault()
 
     @Test
-    fun buildMainE2Hero_keeps_mock_value_and_uses_latest_actual_estradiol_dose() {
+    fun buildMainE2Hero_uses_pk_trend_and_latest_actual_estradiol_dose() {
         val latestEstradiolDoseTime = LocalDateTime.of(2026, 4, 18, 20, 5)
         val latestEstradiolDoseDetails = testCatalogMedicationDetails(
             key = MedicationKey.ESTRADIOL_VALERATE,
             applicationType = MedicationApplicationType.INJECTION,
             dose = MedicationDose.MgAsMedicine(5.0)
+        )
+        val trendResult = PkTrendResult(
+            currentConcentration = 160.4,
+            previousDayConcentration = 151.1,
+            dailyConcentrations = listOf(120.0, 130.0, 140.0, 150.0, 151.1, 155.0, 160.4),
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
         )
 
         val hero = buildMainE2Hero(
@@ -56,21 +65,95 @@ class MainUiModelsTest {
                     appliedAt = testInstant(latestEstradiolDoseTime)
                 )
             ),
+            trendResult = trendResult,
             zoneId = testZoneId
         )
 
-        assertEquals(1145, hero.currentValue)
-        assertEquals(14, hero.changeSinceYesterday)
+        assertEquals(160, hero.currentValue)
+        assertEquals(9, hero.changeSinceYesterday)
         assertEquals(latestEstradiolDoseTime, hero.lastDoseAt)
         assertEquals(latestEstradiolDoseDetails, hero.lastDoseDetails)
     }
 
     @Test
-    fun buildMainE2Chart_returns_placeholder_curve_that_ends_at_mock_value() {
-        val chart = buildMainE2Chart()
+    fun buildMainE2Chart_uses_pk_chart_concentrations() {
+        val chart = buildMainE2Chart(
+            trendResult = PkTrendResult(
+                currentConcentration = 70.0,
+                previousDayConcentration = 60.0,
+                dailyConcentrations = listOf(10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0),
+                chartConcentrations = listOf(10.0, 20.0, 10.0, 40.0, 15.0),
+                chartSampleIntervalHours = 1,
+                chartTimeH = listOf(0.0, 0.5, 1.0, 2.0, 4.0),
+                doseMarkers = listOf(PkDoseMarker(timeH = 0.5, concentration = 20.0)),
+                chartWindowHours = 168,
+                predictionStartTimeH = 2.0,
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            )
+        )
 
-        assertEquals(7, chart.points.size)
-        assertEquals(100f, chart.points.last())
+        assertEquals(5, chart.points.size)
+        assertEquals(1, chart.sampleIntervalHours)
+        assertEquals(listOf(10f, 20f, 10f, 40f, 15f), chart.points)
+        assertEquals(listOf(0.0, 0.5, 1.0, 2.0, 4.0), chart.pointXHours)
+        assertEquals(listOf(MainE2DoseMarkerUiState(xHours = 0.5, concentration = 20f)), chart.doseMarkers)
+        assertEquals(168, chart.windowHours)
+        assertEquals(2.0, chart.predictionStartXHours, 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartNoonTickHours_centers_current_day_as_fourth_tick() {
+        val ticks = mainE2ChartNoonTickHours(
+            now = LocalDateTime.of(2026, 5, 5, 23, 37),
+            windowHours = 168,
+        )
+
+        assertEquals(7, ticks.size)
+        assertEquals(listOf(12.0, 36.0, 60.0, 84.0, 108.0, 132.0, 156.0), ticks)
+        assertEquals(84.0, ticks[3], 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartNoonTickHours_keeps_exact_noon_window_to_seven_labels() {
+        val ticks = mainE2ChartNoonTickHours(
+            now = LocalDateTime.of(2026, 5, 5, 12, 0),
+            windowHours = 168,
+        )
+
+        assertEquals(listOf(12.0, 36.0, 60.0, 84.0, 108.0, 132.0, 156.0), ticks)
+    }
+
+    @Test
+    fun splitMainE2ChartSeries_splits_solid_and_predicted_segments_at_current_time() {
+        val series = splitMainE2ChartSeries(
+            xHours = listOf(0.0, 24.0, 48.0, 72.0),
+            points = listOf(10f, 20f, 30f, 40f),
+            predictionStartXHours = 36.0,
+        )
+
+        assertEquals(listOf(0.0, 24.0, 36.0), series.observedXHours)
+        assertEquals(listOf(10f, 20f, 25f), series.observedPoints)
+        assertEquals(listOf(36.0, 48.0, 72.0), series.predictedXHours)
+        assertEquals(listOf(25f, 30f, 40f), series.predictedPoints)
+    }
+
+    @Test
+    fun mainE2ChartYAxisSpec_uses_consistent_nice_steps() {
+        assertEquals(
+            MainE2ChartYAxisSpec(maxY = 75.0, tickStep = 25.0),
+            mainE2ChartYAxisSpec(points = listOf(0f, 63f, 72f))
+        )
+        assertEquals(
+            MainE2ChartYAxisSpec(maxY = 200.0, tickStep = 50.0),
+            mainE2ChartYAxisSpec(points = listOf(128f, 174f))
+        )
+        assertEquals(
+            MainE2ChartYAxisSpec(maxY = 1000.0, tickStep = 250.0),
+            mainE2ChartYAxisSpec(
+                points = listOf(410f),
+                doseMarkers = listOf(MainE2DoseMarkerUiState(xHours = 12.0, concentration = 860f))
+            )
+        )
     }
 
     @Test

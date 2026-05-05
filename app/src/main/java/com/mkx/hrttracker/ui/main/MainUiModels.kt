@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
+import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
@@ -18,8 +19,12 @@ import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.math.ceil
+import kotlin.math.roundToLong
+import kotlin.math.roundToInt
 
 data class MainTodaySectionUiState(
     val date: LocalDate,
@@ -29,8 +34,8 @@ data class MainTodaySectionUiState(
 )
 
 data class MainE2HeroUiState(
-    val currentValue: Int = MOCK_E2_CURRENT_VALUE,
-    val changeSinceYesterday: Int = MOCK_E2_CHANGE_SINCE_YESTERDAY,
+    val currentValue: Int = 0,
+    val changeSinceYesterday: Int = 0,
     val targetMin: Int = MOCK_E2_TARGET_MIN,
     val targetMax: Int = MOCK_E2_TARGET_MAX,
     val unit: String = E2_UNIT_PG_ML,
@@ -39,7 +44,29 @@ data class MainE2HeroUiState(
 )
 
 data class MainE2ChartUiState(
-    val points: List<Float> = MOCK_E2_CHART_POINTS,
+    val points: List<Float> = EmptyE2ChartPoints,
+    val pointXHours: List<Double> = EmptyE2ChartPointXHours,
+    val sampleIntervalHours: Int = EmptyE2ChartSampleIntervalHours,
+    val doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
+    val windowHours: Int = EmptyE2ChartWindowHours,
+    val predictionStartXHours: Double = EmptyE2ChartPredictionStartXHours,
+)
+
+data class MainE2DoseMarkerUiState(
+    val xHours: Double,
+    val concentration: Float,
+)
+
+data class MainE2ChartYAxisSpec(
+    val maxY: Double,
+    val tickStep: Double,
+)
+
+data class MainE2SplitChartSeries(
+    val observedXHours: List<Double>,
+    val observedPoints: List<Float>,
+    val predictedXHours: List<Double>,
+    val predictedPoints: List<Float>,
 )
 
 data class MainAntiandrogenCardUiState(
@@ -98,11 +125,15 @@ data class MainUpcomingDoseRowUiState(
 
 internal fun buildMainE2Hero(
     entries: List<MedicationLogEntry>,
+    trendResult: PkTrendResult? = null,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): MainE2HeroUiState {
     val lastEstradiolEntry = findLastEstradiolEntry(entries)
 
     return MainE2HeroUiState(
+        currentValue = trendResult?.currentConcentration?.roundToInt() ?: 0,
+        changeSinceYesterday = trendResult?.changeSincePreviousDay?.roundToInt() ?: 0,
+        unit = trendResult?.concentrationUnit?.symbol ?: E2_UNIT_PG_ML,
         lastDoseDetails = lastEstradiolEntry?.details,
         lastDoseAt = lastEstradiolEntry
             ?.appliedAt
@@ -111,8 +142,139 @@ internal fun buildMainE2Hero(
     )
 }
 
-internal fun buildMainE2Chart(): MainE2ChartUiState {
-    return MainE2ChartUiState()
+internal fun buildMainE2Chart(
+    trendResult: PkTrendResult? = null,
+): MainE2ChartUiState {
+    val chartConcentrations = trendResult
+        ?.chartConcentrations
+        ?.takeIf { concentrations -> concentrations.isNotEmpty() }
+    val chartTimeH = trendResult
+        ?.chartTimeH
+        ?.takeIf { timeH -> chartConcentrations != null && timeH.size == chartConcentrations.size }
+
+    return MainE2ChartUiState(
+        points = chartConcentrations
+            ?.map { concentration -> concentration.toFloat() }
+            ?: EmptyE2ChartPoints,
+        pointXHours = chartTimeH
+            ?.map { timeH -> timeH.toVicoXHour() }
+            ?: EmptyE2ChartPointXHours,
+        sampleIntervalHours = if (chartConcentrations != null) {
+            trendResult.chartSampleIntervalHours.coerceAtLeast(1)
+        } else {
+            EmptyE2ChartSampleIntervalHours
+        },
+        doseMarkers = trendResult
+            ?.doseMarkers
+            ?.map { marker ->
+                MainE2DoseMarkerUiState(
+                    xHours = marker.timeH.toVicoXHour(),
+                    concentration = marker.concentration.toFloat(),
+                )
+            }
+            ?: emptyList(),
+        windowHours = trendResult?.chartWindowHours ?: EmptyE2ChartWindowHours,
+        predictionStartXHours = trendResult
+            ?.predictionStartTimeH
+            ?.toVicoXHour()
+            ?: EmptyE2ChartPredictionStartXHours,
+    )
+}
+
+internal fun mainE2ChartWindowStart(now: LocalDateTime): LocalDateTime {
+    return now.toLocalDate()
+        .atStartOfDay()
+        .minusDays(MainE2ChartPastDays)
+}
+
+internal fun mainE2ChartNoonTickHours(
+    now: LocalDateTime,
+    windowHours: Int,
+): List<Double> {
+    val resolvedWindowHours = windowHours.coerceAtLeast(1)
+    val windowStart = mainE2ChartWindowStart(now)
+    val windowEnd = windowStart.plusHours(resolvedWindowHours.toLong())
+    val endDate = windowEnd.toLocalDate()
+    val tickHours = mutableListOf<Double>()
+    var date = windowStart.toLocalDate()
+
+    while (!date.isAfter(endDate)) {
+        val noon = LocalDateTime.of(date, LocalTime.NOON)
+        if (noon.isAfter(windowStart) && noon.isBefore(windowEnd)) {
+            val hoursFromWindowStart = Duration.between(windowStart, noon).toMillis() / 3_600_000.0
+            if (hoursFromWindowStart in 0.0..resolvedWindowHours.toDouble()) {
+                tickHours += hoursFromWindowStart.toVicoXHour()
+            }
+        }
+        date = date.plusDays(1)
+    }
+
+    return tickHours.distinct()
+}
+
+internal fun splitMainE2ChartSeries(
+    xHours: List<Double>,
+    points: List<Float>,
+    predictionStartXHours: Double,
+): MainE2SplitChartSeries {
+    val paired = xHours
+        .zip(points)
+        .filter { (x, y) -> x.isFinite() && y.isFinite() }
+        .distinctBy { (x, _) -> x }
+        .sortedBy { (x, _) -> x }
+    if (paired.isEmpty()) {
+        return MainE2SplitChartSeries(
+            observedXHours = emptyList(),
+            observedPoints = emptyList(),
+            predictedXHours = emptyList(),
+            predictedPoints = emptyList(),
+        )
+    }
+
+    val splitX = predictionStartXHours.toVicoXHour()
+    val splitPoint = paired.exactOrInterpolatedPointAt(splitX)
+    val observed = buildList {
+        addAll(paired.filter { it.first <= splitX })
+        if (splitPoint != null && none { it.first == splitX }) {
+            add(splitPoint)
+        }
+    }.sortedBy { it.first }
+    val predicted = buildList {
+        if (splitPoint != null) {
+            add(splitPoint)
+        }
+        addAll(paired.filter { it.first > splitX })
+    }.distinctBy { it.first }.sortedBy { it.first }
+
+    return MainE2SplitChartSeries(
+        observedXHours = observed.map { it.first },
+        observedPoints = observed.map { it.second },
+        predictedXHours = predicted.map { it.first },
+        predictedPoints = predicted.map { it.second },
+    )
+}
+
+internal fun mainE2ChartYAxisSpec(
+    points: List<Float>,
+    doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
+): MainE2ChartYAxisSpec {
+    val maxValue = (
+        points.asSequence().map(Float::toDouble) +
+            doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() }
+        )
+        .filter { value -> value.isFinite() && value > 0.0 }
+        .maxOrNull()
+        ?: 0.0
+    val step = MainE2YAxisTickSteps.firstOrNull { candidate ->
+        ceil(maxValue.coerceAtLeast(1.0) / candidate) <= MainE2YAxisMaxTickIntervals
+    } ?: fallbackMainE2YAxisStep(maxValue)
+    val maxY = ceil(maxValue / step)
+        .coerceAtLeast(1.0) * step
+
+    return MainE2ChartYAxisSpec(
+        maxY = maxY,
+        tickStep = step,
+    )
 }
 
 internal fun buildMainAntiandrogenCards(
@@ -404,12 +566,52 @@ private fun isSlotFulfilledForMedication(
     return loggedCount >= medication.count
 }
 
-private const val MOCK_E2_CURRENT_VALUE = 1145
-private const val MOCK_E2_CHANGE_SINCE_YESTERDAY = 14
+private fun Double.toVicoXHour(): Double {
+    return (this * VicoXPrecisionScale).roundToLong() / VicoXPrecisionScale
+}
+
 private const val MOCK_E2_TARGET_MIN = 100
 private const val MOCK_E2_TARGET_MAX = 200
 private const val E2_UNIT_PG_ML = "pg/mL"
 private const val MainAntiandrogenDueLookbackDays = 2L
 private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
-private val MOCK_E2_CHART_POINTS = listOf(142f, 158f, 149f, 167f, 138f, 120f, 100f)
+private const val VicoXPrecisionScale = 10_000.0
+private const val MainE2ChartPastDays = 3L
+private const val MainE2YAxisMaxTickIntervals = 5
+private const val EmptyE2ChartSampleIntervalHours = 24
+private const val EmptyE2ChartWindowHours = 7 * 24
+private const val EmptyE2ChartPredictionStartXHours = 3 * 24.0
+private val MainE2YAxisTickSteps = listOf(25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0)
+private val EmptyE2ChartPoints = List(7) { 0f }
+private val EmptyE2ChartPointXHours = List(7) { index ->
+    index * EmptyE2ChartWindowHours.toDouble() / (EmptyE2ChartPoints.size - 1)
+}
+
+private fun fallbackMainE2YAxisStep(maxValue: Double): Double {
+    var step = MainE2YAxisTickSteps.last()
+    while (ceil(maxValue / step) > MainE2YAxisMaxTickIntervals) {
+        step *= 2.0
+    }
+    return step
+}
+
+private fun List<Pair<Double, Float>>.exactOrInterpolatedPointAt(
+    x: Double,
+): Pair<Double, Float>? {
+    firstOrNull { (candidateX, _) -> candidateX == x }?.let { return it }
+    val previous = lastOrNull { (candidateX, _) -> candidateX < x }
+    val next = firstOrNull { (candidateX, _) -> candidateX > x }
+
+    return when {
+        previous != null && next != null -> {
+            val (x0, y0) = previous
+            val (x1, y1) = next
+            val ratio = (x - x0) / (x1 - x0)
+            x to (y0 + (y1 - y0) * ratio).toFloat()
+        }
+        previous != null && x == previous.first -> previous
+        next != null && x == next.first -> next
+        else -> null
+    }
+}
