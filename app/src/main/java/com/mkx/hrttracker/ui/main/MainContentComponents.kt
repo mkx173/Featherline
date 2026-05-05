@@ -160,6 +160,11 @@ private enum class MainTodayTimeRange(
     );
 }
 
+private data class MainTodayTimeRangeGroup(
+    val timeRange: MainTodayTimeRange,
+    val isLastNight: Boolean,
+)
+
 @Composable
 internal fun MainE2HeroCard(
     section: MainE2HeroUiState,
@@ -1312,9 +1317,14 @@ internal fun MainTodaySection(
 ) {
     val groupedRows = remember(section.rows) {
         section.rows
-            .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
+            .groupBy { row ->
+                MainTodayTimeRangeGroup(
+                    timeRange = mainTodayTimeRange(row.scheduledAt.toLocalTime()),
+                    isLastNight = row.isLastNight
+                )
+            }
             .entries
-            .sortedBy { (timeRange, _) -> timeRange.ordinal }
+            .sortedBy { (timeRangeGroup, _) -> mainTodayTimeRangeGroupSortIndex(timeRangeGroup) }
     }
     val sectionSummary = listOf(
         dateFormatter(section.date),
@@ -1346,11 +1356,13 @@ internal fun MainTodaySection(
             Column(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                groupedRows.forEachIndexed { groupIndex, (timeRange, rows) ->
+                groupedRows.forEachIndexed { groupIndex, (timeRangeGroup, rows) ->
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MainTodayTimeRangeHeader(
-                        timeRange = timeRange,
-                        isCurrent = timeRange == mainTodayTimeRange(now.toLocalTime()),
+                        timeRange = timeRangeGroup.timeRange,
+                        isLastNight = timeRangeGroup.isLastNight,
+                        isCurrent = !timeRangeGroup.isLastNight &&
+                            timeRangeGroup.timeRange == mainTodayTimeRange(now.toLocalTime()),
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
                         totalCount = scheduledRows.size,
                         manualCount = rows.count { row -> row.isManualRecord },
@@ -1914,6 +1926,7 @@ private fun MainSectionHeader(
 @Composable
 private fun MainTodayTimeRangeHeader(
     timeRange: MainTodayTimeRange,
+    isLastNight: Boolean,
     isCurrent: Boolean,
     doneCount: Int,
     totalCount: Int,
@@ -1922,11 +1935,20 @@ private fun MainTodayTimeRangeHeader(
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
-    val timeRangeLabel = stringResource(timeRange.labelRes)
+    val timeRangeLabel = if (isLastNight) {
+        stringResource(R.string.main_today_range_last_night)
+    } else {
+        stringResource(timeRange.labelRes)
+    }
     val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
         timeRange = timeRange,
         timeFormatter = timeFormatter
     )
+    val iconDrawableRes = if (isLastNight) {
+        R.drawable.ic_replay
+    } else {
+        R.drawable.ic_schedule
+    }
     val countLabel = mainTodayCountLabel(
         doneCount = doneCount,
         totalCount = totalCount,
@@ -1954,7 +1976,7 @@ private fun MainTodayTimeRangeHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_schedule),
+                    painter = painterResource(iconDrawableRes),
                     contentDescription = null,
                     tint = if (isCurrent) {
                         MaterialTheme.colorScheme.onTertiaryContainer
@@ -2010,6 +2032,14 @@ internal fun mainTodayCountLabel(
         append(" (")
         append(manualCount)
         append(")")
+    }
+}
+
+private fun mainTodayTimeRangeGroupSortIndex(group: MainTodayTimeRangeGroup): Int {
+    return if (group.isLastNight) {
+        -1
+    } else {
+        group.timeRange.ordinal
     }
 }
 
@@ -2298,6 +2328,7 @@ private fun MainTodayTimeRangeHeaderPreview() {
     MainContentComponentPreviewContainer {
         MainTodayTimeRangeHeader(
             timeRange = MainTodayTimeRange.MORNING,
+            isLastNight = false,
             isCurrent = true,
             doneCount = 1,
             totalCount = 2,

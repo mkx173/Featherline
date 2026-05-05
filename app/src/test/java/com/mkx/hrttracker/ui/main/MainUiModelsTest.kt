@@ -656,6 +656,98 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_includes_lastNightRows_duringOvernight() {
+        val previousDate = LocalDate.of(2026, 4, 18)
+        val today = previousDate.plusDays(1)
+        val group = medicationGroup(
+            uuid = UUID.fromString("6aac3b69-faa0-4895-a465-9e25e85ef791"),
+            name = "Saturday evening estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = previousDate,
+                weeklyDaysOfWeek = setOf(previousDate.dayOfWeek),
+                times = listOf(LocalTime.of(17, 0), LocalTime.of(20, 0))
+            )
+        )
+        val beforeLastNightManualUuid = UUID.fromString("79b66034-0348-4bb4-b0e1-4c53873cbb4a")
+        val lastNightManualUuid = UUID.fromString("54c3d987-a5bf-48d3-835d-ddd7578c9994")
+        val todayManualUuid = UUID.fromString("52dd87f9-f07d-40e1-b87e-82dcd5da1280")
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = listOf(
+                manualEntry(
+                    uuid = beforeLastNightManualUuid,
+                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(17, 59))
+                ),
+                manualEntry(
+                    uuid = lastNightManualUuid,
+                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
+                ),
+                manualEntry(
+                    uuid = todayManualUuid,
+                    appliedAt = LocalDateTime.of(today, LocalTime.of(1, 15))
+                )
+            ),
+            now = LocalDateTime.of(today, LocalTime.of(2, 30)),
+            zoneId = testZoneId
+        )
+
+        assertEquals(0, todaySection.doneCount)
+        assertEquals(1, todaySection.totalCount)
+        assertEquals(2, todaySection.manualCount)
+        assertEquals(
+            listOf(
+                LocalDateTime.of(previousDate, LocalTime.of(20, 0)),
+                LocalDateTime.of(previousDate, LocalTime.of(21, 15)),
+                LocalDateTime.of(today, LocalTime.of(1, 15))
+            ),
+            todaySection.rows.map { row -> row.scheduledAt }
+        )
+        assertEquals(
+            listOf(true, true, false),
+            todaySection.rows.map { row -> row.isLastNight }
+        )
+        assertEquals(
+            listOf(false, true, true),
+            todaySection.rows.map { row -> row.isManualRecord }
+        )
+    }
+
+    @Test
+    fun buildMainTodaySection_stopsShowingLastNightRows_atSix() {
+        val previousDate = LocalDate.of(2026, 4, 18)
+        val today = previousDate.plusDays(1)
+        val group = medicationGroup(
+            uuid = UUID.fromString("6a5adecf-79c8-467f-a9a2-0846f5577f59"),
+            name = "Saturday evening estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = previousDate,
+                weeklyDaysOfWeek = setOf(previousDate.dayOfWeek),
+                times = listOf(LocalTime.of(20, 0))
+            )
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = listOf(
+                manualEntry(
+                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
+                )
+            ),
+            now = LocalDateTime.of(today, LocalTime.of(6, 0)),
+            zoneId = testZoneId
+        )
+
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), todaySection.rows)
+        assertEquals(0, todaySection.totalCount)
+        assertEquals(0, todaySection.manualCount)
+    }
+
+    @Test
     fun buildMainUpcomingSection_returns_tomorrow_rows_when_tomorrow_has_unfulfilled_slots() {
         val group = medicationGroup(
             uuid = UUID.fromString("1ec1b1bf-f3ff-4104-9ed5-68d5aa7e5a47"),

@@ -96,6 +96,7 @@ data class MainTodayDoseRowUiState(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
     val isManualRecord: Boolean = false,
+    val isLastNight: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
 )
@@ -335,15 +336,70 @@ internal fun buildMainTodaySection(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): MainTodaySectionUiState {
     val today = now.toLocalDate()
-    val daySchedule = buildPlanDaySchedule(
+    val entriesByUuid = entries.associateBy { it.uuid }
+    val todayRows = buildMainTodayRowsForDate(
         date = today,
+        groups = groups,
+        entries = entries,
+        entriesByUuid = entriesByUuid,
+        now = now,
+        zoneId = zoneId,
+    )
+    val lastNightRows = if (mainIsOvernightTime(now.toLocalTime())) {
+        buildMainTodayRowsForDate(
+            date = today.minusDays(1),
+            groups = groups,
+            entries = entries,
+            entriesByUuid = entriesByUuid,
+            now = now,
+            zoneId = zoneId,
+            isLastNight = true,
+        ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
+    } else {
+        MainTodayRowsForDate()
+    }
+    val scheduledRows = todayRows.scheduledRows + lastNightRows.scheduledRows
+    val manualRows = todayRows.manualRows + lastNightRows.manualRows
+    val rows = (scheduledRows + manualRows).sortedWith(mainTodayDoseRowComparator)
+
+    return MainTodaySectionUiState(
+        date = today,
+        doneCount = scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
+        totalCount = scheduledRows.size,
+        manualCount = manualRows.size,
+        rows = rows
+    )
+}
+
+private data class MainTodayRowsForDate(
+    val scheduledRows: List<MainTodayDoseRowUiState> = emptyList(),
+    val manualRows: List<MainTodayDoseRowUiState> = emptyList(),
+) {
+    fun filter(predicate: (MainTodayDoseRowUiState) -> Boolean): MainTodayRowsForDate {
+        return MainTodayRowsForDate(
+            scheduledRows = scheduledRows.filter(predicate),
+            manualRows = manualRows.filter(predicate),
+        )
+    }
+}
+
+private fun buildMainTodayRowsForDate(
+    date: LocalDate,
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    entriesByUuid: Map<UUID, MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId,
+    isLastNight: Boolean = false,
+): MainTodayRowsForDate {
+    val daySchedule = buildPlanDaySchedule(
+        date = date,
         groups = groups,
         entries = entries,
         now = now,
         zoneId = zoneId
     )
 
-    val entriesByUuid = entries.associateBy { it.uuid }
     val scheduledRows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = scheduledEntry.scheduledFor
         val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
@@ -371,6 +427,7 @@ internal fun buildMainTodaySection(
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
+            isLastNight = isLastNight,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
             medicationSortOrder = scheduledEntry.medicationSortOrder
         )
@@ -395,18 +452,23 @@ internal fun buildMainTodaySection(
             loggedAt = appliedAt,
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
-            isManualRecord = true
+            isManualRecord = true,
+            isLastNight = isLastNight
         )
     }
-    val rows = (scheduledRows + manualRows).sortedWith(mainTodayDoseRowComparator)
 
-    return MainTodaySectionUiState(
-        date = today,
-        doneCount = scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
-        totalCount = scheduledRows.size,
-        manualCount = manualRows.size,
-        rows = rows
+    return MainTodayRowsForDate(
+        scheduledRows = scheduledRows,
+        manualRows = manualRows,
     )
+}
+
+private fun mainIsOvernightTime(time: LocalTime): Boolean {
+    return time.isBefore(MainOvernightEndTime)
+}
+
+private fun mainIsLastNightTime(time: LocalTime): Boolean {
+    return !time.isBefore(MainLastNightStartTime)
 }
 
 private val mainTodayDoseRowComparator = compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
@@ -591,6 +653,8 @@ private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
 private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
+private val MainOvernightEndTime = LocalTime.of(6, 0)
+private val MainLastNightStartTime = LocalTime.of(18, 0)
 private const val VicoXPrecisionScale = 10_000.0
 private const val MainE2ChartPastDays = 3L
 private const val MainE2YAxisMaxTickIntervals = 5

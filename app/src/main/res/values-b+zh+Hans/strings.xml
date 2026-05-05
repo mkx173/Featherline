@@ -28,6 +28,7 @@
     <string name="main_today_range_morning">上午</string>
     <string name="main_today_range_afternoon">下午</string>
     <string name="main_today_range_evening">晚上</string>
+    <string name="main_today_range_last_night">昨晚</string>
     <plurals name="main_today_schedule_offset_hours_later">
         <item quantity="other">+%1$d小时</item>
     </plurals>

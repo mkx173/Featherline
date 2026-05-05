@@ -28,6 +28,7 @@
     <string name="main_today_range_morning">Morning</string>
     <string name="main_today_range_afternoon">Afternoon</string>
     <string name="main_today_range_evening">Evening</string>
+    <string name="main_today_range_last_night">Last evening</string>
     <plurals name="main_today_schedule_offset_hours_later">
         <item quantity="one">+%1$d hour</item>
         <item quantity="other">+%1$d hours</item>
