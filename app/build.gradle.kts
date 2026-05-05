@@ -9,6 +9,10 @@ val gitCommitCount = providers.exec {
     commandLine("git", "rev-list", "--count", "HEAD")
 }.standardOutput.asText.get().trim().toInt()
 
+val gitCommitHash = providers.exec {
+    commandLine("git", "rev-parse", "--short=6", "HEAD")
+}.standardOutput.asText.get().trim()
+
 android {
     namespace = "com.mkx.hrttracker"
     compileSdk = 37
@@ -24,6 +28,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            versionNameSuffix = "-$gitCommitHash"
+        }
+
         release {
             isMinifyEnabled = true
             isShrinkResources = true

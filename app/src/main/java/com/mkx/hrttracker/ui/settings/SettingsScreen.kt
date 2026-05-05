@@ -1293,7 +1293,7 @@ private fun launchFeedbackEmail(
     chooserTitle: String,
     noEmailAppMessage: String
 ) {
-    val uri = ("mailto:$FEEDBACK_EMAIL_ADDRESS" +
+    val uri = (FEEDBACK_EMAIL_URI +
             "?subject=${Uri.encode(subject)}" +
             "&body=${Uri.encode(body)}").toUri()
 
@@ -1306,7 +1306,6 @@ private fun launchFeedbackEmail(
     }
 }
 
-private const val FEEDBACK_EMAIL_ADDRESS = "mikanmkx173@gmail.com"
 private const val FEEDBACK_EMAIL_URI = "mailto:mikanmkx173@gmail.com"
 private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
