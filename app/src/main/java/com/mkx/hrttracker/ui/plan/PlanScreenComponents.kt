@@ -864,7 +864,7 @@ private fun RegimenMedicationChip(
             Text(
                 text = medicationString,
                 style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.cjkTextOffset(medicationString)
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(medicationString)
             )
         }
     }

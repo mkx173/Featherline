@@ -160,7 +160,7 @@ internal fun CalibrationElapsedEstradiolDosePill(
                 ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.cjkTextOffset(
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(
                     stringResource(
                         R.string.settings_calibration_last_e2_elapsed,
                         calibrationElapsedDurationLabel(elapsedMillis)
@@ -599,7 +599,7 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(end = 4.dp).cjkTextOffset(label)
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
             )
         }
     }

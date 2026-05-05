@@ -160,154 +160,163 @@ internal fun MainE2HeroCard(
     }
     val rangeStatusLabel = stringResource(rangeStatusLabelRes)
 
-    EditorSegmentedListItem(
-        index = 0,
-        count = 1,
-        onClick = { },
-        modifier = modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        cornerShape = MaterialTheme.shapes.extraLarge
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
+    Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
+        EditorSegmentedListItem(
+            index = 0,
+            count = 1,
+            onClick = { },
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            cornerShape = MaterialTheme.shapes.extraLarge
         ) {
-            Icon(
-                imageVector = Icons.Rounded.WaterDrop,
-                contentDescription = null,
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(128.dp)
-                    .alpha(0.1f)
-                    .offset(x = 32.dp, y = (-32).dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MonitorHeart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = titleText,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.cjkTextOffset(titleText)
-                    )
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                painter = painterResource(rangeStatusIconDrawableRes),
+                                imageVector = Icons.Rounded.MonitorHeart,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp)
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = rangeStatusLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                modifier = Modifier.cjkTextOffset(rangeStatusLabel)
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = section.currentValue.toString(),
-                        style = MaterialTheme.typography.displayLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                    Text(
-                        text = unitText,
-                        modifier = Modifier.alignByBaseline(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-                    )
-                }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = trendIcon,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-
-                            val sinceYesterdayTextString = stringResource(
-                                R.string.main_e2_change_since_yesterday,
-                                trendDeltaLabel
-                            )
-                            Text(
-                                text = sinceYesterdayTextString,
-                                style = MaterialTheme.typography.labelMedium,
+                                text = titleText,
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.cjkTextOffset(sinceYesterdayTextString)
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.cjkTextOffset(titleText)
                             )
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(rangeStatusIconDrawableRes),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = rangeStatusLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(rangeStatusLabel)
+                                )
+                            }
                         }
                     }
 
-                    val e2HeroPillContentColor = if (hasPreviousRecord) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = section.currentValue.toString(),
+                            style = MaterialTheme.typography.displayLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                        Text(
+                            text = unitText,
+                            modifier = Modifier.alignByBaseline(),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        )
                     }
 
-                    MainInfoPill(
-                        iconDrawableRes = if (hasPreviousRecord) {
-                            R.drawable.ic_check_circle_filled
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = trendIcon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+
+                                val sinceYesterdayTextString = stringResource(
+                                    R.string.main_e2_change_since_yesterday,
+                                    trendDeltaLabel
+                                )
+                                Text(
+                                    text = sinceYesterdayTextString,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayTextString)
+                                )
+                            }
+                        }
+
+                        val e2HeroPillContentColor = if (hasPreviousRecord) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
                         } else {
-                            R.drawable.ic_info_filled
-                        },
-                        text = lastDoseSummary,
-                        iconTint = e2HeroPillContentColor,
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                        contentColor = e2HeroPillContentColor,
-                    )
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        MainInfoPill(
+                            iconDrawableRes = if (hasPreviousRecord) {
+                                R.drawable.ic_check_circle_filled
+                            } else {
+                                R.drawable.ic_info_filled
+                            },
+                            text = lastDoseSummary,
+                            iconTint = e2HeroPillContentColor,
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                            contentColor = e2HeroPillContentColor,
+                        )
+                    }
                 }
             }
         }
+
+        Icon(
+            imageVector = Icons.Rounded.WaterDrop,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(160.dp)
+                .alpha(0.1f)
+                .offset(x = 20.dp, y = (-20).dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
 
@@ -485,22 +494,22 @@ private fun MainAntiandrogenCardHeader(
             )
         }
 
-//        Surface(
-//            shape = CircleShape,
-//            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-//            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-//        ) {
-//            Text(
-//                text = stringResource(
-//                    R.string.main_antiandrogen_active_count,
-//                    activeCount
-//                ),
-//                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-//                style = MaterialTheme.typography.labelSmall,
-//                fontWeight = FontWeight.SemiBold,
-//                maxLines = 1
-//            )
-//        }
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Text(
+                text = stringResource(
+                    R.string.main_antiandrogen_active_count,
+                    activeCount
+                ),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -656,7 +665,7 @@ private fun MainInfoPill(
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.cjkTextOffset(text)
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(text)
             )
         }
     }
