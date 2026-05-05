@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +31,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -102,6 +105,7 @@ import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlin.math.roundToLong
 
 private val MainPreviewNow = LocalDateTime.of(2026, 5, 5, 10, 30)
@@ -112,6 +116,8 @@ private val PreviewMorningScheduleUuid = UUID.fromString("f4ea56fc-0856-485e-9af
 private val PreviewPatchScheduleUuid = UUID.fromString("99cc2da0-e3ea-4bbd-a3ce-d6532b73f474")
 private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
 private const val MainScheduleGraceMinutes = 60L
+private const val MainE2ChartInitialAnimationMillis = 500
+private const val MainE2ChartAnimationSettleDelayMillis = 50L
 
 private enum class MainTodayTimeRange(
     val labelRes: Int,
@@ -366,6 +372,10 @@ internal fun MainE2ChartCard(
     modifier: Modifier = Modifier
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
+    val hasConsumedInitialChartAnimation = rememberSaveable { mutableStateOf(false) }
+    val chartAnimationsEnabled = remember {
+        mutableStateOf(!hasConsumedInitialChartAnimation.value)
+    }
     val pointXHours = remember(section.points, section.pointXHours) {
         section.pointXHours
             .takeIf { xHours -> xHours.size == section.points.size }
@@ -429,6 +439,19 @@ internal fun MainE2ChartCard(
             minY = 0.0,
             maxY = yAxisSpec.maxY,
         )
+    }
+    val chartAnimationSpec = if (chartAnimationsEnabled.value) {
+        tween<Float>(durationMillis = MainE2ChartInitialAnimationMillis)
+    } else {
+        null
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasConsumedInitialChartAnimation.value) {
+            hasConsumedInitialChartAnimation.value = true
+            delay(MainE2ChartInitialAnimationMillis + MainE2ChartAnimationSettleDelayMillis)
+            chartAnimationsEnabled.value = false
+        }
     }
 
     LaunchedEffect(
@@ -576,6 +599,8 @@ internal fun MainE2ChartCard(
                         .fillMaxWidth()
                         .height(184.dp)
                         .padding(8.dp),
+                    animationSpec = chartAnimationSpec,
+                    animateIn = chartAnimationsEnabled.value,
                     scrollState = rememberVicoScrollState(scrollEnabled = false),
                 )
             }
