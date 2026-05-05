@@ -4,6 +4,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -242,6 +247,7 @@ private fun HistoryScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
+    var isSelectionFabVisible by remember { mutableStateOf(true) }
     val calendarState = key(
         uiState.calendarStartMonth,
         uiState.calendarEndMonth,
@@ -360,6 +366,36 @@ private fun HistoryScreenContent(
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
         }
+    }
+
+    LaunchedEffect(listState, uiState.isSelectionMode) {
+        if (!uiState.isSelectionMode) {
+            isSelectionFabVisible = true
+            return@LaunchedEffect
+        }
+
+        isSelectionFabVisible = true
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }
+            .distinctUntilChanged()
+            .collect { (index, offset) ->
+                val isScrollingDown = index > previousIndex ||
+                    (index == previousIndex && offset > previousOffset)
+                val isScrollingUp = index < previousIndex ||
+                    (index == previousIndex && offset < previousOffset)
+
+                when {
+                    isScrollingDown -> isSelectionFabVisible = false
+                    isScrollingUp -> isSelectionFabVisible = true
+                }
+
+                previousIndex = index
+                previousOffset = offset
+            }
     }
 
     val dayStateMonthRanges = remember(
@@ -597,7 +633,11 @@ private fun HistoryScreenContent(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         floatingActionButton = {
-            if (uiState.isSelectionMode) {
+            AnimatedVisibility(
+                visible = uiState.isSelectionMode && isSelectionFabVisible,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+            ) {
                 FloatingActionButton(
                     onClick = onDeleteSelectedClick,
                 ) {
