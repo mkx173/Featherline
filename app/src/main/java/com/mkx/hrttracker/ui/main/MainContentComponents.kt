@@ -1,8 +1,12 @@
 package com.mkx.hrttracker.ui.main
 
+import android.text.format.DateFormat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +46,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -55,6 +62,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
@@ -80,6 +89,7 @@ import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
@@ -106,6 +116,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 private val MainPreviewNow = LocalDateTime.of(2026, 5, 5, 10, 30)
@@ -400,6 +411,49 @@ internal fun MainE2ChartCard(
     val currentTimeConcentration = splitChartSeries.predictedPoints.firstOrNull()
         ?: splitChartSeries.observedPoints.lastOrNull()
         ?: 0f
+    val chartWindowStart = remember(now) { mainE2ChartWindowStart(now) }
+    val chartTimeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val chartDateFormatter = remember(appLocale, now.year) {
+        mainE2ChartMarkerDateFormatter(
+            locale = appLocale,
+            currentYear = now.year,
+        )
+    }
+    val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
+    val displayedMarkerXHours = interactiveMarkerXHours.value ?: currentTimeXHours
+    val displayedMarkerConcentration = remember(
+        interactiveMarkerXHours.value,
+        pointXHours,
+        section.points,
+        displayedMarkerXHours,
+        currentTimeXHours,
+        currentTimeConcentration,
+    ) {
+        if (interactiveMarkerXHours.value == null) {
+            currentTimeConcentration
+        } else {
+            mainE2ChartConcentrationAtX(
+                xHours = displayedMarkerXHours,
+                pointXHours = pointXHours,
+                points = section.points,
+            )
+        }
+    }
+    val interactiveMarkerLabel = remember(
+        interactiveMarkerXHours.value,
+        displayedMarkerConcentration,
+        chartWindowStart,
+        chartDateFormatter,
+        chartTimeFormatter,
+        unit,
+    ) {
+        interactiveMarkerXHours.value?.let { xHours ->
+            val dateTime = chartWindowStart.plusMinutes((xHours * 60).roundToLong())
+            val date = chartDateFormatter(dateTime.toLocalDate())
+            val time = dateTime.format(chartTimeFormatter)
+            "$date $time\n${displayedMarkerConcentration.roundToInt()} $unit"
+        }
+    }
     val noonTickHours = remember(chartWindowHours, now) {
         mainE2ChartNoonTickHours(
             now = now,
@@ -422,7 +476,6 @@ internal fun MainE2ChartCard(
         )
     }
     val bottomAxisValueFormatter = remember(chartWindowHours, now, appLocale) {
-        val chartWindowStart = mainE2ChartWindowStart(now)
         CartesianValueFormatter { _, value, _ ->
             val hoursFromWindowStart = value.coerceIn(0.0, chartWindowHours.toDouble())
             chartWindowStart
@@ -458,8 +511,8 @@ internal fun MainE2ChartCard(
         splitChartSeries,
         doseMarkerXHours,
         doseMarkerConcentrations,
-        currentTimeXHours,
-        currentTimeConcentration,
+        displayedMarkerXHours,
+        displayedMarkerConcentration,
     ) {
         modelProducer.runTransaction {
             lineSeries {
@@ -472,8 +525,8 @@ internal fun MainE2ChartCard(
                     y = splitChartSeries.predictedPoints,
                 )
                 series(
-                    x = listOf(currentTimeXHours),
-                    y = listOf(currentTimeConcentration),
+                    x = listOf(displayedMarkerXHours),
+                    y = listOf(displayedMarkerConcentration),
                 )
                 if (doseMarkerXHours.isNotEmpty()) {
                     series(
@@ -505,19 +558,23 @@ internal fun MainE2ChartCard(
                 unit = unit
             )
 
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainer
-            ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 val lineColor = MaterialTheme.colorScheme.primary
                 val doseMarkerColor = MaterialTheme.colorScheme.primary
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
-                val currentTimeDecoration = remember(currentTimeXHours, currentTimeColor) {
+                val chartCoordinateMapper = remember { MainE2ChartCoordinateMapper() }
+                val chartSize = remember { mutableStateOf(IntSize.Zero) }
+                val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
+                val currentTimeDecoration = remember(
+                    displayedMarkerXHours,
+                    currentTimeColor,
+                    chartCoordinateMapper,
+                ) {
                     VerticalDottedLineDecoration(
-                        x = currentTimeXHours,
+                        x = displayedMarkerXHours,
                         color = currentTimeColor.copy(alpha = 0.72f),
+                        coordinateMapper = chartCoordinateMapper,
                     )
                 }
                 val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
@@ -542,67 +599,130 @@ internal fun MainE2ChartCard(
                         size = 7.dp,
                     )
                 }
-                CartesianChartHost(
-                    chart = rememberCartesianChart(
-                        rememberLineCartesianLayer(
-                            lineProvider =
-                                LineCartesianLayer.LineProvider.series(
-                                    LineCartesianLayer.rememberLine(
-                                        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                        areaFill =
-                                            LineCartesianLayer.AreaFill.single(
-                                                Fill(
-                                                    Brush.verticalGradient(
-                                                        listOf(
-                                                            lineColor.copy(
-                                                                alpha = 0.4f
-                                                            ), Color.Transparent
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainer
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(184.dp)
+                            .padding(8.dp)
+                            .onSizeChanged { chartSize.value = it }
+                    ) {
+                        CartesianChartHost(
+                            chart = rememberCartesianChart(
+                                rememberLineCartesianLayer(
+                                    lineProvider =
+                                        LineCartesianLayer.LineProvider.series(
+                                            LineCartesianLayer.rememberLine(
+                                                fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                                areaFill =
+                                                    LineCartesianLayer.AreaFill.single(
+                                                        Fill(
+                                                            Brush.verticalGradient(
+                                                                listOf(
+                                                                    lineColor.copy(
+                                                                        alpha = 0.4f
+                                                                    ), Color.Transparent
+                                                                )
+                                                            )
                                                         )
-                                                    )
-                                            )
+                                                    ),
+                                                interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                            ),
+                                            LineCartesianLayer.rememberLine(
+                                                fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                                stroke = LineCartesianLayer.LineStroke.Dashed(),
+                                                interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                            ),
+                                            LineCartesianLayer.rememberLine(
+                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
+                                            ),
+                                            LineCartesianLayer.rememberLine(
+                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
+                                            ),
                                         ),
-                                        interpolator = LineCartesianLayer.Interpolator.catmullRom(),
-                                    ),
-                                    LineCartesianLayer.rememberLine(
-                                        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                        stroke = LineCartesianLayer.LineStroke.Dashed(),
-                                        interpolator = LineCartesianLayer.Interpolator.catmullRom(),
-                                    ),
-                                    LineCartesianLayer.rememberLine(
-                                        fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                        pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
-                                    ),
-                                    LineCartesianLayer.rememberLine(
-                                        fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                        stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                        pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
-                                    ),
+                                    rangeProvider = rangeProvider,
                                 ),
-                            rangeProvider = rangeProvider,
-                        ),
-                        decorations = listOf(currentTimeDecoration),
-                        startAxis = VerticalAxis.rememberStart(
-                            valueFormatter = CartesianValueFormatter { _, value, _ ->
-                                value.toInt().toString()
-                            },
-                            itemPlacer = startAxisItemPlacer,
-                        ),
-                        bottomAxis = HorizontalAxis.rememberBottom(
-                            valueFormatter = bottomAxisValueFormatter,
-                            itemPlacer = bottomAxisItemPlacer,
-                        ),
-                        getXStep = { 1.0 },
-                    ),
-                    modelProducer = modelProducer,
+                                decorations = listOf(currentTimeDecoration),
+                                startAxis = VerticalAxis.rememberStart(
+                                    valueFormatter = CartesianValueFormatter { _, value, _ ->
+                                        value.toInt().toString()
+                                    },
+                                    itemPlacer = startAxisItemPlacer,
+                                ),
+                                bottomAxis = HorizontalAxis.rememberBottom(
+                                    valueFormatter = bottomAxisValueFormatter,
+                                    itemPlacer = bottomAxisItemPlacer,
+                                ),
+                                getXStep = { 1.0 },
+                            ),
+                            modelProducer = modelProducer,
+                            modifier = Modifier.matchParentSize(),
+                            animationSpec = chartAnimationSpec,
+                            animateIn = chartAnimationsEnabled.value,
+                            scrollState = rememberVicoScrollState(scrollEnabled = false),
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .pointerInput(chartCoordinateMapper, chartWindowHours) {
+                                    detectMainE2ChartMarkerGestures(
+                                        coordinateMapper = chartCoordinateMapper,
+                                        chartWindowHours = chartWindowHours,
+                                        onMarkerXChanged = { xHours ->
+                                            interactiveMarkerXHours.value = xHours
+                                        },
+                                    )
+                                }
+                        )
+                    }
+                }
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(184.dp)
-                        .padding(8.dp),
-                    animationSpec = chartAnimationSpec,
-                    animateIn = chartAnimationsEnabled.value,
-                    scrollState = rememberVicoScrollState(scrollEnabled = false),
-                )
+                        .matchParentSize()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    val markerLabel = interactiveMarkerLabel
+                    val markerCanvasX = interactiveMarkerXHours.value
+                        ?.let { xHours -> chartCoordinateMapper.canvasXForXHours(xHours) }
+                    if (markerLabel != null && markerCanvasX != null) {
+                        Surface(
+                            modifier = Modifier
+                                .onSizeChanged { markerLabelSize.value = it }
+                                .offset {
+                                    val labelWidth = markerLabelSize.value.width
+                                    val labelHeight = markerLabelSize.value.height
+                                    val maxXOffset = (chartSize.value.width - labelWidth).coerceAtLeast(0)
+                                    IntOffset(
+                                        x = (markerCanvasX.roundToInt() - labelWidth / 2)
+                                            .coerceIn(0, maxXOffset),
+                                        y = -labelHeight - 6,
+                                    )
+                                }
+                            ,
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ) {
+                            Text(
+                                text = markerLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -676,14 +796,159 @@ private class FixedHorizontalAxisItemPlacer(
     }
 }
 
+private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
+    coordinateMapper: MainE2ChartCoordinateMapper,
+    chartWindowHours: Int,
+    onMarkerXChanged: (Double?) -> Unit,
+) {
+    fun markerXFor(pointerX: Float): Double {
+        val fallbackX = if (size.width > 0) {
+            pointerX / size.width * chartWindowHours
+        } else {
+            0f
+        }
+        return coordinateMapper.pointerXToXHours(pointerX)
+            ?: fallbackX.toDouble().coerceIn(0.0, chartWindowHours.toDouble())
+    }
+
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        down.consume()
+        val longPress = awaitLongPressOrCancellation(down.id)
+        if (longPress == null) {
+            onMarkerXChanged(null)
+            return@awaitEachGesture
+        }
+
+        longPress.consume()
+        onMarkerXChanged(markerXFor(longPress.position.x))
+
+        while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { change -> change.id == down.id }
+                ?: event.changes.firstOrNull()
+                ?: continue
+            change.consume()
+            if (!change.pressed) {
+                onMarkerXChanged(null)
+                break
+            }
+            onMarkerXChanged(markerXFor(change.position.x))
+        }
+    }
+}
+
+private class MainE2ChartCoordinateMapper {
+    private var drawingStart: Float = 0f
+    private var layerLeft: Float = 0f
+    private var layerRight: Float = 0f
+    private var minX: Double = 0.0
+    private var maxX: Double = 0.0
+    private var xStep: Double = 0.0
+    private var xSpacing: Float = 0f
+    private var layoutDirectionMultiplier: Int = 1
+
+    fun update(context: CartesianDrawingContext) {
+        with(context) {
+            drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
+                layoutDirectionMultiplier * layerDimensions.startPadding -
+                scroll
+            layerLeft = layerBounds.left
+            layerRight = layerBounds.right
+            minX = ranges.minX
+            maxX = ranges.maxX
+            xStep = ranges.xStep
+            xSpacing = layerDimensions.xSpacing
+            this@MainE2ChartCoordinateMapper.layoutDirectionMultiplier =
+                layoutDirectionMultiplier
+        }
+    }
+
+    fun pointerXToXHours(pointerX: Float): Double? {
+        if (!hasUsableMapping()) return null
+        val rawX = minX +
+            (pointerX - drawingStart) /
+            (layoutDirectionMultiplier * xSpacing) *
+            xStep
+        return rawX.coerceIn(minX, maxX)
+    }
+
+    fun canvasXForXHours(xHours: Double): Float? {
+        if (!hasUsableMapping()) return null
+        val canvasX = drawingStart +
+            layoutDirectionMultiplier *
+            xSpacing *
+            ((xHours.coerceIn(minX, maxX) - minX) / xStep).toFloat()
+        return canvasX.coerceIn(layerLeft, layerRight)
+    }
+
+    private fun hasUsableMapping(): Boolean {
+        return xStep != 0.0 && xSpacing != 0f && minX <= maxX
+    }
+}
+
+private fun mainE2ChartConcentrationAtX(
+    xHours: Double,
+    pointXHours: List<Double>,
+    points: List<Float>,
+): Float {
+    if (pointXHours.isEmpty() || points.isEmpty()) {
+        return 0f
+    }
+    val lastIndex = minOf(pointXHours.lastIndex, points.lastIndex)
+    if (lastIndex <= 0 || xHours <= pointXHours.first()) {
+        return points.first()
+    }
+    for (index in 1..lastIndex) {
+        val rightX = pointXHours[index]
+        if (xHours <= rightX) {
+            val leftX = pointXHours[index - 1]
+            val leftY = points[index - 1]
+            val rightY = points[index]
+            val span = rightX - leftX
+            if (span <= 0.0) {
+                return rightY
+            }
+            val fraction = ((xHours - leftX) / span).coerceIn(0.0, 1.0).toFloat()
+            return leftY + (rightY - leftY) * fraction
+        }
+    }
+    return points[lastIndex]
+}
+
+private fun mainE2ChartMarkerDateFormatter(
+    locale: Locale,
+    currentYear: Int,
+): LocalDateFormatter {
+    val currentYearFormatter = DateTimeFormatter.ofPattern(
+        DateFormat.getBestDateTimePattern(locale, "Md"),
+        locale,
+    )
+    val otherYearFormatter = DateTimeFormatter.ofPattern(
+        DateFormat.getBestDateTimePattern(locale, "yMd"),
+        locale,
+    )
+    return { date ->
+        date.format(
+            if (date.year == currentYear) {
+                currentYearFormatter
+            } else {
+                otherYearFormatter
+            }
+        )
+    }
+}
+
 private class VerticalDottedLineDecoration(
     private val x: Double,
     private val color: Color,
+    private val coordinateMapper: MainE2ChartCoordinateMapper? = null,
     private val dotRadius: Dp = 1.dp,
     private val dotSpacing: Dp = 6.dp,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
+            coordinateMapper?.update(context)
             if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
                 return
             }
