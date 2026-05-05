@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.settings
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -29,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Feedback
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -498,6 +500,14 @@ private fun SettingsScreenContent(
         appVersionInfo.versionName,
         appVersionInfo.versionCode.toString()
     )
+    val feedbackSubject = stringResource(R.string.settings_about_feedback_subject, appName)
+    val feedbackBody = stringResource(
+        R.string.settings_about_feedback_body,
+        appVersionInfo.versionName,
+        appVersionInfo.versionCode.toString()
+    )
+    val feedbackChooserTitle = stringResource(R.string.settings_about_feedback_chooser_title)
+    val feedbackNoEmailAppMessage = stringResource(R.string.settings_about_feedback_no_email_app)
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
 
@@ -900,7 +910,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_privacy_policy),
                     index = 0,
-                    count = 4,
+                    count = 5,
                     onClick = { showPrivacyPolicyDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -916,7 +926,7 @@ private fun SettingsScreenContent(
                     title = stringResource(R.string.settings_about_model),
                     supportingText = stringResource(R.string.settings_about_model_summary),
                     index = 1,
-                    count = 4,
+                    count = 5,
                     onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
                     leadingContent = {
                         Box(
@@ -938,7 +948,7 @@ private fun SettingsScreenContent(
                     title = stringResource(R.string.settings_about_contact_developer),
                     supportingText = stringResource(R.string.settings_about_contact_developer_summary),
                     index = 2,
-                    count = 4,
+                    count = 5,
                     onClick = { pendingExternalUrl = DEVELOPER_X_URL },
                     leadingContent = {
                         Box(
@@ -957,19 +967,55 @@ private fun SettingsScreenContent(
                 )
 
                 SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_about_feedback),
+                    index = 3,
+                    count = 5,
+                    onClick = {
+                        launchFeedbackEmail(
+                            context = context,
+                            subject = feedbackSubject,
+                            body = feedbackBody,
+                            chooserTitle = feedbackChooserTitle,
+                            noEmailAppMessage = feedbackNoEmailAppMessage
+                        )
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_feedback),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                    },
+                    trailingContent = {
+                        SettingsLinkTrailingIcon()
+                    }
+                )
+
+                SettingsSegmentedListItem(
                     title = appName,
                     supportingText = appInfoSummary,
-                    index = 3,
-                    count = 4,
+                    index = 4,
+                    count = 5,
                     onClick = {
                         context.getSystemService(ClipboardManager::class.java)
                             ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
                         Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT).show()
                     },
                     leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_info_filled)
-                        )
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_info_filled),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 )
             }
@@ -1240,6 +1286,28 @@ private fun resolveAppVersionInfo(context: Context): AppVersionInfo {
     )
 }
 
+private fun launchFeedbackEmail(
+    context: Context,
+    subject: String,
+    body: String,
+    chooserTitle: String,
+    noEmailAppMessage: String
+) {
+    val uri = ("mailto:$FEEDBACK_EMAIL_ADDRESS" +
+            "?subject=${Uri.encode(subject)}" +
+            "&body=${Uri.encode(body)}").toUri()
+
+    val intent = Intent(Intent.ACTION_SENDTO, uri)
+
+    try {
+        context.startActivity(Intent.createChooser(intent, chooserTitle))
+    } catch (exception: ActivityNotFoundException) {
+        Toast.makeText(context, noEmailAppMessage, Toast.LENGTH_SHORT).show()
+    }
+}
+
+private const val FEEDBACK_EMAIL_ADDRESS = "mikanmkx173@gmail.com"
+private const val FEEDBACK_EMAIL_URI = "mailto:mikanmkx173@gmail.com"
 private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
 private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"

@@ -468,6 +468,12 @@
     <string name="settings_about_model_summary">HRT-Recorder-PKcomponent-Test</string>
     <string name="settings_about_contact_developer">Contact developer</string>
     <string name="settings_about_contact_developer_summary">@mikanmkx</string>
+    <string name="settings_about_feedback">Feedback &amp; suggestions</string>
+    <string name="settings_about_feedback_summary">mikanmkx173@gmail.com</string>
+    <string name="settings_about_feedback_subject">%1$s feedback</string>
+    <string name="settings_about_feedback_body">Describe your feedback or suggestion here.\n\n\n---\nVersion name: %1$s\nVersion code: %2$s</string>
+    <string name="settings_about_feedback_chooser_title">Send feedback</string>
+    <string name="settings_about_feedback_no_email_app">No email app is available.</string>
     <string name="settings_about_open_link_title">Open external link</string>
     <string name="settings_about_open_link_message">This link will open outside the app. Continue?</string>
     <string name="settings_about_open_link_confirm">Open</string>

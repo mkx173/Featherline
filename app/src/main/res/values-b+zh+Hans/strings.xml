@@ -459,6 +459,12 @@
     <string name="settings_about_model_summary">HRT-Recorder-PKcomponent-Test</string>
     <string name="settings_about_contact_developer">联系开发者</string>
     <string name="settings_about_contact_developer_summary">@mikanmkx</string>
+    <string name="settings_about_feedback">反馈与建议</string>
+    <string name="settings_about_feedback_summary">mikanmkx173@gmail.com</string>
+    <string name="settings_about_feedback_subject">%1$s 反馈与建议</string>
+    <string name="settings_about_feedback_body">请在这里描述你的反馈或建议。\n\n\n---\n版本名称：%1$s\n版本代码：%2$s</string>
+    <string name="settings_about_feedback_chooser_title">发送反馈</string>
+    <string name="settings_about_feedback_no_email_app">没有可用的邮件应用</string>
     <string name="settings_about_open_link_title">打开外部链接</string>
     <string name="settings_about_open_link_message">该链接将在应用外打开，是否继续？</string>
     <string name="settings_about_open_link_confirm">打开</string>
