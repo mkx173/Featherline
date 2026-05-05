@@ -19,8 +19,7 @@ import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.automirrored.rounded.TrendingFlat
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Medication
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -275,7 +275,7 @@ internal fun MainE2HeroCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            painter = painterResource(R.drawable.ic_schedule),
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
@@ -392,7 +392,104 @@ internal fun MainE2ChartCard(
 
 @Composable
 internal fun MainAntiandrogenCard(
+    cards: List<MainAntiandrogenCardUiState>,
+    now: LocalDateTime,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter,
+    modifier: Modifier = Modifier
+) {
+    if (cards.isEmpty()) return
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            MainAntiandrogenCardHeader(
+                activeCount = cards.size
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+            ) {
+                cards.forEachIndexed { index, card ->
+                    MainAntiandrogenMedicationSubCard(
+                        card = card,
+                        index = index,
+                        itemCount = cards.size,
+                        now = now,
+                        dateFormatter = dateFormatter,
+                        timeFormatter = timeFormatter,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainAntiandrogenCardHeader(
+    activeCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_medication),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+
+            val antiandrogenTitleText = stringResource(R.string.main_antiandrogen_title)
+            Text(
+                text = stringResource(R.string.main_antiandrogen_title),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.cjkTextOffset(antiandrogenTitleText)
+            )
+        }
+
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Text(
+                text = stringResource(
+                    R.string.main_antiandrogen_active_count,
+                    activeCount
+                ),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun MainAntiandrogenMedicationSubCard(
     card: MainAntiandrogenCardUiState,
+    index: Int,
+    itemCount: Int,
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
@@ -401,20 +498,26 @@ internal fun MainAntiandrogenCard(
     val displayedDetails = card.lastDoseDetails ?: card.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(card.groupColorKey)
     val medicationName = medicationDisplayName(displayedDetails)
+    val routeLabel = stringResource(displayedDetails.applicationType.labelRes)
     val summaryText = medicationDoseSupportingText(
         details = displayedDetails,
         medicationCount = card.medication.count,
     )
-    val lastDoseText = card.lastDoseAt?.let { doseAt ->
+    val supportingText = listOfNotNull(
+        routeLabel,
+        summaryText.takeIf(String::isNotBlank)
+    ).joinToString(separator = " · ")
+    val takenText = card.lastDoseAt?.let { doseAt ->
         stringResource(
             R.string.main_antiandrogen_last_dose_elapsed,
-            mainElapsedDurationLabel(from = doseAt, to = now)
+            mainCompactElapsedDurationLabel(from = doseAt, to = now)
         )
     } ?: stringResource(R.string.main_antiandrogen_no_last_dose)
-    val nextDoseText = card.nextDoseAt?.let { nextDoseAt ->
+    val hasPreviousRecord = card.lastDoseAt != null
+    val dueText = card.nextDoseAt?.let { nextDoseAt ->
         stringResource(
             R.string.main_antiandrogen_next_dose,
-            mainRelativeDateTimeLabel(
+            mainAntiandrogenDueLabel(
                 target = nextDoseAt,
                 now = now,
                 dateFormatter = dateFormatter,
@@ -423,104 +526,117 @@ internal fun MainAntiandrogenCard(
         )
     } ?: stringResource(R.string.main_antiandrogen_no_next_dose)
 
-    Surface(
+    EditorSegmentedListItem(
+        index = index,
+        count = itemCount,
+        onClick = { },
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        cornerShape = MaterialTheme.shapes.medium,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = groupColorScheme.secondaryContainer,
-                contentColor = groupColorScheme.onSecondaryContainer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    MedicationApplicationIcon(
-                        applicationType = displayedDetails.applicationType,
-                        contentDescription = stringResource(displayedDetails.applicationType.labelRes),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+                MainRouteIconSurface(
+                    applicationType = displayedDetails.applicationType,
+                    groupColorScheme = groupColorScheme,
+                )
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.main_antiandrogen_title),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 0.8.sp
-                    )
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(
                         text = medicationName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.cjkTextOffset(medicationName),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        overflow = TextOverflow.Ellipsis
                     )
-                }
-                Text(
-                    text = summaryText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(13.dp),
-                            tint = FulfilledStatusColor
-                        )
-                        Text(
-                            text = lastDoseText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+
                     Text(
-                        text = "·",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = nextDoseText,
-                        style = MaterialTheme.typography.bodySmall,
+                        text = supportingText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Normal,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.cjkTextOffset(supportingText),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MainAntiandrogenInfoPill(
+                    iconDrawableRes = if (hasPreviousRecord) {
+                        R.drawable.ic_check_circle_filled
+                    } else {
+                        R.drawable.ic_info_filled
+                    },
+                    text = takenText,
+                    iconTint = if (hasPreviousRecord) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                MainAntiandrogenInfoPill(
+                    iconDrawableRes = R.drawable.ic_schedule_filled,
+                    text = dueText,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainAntiandrogenInfoPill(
+    iconDrawableRes: Int? = null,
+    text: String,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.36f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (iconDrawableRes != null) {
+                Icon(
+                    painter = painterResource(iconDrawableRes),
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.cjkTextOffset(text)
+            )
         }
     }
 }
@@ -985,7 +1101,7 @@ private fun MainTodayTrailingStatusButton(
                 )
 
                 isDueSoon -> Icon(
-                    imageVector = Icons.Rounded.Schedule,
+                    painter = painterResource(R.drawable.ic_schedule),
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
@@ -1204,7 +1320,7 @@ private fun MainTodayTimeRangeHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Schedule,
+                    painter = painterResource(R.drawable.ic_schedule),
                     contentDescription = null,
                     tint = if (isCurrent) {
                         MaterialTheme.colorScheme.onTertiaryContainer
@@ -1259,6 +1375,37 @@ private fun mainTodayTimeRange(time: LocalTime): MainTodayTimeRange {
 
 private fun mainTodayEntryEditorIds(row: MainTodayDoseRowUiState): Set<UUID> {
     return (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids).toSet()
+}
+
+@Composable
+private fun mainCompactElapsedDurationLabel(
+    from: LocalDateTime,
+    to: LocalDateTime
+): String {
+    val duration = Duration.between(from, to)
+    val totalMinutes = (duration.seconds.coerceAtLeast(0) / 60).coerceAtLeast(1)
+    val days = totalMinutes / (24 * 60)
+    val hours = totalMinutes / 60
+
+    return when {
+        days > 0 -> stringResource(R.string.main_duration_compact_days, days)
+        hours > 0 -> stringResource(R.string.main_duration_compact_hours, hours)
+        else -> stringResource(R.string.main_duration_compact_minutes, totalMinutes)
+    }
+}
+
+@Composable
+private fun mainAntiandrogenDueLabel(
+    target: LocalDateTime,
+    now: LocalDateTime,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter
+): String {
+    return when (target.toLocalDate()) {
+        now.toLocalDate() -> target.toLocalTime().format(timeFormatter)
+        now.toLocalDate().plusDays(1) -> stringResource(R.string.main_relative_tomorrow)
+        else -> dateFormatter(target.toLocalDate())
+    }
 }
 
 @Composable
@@ -1388,7 +1535,7 @@ private fun MainAntiandrogenCardPreview() {
 
     MainContentComponentPreviewContainer {
         MainAntiandrogenCard(
-            card = uiState.antiandrogenCards.first(),
+            cards = uiState.antiandrogenCards,
             now = uiState.now,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter

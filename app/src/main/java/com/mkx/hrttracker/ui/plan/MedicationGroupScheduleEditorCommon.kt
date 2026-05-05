@@ -10,7 +10,6 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -22,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -432,7 +430,7 @@ private fun EditorFieldRowPreview() {
             EditorFieldRow(
                 label = "Time",
                 value = "08:00",
-                icon = rememberVectorPainter(Icons.Rounded.Schedule),
+                icon = painterResource(R.drawable.ic_schedule),
                 onClick = {},
             )
         }

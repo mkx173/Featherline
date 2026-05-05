@@ -73,11 +73,11 @@ fun MainContent(
             )
         }
 
-        uiState.antiandrogenCards.forEach { card ->
-            item(key = "antiandrogen-${card.id}") {
+        if (uiState.antiandrogenCards.isNotEmpty()) {
+            item(key = "antiandrogens") {
                 Spacer(modifier = Modifier.height(8.dp))
                 MainAntiandrogenCard(
-                    card = card,
+                    cards = uiState.antiandrogenCards,
                     now = uiState.now,
                     dateFormatter = dateFormatter,
                     timeFormatter = timeFormatter

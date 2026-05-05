@@ -21,7 +21,6 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -46,6 +45,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
@@ -114,14 +114,14 @@ internal fun CalibrationDateTimeCard(
                 CalibrationMetadataChip(
                     label = stringResource(R.string.settings_calibration_date_label).uppercase(),
                     value = dateLabel,
-                    icon = Icons.Rounded.CalendarMonth,
+                    iconPainter = painterResource(R.drawable.ic_calendar_month),
                     onClick = onDateClick,
                     modifier = Modifier.weight(1f),
                 )
                 CalibrationMetadataChip(
                     label = stringResource(R.string.settings_calibration_time_label).uppercase(),
                     value = timeLabel,
-                    icon = Icons.Rounded.Schedule,
+                    iconPainter = painterResource(R.drawable.ic_schedule),
                     onClick = onTimeClick,
                 )
             }
@@ -610,7 +610,8 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
 private fun CalibrationMetadataChip(
     label: String,
     value: String,
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    iconPainter: Painter? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -627,11 +628,19 @@ private fun CalibrationMetadataChip(
                 .padding(vertical = 10.dp, horizontal = 16.dp)
                 .clip(MaterialTheme.shapes.small)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (iconPainter != null) {
+                Icon(
+                    painter = iconPainter,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Column {
                 Text(
                     text = label,
