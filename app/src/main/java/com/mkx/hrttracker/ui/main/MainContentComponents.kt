@@ -884,10 +884,7 @@ private fun MainTodayDoseRow(
     val hasOnlyOutsideScheduleWindowLog = row.loggedAt == null &&
         row.outsideScheduleWindowLoggedAt != null
     val routeIconOutlined = hasOnlyOutsideScheduleWindowLog ||
-        (row.loggedAt == null && !mainTodayIsInGracePeriod(
-            scheduledFor = row.scheduledAt,
-            now = now
-        ))
+        (row.loggedAt == null && row.status == MainTodayDoseStatus.OVERDUE)
     val onQuickLogClick = {
         onQuickLogDoseClick(
             row.groupUuid,
