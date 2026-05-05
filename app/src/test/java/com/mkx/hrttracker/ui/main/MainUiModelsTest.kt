@@ -234,6 +234,63 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainAntiandrogenCards_orders_groups_by_oldest_creation_time_first() {
+        val olderGroup = medicationGroup(
+            uuid = UUID.fromString("c806d3bb-61a6-4efa-883a-99b03cc503b8"),
+            name = "Older blocker",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("bc722321-7c11-4318-a7d5-cbd712ad1621"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val newerGroup = medicationGroup(
+            uuid = UUID.fromString("d1e9086f-a911-46d6-a941-fb390dc09f9a"),
+            name = "Newer blocker",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(20, 0))
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.fromString("c6d2a3e6-5f5f-4cb7-9e5b-3e6634745f1b"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-10T00:00:00Z")
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(newerGroup, olderGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(listOf("Older blocker", "Newer blocker"), cards.map { it.groupName })
+    }
+
+    @Test
     fun buildMainTodaySection_marks_done_overdue_dueSoon_and_upcoming_rows() {
         val group = medicationGroup(
             uuid = UUID.fromString("7b53f876-8809-4f64-91b0-c6c6a59b87c0"),
@@ -403,7 +460,8 @@ class MainUiModelsTest {
                     dose = MedicationDose.MgAsMedicine(2.0)
                 )
             )
-        )
+        ),
+        createdAt: Instant = Instant.parse("2026-04-01T00:00:00Z")
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
@@ -411,8 +469,8 @@ class MainUiModelsTest {
             colorKey = MedicationGroupColorKey.ORCHID,
             schedule = schedule,
             medications = medications,
-            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
-            updatedAt = Instant.parse("2026-04-01T00:00:00Z")
+            createdAt = createdAt,
+            updatedAt = createdAt
         )
     }
 

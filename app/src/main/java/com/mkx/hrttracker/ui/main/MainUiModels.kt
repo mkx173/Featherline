@@ -117,7 +117,7 @@ internal fun buildMainAntiandrogenCards(
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
-    return groups.flatMap { group ->
+    return groups.sortedBy { it.createdAt }.flatMap { group ->
         val nextDoseAt = group.nextOccurrencesInPlanWindowFrom(
             start = now,
             limit = 1,
