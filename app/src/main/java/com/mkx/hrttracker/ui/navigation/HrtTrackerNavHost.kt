@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
@@ -274,24 +271,6 @@ fun HrtTrackerNavHost(
                 }
             }
         },
-        floatingActionButton = {
-            when (currentRoute) {
-                Screen.Main.route -> {
-                    FloatingActionButton(
-                        onClick = {
-                            addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = stringResource(R.string.fab_add_entry)
-                        )
-                    }
-                }
-
-                else -> Unit
-            }
-        },
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.statusBars)
     ) { innerPadding ->
         NavHost(
@@ -311,6 +290,9 @@ fun HrtTrackerNavHost(
                         addEntrySheetRequest = AddEntrySheetRequest(
                             entryIds = entryIds.map(UUID::toString)
                         )
+                    },
+                    onAddEntryClick = {
+                        addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
                     },
                     onQuickLogDoseClick = { groupId, scheduleTimeUuid, scheduledAt, medicationDetails, medicationCount ->
                         if (medicationCount > 0) {

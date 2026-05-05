@@ -27,7 +27,6 @@ import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -221,6 +220,12 @@ private fun CalibrationScreenContent(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onAddClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.settings_calibration_add_result),
+                        )
+                    }
                     IconButton(onClick = onUnitsClick) {
                         Icon(
                             painter = painterResource(R.drawable.ic_tune),
@@ -251,14 +256,6 @@ private fun CalibrationScreenContent(
                 },
                 scrollBehavior = scrollBehavior
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.settings_calibration_add_result),
-                )
-            }
         }
     ) { innerPadding ->
         LazyColumn(

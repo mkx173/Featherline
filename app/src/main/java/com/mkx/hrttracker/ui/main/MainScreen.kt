@@ -5,8 +5,12 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -36,6 +40,7 @@ fun MainScreen(
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit =
         { _, _, _, _, _ -> },
     onEntryClick: (Set<UUID>) -> Unit = { },
+    onAddEntryClick: () -> Unit = { },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -72,6 +77,14 @@ fun MainScreen(
                         text = title,
                         modifier = Modifier.cjkTextOffset(title, amount = (-2).dp),
                     )
+                },
+                actions = {
+                    IconButton(onClick = onAddEntryClick) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.fab_add_entry),
+                        )
+                    }
                 },
                 scrollBehavior = scrollBehavior
             )
