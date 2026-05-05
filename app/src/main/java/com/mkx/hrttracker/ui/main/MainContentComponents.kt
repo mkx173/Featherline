@@ -89,6 +89,7 @@ import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
@@ -2135,7 +2136,7 @@ private fun MainAntiandrogenCardPreview() {
 @Composable
 private fun MainTodaySectionPreview() {
     val uiState = buildMainContentPreviewUiState()
-    val dateFormatter = dateLabelFormatter(Locale.US, uiState.now.toLocalDate())
+    val dateFormatter = medicationGroupScheduleDateFormatter(Locale.US, uiState.now.toLocalDate())
     val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
 
     MainContentComponentPreviewContainer {
@@ -2258,7 +2259,7 @@ private fun MainSectionHeaderPreview() {
     MainContentComponentPreviewContainer {
         MainSectionHeader(
             title = "Today",
-            summary = "May 5 · 1/4 done",
+            summary = "May 5 Tue · 1/4 done",
             emphasize = true
         )
     }

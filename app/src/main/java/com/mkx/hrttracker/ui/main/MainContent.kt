@@ -23,6 +23,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import java.time.LocalDateTime
@@ -40,6 +41,9 @@ fun MainContent(
     val today = uiState.now.toLocalDate()
     val dateFormatter = remember(appLocale, today) {
         dateLabelFormatter(appLocale, today)
+    }
+    val dayHeaderDateFormatter = remember(appLocale, today) {
+        medicationGroupScheduleDateFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     if (uiState.isLoading) {
@@ -91,7 +95,7 @@ fun MainContent(
             MainTodaySection(
                 section = uiState.todaySection,
                 now = uiState.now,
-                dateFormatter = dateFormatter,
+                dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
@@ -102,7 +106,7 @@ fun MainContent(
             Spacer(modifier = Modifier.height(16.dp))
             MainUpcomingSection(
                 section = uiState.upcomingSection,
-                dateFormatter = dateFormatter,
+                dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter
             )
         }
