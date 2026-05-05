@@ -428,39 +428,39 @@ internal fun MainE2ChartCard(
         )
     }
     val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
-    val isLongPressMarkerActive = interactiveMarkerXHours.value != null
-    val displayedMarkerXHours = interactiveMarkerXHours.value ?: currentTimeXHours
-    val displayedMarkerConcentration = remember(
-        interactiveMarkerXHours.value,
+    val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
+    val isLongPressMarkerActive = interactiveMarkerXHoursValue != null
+    val interactionMarkerXHours = interactiveMarkerXHoursValue ?: currentTimeXHours
+    val interactionMarkerConcentration = remember(
+        interactiveMarkerXHoursValue,
         pointXHours,
         section.points,
-        displayedMarkerXHours,
-        currentTimeXHours,
+        interactionMarkerXHours,
         currentTimeConcentration,
     ) {
-        if (interactiveMarkerXHours.value == null) {
+        if (interactiveMarkerXHoursValue == null) {
             currentTimeConcentration
         } else {
             mainE2ChartConcentrationAtX(
-                xHours = displayedMarkerXHours,
+                xHours = interactionMarkerXHours,
                 pointXHours = pointXHours,
                 points = section.points,
             )
         }
     }
     val interactiveMarkerLabel = remember(
-        interactiveMarkerXHours.value,
-        displayedMarkerConcentration,
+        interactiveMarkerXHoursValue,
+        interactionMarkerConcentration,
         chartWindowStart,
         chartDateFormatter,
         chartTimeFormatter,
         unit,
     ) {
-        interactiveMarkerXHours.value?.let { xHours ->
+        interactiveMarkerXHoursValue?.let { xHours ->
             val dateTime = chartWindowStart.plusMinutes((xHours * 60).roundToLong())
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
-            "$date $time\n${displayedMarkerConcentration.roundToInt()} $unit"
+            "$date $time\n${interactionMarkerConcentration.roundToInt()} $unit"
         }
     }
     val noonTickHours = remember(chartWindowHours, now) {
@@ -520,8 +520,10 @@ internal fun MainE2ChartCard(
         splitChartSeries,
         doseMarkerXHours,
         doseMarkerConcentrations,
-        displayedMarkerXHours,
-        displayedMarkerConcentration,
+        currentTimeXHours,
+        currentTimeConcentration,
+        interactionMarkerXHours,
+        interactionMarkerConcentration,
     ) {
         modelProducer.runTransaction {
             lineSeries {
@@ -534,8 +536,12 @@ internal fun MainE2ChartCard(
                     y = splitChartSeries.predictedPoints,
                 )
                 series(
-                    x = listOf(displayedMarkerXHours),
-                    y = listOf(displayedMarkerConcentration),
+                    x = listOf(currentTimeXHours),
+                    y = listOf(currentTimeConcentration),
+                )
+                series(
+                    x = listOf(interactionMarkerXHours),
+                    y = listOf(interactionMarkerConcentration),
                 )
                 if (doseMarkerXHours.isNotEmpty()) {
                     series(
@@ -573,22 +579,35 @@ internal fun MainE2ChartCard(
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
                 val currentTimeLineColor =
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
+                val interactionMarkerColor = MaterialTheme.colorScheme.outlineVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val chartCoordinateMapper = remember { MainE2ChartCoordinateMapper() }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
-                    displayedMarkerXHours,
+                    currentTimeXHours,
                     currentTimeLineColor,
-                    isLongPressMarkerActive,
                     chartCoordinateMapper,
                 ) {
                     VerticalLineDecoration(
-                        x = displayedMarkerXHours,
+                        x = currentTimeXHours,
                         lineColor = currentTimeLineColor,
-                        dashed = isLongPressMarkerActive,
                         coordinateMapper = chartCoordinateMapper,
                     )
+                }
+                val interactionMarkerDecoration = remember(
+                    interactiveMarkerXHoursValue,
+                    interactionMarkerColor,
+                    chartCoordinateMapper,
+                ) {
+                    interactiveMarkerXHoursValue?.let { xHours ->
+                        VerticalLineDecoration(
+                            x = xHours,
+                            lineColor = interactionMarkerColor,
+                            dashed = true,
+                            coordinateMapper = chartCoordinateMapper,
+                        )
+                    }
                 }
                 val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
                     LineCartesianLayer.Point(
@@ -596,6 +615,33 @@ internal fun MainE2ChartCard(
                             fill = Fill(currentTimeColor),
                             shape = CircleShape,
                             strokeFill = Fill(markerSurfaceColor),
+                            strokeThickness = 1.dp,
+                        ),
+                        size = 8.dp,
+                    )
+                }
+                val interactionMarkerPoint = remember(
+                    isLongPressMarkerActive,
+                    interactionMarkerColor,
+                    markerSurfaceColor,
+                ) {
+                    LineCartesianLayer.Point(
+                        component = ShapeComponent(
+                            fill = Fill(
+                                if (isLongPressMarkerActive) {
+                                    interactionMarkerColor
+                                } else {
+                                    Color.Transparent
+                                }
+                            ),
+                            shape = CircleShape,
+                            strokeFill = Fill(
+                                if (isLongPressMarkerActive) {
+                                    markerSurfaceColor
+                                } else {
+                                    Color.Transparent
+                                }
+                            ),
                             strokeThickness = 1.dp,
                         ),
                         size = 8.dp,
@@ -659,12 +705,20 @@ internal fun MainE2ChartCard(
                                             LineCartesianLayer.rememberLine(
                                                 fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
                                                 stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                pointProvider = LineCartesianLayer.PointProvider.single(interactionMarkerPoint),
+                                            ),
+                                            LineCartesianLayer.rememberLine(
+                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
                                                 pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
                                             ),
                                         ),
                                     rangeProvider = rangeProvider,
                                 ),
-                                decorations = listOf(currentTimeDecoration),
+                                decorations = listOfNotNull(
+                                    currentTimeDecoration,
+                                    interactionMarkerDecoration,
+                                ),
                                 startAxis = VerticalAxis.rememberStart(
                                     valueFormatter = CartesianValueFormatter { _, value, _ ->
                                         value.toInt().toString()
