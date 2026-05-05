@@ -307,6 +307,11 @@ fun HrtTrackerNavHost(
                 MainScreen(
                     modifier.padding(innerPadding),
                     scrollToTopSignal = mainScrollToTopSignal,
+                    onEntryClick = { entryIds ->
+                        addEntrySheetRequest = AddEntrySheetRequest(
+                            entryIds = entryIds.map(UUID::toString)
+                        )
+                    },
                     onQuickLogDoseClick = { groupId, scheduleTimeUuid, scheduledAt, medicationDetails, medicationCount ->
                         if (medicationCount > 0) {
                             addEntrySheetRequest = AddEntrySheetRequest(

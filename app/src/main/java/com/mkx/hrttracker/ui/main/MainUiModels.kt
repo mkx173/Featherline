@@ -59,7 +59,9 @@ data class MainTodayDoseRowUiState(
     val medication: MedicationGroupMedication,
     val status: MainTodayDoseStatus,
     val loggedAt: LocalDateTime? = null,
+    val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val fulfillingEntryUuids: List<UUID> = emptyList(),
+    val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
 )
 
@@ -194,7 +196,9 @@ internal fun buildMainTodaySection(
                 ?.appliedAt
                 ?.atZone(zoneId)
                 ?.toLocalDateTime(),
+            outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
+            outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount
         )
     }

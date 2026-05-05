@@ -3,7 +3,9 @@ package com.mkx.hrttracker.ui.main
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -30,6 +33,7 @@ fun MainContent(
     uiState: MainUiState,
     listState: LazyListState,
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -51,13 +55,7 @@ fun MainContent(
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = dimensionResource(R.dimen.padding_medium),
-            top = dimensionResource(R.dimen.padding_medium),
-            end = dimensionResource(R.dimen.padding_medium),
-            bottom = dimensionResource(R.dimen.padding_large),
-        ),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_large))
+        contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
     ) {
         item(key = "e2-hero") {
             MainE2HeroCard(
@@ -67,6 +65,7 @@ fun MainContent(
         }
 
         item(key = "e2-chart") {
+            Spacer(modifier = Modifier.height(8.dp))
             MainE2ChartCard(
                 section = uiState.e2Chart,
                 now = uiState.now,
@@ -76,6 +75,7 @@ fun MainContent(
 
         uiState.antiandrogenCards.forEach { card ->
             item(key = "antiandrogen-${card.id}") {
+                Spacer(modifier = Modifier.height(8.dp))
                 MainAntiandrogenCard(
                     card = card,
                     now = uiState.now,
@@ -86,15 +86,19 @@ fun MainContent(
         }
 
         item(key = "today") {
+            Spacer(modifier = Modifier.height(16.dp))
             MainTodaySection(
                 section = uiState.todaySection,
+                now = uiState.now,
                 dateFormatter = dateFormatter,
                 timeFormatter = timeFormatter,
-                onQuickLogDoseClick = onQuickLogDoseClick
+                onQuickLogDoseClick = onQuickLogDoseClick,
+                onEntryClick = onEntryClick
             )
         }
 
         item(key = "upcoming") {
+            Spacer(modifier = Modifier.height(16.dp))
             MainUpcomingSection(
                 section = uiState.upcomingSection,
                 dateFormatter = dateFormatter,
@@ -118,6 +122,7 @@ private fun MainContentPreview() {
                 uiState = buildMainContentPreviewUiState(),
                 listState = rememberLazyListState(),
                 onQuickLogDoseClick = { _, _, _, _, _ -> },
+                onEntryClick = { },
             )
         }
     }

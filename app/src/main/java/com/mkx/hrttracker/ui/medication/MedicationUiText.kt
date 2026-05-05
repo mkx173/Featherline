@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.medication
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationSelection
@@ -59,18 +58,6 @@ fun medicationDoseText(details: MedicationDetails): String? {
 }
 
 @Composable
-fun medicationSummary(details: MedicationDetails): String {
-    val displayName = medicationDisplayName(details)
-    val applicationLabel = stringResource(details.applicationType.labelRes)
-    val doseText = medicationDoseText(details)
-    return if (doseText == null) {
-        stringResource(R.string.medication_summary_without_dose, displayName, applicationLabel)
-    } else {
-        stringResource(R.string.medication_summary_with_dose, displayName, doseText, applicationLabel)
-    }
-}
-
-@Composable
 internal fun medicationSupportingText(
     details: MedicationDetails,
     medicationCount: Int,
@@ -94,22 +81,6 @@ internal fun medicationDoseSupportingText(
         medicationDoseText(details),
         medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
     ).joinToString(separator = " · ")
-}
-
-fun applicationTypeBadgeLabelRes(applicationType: MedicationApplicationType): Int {
-    return when (applicationType) {
-        MedicationApplicationType.ORAL -> R.string.medication_application_badge_oral
-        MedicationApplicationType.SUBLINGUAL -> R.string.medication_application_badge_sublingual
-        MedicationApplicationType.INJECTION -> R.string.medication_application_badge_injection
-        MedicationApplicationType.GEL -> R.string.medication_application_badge_gel
-        MedicationApplicationType.PATCH_ON -> R.string.medication_application_badge_patch_on
-        MedicationApplicationType.PATCH_OFF -> R.string.medication_application_badge_patch_off
-    }
-}
-
-@Composable
-fun applicationTypeBadgeLabel(applicationType: MedicationApplicationType): String {
-    return stringResource(applicationTypeBadgeLabelRes(applicationType))
 }
 
 fun medicationCountIndicatorText(count: Int): String = "${count}x"

@@ -23,6 +23,16 @@
     <string name="main_today_status_upcoming">今天稍后</string>
     <string name="main_today_status_overdue">已错过 / 逾期</string>
     <string name="main_today_quick_log">快速记录</string>
+    <string name="main_today_range_night">夜间</string>
+    <string name="main_today_range_morning">上午</string>
+    <string name="main_today_range_afternoon">下午</string>
+    <string name="main_today_range_evening">晚上</string>
+    <plurals name="main_today_schedule_offset_hours_later">
+        <item quantity="other">+%1$d小时</item>
+    </plurals>
+    <plurals name="main_today_schedule_offset_hours_earlier">
+        <item quantity="other">-%1$d小时</item>
+    </plurals>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_status_in_range">在范围内</string>
@@ -321,12 +331,6 @@
     <string name="medication_gel_application_area_default">默认</string>
     <string name="medication_application_patch_on">贴片贴上</string>
     <string name="medication_application_patch_off">贴片取下</string>
-    <string name="medication_application_badge_oral">口服</string>
-    <string name="medication_application_badge_sublingual">舌下</string>
-    <string name="medication_application_badge_injection">注射</string>
-    <string name="medication_application_badge_gel">凝胶</string>
-    <string name="medication_application_badge_patch_on">贴上</string>
-    <string name="medication_application_badge_patch_off">取下</string>
     <string name="medication_name_estradiol">雌二醇</string>
     <string name="medication_name_estradiol_valerate">戊酸雌二醇</string>
     <string name="medication_name_estradiol_benzoate">苯甲酸雌二醇</string>

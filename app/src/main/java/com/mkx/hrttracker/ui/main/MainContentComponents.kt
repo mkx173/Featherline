@@ -1,23 +1,18 @@
 package com.mkx.hrttracker.ui.main
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
@@ -25,9 +20,9 @@ import androidx.compose.material.icons.automirrored.rounded.TrendingFlat
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Medication
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,8 +36,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -56,15 +57,20 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.ui.medication.applicationTypeBadgeLabel
+import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
+import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.rememberAppLocale
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
@@ -78,6 +84,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 
@@ -89,6 +96,34 @@ private val PreviewAntiandrogenGroupUuid = UUID.fromString("f5b5ef28-7364-47b4-9
 private val PreviewMorningScheduleUuid = UUID.fromString("f4ea56fc-0856-485e-9af2-d1bc7caa341c")
 private val PreviewPatchScheduleUuid = UUID.fromString("99cc2da0-e3ea-4bbd-a3ce-d6532b73f474")
 private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
+private const val MainScheduleGraceMinutes = 60L
+
+private enum class MainTodayTimeRange(
+    val labelRes: Int,
+    val startHour: Int,
+    val endHour: Int,
+) {
+    NIGHT(
+        labelRes = R.string.main_today_range_night,
+        startHour = 0,
+        endHour = 6
+    ),
+    MORNING(
+        labelRes = R.string.main_today_range_morning,
+        startHour = 6,
+        endHour = 12
+    ),
+    AFTERNOON(
+        labelRes = R.string.main_today_range_afternoon,
+        startHour = 12,
+        endHour = 18
+    ),
+    EVENING(
+        labelRes = R.string.main_today_range_evening,
+        startHour = 18,
+        endHour = 24
+    );
+}
 
 @Composable
 internal fun MainE2HeroCard(
@@ -365,7 +400,11 @@ internal fun MainAntiandrogenCard(
 ) {
     val displayedDetails = card.lastDoseDetails ?: card.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(card.groupColorKey)
-    val doseText = medicationDoseText(displayedDetails)
+    val medicationName = medicationDisplayName(displayedDetails)
+    val summaryText = medicationDoseSupportingText(
+        details = displayedDetails,
+        medicationCount = card.medication.count,
+    )
     val lastDoseText = card.lastDoseAt?.let { doseAt ->
         stringResource(
             R.string.main_antiandrogen_last_dose_elapsed,
@@ -397,13 +436,14 @@ internal fun MainAntiandrogenCard(
             Surface(
                 modifier = Modifier.size(44.dp),
                 shape = MaterialTheme.shapes.medium,
-                color = groupColorScheme.secondaryContainer
+                color = groupColorScheme.secondaryContainer,
+                contentColor = groupColorScheme.onSecondaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.Medication,
-                        contentDescription = null,
-                        tint = groupColorScheme.onSecondaryContainer
+                    MedicationApplicationIcon(
+                        applicationType = displayedDetails.applicationType,
+                        contentDescription = stringResource(displayedDetails.applicationType.labelRes),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -423,20 +463,13 @@ internal fun MainAntiandrogenCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 0.8.sp
                     )
-                    MainMedicationCountBadge(
-                        count = card.medication.count,
-                        groupColorScheme = groupColorScheme
-                    )
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = listOfNotNull(
-                            medicationDisplayName(displayedDetails),
-                            doseText
-                        ).joinToString(separator = " · "),
+                        text = medicationName,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -445,6 +478,13 @@ internal fun MainAntiandrogenCard(
                         modifier = Modifier.weight(1f, fill = false)
                     )
                 }
+                Text(
+                    text = summaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -488,41 +528,74 @@ internal fun MainAntiandrogenCard(
 @Composable
 internal fun MainTodaySection(
     section: MainTodaySectionUiState,
+    now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val groupedRows = remember(section.rows) {
+        section.rows
+            .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
+            .entries
+            .sortedBy { (timeRange, _) -> timeRange.ordinal }
+    }
+    val sectionSummary = listOf(
+        dateFormatter(section.date),
+        stringResource(
+            R.string.main_today_progress,
+            section.doneCount,
+            section.totalCount
+        )
+    ).joinToString(separator = " · ")
+
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
     ) {
-        SectionHeader(
+        MainSectionHeader(
             title = stringResource(R.string.main_today_title),
-            subtitle = dateFormatter(section.date),
-            trailing = stringResource(
-                R.string.main_today_progress,
-                section.doneCount,
-                section.totalCount
-            )
+            summary = sectionSummary,
+            emphasize = true
         )
 
         if (section.rows.isEmpty()) {
-            Text(
+            SupportMessageListItem(
                 text = stringResource(R.string.main_today_empty_state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                painter = painterResource(R.drawable.ic_info),
             )
         } else {
             Column(
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                section.rows.forEach { row ->
-                    MainTodayDoseRow(
-                        row = row,
+                groupedRows.forEachIndexed { groupIndex, (timeRange, rows) ->
+                    MainTodayTimeRangeHeader(
+                        timeRange = timeRange,
+                        isCurrent = timeRange == mainTodayTimeRange(now.toLocalTime()),
+                        doneCount = rows.count { row -> row.status == MainTodayDoseStatus.DONE },
+                        totalCount = rows.size,
                         timeFormatter = timeFormatter,
-                        onQuickLogDoseClick = onQuickLogDoseClick
+                        modifier = Modifier.padding(
+                            top = if (groupIndex == 0) 0.dp else 2.dp
+                        )
                     )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+                    ) {
+                        rows.forEachIndexed { index, row ->
+                            MainTodayDoseRow(
+                                row = row,
+                                index = index,
+                                itemCount = rows.size,
+                                now = now,
+                                timeFormatter = timeFormatter,
+                                onQuickLogDoseClick = onQuickLogDoseClick,
+                                onEntryClick = onEntryClick
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -545,26 +618,27 @@ internal fun MainUpcomingSection(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))
     ) {
-        SectionHeader(
+        MainSectionHeader(
             title = title,
-            subtitle = subtitle
+            summary = subtitle
         )
 
         if (section.rows.isEmpty()) {
-            Text(
+            SupportMessageListItem(
                 text = stringResource(R.string.main_upcoming_empty_state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                painter = painterResource(R.drawable.ic_info),
             )
         } else {
             Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
-                section.rows.forEach { row ->
+                section.rows.forEachIndexed { index, row ->
                     MainUpcomingDoseRow(
                         row = row,
+                        index = index,
+                        itemCount = section.rows.size,
                         dateFormatter = dateFormatter,
                         timeFormatter = timeFormatter,
                         showDate = section.title == MainUpcomingSectionTitle.UPCOMING
@@ -578,134 +652,110 @@ internal fun MainUpcomingSection(
 @Composable
 private fun MainTodayDoseRow(
     row: MainTodayDoseRowUiState,
+    index: Int,
+    itemCount: Int,
+    now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
-    val rowColors = todayRowColors(mainTodayRowTone(row.status))
     val headline = medicationDisplayName(details)
-    val supportingText = supportingText(
-        details = details,
-        groupName = row.groupName,
-        includeDate = null,
-    )
-    val statusText = when (row.status) {
-        MainTodayDoseStatus.DONE -> row.loggedAt?.let {
-            stringResource(R.string.main_today_status_logged_at, it.toLocalTime().format(timeFormatter))
-        } ?: stringResource(R.string.main_today_status_done)
-        MainTodayDoseStatus.DUE_SOON -> stringResource(R.string.main_today_status_due_soon)
-        MainTodayDoseStatus.UPCOMING -> stringResource(R.string.main_today_status_upcoming)
-        MainTodayDoseStatus.OVERDUE -> stringResource(R.string.main_today_status_overdue)
+    val routeLabel = stringResource(details.applicationType.labelRes)
+    val doseText = medicationDoseText(details)
+    val supportingText = listOfNotNull(
+        routeLabel,
+        doseText,
+    ).joinToString(separator = " · ")
+    val entryEditorIds = mainTodayEntryEditorIds(row)
+    val routeIconOutlined = row.loggedAt == null &&
+        row.outsideScheduleWindowLoggedAt == null &&
+        !mainTodayIsInGracePeriod(
+            scheduledFor = row.scheduledAt,
+            now = now
+        )
+    val onQuickLogClick = {
+        onQuickLogDoseClick(
+            row.groupUuid,
+            row.scheduleTimeUuid,
+            row.scheduledAt,
+            row.medication.details,
+            remainingQuickLogCount(
+                totalCount = row.medication.count,
+                fulfilledCount = row.loggedCount
+            )
+        )
     }
 
-    Surface(
+    EditorSegmentedListItem(
+        index = index,
+        count = itemCount,
+        onClick = {
+            if (row.status != MainTodayDoseStatus.DONE) {
+                onQuickLogClick()
+            }
+        },
         modifier = modifier.fillMaxWidth(),
-        color = rowColors.containerColor,
-        shape = MaterialTheme.shapes.extraLarge,
-        border = BorderStroke(rowColors.borderWidth, rowColors.borderColor)
+        trailingContent = {
+            MainTodayTrailingContent(
+                row = row,
+                now = now,
+                timeFormatter = timeFormatter,
+                onStatusClick = {
+                    if (entryEditorIds.isNotEmpty()) {
+                        onEntryClick(entryEditorIds)
+                    } else {
+                        onQuickLogClick()
+                    }
+                }
+            )
+        }
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            MainTimeColumn(
-                primaryLabel = row.scheduledAt.toLocalTime().format(timeFormatter),
-                modifier = Modifier.width(52.dp)
+            MainRouteIconSurface(
+                applicationType = details.applicationType,
+                groupColorScheme = groupColorScheme,
+                outlinedIcon = routeIconOutlined
             )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(4.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(groupColorScheme.primary)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    MainApplicationBadge(
-                        label = applicationTypeBadgeLabel(details.applicationType),
-                        groupColorScheme = groupColorScheme
-                    )
-
-                    MainMedicationCountBadge(
-                        count = row.medication.count,
-                        groupColorScheme = groupColorScheme
-                    )
-
                     Text(
                         text = headline,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(headline),
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                if (supportingText.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = supportingText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                Text(
-                    text = statusText,
-                    color = rowColors.statusColor,
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            if (row.status == MainTodayDoseStatus.DONE) {
-                Surface(
-                    modifier = Modifier.size(36.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Check,
-                            contentDescription = null,
-                            tint = FulfilledStatusColor
-                        )
-                    }
-                }
-            } else {
-                MainTodayActionButton(
-                    status = row.status,
-                    onClick = {
-                        onQuickLogDoseClick(
-                            row.groupUuid,
-                            row.scheduleTimeUuid,
-                            row.scheduledAt,
-                            row.medication.details,
-                            remainingQuickLogCount(
-                                totalCount = row.medication.count,
-                                fulfilledCount = row.loggedCount
-                            )
-                        )
-                    }
-                )
             }
         }
     }
@@ -714,6 +764,8 @@ private fun MainTodayDoseRow(
 @Composable
 private fun MainUpcomingDoseRow(
     row: MainUpcomingDoseRowUiState,
+    index: Int,
+    itemCount: Int,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
     showDate: Boolean,
@@ -722,227 +774,484 @@ private fun MainUpcomingDoseRow(
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
     val headline = medicationDisplayName(details)
-    val supportingText = supportingText(
-        details = details,
-        groupName = row.groupName,
-        includeDate = if (showDate) dateFormatter(row.scheduledAt.toLocalDate()) else null,
-    )
+    val doseText = medicationDoseText(details)
+    val headlineText = listOfNotNull(
+        headline,
+        doseText
+    ).joinToString(separator = " · ")
+    val extraSupportingText = if (showDate) {
+        dateFormatter(row.scheduledAt.toLocalDate())
+    } else {
+        null
+    }
+    val supportingText = listOfNotNull(
+        medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
+        extraSupportingText
+    ).joinToString(separator = " · ")
+    val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
+    EditorSegmentedListItem(
+        index = index,
+        count = itemCount,
+        onClick = { },
+        modifier = modifier.fillMaxWidth(),
+        trailingContent = {
+            Text(
+                text = timeLabel,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                maxLines = 1
+            )
+        }
     ) {
-        MainTimeColumn(
-            primaryLabel = row.scheduledAt.toLocalTime().format(timeFormatter),
-            modifier = Modifier.width(52.dp)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            MainRoutePill(
+                applicationType = details.applicationType,
+                groupColorScheme = groupColorScheme,
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
             ) {
-                MainApplicationBadge(
-                    label = applicationTypeBadgeLabel(details.applicationType),
-                    groupColorScheme = groupColorScheme
-                )
-
-                MainMedicationCountBadge(
-                    count = row.medication.count,
-                    groupColorScheme = groupColorScheme
-                )
-
                 Text(
-                    text = headline,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            if (supportingText.isNotEmpty()) {
-                Text(
-                    text = supportingText,
-                    style = MaterialTheme.typography.bodySmall,
+                    text = headlineText,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.cjkTextOffset(headlineText),
+                    fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (supportingText.isNotBlank()) {
+                    Text(
+                        text = supportingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.cjkTextOffset(supportingText),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MainApplicationBadge(
-    label: String,
-    groupColorScheme: ColorScheme,
-    modifier: Modifier = Modifier
+private fun MainTodayTrailingContent(
+    row: MainTodayDoseRowUiState,
+    now: LocalDateTime,
+    timeFormatter: DateTimeFormatter,
+    onStatusClick: () -> Unit,
 ) {
-    Surface(
-        modifier = modifier.wrapContentWidth(),
-        shape = MaterialTheme.shapes.extraSmall,
-        color = groupColorScheme.primaryContainer
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = groupColorScheme.onPrimaryContainer,
-            letterSpacing = 0.6.sp,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun MainMedicationCountBadge(
-    count: Int,
-    groupColorScheme: ColorScheme,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.wrapContentWidth(),
-        shape = MaterialTheme.shapes.extraSmall,
-        color = groupColorScheme.secondaryContainer
-    ) {
-        Text(
-            text = medicationCountIndicatorText(count),
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = groupColorScheme.onSecondaryContainer,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun MainTodayActionButton(
-    status: MainTodayDoseStatus,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(percent = 50)
-    val colorScheme = MaterialTheme.colorScheme
-    val containerColor = when (status) {
-        MainTodayDoseStatus.DUE_SOON -> colorScheme.primary
-        MainTodayDoseStatus.OVERDUE -> colorScheme.errorContainer
-        MainTodayDoseStatus.UPCOMING -> Color.Transparent
-        MainTodayDoseStatus.DONE -> Color.Transparent
-    }
-    val contentColor = when (status) {
-        MainTodayDoseStatus.DUE_SOON -> colorScheme.onPrimary
-        MainTodayDoseStatus.OVERDUE -> colorScheme.onErrorContainer
-        MainTodayDoseStatus.UPCOMING -> colorScheme.primary
-        MainTodayDoseStatus.DONE -> colorScheme.onSurface
-    }
-    val border = when (status) {
-        MainTodayDoseStatus.UPCOMING -> BorderStroke(1.dp, colorScheme.outline)
-        else -> null
-    }
-
-    Surface(
-        modifier = modifier
-            .clip(shape)
-            .clickable(onClick = onClick),
-        shape = shape,
-        color = containerColor,
-        border = border
-    ) {
-        Text(
-            text = stringResource(R.string.main_today_quick_log),
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = contentColor,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun MainTimeColumn(
-    primaryLabel: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = primaryLabel,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(
-    title: String,
-    subtitle: String,
-    trailing: String? = null,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+    val loggedAt = row.loggedAt ?: row.outsideScheduleWindowLoggedAt
+    val isLogged = loggedAt != null
+    val isDueSoon = !isLogged && mainTodayIsInGracePeriod(
+        scheduledFor = row.scheduledAt,
+        now = now
+    )
+    val textLabel = when (val appliedAt = loggedAt) {
+        null -> when {
+            mainTodayIsBeforeOrInGracePeriod(
+                scheduledFor = row.scheduledAt,
+                now = now
+            ) -> MainTodayTrailingText(
+                text = row.scheduledAt.toLocalTime().format(timeFormatter),
+                isDelta = false
             )
-            if (subtitle.isNotEmpty()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            else -> mainTodayScheduleOffsetText(
+                scheduledFor = row.scheduledAt,
+                comparedAt = now
+            )?.let { text ->
+                MainTodayTrailingText(
+                    text = text,
+                    isDelta = true
                 )
             }
         }
-        if (!trailing.isNullOrEmpty()) {
+
+        else -> {
+            mainTodayScheduleOffsetText(
+                scheduledFor = row.scheduledAt,
+                comparedAt = appliedAt
+            )?.let { text ->
+                MainTodayTrailingText(
+                    text = text,
+                    isDelta = true
+                )
+            }
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (textLabel != null && textLabel.text.isNotBlank()) {
             Text(
-                text = trailing,
+                text = textLabel.text,
+                style = if (textLabel.isDelta) {
+                    MaterialTheme.typography.labelLarge
+                } else {
+                    MaterialTheme.typography.titleMedium
+                },
+                color = if (textLabel.isDelta) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                textAlign = TextAlign.End,
+                maxLines = 1
+            )
+        }
+        MainTodayTrailingStatusButton(
+            isLogged = isLogged,
+            isDueSoon = isDueSoon,
+            onClick = onStatusClick
+        )
+    }
+}
+
+private data class MainTodayTrailingText(
+    val text: String,
+    val isDelta: Boolean,
+)
+
+@Composable
+private fun MainTodayTrailingStatusButton(
+    isLogged: Boolean,
+    isDueSoon: Boolean,
+    onClick: () -> Unit,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val actionDescription = stringResource(
+        if (isLogged) R.string.edit_entry else R.string.main_today_quick_log
+    )
+    val containerColor = when {
+        isLogged -> colorScheme.primaryContainer
+        isDueSoon -> colorScheme.tertiaryContainer
+        else -> Color.Transparent
+    }
+    val contentColor = when {
+        isLogged -> colorScheme.onPrimaryContainer
+        isDueSoon -> colorScheme.onTertiaryContainer
+        else -> colorScheme.onSurfaceVariant
+    }
+    val border = if (!isLogged && !isDueSoon) {
+        BorderStroke(1.dp, colorScheme.outlineVariant)
+    } else {
+        null
+    }
+
+    Surface(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .clickable(
+                role = Role.Button,
+                onClick = onClick
+            )
+            .semantics {
+                contentDescription = actionDescription
+            },
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        border = border
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                isLogged -> Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+
+                isDueSoon -> Icon(
+                    imageVector = Icons.Rounded.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun mainTodayScheduleOffsetText(
+    scheduledFor: LocalDateTime,
+    comparedAt: LocalDateTime,
+): String? {
+    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, comparedAt)
+    val absoluteMinutes = kotlin.math.abs(deltaMinutes)
+    if (absoluteMinutes < MainScheduleGraceMinutes) {
+        return null
+    }
+    val isEarly = deltaMinutes < 0
+    val absoluteHours = (absoluteMinutes / 60L).coerceAtLeast(1L)
+    val quantity = absoluteHours.toInt()
+    return pluralStringResource(
+        if (isEarly) {
+            R.plurals.main_today_schedule_offset_hours_earlier
+        } else {
+            R.plurals.main_today_schedule_offset_hours_later
+        },
+        quantity,
+        quantity
+    )
+}
+
+private fun mainTodayIsBeforeOrInGracePeriod(
+    scheduledFor: LocalDateTime,
+    now: LocalDateTime,
+): Boolean {
+    return !scheduledFor.isBefore(now.minusMinutes(MainScheduleGraceMinutes))
+}
+
+private fun mainTodayIsInGracePeriod(
+    scheduledFor: LocalDateTime,
+    now: LocalDateTime,
+): Boolean {
+    return kotlin.math.abs(
+        ChronoUnit.MINUTES.between(scheduledFor, now)
+    ) <= MainScheduleGraceMinutes
+}
+
+private fun mainTodayTimeRangeTimeLabel(
+    timeRange: MainTodayTimeRange,
+    timeFormatter: DateTimeFormatter,
+): String {
+    return listOf(
+        mainTodayTimeRangeBoundaryLabel(timeRange.startHour, timeFormatter),
+        mainTodayTimeRangeBoundaryLabel(timeRange.endHour, timeFormatter)
+    ).joinToString(separator = "–")
+}
+
+private fun mainTodayTimeRangeBoundaryLabel(
+    hour: Int,
+    timeFormatter: DateTimeFormatter,
+): String {
+    return LocalTime.of(hour % 24, 0).format(timeFormatter)
+}
+
+@Composable
+private fun MainRouteIconSurface(
+    applicationType: MedicationApplicationType,
+    groupColorScheme: ColorScheme,
+    modifier: Modifier = Modifier,
+    surfaceSize: Dp = 36.dp,
+    iconSize: Dp = 20.dp,
+    outlinedIcon: Boolean = false,
+) {
+    val applicationTypeLabel = stringResource(applicationType.labelRes)
+
+    Box(
+        modifier = modifier.size(surfaceSize),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = MaterialTheme.shapes.small,
+            color = groupColorScheme.secondaryContainer,
+            contentColor = groupColorScheme.onSecondaryContainer
+        ) {
+            Box(
+                modifier = Modifier.size(surfaceSize),
+                contentAlignment = Alignment.Center
+            ) {
+                MedicationApplicationIcon(
+                    applicationType = applicationType,
+                    contentDescription = applicationTypeLabel,
+                    modifier = Modifier.size(iconSize),
+                    outlined = outlinedIcon,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainRoutePill(
+    applicationType: MedicationApplicationType,
+    groupColorScheme: ColorScheme,
+    modifier: Modifier = Modifier,
+) {
+    val routeLabel = stringResource(applicationType.labelRes)
+
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = groupColorScheme.secondaryContainer.copy(alpha = 0.68f),
+        contentColor = groupColorScheme.onSecondaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            MedicationApplicationIcon(
+                applicationType = applicationType,
+                contentDescription = routeLabel,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = routeLabel,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.cjkTextOffset(routeLabel),
+                maxLines = 1,
             )
         }
     }
 }
 
 @Composable
-private fun supportingText(
-    details: MedicationDetails,
-    groupName: String,
-    includeDate: String?,
-): String {
-    val parts = buildList {
-        includeDate?.let(::add)
-        medicationDoseText(details)?.let(::add)
-        val headline = medicationDisplayName(details)
-        if (groupName != headline) {
-            add(groupName)
+private fun MainSectionHeader(
+    title: String,
+    summary: String? = null,
+    emphasize: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title.uppercase(),
+            style = if (emphasize) {
+                MaterialTheme.typography.titleMedium
+            } else {
+                MaterialTheme.typography.titleSmall
+            },
+            color = if (emphasize) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.alignByBaseline().cjkTextOffset(title),
+            maxLines = 1,
+        )
+        if (!summary.isNullOrEmpty()) {
+            Text(
+                text = summary.uppercase(),
+                style = if (emphasize) {
+                    MaterialTheme.typography.labelLarge
+                } else {
+                    MaterialTheme.typography.labelMedium
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alignByBaseline().cjkTextOffset(summary),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End
+            )
         }
     }
-    return parts.joinToString(separator = " · ")
+}
+
+@Composable
+private fun MainTodayTimeRangeHeader(
+    timeRange: MainTodayTimeRange,
+    isCurrent: Boolean,
+    doneCount: Int,
+    totalCount: Int,
+    timeFormatter: DateTimeFormatter,
+    modifier: Modifier = Modifier
+) {
+    val appLocale = rememberAppLocale()
+    val timeRangeLabel = stringResource(timeRange.labelRes)
+    val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
+        timeRange = timeRange,
+        timeFormatter = timeFormatter
+    )
+    val countLabel = "$doneCount/$totalCount"
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (isCurrent) {
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Schedule,
+                    contentDescription = null,
+                    tint = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = timeRangeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier.alignByBaseline().cjkTextOffset(timeRangeLabel)
+                )
+                Text(
+                    text = timeRangeTimeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isCurrent) {
+                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.alignByBaseline().cjkTextOffset(appLocale)
+                )
+            }
+        }
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        Text(
+            text = countLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun mainTodayTimeRange(time: LocalTime): MainTodayTimeRange {
+    return when (time.hour) {
+        in 0 until 6 -> MainTodayTimeRange.NIGHT
+        in 6 until 12 -> MainTodayTimeRange.MORNING
+        in 12 until 18 -> MainTodayTimeRange.AFTERNOON
+        else -> MainTodayTimeRange.EVENING
+    }
+}
+
+private fun mainTodayEntryEditorIds(row: MainTodayDoseRowUiState): Set<UUID> {
+    return (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids).toSet()
 }
 
 @Composable
@@ -1036,47 +1345,6 @@ private fun remainingQuickLogCount(
     return totalCount - fulfilledCount
 }
 
-@Composable
-private fun todayRowColors(tone: MainTodayRowTone): MainTodayRowColors {
-    val colorScheme = MaterialTheme.colorScheme
-    return when (tone) {
-        MainTodayRowTone.DEFAULT -> MainTodayRowColors(
-            containerColor = colorScheme.surfaceContainerLow,
-            borderColor = colorScheme.outlineVariant,
-            borderWidth = 1.dp,
-            statusColor = colorScheme.onSurfaceVariant
-        )
-
-        MainTodayRowTone.DUE_SOON -> MainTodayRowColors(
-            containerColor = colorScheme.surfaceContainerHigh,
-            borderColor = colorScheme.primary,
-            borderWidth = 1.5.dp,
-            statusColor = colorScheme.primary
-        )
-
-        MainTodayRowTone.OVERDUE -> MainTodayRowColors(
-            containerColor = colorScheme.errorContainer,
-            borderColor = colorScheme.error,
-            borderWidth = 1.5.dp,
-            statusColor = colorScheme.error
-        )
-
-        MainTodayRowTone.DONE -> MainTodayRowColors(
-            containerColor = colorScheme.surfaceContainerLow,
-            borderColor = colorScheme.outlineVariant,
-            borderWidth = 1.dp,
-            statusColor = FulfilledStatusColor
-        )
-    }
-}
-
-private data class MainTodayRowColors(
-    val containerColor: Color,
-    val borderColor: Color,
-    val borderWidth: Dp,
-    val statusColor: Color,
-)
-
 @Preview(name = "Main E2 Hero Card", showBackground = true, widthDp = 420)
 @Composable
 private fun MainE2HeroCardPreview() {
@@ -1131,9 +1399,11 @@ private fun MainTodaySectionPreview() {
     MainContentComponentPreviewContainer {
         MainTodaySection(
             section = uiState.todaySection,
+            now = uiState.now,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
-            onQuickLogDoseClick = { _, _, _, _, _ -> }
+            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onEntryClick = { }
         )
     }
 }
@@ -1163,8 +1433,12 @@ private fun MainTodayDoseRowPreview() {
     MainContentComponentPreviewContainer {
         MainTodayDoseRow(
             row = uiState.todaySection.rows.first { it.status == MainTodayDoseStatus.DUE_SOON },
+            index = 0,
+            itemCount = 2,
+            now = uiState.now,
             timeFormatter = timeFormatter,
-            onQuickLogDoseClick = { _, _, _, _, _ -> }
+            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onEntryClick = { }
         )
     }
 }
@@ -1179,6 +1453,8 @@ private fun MainUpcomingDoseRowPreview() {
     MainContentComponentPreviewContainer {
         MainUpcomingDoseRow(
             row = uiState.upcomingSection.rows.first(),
+            index = 0,
+            itemCount = 3,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
             showDate = true
@@ -1186,55 +1462,105 @@ private fun MainUpcomingDoseRowPreview() {
     }
 }
 
-@Preview(name = "Main Application Badge", showBackground = true, widthDp = 180)
+@Preview(name = "Main Today Trailing Content", showBackground = true, widthDp = 260)
 @Composable
-private fun MainApplicationBadgePreview() {
+private fun MainTodayTrailingContentPreview() {
+    val uiState = buildMainContentPreviewUiState()
+    val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
+
     MainContentComponentPreviewContainer {
-        MainApplicationBadge(
-            label = "ORAL",
-            groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.ROSE)
-        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            uiState.todaySection.rows.forEach { row ->
+                MainTodayTrailingContent(
+                    row = row,
+                    now = uiState.now,
+                    timeFormatter = timeFormatter,
+                    onStatusClick = { }
+                )
+            }
+        }
     }
 }
 
-@Preview(name = "Main Medication Count Badge", showBackground = true, widthDp = 180)
+@Preview(name = "Main Route Icon Surface", showBackground = true, widthDp = 180)
 @Composable
-private fun MainMedicationCountBadgePreview() {
+private fun MainRouteIconSurfacePreview() {
     MainContentComponentPreviewContainer {
-        MainMedicationCountBadge(
-            count = 2,
-            groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.INDIGO)
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MainRouteIconSurface(
+                applicationType = MedicationApplicationType.ORAL,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.ROSE),
+            )
+            MainRouteIconSurface(
+                applicationType = MedicationApplicationType.PATCH_ON,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.TEAL),
+            )
+            MainRouteIconSurface(
+                applicationType = MedicationApplicationType.INJECTION,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.INDIGO),
+                iconSize = 18.dp,
+                surfaceSize = 30.dp,
+                outlinedIcon = true
+            )
+        }
     }
 }
 
-@Preview(name = "Main Today Action Button", showBackground = true, widthDp = 180)
+@Preview(name = "Main Route Pill", showBackground = true, widthDp = 220)
 @Composable
-private fun MainTodayActionButtonPreview() {
+private fun MainRoutePillPreview() {
     MainContentComponentPreviewContainer {
-        MainTodayActionButton(
-            status = MainTodayDoseStatus.DUE_SOON,
-            onClick = { }
-        )
-    }
-}
-
-@Preview(name = "Main Time Column", showBackground = true, widthDp = 120)
-@Composable
-private fun MainTimeColumnPreview() {
-    MainContentComponentPreviewContainer {
-        MainTimeColumn(primaryLabel = "10:45 AM")
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MainRoutePill(
+                applicationType = MedicationApplicationType.ORAL,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.ROSE),
+            )
+            MainRoutePill(
+                applicationType = MedicationApplicationType.PATCH_ON,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.TEAL),
+            )
+            MainRoutePill(
+                applicationType = MedicationApplicationType.INJECTION,
+                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.INDIGO),
+            )
+        }
     }
 }
 
 @Preview(name = "Main Section Header", showBackground = true, widthDp = 420)
 @Composable
-private fun SectionHeaderPreview() {
+private fun MainSectionHeaderPreview() {
     MainContentComponentPreviewContainer {
-        SectionHeader(
+        MainSectionHeader(
             title = "Today",
-            subtitle = "May 5",
-            trailing = "1/4 done"
+            summary = "May 5 · 1/4 done",
+            emphasize = true
+        )
+    }
+}
+
+@Preview(name = "Main Today Time Range Header", showBackground = true, widthDp = 420)
+@Composable
+private fun MainTodayTimeRangeHeaderPreview() {
+    val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
+
+    MainContentComponentPreviewContainer {
+        MainTodayTimeRangeHeader(
+            timeRange = MainTodayTimeRange.MORNING,
+            isCurrent = true,
+            doneCount = 1,
+            totalCount = 3,
+            timeFormatter = timeFormatter
         )
     }
 }

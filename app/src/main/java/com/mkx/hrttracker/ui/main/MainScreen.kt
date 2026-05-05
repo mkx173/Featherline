@@ -35,6 +35,7 @@ fun MainScreen(
     scrollToTopSignal: Int = 0,
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit =
         { _, _, _, _, _ -> },
+    onEntryClick: (Set<UUID>) -> Unit = { },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -80,6 +81,7 @@ fun MainScreen(
             uiState = uiState,
             listState = listState,
             onQuickLogDoseClick = onQuickLogDoseClick,
+            onEntryClick = onEntryClick,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)

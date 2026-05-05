@@ -23,6 +23,18 @@
     <string name="main_today_status_upcoming">Upcoming later today</string>
     <string name="main_today_status_overdue">Missed / overdue</string>
     <string name="main_today_quick_log">Quick log</string>
+    <string name="main_today_range_night">Night</string>
+    <string name="main_today_range_morning">Morning</string>
+    <string name="main_today_range_afternoon">Afternoon</string>
+    <string name="main_today_range_evening">Evening</string>
+    <plurals name="main_today_schedule_offset_hours_later">
+        <item quantity="one">+%1$d Hour</item>
+        <item quantity="other">+%1$d Hours</item>
+    </plurals>
+    <plurals name="main_today_schedule_offset_hours_earlier">
+        <item quantity="one">-%1$d Hour</item>
+        <item quantity="other">-%1$d Hours</item>
+    </plurals>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="main_e2_title">Estradiol · estimated</string>
     <string name="main_e2_status_in_range">IN RANGE</string>
@@ -325,12 +337,6 @@
     <string name="medication_gel_application_area_default">Default</string>
     <string name="medication_application_patch_on">Patch on</string>
     <string name="medication_application_patch_off">Patch off</string>
-    <string name="medication_application_badge_oral">PO</string>
-    <string name="medication_application_badge_sublingual">SL</string>
-    <string name="medication_application_badge_injection">INJ</string>
-    <string name="medication_application_badge_gel">GEL</string>
-    <string name="medication_application_badge_patch_on">P+</string>
-    <string name="medication_application_badge_patch_off">P-</string>
     <string name="medication_name_estradiol">Estradiol</string>
     <string name="medication_name_estradiol_valerate">Estradiol valerate</string>
     <string name="medication_name_estradiol_benzoate">Estradiol benzoate</string>
