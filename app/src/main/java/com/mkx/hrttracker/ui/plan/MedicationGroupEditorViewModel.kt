@@ -220,11 +220,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            if (it.areScheduleShapeFieldsLocked || it.isScheduleStartDateLocked) {
-                it
-            } else {
-                it.copy(sinceDate = date)
-            }
+            editorStateWithUpdatedSinceDate(it, date)
         }
     }
 
@@ -1325,6 +1321,28 @@ internal fun toggleWeeklyDaySelection(
         selectedDays - dayOfWeek
     } else {
         selectedDays + dayOfWeek
+    }
+}
+
+internal fun editorStateWithUpdatedSinceDate(
+    uiState: MedicationGroupEditorUiState,
+    date: LocalDate,
+): MedicationGroupEditorUiState {
+    if (
+        uiState.areScheduleShapeFieldsLocked ||
+        uiState.isScheduleStartDateLocked ||
+        uiState.sinceDate == date
+    ) {
+        return uiState
+    }
+
+    return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
+        uiState.copy(
+            sinceDate = date,
+            weeklyDaysOfWeek = setOf(date.dayOfWeek),
+        )
+    } else {
+        uiState.copy(sinceDate = date)
     }
 }
 
