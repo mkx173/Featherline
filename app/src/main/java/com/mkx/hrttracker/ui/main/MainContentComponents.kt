@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -131,6 +132,8 @@ private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c9
 private const val MainScheduleGraceMinutes = 60L
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
+private val MainE2ChartContentPadding = 8.dp
+private val MainE2ChartMarkerLabelGap = 6.dp
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
 private enum class MainTodayTimeRange(
@@ -668,7 +671,7 @@ internal fun MainE2ChartCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(184.dp)
-                            .padding(8.dp)
+                            .padding(MainE2ChartContentPadding)
                             .onSizeChanged { chartSize.value = it }
                     ) {
                         CartesianChartHost(
@@ -761,12 +764,19 @@ internal fun MainE2ChartCard(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = MainE2ChartContentPadding)
                 ) {
+                    val chartContentPaddingPx = with(LocalDensity.current) {
+                        MainE2ChartContentPadding.toPx()
+                    }
+                    val markerLabelGapPx = with(LocalDensity.current) {
+                        MainE2ChartMarkerLabelGap.toPx()
+                    }
                     val markerLabel = interactiveMarkerLabel
                     val markerCanvasX = interactiveMarkerXHours.value
                         ?.let { xHours -> chartCoordinateMapper.canvasXForXHours(xHours) }
-                    if (markerLabel != null && markerCanvasX != null) {
+                    val markerCanvasTopY = chartCoordinateMapper.layerTopCanvasY()
+                    if (markerLabel != null && markerCanvasX != null && markerCanvasTopY != null) {
                         Surface(
                             modifier = Modifier
                                 .onSizeChanged { markerLabelSize.value = it }
@@ -777,7 +787,8 @@ internal fun MainE2ChartCard(
                                     IntOffset(
                                         x = (markerCanvasX.roundToInt() - labelWidth / 2)
                                             .coerceIn(0, maxXOffset),
-                                        y = -labelHeight - 6,
+                                        y = (chartContentPaddingPx + markerCanvasTopY - labelHeight - markerLabelGapPx)
+                                            .roundToInt(),
                                     )
                                 }
                             ,
@@ -913,11 +924,14 @@ private class MainE2ChartCoordinateMapper {
     private var drawingStart: Float = 0f
     private var layerLeft: Float = 0f
     private var layerRight: Float = 0f
+    private var layerTop: Float = 0f
+    private var layerBottom: Float = 0f
     private var minX: Double = 0.0
     private var maxX: Double = 0.0
     private var xStep: Double = 0.0
     private var xSpacing: Float = 0f
     private var layoutDirectionMultiplier: Int = 1
+    private var hasLayerBounds: Boolean = false
 
     fun update(context: CartesianDrawingContext) {
         with(context) {
@@ -926,12 +940,15 @@ private class MainE2ChartCoordinateMapper {
                 scroll
             layerLeft = layerBounds.left
             layerRight = layerBounds.right
+            layerTop = layerBounds.top
+            layerBottom = layerBounds.bottom
             minX = ranges.minX
             maxX = ranges.maxX
             xStep = ranges.xStep
             xSpacing = layerDimensions.xSpacing
             this@MainE2ChartCoordinateMapper.layoutDirectionMultiplier =
                 layoutDirectionMultiplier
+            hasLayerBounds = true
         }
     }
 
@@ -951,6 +968,14 @@ private class MainE2ChartCoordinateMapper {
             xSpacing *
             ((xHours.coerceIn(minX, maxX) - minX) / xStep).toFloat()
         return canvasX.coerceIn(layerLeft, layerRight)
+    }
+
+    fun layerTopCanvasY(): Float? {
+        return if (hasLayerBounds && layerTop <= layerBottom) {
+            layerTop
+        } else {
+            null
+        }
     }
 
     private fun hasUsableMapping(): Boolean {
