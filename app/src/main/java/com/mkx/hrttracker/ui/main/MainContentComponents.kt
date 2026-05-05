@@ -420,6 +420,7 @@ internal fun MainE2ChartCard(
         )
     }
     val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
+    val isLongPressMarkerActive = interactiveMarkerXHours.value != null
     val displayedMarkerXHours = interactiveMarkerXHours.value ?: currentTimeXHours
     val displayedMarkerConcentration = remember(
         interactiveMarkerXHours.value,
@@ -562,18 +563,22 @@ internal fun MainE2ChartCard(
                 val lineColor = MaterialTheme.colorScheme.primary
                 val doseMarkerColor = MaterialTheme.colorScheme.primary
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
+                val currentTimeLineColor =
+                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val chartCoordinateMapper = remember { MainE2ChartCoordinateMapper() }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     displayedMarkerXHours,
-                    currentTimeColor,
+                    currentTimeLineColor,
+                    isLongPressMarkerActive,
                     chartCoordinateMapper,
                 ) {
-                    VerticalDottedLineDecoration(
+                    VerticalLineDecoration(
                         x = displayedMarkerXHours,
-                        color = currentTimeColor.copy(alpha = 0.72f),
+                        lineColor = currentTimeLineColor,
+                        dashed = isLongPressMarkerActive,
                         coordinateMapper = chartCoordinateMapper,
                     )
                 }
@@ -943,12 +948,14 @@ private fun mainE2ChartMarkerDateFormatter(
     }
 }
 
-private class VerticalDottedLineDecoration(
+private class VerticalLineDecoration(
     private val x: Double,
-    private val color: Color,
+    private val lineColor: Color,
+    private val dashed: Boolean = false,
     private val coordinateMapper: MainE2ChartCoordinateMapper? = null,
-    private val dotRadius: Dp = 1.dp,
-    private val dotSpacing: Dp = 6.dp,
+    private val lineWidth: Dp = 1.dp,
+    private val dashLength: Dp = 4.dp,
+    private val dashGap: Dp = 2.dp,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
@@ -968,18 +975,34 @@ private class VerticalDottedLineDecoration(
                 return
             }
 
-            val radius = dotRadius.pixels
-            val spacing = dotSpacing.pixels.coerceAtLeast(radius * 2f)
-            val paint = Paint().apply { this.color = color }
-            var canvasY = layerBounds.top + radius
-
-            while (canvasY <= layerBounds.bottom - radius) {
-                canvas.drawCircle(
-                    center = Offset(canvasX, canvasY),
-                    radius = radius,
+            val strokeWidth = lineWidth.pixels
+            val paint = Paint().apply {
+                this.color = lineColor
+                this.strokeWidth = strokeWidth
+            }
+            val halfStrokeWidth = strokeWidth / 2f
+            val lineTop = layerBounds.top + halfStrokeWidth
+            val lineBottom = layerBounds.bottom - halfStrokeWidth
+            if (!dashed) {
+                canvas.drawLine(
+                    p1 = Offset(canvasX, lineTop),
+                    p2 = Offset(canvasX, lineBottom),
                     paint = paint,
                 )
-                canvasY += spacing
+                return
+            }
+
+            val dashLengthPx = dashLength.pixels.coerceAtLeast(strokeWidth)
+            val dashGapPx = dashGap.pixels.coerceAtLeast(0f)
+            var dashTop = lineTop
+            while (dashTop < lineBottom) {
+                val dashBottom = (dashTop + dashLengthPx).coerceAtMost(lineBottom)
+                canvas.drawLine(
+                    p1 = Offset(canvasX, dashTop),
+                    p2 = Offset(canvasX, dashBottom),
+                    paint = paint,
+                )
+                dashTop = dashBottom + dashGapPx
             }
         }
     }
@@ -1834,40 +1857,6 @@ private fun MainRouteIconSurface(
 }
 
 @Composable
-private fun MainRoutePill(
-    applicationType: MedicationApplicationType,
-    groupColorScheme: ColorScheme,
-    modifier: Modifier = Modifier,
-) {
-    val routeLabel = stringResource(applicationType.labelRes)
-
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = groupColorScheme.secondaryContainer.copy(alpha = 0.68f),
-        contentColor = groupColorScheme.onSecondaryContainer
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = routeLabel,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = routeLabel,
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.cjkTextOffset(routeLabel),
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-@Composable
 private fun MainSectionHeader(
     modifier: Modifier = Modifier,
     title: String,
@@ -2257,30 +2246,6 @@ private fun MainRouteIconSurfacePreview() {
                 iconSize = 18.dp,
                 surfaceSize = 30.dp,
                 outlinedIcon = true
-            )
-        }
-    }
-}
-
-@Preview(name = "Main Route Pill", showBackground = true, widthDp = 220)
-@Composable
-private fun MainRoutePillPreview() {
-    MainContentComponentPreviewContainer {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MainRoutePill(
-                applicationType = MedicationApplicationType.ORAL,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.ROSE),
-            )
-            MainRoutePill(
-                applicationType = MedicationApplicationType.PATCH_ON,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.TEAL),
-            )
-            MainRoutePill(
-                applicationType = MedicationApplicationType.INJECTION,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.INDIGO),
             )
         }
     }
