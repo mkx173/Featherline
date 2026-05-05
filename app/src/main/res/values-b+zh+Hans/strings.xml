@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">HRT 记录</string>
-    <string name="tab_main">首页</string>
+    <string name="tab_main">主页</string>
     <string name="tab_plan">计划</string>
     <string name="tab_history">历史</string>
     <string name="tab_settings">设置</string>
@@ -38,7 +38,7 @@
     <string name="main_e2_status_in_range">在范围内</string>
     <string name="main_e2_status_below_range">低于范围</string>
     <string name="main_e2_chart_title">7 天趋势</string>
-    <string name="main_e2_chart_target">目标 %1$d-%2$d</string>
+    <string name="main_e2_chart_target">目标 %1$d–%2$d</string>
     <string name="main_e2_change_since_yesterday">较24小时前 %1$s</string>
     <string name="main_e2_last_dose_with_time">上次用药 %1$s前</string>
     <string name="main_e2_no_last_dose">还没有记录</string>

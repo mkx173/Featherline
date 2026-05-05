@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -79,8 +80,11 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.common.Fill
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -348,69 +352,120 @@ internal fun MainE2ChartCard(
         }
     }
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = MaterialTheme.shapes.extraLarge
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        onClick = {},
+        cornerShape = MaterialTheme.shapes.extraLarge,
+        modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 6.dp)
         ) {
-            Row(
+
+            MainE2ChartCardHeader(
+                modifier = Modifier.padding(vertical = 4.dp),
+                targetRangeLow = 100,
+                targetRangeHigh = 200
+            )
+
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ShowChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = stringResource(R.string.main_e2_chart_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
-                ) {
-                    Text(
-                        text = stringResource(R.string.main_e2_chart_target, 100, 200),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-
-            CartesianChartHost(
-                chart = rememberCartesianChart(
-                    rememberLineCartesianLayer(),
-                    startAxis = VerticalAxis.rememberStart(
-                        valueFormatter = CartesianValueFormatter { _, value, _ ->
-                            value.toInt().toString()
-                        }
+                val lineColor = MaterialTheme.colorScheme.primary
+                CartesianChartHost(
+                    chart = rememberCartesianChart(
+                        rememberLineCartesianLayer(
+                            lineProvider =
+                                LineCartesianLayer.LineProvider.series(
+                                    LineCartesianLayer.rememberLine(
+                                        fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                        areaFill =
+                                            LineCartesianLayer.AreaFill.single(
+                                                Fill(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            lineColor.copy(
+                                                                alpha = 0.4f
+                                                            ), Color.Transparent
+                                                        )
+                                                    )
+                                                )
+                                            ),
+                                        interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                    )
+                                ),
+                        ),
+                        startAxis = VerticalAxis.rememberStart(
+                            valueFormatter = CartesianValueFormatter { _, value, _ ->
+                                value.toInt().toString()
+                            }
+                        ),
+                        bottomAxis = HorizontalAxis.rememberBottom(
+                            valueFormatter = CartesianValueFormatter { _, value, _ ->
+                                xLabels.getOrElse(value.toInt()) { "" }
+                            }
+                        )
                     ),
-                    bottomAxis = HorizontalAxis.rememberBottom(
-                        valueFormatter = CartesianValueFormatter { _, value, _ ->
-                            xLabels.getOrElse(value.toInt()) { "" }
-                        }
-                    )
-                ),
-                modelProducer = modelProducer,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(184.dp)
+                    modelProducer = modelProducer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(184.dp)
+                        .padding(8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainE2ChartCardHeader(
+    modifier: Modifier = Modifier,
+    targetRangeLow: Int,
+    targetRangeHigh: Int,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ShowChart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+
+            val mainE2ChartTitleText = stringResource(R.string.main_e2_chart_title)
+            Text(
+                text = mainE2ChartTitleText,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.cjkTextOffset(mainE2ChartTitleText)
+            )
+        }
+
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+        ) {
+            Text(
+                text = stringResource(R.string.main_e2_chart_target, targetRangeLow, targetRangeHigh),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
@@ -418,11 +473,11 @@ internal fun MainE2ChartCard(
 
 @Composable
 internal fun MainAntiandrogenCard(
+    modifier: Modifier = Modifier,
     cards: List<MainAntiandrogenCardUiState>,
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    modifier: Modifier = Modifier
 ) {
     if (cards.isEmpty()) return
 
@@ -430,7 +485,8 @@ internal fun MainAntiandrogenCard(
         index = 0,
         count = 1,
         onClick = {},
-        cornerShape = MaterialTheme.shapes.extraLarge
+        cornerShape = MaterialTheme.shapes.extraLarge,
+        modifier = modifier
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -484,7 +540,7 @@ private fun MainAntiandrogenCardHeader(
 
             val antiandrogenTitleText = stringResource(R.string.main_antiandrogen_title)
             Text(
-                text = stringResource(R.string.main_antiandrogen_title),
+                text = antiandrogenTitleText,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

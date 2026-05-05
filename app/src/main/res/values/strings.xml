@@ -40,7 +40,7 @@
     <string name="main_e2_status_in_range">IN RANGE</string>
     <string name="main_e2_status_below_range">BELOW RANGE</string>
     <string name="main_e2_chart_title">7-day trend</string>
-    <string name="main_e2_chart_target">Target %1$d-%2$d</string>
+    <string name="main_e2_chart_target">Target %1$d–%2$d</string>
     <string name="main_e2_change_since_yesterday">%1$s from 24h ago</string>
     <string name="main_e2_last_dose_with_time">Last dose %1$s ago</string>
     <string name="main_e2_no_last_dose">No logged dose yet</string>
@@ -103,7 +103,7 @@
     <string name="plan_batch_add_start_date">Start date</string>
     <string name="plan_batch_add_end_date">End date</string>
     <string name="plan_batch_add_date_range">Range</string>
-    <string name="plan_batch_add_date_range_value">%1$s - %2$s</string>
+    <string name="plan_batch_add_date_range_value">%1$s–%2$s</string>
     <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
     <string name="plan_batch_add_no_entries">No entries can be added in this range.</string>
     <string name="plan_batch_add_confirm_button">Add records</string>
