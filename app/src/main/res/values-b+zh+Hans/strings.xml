@@ -47,6 +47,7 @@
     <string name="main_antiandrogen_last_dose_elapsed">%1$s 前服用</string>
     <string name="main_antiandrogen_no_last_dose">还没有记录</string>
     <string name="main_antiandrogen_next_dose">下次 %1$s</string>
+    <string name="main_antiandrogen_next_dose_past_due">逾期 %1$s</string>
     <string name="main_antiandrogen_no_next_dose">暂无下一次剂量</string>
     <string name="main_duration_compact_days">%1$d天</string>
     <string name="main_duration_compact_hours">%1$d小时</string>

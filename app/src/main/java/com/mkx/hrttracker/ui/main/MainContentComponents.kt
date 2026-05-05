@@ -85,7 +85,6 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.Fill
-import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -599,15 +598,25 @@ private fun MainAntiandrogenMedicationSubCard(
     } ?: stringResource(R.string.main_antiandrogen_no_last_dose)
     val hasPreviousRecord = card.lastDoseAt != null
     val dueText = card.nextDoseAt?.let { nextDoseAt ->
-        stringResource(
-            R.string.main_antiandrogen_next_dose,
-            mainAntiandrogenDueLabel(
-                target = nextDoseAt,
-                now = now,
-                dateFormatter = dateFormatter,
-                timeFormatter = timeFormatter
+        if (card.isNextDosePastDue) {
+            stringResource(
+                R.string.main_antiandrogen_next_dose_past_due,
+                mainPastDueHoursLabel(
+                    from = nextDoseAt,
+                    to = now,
+                )
             )
-        )
+        } else {
+            stringResource(
+                R.string.main_antiandrogen_next_dose,
+                mainAntiandrogenDueLabel(
+                    target = nextDoseAt,
+                    now = now,
+                    dateFormatter = dateFormatter,
+                    timeFormatter = timeFormatter
+                )
+            )
+        }
     } ?: stringResource(R.string.main_antiandrogen_no_next_dose)
 
     EditorSegmentedListItem(
@@ -693,7 +702,7 @@ private fun MainInfoPill(
     iconDrawableRes: Int? = null,
     text: String,
     iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.36f),
+    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     Surface(
@@ -1463,13 +1472,22 @@ private fun mainTodayEntryEditorIds(row: MainTodayDoseRowUiState): Set<UUID> {
     return (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids).toSet()
 }
 
+internal fun mainCompactElapsedTotalMinutes(
+    from: LocalDateTime,
+    to: LocalDateTime
+): Long {
+    return ChronoUnit.MINUTES.between(
+        from.truncatedTo(ChronoUnit.MINUTES),
+        to.truncatedTo(ChronoUnit.MINUTES)
+    ).coerceAtLeast(0)
+}
+
 @Composable
 private fun mainCompactElapsedDurationLabel(
     from: LocalDateTime,
     to: LocalDateTime
 ): String {
-    val duration = Duration.between(from, to)
-    val totalMinutes = (duration.seconds.coerceAtLeast(0) / 60).coerceAtLeast(1)
+    val totalMinutes = mainCompactElapsedTotalMinutes(from = from, to = to)
     val days = totalMinutes / (24 * 60)
     val hours = totalMinutes / 60
 
@@ -1478,6 +1496,15 @@ private fun mainCompactElapsedDurationLabel(
         hours > 0 -> stringResource(R.string.main_duration_compact_hours, hours)
         else -> stringResource(R.string.main_duration_compact_minutes, totalMinutes)
     }
+}
+
+@Composable
+private fun mainPastDueHoursLabel(
+    from: LocalDateTime,
+    to: LocalDateTime
+): String {
+    val totalHours = ChronoUnit.HOURS.between(from, to).coerceAtLeast(1)
+    return stringResource(R.string.main_duration_compact_hours, totalHours)
 }
 
 @Composable

@@ -59,8 +59,8 @@ class MainUiModelsTest {
             zoneId = testZoneId
         )
 
-        assertEquals(100, hero.currentValue)
-        assertEquals(0, hero.changeSinceYesterday)
+        assertEquals(1145, hero.currentValue)
+        assertEquals(14, hero.changeSinceYesterday)
         assertEquals(latestEstradiolDoseTime, hero.lastDoseAt)
         assertEquals(latestEstradiolDoseDetails, hero.lastDoseDetails)
     }
@@ -159,11 +159,84 @@ class MainUiModelsTest {
         )
         assertEquals(
             listOf(
-                LocalDateTime.of(2026, 4, 18, 20, 0),
-                LocalDateTime.of(2026, 4, 18, 20, 0)
+                LocalDateTime.of(2026, 4, 18, 8, 0),
+                LocalDateTime.of(2026, 4, 18, 8, 0)
             ),
             cards.map { it.nextDoseAt }
         )
+        assertEquals(listOf(true, true), cards.map { it.isNextDosePastDue })
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_skips_fulfilled_upcoming_due_slot() {
+        val antiandrogenGroup = antiandrogenGroup(
+            uuid = UUID.fromString("d4d0d2d5-3201-4bf1-84e0-64d95d37599d"),
+            times = listOf(LocalTime.of(19, 30))
+        )
+        val now = LocalDateTime.of(2026, 4, 18, 19, 18)
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 19, 30)
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = listOf(
+                scheduledAntiandrogenEntry(
+                    group = antiandrogenGroup,
+                    appliedAt = now,
+                    scheduledFor = scheduledFor
+                )
+            ),
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 19, 19, 30), cards.single().nextDoseAt)
+        assertEquals(false, cards.single().isNextDosePastDue)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_marks_due_slot_past_due_after_display_grace() {
+        val antiandrogenGroup = antiandrogenGroup(
+            uuid = UUID.fromString("1e0e149c-28bb-48e7-a037-64a57f571e57"),
+            times = listOf(LocalTime.of(19, 30))
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 20, 31),
+            zoneId = testZoneId
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
+        assertEquals(true, cards.single().isNextDosePastDue)
+    }
+
+    @Test
+    fun buildMainAntiandrogenCards_returns_next_scheduled_slot_after_past_due_window_expires() {
+        val antiandrogenGroup = antiandrogenGroup(
+            uuid = UUID.fromString("c240fd51-2797-47dc-a6ff-ad2e22309641"),
+            times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0))
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 15, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 18, 20, 0), cards.single().nextDoseAt)
+        assertEquals(false, cards.single().isNextDosePastDue)
+    }
+
+    @Test
+    fun mainCompactElapsedTotalMinutes_counts_elapsed_minute_boundaries() {
+        val appliedAt = LocalDateTime.of(2026, 4, 18, 19, 18, 50)
+
+        assertEquals(0L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 18)))
+        assertEquals(1L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 19)))
+        assertEquals(2L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 20)))
+        assertEquals(3L, mainCompactElapsedTotalMinutes(appliedAt, LocalDateTime.of(2026, 4, 18, 19, 21)))
     }
 
     @Test
@@ -471,6 +544,48 @@ class MainUiModelsTest {
             medications = medications,
             createdAt = createdAt,
             updatedAt = createdAt
+        )
+    }
+
+    private fun antiandrogenGroup(
+        uuid: UUID,
+        times: List<LocalTime>
+    ): MedicationGroup {
+        return medicationGroup(
+            uuid = uuid,
+            name = "Daily antiandrogen",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = times
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = UUID.randomUUID(),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                )
+            )
+        )
+    }
+
+    private fun scheduledAntiandrogenEntry(
+        group: MedicationGroup,
+        appliedAt: LocalDateTime,
+        scheduledFor: LocalDateTime
+    ): MedicationLogEntry {
+        return testMedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = null,
+            sourceGroupUuid = group.uuid,
+            appliedAt = testInstant(appliedAt),
+            scheduledFor = scheduledFor
         )
     }
 

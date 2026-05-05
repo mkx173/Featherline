@@ -7,12 +7,15 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
-import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
+import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
+import com.mkx.hrttracker.ui.plan.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -48,6 +51,7 @@ data class MainAntiandrogenCardUiState(
     val lastDoseDetails: MedicationDetails? = null,
     val lastDoseAt: LocalDateTime? = null,
     val nextDoseAt: LocalDateTime? = null,
+    val isNextDosePastDue: Boolean = false,
 )
 
 data class MainTodayDoseRowUiState(
@@ -118,18 +122,18 @@ internal fun buildMainAntiandrogenCards(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<MainAntiandrogenCardUiState> {
     return groups.sortedBy { it.createdAt }.flatMap { group ->
-        val nextDoseAt = group.nextOccurrencesInPlanWindowFrom(
-            start = now,
-            limit = 1,
-            zoneId = zoneId,
-        ).firstOrNull()?.scheduledFor
-
         group.medications
             .filter { medication -> medication.category == MedicationCategory.ANTIANDROGEN }
             .groupBy(MedicationSignature::fromGroupMedication)
             .map { (_, medicationsForSignature) ->
                 val medication = medicationsForSignature.first().copy(
                     count = medicationsForSignature.sumOf { it.count }
+                )
+                val nextDose = group.nextMainAntiandrogenDueSlot(
+                    medication = medication,
+                    entries = entries,
+                    now = now,
+                    zoneId = zoneId,
                 )
                 val lastMatchingEntry = entries
                     .asSequence()
@@ -151,7 +155,8 @@ internal fun buildMainAntiandrogenCards(
                         ?.appliedAt
                         ?.atZone(zoneId)
                         ?.toLocalDateTime(),
-                    nextDoseAt = nextDoseAt
+                    nextDoseAt = nextDose?.scheduledAt,
+                    isNextDosePastDue = nextDose?.isPastDue == true,
                 )
             }
     }
@@ -316,9 +321,95 @@ private fun MedicationDetails.isSameMedicationTrackingIdentity(other: Medication
         selection == other.selection
 }
 
+private data class MainAntiandrogenDueSlot(
+    val scheduledAt: LocalDateTime,
+    val isPastDue: Boolean,
+)
+
+private fun MedicationGroup.nextMainAntiandrogenDueSlot(
+    medication: MedicationGroupMedication,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId,
+): MainAntiandrogenDueSlot? {
+    return occurrencesBetweenInPlanWindow(
+        startDate = now.toLocalDate().minusDays(MainAntiandrogenDueLookbackDays),
+        endDate = now.toLocalDate().plusDays(MainAntiandrogenDueLookaheadDays),
+        zoneId = zoneId,
+    )
+        .asSequence()
+        .firstNotNullOfOrNull { occurrence ->
+            val scheduledAt = occurrence.scheduledFor
+            val slot = PlanScheduleTimeSlot(
+                scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                scheduledFor = scheduledAt,
+            )
+            val isFulfilled = isSlotFulfilledForMedication(
+                group = this,
+                slot = slot,
+                medication = medication,
+                entries = entries,
+                zoneId = zoneId,
+            )
+            if (isFulfilled) {
+                return@firstNotNullOfOrNull null
+            }
+
+            if (!now.isAfter(scheduledAt.plus(MainAntiandrogenDisplayGracePeriod))) {
+                MainAntiandrogenDueSlot(
+                    scheduledAt = scheduledAt,
+                    isPastDue = false,
+                )
+            } else {
+                val pastDueWindow = scheduleFulfillmentAllowedOffset(
+                    scheduledFor = scheduledAt,
+                    adjacentScheduledFor = nextScheduledForAfter(
+                        scheduledFor = scheduledAt,
+                        zoneId = zoneId,
+                    ),
+                )
+                if (!now.isAfter(scheduledAt.plus(pastDueWindow))) {
+                    MainAntiandrogenDueSlot(
+                        scheduledAt = scheduledAt,
+                        isPastDue = true,
+                    )
+                } else {
+                    null
+                }
+            }
+        }
+}
+
+private fun isSlotFulfilledForMedication(
+    group: MedicationGroup,
+    slot: PlanScheduleTimeSlot,
+    medication: MedicationGroupMedication,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId,
+): Boolean {
+    val signature = MedicationSignature.fromGroupMedication(medication)
+    val loggedCount = entries
+        .asSequence()
+        .filter { entry -> MedicationSignature.fromLogEntry(entry) == signature }
+        .filter { entry ->
+            isEntryFulfillingPlanSlot(
+                group = group,
+                slot = slot,
+                entry = entry,
+                zoneId = zoneId,
+            )
+        }
+        .sumOf { entry -> entry.count }
+
+    return loggedCount >= medication.count
+}
+
 private const val MOCK_E2_CURRENT_VALUE = 1145
 private const val MOCK_E2_CHANGE_SINCE_YESTERDAY = 14
 private const val MOCK_E2_TARGET_MIN = 100
 private const val MOCK_E2_TARGET_MAX = 200
 private const val E2_UNIT_PG_ML = "pg/mL"
+private const val MainAntiandrogenDueLookbackDays = 2L
+private const val MainAntiandrogenDueLookaheadDays = 90L
+private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)
 private val MOCK_E2_CHART_POINTS = listOf(142f, 158f, 149f, 167f, 138f, 120f, 100f)
