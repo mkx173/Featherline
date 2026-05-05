@@ -372,8 +372,10 @@ private fun CalibrationInfoCard(
     modifier: Modifier = Modifier,
 ) {
     SupportMessageListItem(
-        text = stringResource(R.string.settings_calibration_info_message),
-        painter = painterResource(R.drawable.ic_lab_panel),
+//        text = stringResource(R.string.settings_calibration_info_message),
+//        painter = painterResource(R.drawable.ic_lab_panel),
+        text = stringResource(R.string.settings_calibration_under_development_message),
+        painter = painterResource(R.drawable.ic_construction),
         index = 1,
         count = 2,
         modifier = modifier,

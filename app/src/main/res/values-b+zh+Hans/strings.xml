@@ -433,6 +433,7 @@
         <item quantity="other">%1$d 项记录</item>
     </plurals>
     <string name="settings_calibration_info_message">记录血液检查结果以优化血药浓度估算</string>
+    <string name="settings_calibration_under_development_message">校准功能正在开发中，您仍可以记录血液检查结果</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 目标范围</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
     <string name="settings_backup_restore">备份与恢复</string>

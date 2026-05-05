@@ -442,6 +442,7 @@
         <item quantity="other">%1$d total</item>
     </plurals>
     <string name="settings_calibration_info_message">Log blood test results to refine plasma concentration estimates.</string>
+    <string name="settings_calibration_under_development_message">Calibration is under development. You can still log blood test results.</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
     <string name="settings_backup_restore">Backup &amp; restore</string>
