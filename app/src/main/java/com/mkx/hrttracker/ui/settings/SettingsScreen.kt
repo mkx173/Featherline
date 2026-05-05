@@ -30,7 +30,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Feedback
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -483,6 +482,7 @@ private fun SettingsScreenContent(
     var showPrivacyPolicyDialog by rememberSaveable { mutableStateOf(false) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
@@ -970,15 +970,7 @@ private fun SettingsScreenContent(
                     title = stringResource(R.string.settings_about_feedback),
                     index = 3,
                     count = 5,
-                    onClick = {
-                        launchFeedbackEmail(
-                            context = context,
-                            subject = feedbackSubject,
-                            body = feedbackBody,
-                            chooserTitle = feedbackChooserTitle,
-                            noEmailAppMessage = feedbackNoEmailAppMessage
-                        )
-                    },
+                    onClick = { showFeedbackEmailDialog = true },
                     leadingContent = {
                         Box(
                             modifier = Modifier.size(24.dp),
@@ -1045,23 +1037,47 @@ private fun SettingsScreenContent(
         )
     }
 
-    pendingExternalUrl?.let { externalUrl ->
+    val externalUrl = pendingExternalUrl
+    if (externalUrl != null || showFeedbackEmailDialog) {
         AlertDialog(
-            onDismissRequest = { pendingExternalUrl = null },
+            onDismissRequest = {
+                pendingExternalUrl = null
+                showFeedbackEmailDialog = false
+            },
             title = { Text(text = stringResource(R.string.settings_about_open_link_title)) },
             text = { Text(text = stringResource(R.string.settings_about_open_link_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, externalUrl.toUri()))
+                        when {
+                            externalUrl != null -> {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, externalUrl.toUri()))
+                            }
+
+                            showFeedbackEmailDialog -> {
+                                launchFeedbackEmail(
+                                    context = context,
+                                    subject = feedbackSubject,
+                                    body = feedbackBody,
+                                    chooserTitle = feedbackChooserTitle,
+                                    noEmailAppMessage = feedbackNoEmailAppMessage
+                                )
+                            }
+                        }
                         pendingExternalUrl = null
+                        showFeedbackEmailDialog = false
                     }
                 ) {
                     Text(text = stringResource(R.string.settings_about_open_link_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingExternalUrl = null }) {
+                TextButton(
+                    onClick = {
+                        pendingExternalUrl = null
+                        showFeedbackEmailDialog = false
+                    }
+                ) {
                     Text(text = stringResource(R.string.cancel))
                 }
             }
