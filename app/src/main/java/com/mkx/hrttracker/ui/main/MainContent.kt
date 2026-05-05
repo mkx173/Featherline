@@ -69,7 +69,8 @@ fun MainContent(
             MainE2ChartCard(
                 section = uiState.e2Chart,
                 now = uiState.now,
-                appLocale = appLocale
+                appLocale = appLocale,
+                unit = uiState.e2Hero.unit
             )
         }
 

@@ -162,6 +162,10 @@ internal fun MainE2HeroCard(
         else -> R.string.settings_calibration_range_status_in_range
     }
     val rangeStatusLabel = stringResource(rangeStatusLabelRes)
+    val colorScheme = MaterialTheme.colorScheme
+    val heroContentColor = colorScheme.primary
+    val heroSupportingColor = colorScheme.onSurfaceVariant
+    val heroPillContainerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f)
 
     Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
         EditorSegmentedListItem(
@@ -169,7 +173,7 @@ internal fun MainE2HeroCard(
             count = 1,
             onClick = { },
             modifier = Modifier.fillMaxWidth(),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            containerColor = colorScheme.surfaceContainerLow,
             cornerShape = MaterialTheme.shapes.extraLarge
         ) {
             Box(
@@ -194,14 +198,14 @@ internal fun MainE2HeroCard(
                             Icon(
                                 imageVector = Icons.Rounded.MonitorHeart,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                tint = heroSupportingColor,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = titleText,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = heroSupportingColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.cjkTextOffset(titleText)
@@ -210,8 +214,8 @@ internal fun MainE2HeroCard(
 
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                            contentColor = colorScheme.onSecondaryContainer
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -242,14 +246,14 @@ internal fun MainE2HeroCard(
                             text = section.currentValue.toString(),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = heroContentColor,
                             modifier = Modifier.alignByBaseline(),
                         )
                         Text(
                             text = unitText,
                             modifier = Modifier.alignByBaseline(),
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                            color = heroSupportingColor
                         )
                     }
 
@@ -260,7 +264,8 @@ internal fun MainE2HeroCard(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                            color = heroPillContainerColor,
+                            contentColor = heroSupportingColor
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -271,7 +276,7 @@ internal fun MainE2HeroCard(
                                     imageVector = trendIcon,
                                     contentDescription = null,
                                     modifier = Modifier.size(13.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    tint = heroSupportingColor
                                 )
 
                                 val sinceYesterdayTextString = stringResource(
@@ -282,28 +287,28 @@ internal fun MainE2HeroCard(
                                     text = sinceYesterdayTextString,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    color = heroSupportingColor,
                                     modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayTextString)
                                 )
                             }
                         }
 
                         val e2HeroPillContentColor = if (hasPreviousRecord) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                            colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            heroSupportingColor
                         }
 
                         MainInfoPill(
                             iconDrawableRes = if (hasPreviousRecord) {
-                                R.drawable.ic_check_circle_filled
+                                R.drawable.ic_check_circle
                             } else {
-                                R.drawable.ic_info_filled
+                                R.drawable.ic_info
                             },
                             text = lastDoseSummary,
                             iconTint = e2HeroPillContentColor,
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                            contentColor = e2HeroPillContentColor,
+                            containerColor = heroPillContainerColor,
+                            contentColor = heroSupportingColor,
                         )
                     }
                 }
@@ -318,7 +323,7 @@ internal fun MainE2HeroCard(
                 .size(160.dp)
                 .alpha(0.1f)
                 .offset(x = 20.dp, y = (-20).dp),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer
+            tint = heroSupportingColor
         )
     }
 }
@@ -328,6 +333,7 @@ internal fun MainE2ChartCard(
     section: MainE2ChartUiState,
     now: LocalDateTime,
     appLocale: Locale,
+    unit: String,
     modifier: Modifier = Modifier
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -366,7 +372,8 @@ internal fun MainE2ChartCard(
             MainE2ChartCardHeader(
                 modifier = Modifier.padding(vertical = 4.dp),
                 targetRangeLow = 100,
-                targetRangeHigh = 200
+                targetRangeHigh = 200,
+                unit = unit
             )
 
             Surface(
@@ -425,6 +432,7 @@ private fun MainE2ChartCardHeader(
     modifier: Modifier = Modifier,
     targetRangeLow: Int,
     targetRangeHigh: Int,
+    unit: String,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -457,11 +465,11 @@ private fun MainE2ChartCardHeader(
 
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
             Text(
-                text = stringResource(R.string.main_e2_chart_target, targetRangeLow, targetRangeHigh),
+                text = stringResource(R.string.main_e2_chart_target, targetRangeLow, targetRangeHigh, unit),
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
@@ -673,9 +681,9 @@ private fun MainAntiandrogenMedicationSubCard(
             ) {
                 MainInfoPill(
                     iconDrawableRes = if (hasPreviousRecord) {
-                        R.drawable.ic_check_circle_filled
+                        R.drawable.ic_check_circle
                     } else {
-                        R.drawable.ic_info_filled
+                        R.drawable.ic_info
                     },
                     text = takenText,
                     iconTint = if (hasPreviousRecord) {
@@ -687,7 +695,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 )
 
                 MainInfoPill(
-                    iconDrawableRes = R.drawable.ic_schedule_filled,
+                    iconDrawableRes = R.drawable.ic_schedule,
                     text = dueText,
                     modifier = Modifier.weight(1f, fill = false)
                 )
@@ -1537,25 +1545,6 @@ private fun mainE2LastDoseSummary(
     )
 }
 
-@Composable
-private fun mainRelativeDateTimeLabel(
-    target: LocalDateTime,
-    now: LocalDateTime,
-    dateFormatter: LocalDateFormatter,
-    timeFormatter: DateTimeFormatter
-): String {
-    val timeText = target.toLocalTime().format(timeFormatter)
-    return when (target.toLocalDate()) {
-        now.toLocalDate() -> stringResource(R.string.main_relative_today_time, timeText)
-        now.toLocalDate().plusDays(1) -> stringResource(R.string.main_relative_tomorrow_time, timeText)
-        else -> stringResource(
-            R.string.main_relative_date_time,
-            dateFormatter(target.toLocalDate()),
-            timeText
-        )
-    }
-}
-
 private fun mainTrendDeltaLabel(
     changeSinceYesterday: Int,
     unit: String
@@ -1599,7 +1588,8 @@ private fun MainE2ChartCardPreview() {
         MainE2ChartCard(
             section = uiState.e2Chart,
             now = uiState.now,
-            appLocale = Locale.US
+            appLocale = Locale.US,
+            unit = uiState.e2Hero.unit
         )
     }
 }
