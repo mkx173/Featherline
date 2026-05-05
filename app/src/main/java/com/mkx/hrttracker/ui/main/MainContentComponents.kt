@@ -222,11 +222,11 @@ internal fun MainE2HeroCard(
                                 Icon(
                                     painter = painterResource(rangeStatusIconDrawableRes),
                                     contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Text(
                                     text = rangeStatusLabel,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     modifier = Modifier.padding(end = 2.dp).cjkTextOffset(rangeStatusLabel)
@@ -271,7 +271,7 @@ internal fun MainE2HeroCard(
                                 Icon(
                                     imageVector = trendIcon,
                                     contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
+                                    modifier = Modifier.size(13.dp),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
 
@@ -281,7 +281,7 @@ internal fun MainE2HeroCard(
                                 )
                                 Text(
                                     text = sinceYesterdayTextString,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayTextString)
@@ -712,13 +712,13 @@ private fun MainInfoPill(
                     painter = painterResource(iconDrawableRes),
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(13.dp)
                 )
             }
 
             Text(
                 text = text,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(end = 2.dp).cjkTextOffset(text)
