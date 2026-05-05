@@ -233,7 +233,7 @@
     <string name="group_schedule_preview">Preview</string>
     <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
-    <string name="group_medication_duplicate_merged">That medication is already in the group. Increased its count instead.</string>
+    <string name="group_medication_duplicate_exists">This medication is already in the group.</string>
     <string name="group_schedule_since_summary">Since %1$s</string>
     <string name="field_date_of_application">Date of application</string>
     <string name="field_time_of_application">Time of application</string>

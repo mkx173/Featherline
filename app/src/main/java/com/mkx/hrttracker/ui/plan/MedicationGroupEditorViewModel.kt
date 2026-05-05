@@ -421,6 +421,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun consumeMedicationEditorInfoMessage() {
+        _uiState.update {
+            it.copy(medicationEditorInfoMessageRes = null)
+        }
+    }
+
     fun updateEditingMedicationDraft(
         transform: (MedicationDraftUiState) -> MedicationDraftUiState
     ) {
@@ -475,16 +481,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 savedMedication = savedMedication
             )
 
+            if (saveResult.duplicateAlreadyExists) {
+                return@update it.copy(
+                    isMedicationEditorSaved = false,
+                    medicationEditorErrorMessageRes = null,
+                    medicationEditorInfoMessageRes = R.string.group_medication_duplicate_exists,
+                )
+            }
+
             it.copy(
                 medications = saveResult.medications,
                 editingMedication = saveResult.resolvedMedication.toEditorUiState(),
                 isMedicationEditorSaved = true,
                 medicationEditorErrorMessageRes = null,
-                medicationEditorInfoMessageRes = if (saveResult.mergedIntoExisting) {
-                    R.string.group_medication_duplicate_merged
-                } else {
-                    null
-                },
+                medicationEditorInfoMessageRes = null,
             )
         }
     }
@@ -1418,7 +1428,7 @@ internal fun hasDuplicateDailyTime(
 internal data class MedicationGroupMedicationSaveResult(
     val medications: List<MedicationGroupMedicationItemUiState>,
     val resolvedMedication: MedicationGroupMedicationItemUiState,
-    val mergedIntoExisting: Boolean,
+    val duplicateAlreadyExists: Boolean,
 )
 
 internal fun upsertMedication(
@@ -1431,22 +1441,10 @@ internal fun upsertMedication(
     }
 
     if (duplicateMedication != null) {
-        val mergedMedication = duplicateMedication.copy(
-            count = duplicateMedication.count + savedMedication.count
-        )
-        val updatedMedications = medications
-            .filterNot { medication -> medication.localId == savedMedication.localId }
-            .map { medication ->
-                if (medication.localId == duplicateMedication.localId) {
-                    mergedMedication
-                } else {
-                    medication
-                }
-            }
         return MedicationGroupMedicationSaveResult(
-            medications = updatedMedications,
-            resolvedMedication = mergedMedication,
-            mergedIntoExisting = true
+            medications = medications,
+            resolvedMedication = savedMedication,
+            duplicateAlreadyExists = true
         )
     }
 
@@ -1463,7 +1461,7 @@ internal fun upsertMedication(
     return MedicationGroupMedicationSaveResult(
         medications = updatedMedications,
         resolvedMedication = savedMedication,
-        mergedIntoExisting = false
+        duplicateAlreadyExists = false
     )
 }
 

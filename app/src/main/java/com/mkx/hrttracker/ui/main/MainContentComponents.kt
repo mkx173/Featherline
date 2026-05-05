@@ -400,17 +400,18 @@ internal fun MainAntiandrogenCard(
 ) {
     if (cards.isEmpty()) return
 
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        onClick = {}
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
-                activeCount = cards.size
+                activeCount = cards.size,
+                modifier = Modifier.padding(vertical = 4.dp)
             )
 
             Column(
@@ -574,7 +575,7 @@ private fun MainAntiandrogenMedicationSubCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1058,12 +1059,12 @@ private fun MainTodayTrailingStatusButton(
     )
     val containerColor = when {
         isMutedLogged -> colorScheme.surfaceContainerHighest
-        isLogged -> colorScheme.primaryContainer
+        isLogged -> colorScheme.secondaryContainer
         isDueSoon -> colorScheme.tertiaryContainer
         else -> Color.Transparent
     }
     val contentColor = when {
-        isLogged -> colorScheme.onPrimaryContainer
+        isLogged -> colorScheme.onSecondaryContainer
         isDueSoon -> colorScheme.onTertiaryContainer
         else -> colorScheme.onSurfaceVariant
     }

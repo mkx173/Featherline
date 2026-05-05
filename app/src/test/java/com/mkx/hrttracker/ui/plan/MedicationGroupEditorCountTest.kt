@@ -52,7 +52,7 @@ class MedicationGroupEditorCountTest {
     }
 
     @Test
-    fun upsertMedication_merges_duplicate_add_into_existing_count() {
+    fun upsertMedication_rejects_duplicate_add_without_changing_existing_count() {
         val existingMedication = medication(
             localId = "existing",
             count = 2,
@@ -69,11 +69,10 @@ class MedicationGroupEditorCountTest {
             savedMedication = duplicateAdd
         )
 
-        assertTrue(result.mergedIntoExisting)
+        assertTrue(result.duplicateAlreadyExists)
         assertEquals(1, result.medications.size)
-        assertEquals("existing", result.resolvedMedication.localId)
-        assertEquals(3, result.resolvedMedication.count)
-        assertEquals(listOf(3), result.medications.map { medication -> medication.count })
+        assertEquals("existing", result.medications.single().localId)
+        assertEquals(2, result.medications.single().count)
     }
 
     @Test
@@ -94,7 +93,7 @@ class MedicationGroupEditorCountTest {
             savedMedication = distinctDoseMedication
         )
 
-        assertFalse(result.mergedIntoExisting)
+        assertFalse(result.duplicateAlreadyExists)
         assertEquals(2, result.medications.size)
         assertEquals(listOf(1.0, 2.0), result.medications.map { medication ->
             (medication.details.dose as MedicationDose.MgAsMedicine).valueMg
@@ -102,7 +101,7 @@ class MedicationGroupEditorCountTest {
     }
 
     @Test
-    fun upsertMedication_merges_duplicate_edit_into_existing_count() {
+    fun upsertMedication_rejects_duplicate_edit_without_changing_existing_items() {
         val existingMedication = medication(
             localId = "existing",
             count = 3,
@@ -125,10 +124,15 @@ class MedicationGroupEditorCountTest {
             )
         )
 
-        assertTrue(result.mergedIntoExisting)
-        assertEquals(1, result.medications.size)
-        assertEquals("existing", result.medications.single().localId)
-        assertEquals(5, result.medications.single().count)
+        assertTrue(result.duplicateAlreadyExists)
+        assertEquals(2, result.medications.size)
+        assertEquals(listOf("existing", "edited"), result.medications.map { medication ->
+            medication.localId
+        })
+        assertEquals(listOf(3, 2), result.medications.map { medication -> medication.count })
+        assertEquals(listOf(1.0, 2.0), result.medications.map { medication ->
+            (medication.details.dose as MedicationDose.MgAsMedicine).valueMg
+        })
     }
 
     private fun medication(

@@ -400,6 +400,7 @@ fun MedicationGroupEditorScreen(
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
+        onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
         onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
@@ -460,6 +461,7 @@ private fun MedicationGroupEditorScreenContent(
     onRemoveMedication: (String) -> Unit,
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
+    onConsumeMedicationEditorInfoMessage: () -> Unit,
     onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
     onEditingMedicationCountTextChange: (String) -> Unit,
     onDecreaseEditingMedicationCount: () -> Unit,
@@ -586,11 +588,15 @@ private fun MedicationGroupEditorScreenContent(
         }
     }
 
-    LaunchedEffect(uiState.isMedicationEditorSaved, medicationEditorInfoMessage) {
+    LaunchedEffect(medicationEditorInfoMessage) {
+        medicationEditorInfoMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            onConsumeMedicationEditorInfoMessage()
+        }
+    }
+
+    LaunchedEffect(uiState.isMedicationEditorSaved) {
         if (uiState.isMedicationEditorSaved) {
-            medicationEditorInfoMessage?.let { message ->
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
             hideBottomSheet(scope, sheetState) {
                 onConsumeMedicationEditorSaved()
                 onDismissMedicationEditor()
@@ -1839,6 +1845,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
+            onConsumeMedicationEditorInfoMessage = { },
             onMedicationDraftChange = { },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
@@ -1909,6 +1916,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onRemoveMedication = { },
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
+            onConsumeMedicationEditorInfoMessage = { },
             onMedicationDraftChange = { },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
@@ -2020,6 +2028,7 @@ private fun MedicationGroupEditorPreviewContent(
         onRemoveMedication = { },
         onDismissMedicationEditor = { },
         onConsumeMedicationEditorSaved = { },
+        onConsumeMedicationEditorInfoMessage = { },
         onMedicationDraftChange = { },
         onEditingMedicationCountTextChange = { },
         onDecreaseEditingMedicationCount = { },
