@@ -316,8 +316,8 @@ private fun MedicationDetails.isSameMedicationTrackingIdentity(other: Medication
         selection == other.selection
 }
 
-private const val MOCK_E2_CURRENT_VALUE = 100
-private const val MOCK_E2_CHANGE_SINCE_YESTERDAY = 0
+private const val MOCK_E2_CURRENT_VALUE = 1145
+private const val MOCK_E2_CHANGE_SINCE_YESTERDAY = 14
 private const val MOCK_E2_TARGET_MIN = 100
 private const val MOCK_E2_TARGET_MAX = 200
 private const val E2_UNIT_PG_ML = "pg/mL"

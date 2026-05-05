@@ -1,15 +1,16 @@
 package com.mkx.hrttracker.ui.main
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -19,7 +20,8 @@ import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.automirrored.rounded.TrendingFlat
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material.icons.rounded.MonitorHeart
+import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -88,7 +90,6 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 
-private val FulfilledStatusColor = Color(0xFF2E7D32)
 private val MainPreviewNow = LocalDateTime.of(2026, 5, 5, 10, 30)
 private val PreviewEstradiolGroupUuid = UUID.fromString("56c7730e-1273-4de3-8d92-1a77953aa2e4")
 private val PreviewPatchGroupUuid = UUID.fromString("4d6ac2b0-1185-4718-91d7-e74d4ec19488")
@@ -131,8 +132,10 @@ internal fun MainE2HeroCard(
     now: LocalDateTime,
     modifier: Modifier = Modifier
 ) {
-    val inRange = section.currentValue in section.targetMin..section.targetMax
-    val trendDeltaLabel = mainTrendDeltaLabel(section.changeSinceYesterday)
+    val trendDeltaLabel = mainTrendDeltaLabel(
+        changeSinceYesterday = section.changeSinceYesterday,
+        unit = section.unit
+    )
     val trendIcon = when {
         section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
         section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Rounded.TrendingDown
@@ -142,78 +145,90 @@ internal fun MainE2HeroCard(
         section = section,
         now = now
     )
+    val hasPreviousRecord = section.lastDoseAt != null
+    val titleText = stringResource(R.string.main_e2_title)
+    val unitText = section.unit
+    val rangeStatusIconDrawableRes = when {
+        section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up
+        section.currentValue < section.targetMin -> R.drawable.ic_expand_circle_down
+        else -> R.drawable.ic_check_circle
+    }
+    val rangeStatusLabelRes = when {
+        section.currentValue > section.targetMax -> R.string.settings_calibration_range_status_above
+        section.currentValue < section.targetMin -> R.string.settings_calibration_range_status_below
+        else -> R.string.settings_calibration_range_status_in_range
+    }
+    val rangeStatusLabel = stringResource(rangeStatusLabelRes)
 
-    Surface(
+    EditorSegmentedListItem(
+        index = 0,
+        count = 1,
+        onClick = { },
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = MaterialTheme.shapes.extraLarge
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        cornerShape = MaterialTheme.shapes.extraLarge
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(vertical = 4.dp)
         ) {
-            Text(
-                text = "E2",
+            Icon(
+                imageVector = Icons.Rounded.WaterDrop,
+                contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .alpha(0.1f),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Black
+                    .size(128.dp)
+                    .alpha(0.1f)
+                    .offset(x = 32.dp, y = (-32).dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
             )
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.main_e2_title),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    Icon(
+                        imageVector = Icons.Rounded.MonitorHeart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(18.dp)
                     )
-
+                    Text(
+                        text = titleText,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.cjkTextOffset(titleText)
+                    )
                     Surface(
                         shape = CircleShape,
-                        color = if (inRange) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer
-                        }
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (inRange) FulfilledStatusColor else MaterialTheme.colorScheme.error
-                                    )
+                            Icon(
+                                painter = painterResource(rangeStatusIconDrawableRes),
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
                             )
                             Text(
-                                text = stringResource(
-                                    if (inRange) {
-                                        R.string.main_e2_status_in_range
-                                    } else {
-                                        R.string.main_e2_status_below_range
-                                    }
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (inRange) {
-                                    MaterialTheme.colorScheme.onTertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onErrorContainer
-                                }
+                                text = rangeStatusLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                modifier = Modifier.cjkTextOffset(rangeStatusLabel)
                             )
                         }
                     }
@@ -227,29 +242,30 @@ internal fun MainE2HeroCard(
                         text = section.currentValue.toString(),
                         style = MaterialTheme.typography.displayLarge,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.alignByBaseline(),
                     )
                     Text(
-                        text = section.unit,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        text = unitText,
+                        modifier = Modifier.alignByBaseline(),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = trendIcon,
@@ -257,37 +273,38 @@ internal fun MainE2HeroCard(
                                 modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
+
+                            val sinceYesterdayTextString = stringResource(
+                                R.string.main_e2_change_since_yesterday,
+                                trendDeltaLabel
+                            )
                             Text(
-                                text = stringResource(
-                                    R.string.main_e2_change_since_yesterday,
-                                    trendDeltaLabel
-                                ),
+                                text = sinceYesterdayTextString,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.cjkTextOffset(sinceYesterdayTextString)
                             )
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_schedule),
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
-                        )
-                        Text(
-                            text = lastDoseSummary,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    val e2HeroPillContentColor = if (hasPreviousRecord) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     }
+
+                    MainInfoPill(
+                        iconDrawableRes = if (hasPreviousRecord) {
+                            R.drawable.ic_check_circle_filled
+                        } else {
+                            R.drawable.ic_info_filled
+                        },
+                        text = lastDoseSummary,
+                        iconTint = e2HeroPillContentColor,
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                        contentColor = e2HeroPillContentColor,
+                    )
                 }
             }
         }
@@ -403,7 +420,8 @@ internal fun MainAntiandrogenCard(
     EditorSegmentedListItem(
         index = 0,
         count = 1,
-        onClick = {}
+        onClick = {},
+        cornerShape = MaterialTheme.shapes.extraLarge
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -467,22 +485,22 @@ private fun MainAntiandrogenCardHeader(
             )
         }
 
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.main_antiandrogen_active_count,
-                    activeCount
-                ),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-        }
+//        Surface(
+//            shape = CircleShape,
+//            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+//            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+//        ) {
+//            Text(
+//                text = stringResource(
+//                    R.string.main_antiandrogen_active_count,
+//                    activeCount
+//                ),
+//                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+//                style = MaterialTheme.typography.labelSmall,
+//                fontWeight = FontWeight.SemiBold,
+//                maxLines = 1
+//            )
+//        }
     }
 }
 
@@ -533,7 +551,7 @@ private fun MainAntiandrogenMedicationSubCard(
         onClick = { },
         modifier = modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        cornerShape = MaterialTheme.shapes.medium,
+        cornerShape = MaterialTheme.shapes.large,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -579,7 +597,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MainAntiandrogenInfoPill(
+                MainInfoPill(
                     iconDrawableRes = if (hasPreviousRecord) {
                         R.drawable.ic_check_circle_filled
                     } else {
@@ -594,7 +612,7 @@ private fun MainAntiandrogenMedicationSubCard(
                     modifier = Modifier.weight(1f, fill = false)
                 )
 
-                MainAntiandrogenInfoPill(
+                MainInfoPill(
                     iconDrawableRes = R.drawable.ic_schedule_filled,
                     text = dueText,
                     modifier = Modifier.weight(1f, fill = false)
@@ -605,17 +623,19 @@ private fun MainAntiandrogenMedicationSubCard(
 }
 
 @Composable
-private fun MainAntiandrogenInfoPill(
+private fun MainInfoPill(
+    modifier: Modifier = Modifier,
     iconDrawableRes: Int? = null,
     text: String,
-    modifier: Modifier = Modifier,
     iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.36f),
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     Surface(
         modifier = modifier,
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.36f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        color = containerColor,
+        contentColor = contentColor
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -635,7 +655,7 @@ private fun MainAntiandrogenInfoPill(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.cjkTextOffset(text)
             )
         }
@@ -1415,55 +1435,14 @@ private fun mainE2LastDoseSummary(
     now: LocalDateTime
 ): String {
     val lastDoseAt = section.lastDoseAt ?: return stringResource(R.string.main_e2_no_last_dose)
-    val elapsedLabel = mainElapsedDurationLabel(
+    val elapsedLabel = mainCompactElapsedDurationLabel(
         from = lastDoseAt,
         to = now
     )
-    val doseText = section.lastDoseDetails?.let { details -> medicationDoseText(details) }
-    return if (doseText != null) {
-        stringResource(
-            R.string.main_e2_last_dose_with_amount_and_time,
-            doseText,
-            elapsedLabel
-        )
-    } else {
-        stringResource(
-            R.string.main_e2_last_dose_with_time,
-            elapsedLabel
-        )
-    }
-}
-
-@Composable
-private fun mainElapsedDurationLabel(
-    from: LocalDateTime,
-    to: LocalDateTime
-): String {
-    val duration = Duration.between(from, to)
-    val clampedSeconds = duration.seconds.coerceAtLeast(0)
-    val totalMinutes = clampedSeconds / 60
-    val days = totalMinutes / (24 * 60)
-    val hours = (totalMinutes % (24 * 60)) / 60
-    val minutes = totalMinutes % 60
-
-    return when {
-        days > 0 -> stringResource(
-            R.string.main_duration_days_hours,
-            days,
-            hours
-        )
-
-        hours > 0 -> stringResource(
-            R.string.main_duration_hours_minutes,
-            hours,
-            minutes
-        )
-
-        else -> stringResource(
-            R.string.main_duration_minutes,
-            minutes.coerceAtLeast(1)
-        )
-    }
+    return stringResource(
+        R.string.main_e2_last_dose_with_time,
+        elapsedLabel
+    )
 }
 
 @Composable
@@ -1485,12 +1464,18 @@ private fun mainRelativeDateTimeLabel(
     }
 }
 
-private fun mainTrendDeltaLabel(changeSinceYesterday: Int): String {
-    return when {
+private fun mainTrendDeltaLabel(
+    changeSinceYesterday: Int,
+    unit: String
+): String {
+    val valueLabel = when {
         changeSinceYesterday > 0 -> "+$changeSinceYesterday"
         changeSinceYesterday < 0 -> changeSinceYesterday.toString()
         else -> "0"
     }
+    return listOf(valueLabel, unit)
+        .filter(String::isNotBlank)
+        .joinToString(separator = " ")
 }
 
 private fun remainingQuickLogCount(
