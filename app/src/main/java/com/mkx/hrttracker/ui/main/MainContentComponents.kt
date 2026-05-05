@@ -52,6 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.constraintlayout.compose.ConstraintLayout
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
@@ -154,7 +155,7 @@ internal fun MainE2HeroCard(
     val rangeStatusIconDrawableRes = when {
         section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up
         section.currentValue < section.targetMin -> R.drawable.ic_expand_circle_down
-        else -> R.drawable.ic_check_circle
+        else -> R.drawable.ic_adjust
     }
     val rangeStatusLabelRes = when {
         section.currentValue > section.targetMax -> R.string.settings_calibration_range_status_above
@@ -188,7 +189,7 @@ internal fun MainE2HeroCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.weight(1f),
@@ -211,49 +212,40 @@ internal fun MainE2HeroCard(
                                 modifier = Modifier.cjkTextOffset(titleText)
                             )
                         }
-
-                        Surface(
-                            shape = CircleShape,
-                            color = colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                            contentColor = colorScheme.onSecondaryContainer
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(rangeStatusIconDrawableRes),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Text(
-                                    text = rangeStatusLabel,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(rangeStatusLabel)
-                                )
-                            }
-                        }
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ConstraintLayout(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
+                        val (valueRef, unitRef, rangeStatusRef) = createRefs()
+
                         Text(
                             text = section.currentValue.toString(),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Medium,
                             color = heroContentColor,
-                            modifier = Modifier.alignByBaseline(),
+                            modifier = Modifier.constrainAs(valueRef) {
+                                start.linkTo(parent.start)
+                                top.linkTo(parent.top)
+                            },
                         )
                         Text(
                             text = unitText,
-                            modifier = Modifier.alignByBaseline(),
+                            modifier = Modifier.constrainAs(unitRef) {
+                                start.linkTo(valueRef.end, margin = 8.dp)
+                                baseline.linkTo(valueRef.baseline)
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
+                        )
+                        MainE2RangeStatusPill(
+                            iconDrawableRes = rangeStatusIconDrawableRes,
+                            label = rangeStatusLabel,
+                            modifier = Modifier.constrainAs(rangeStatusRef) {
+                                start.linkTo(unitRef.end, margin = 8.dp)
+                                top.linkTo(unitRef.top)
+                                bottom.linkTo(unitRef.bottom)
+                            }
                         )
                     }
 
@@ -293,12 +285,6 @@ internal fun MainE2HeroCard(
                             }
                         }
 
-                        val e2HeroPillContentColor = if (hasPreviousRecord) {
-                            colorScheme.primary
-                        } else {
-                            heroSupportingColor
-                        }
-
                         MainInfoPill(
                             iconDrawableRes = if (hasPreviousRecord) {
                                 R.drawable.ic_check_circle
@@ -306,7 +292,7 @@ internal fun MainE2HeroCard(
                                 R.drawable.ic_info
                             },
                             text = lastDoseSummary,
-                            iconTint = e2HeroPillContentColor,
+                            iconTint = heroSupportingColor,
                             containerColor = heroPillContainerColor,
                             contentColor = heroSupportingColor,
                         )
@@ -325,6 +311,39 @@ internal fun MainE2HeroCard(
                 .offset(x = 20.dp, y = (-20).dp),
             tint = heroSupportingColor
         )
+    }
+}
+
+@Composable
+private fun MainE2RangeStatusPill(
+    iconDrawableRes: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                painter = painterResource(iconDrawableRes),
+                contentDescription = null,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
+            )
+        }
     }
 }
 
@@ -362,6 +381,7 @@ internal fun MainE2ChartCard(
         count = 1,
         onClick = {},
         cornerShape = MaterialTheme.shapes.extraLarge,
+        pressedShape = MaterialTheme.shapes.extraLarge,
         modifier = modifier
     ) {
         Column(
@@ -493,6 +513,7 @@ internal fun MainAntiandrogenCard(
         count = 1,
         onClick = {},
         cornerShape = MaterialTheme.shapes.extraLarge,
+        pressedShape = MaterialTheme.shapes.extraLarge,
         modifier = modifier
     ) {
         Column(
@@ -500,7 +521,6 @@ internal fun MainAntiandrogenCard(
             modifier = Modifier.padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
-                activeCount = cards.size,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
@@ -525,54 +545,30 @@ internal fun MainAntiandrogenCard(
 
 @Composable
 private fun MainAntiandrogenCardHeader(
-    activeCount: Int,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_medication),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
+        Icon(
+            painter = painterResource(R.drawable.ic_medication),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
 
-            val antiandrogenTitleText = stringResource(R.string.main_antiandrogen_title)
-            Text(
-                text = antiandrogenTitleText,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.cjkTextOffset(antiandrogenTitleText)
-            )
-        }
-
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.main_antiandrogen_active_count,
-                    activeCount
-                ),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-        }
+        val antiandrogenTitleText = stringResource(R.string.main_antiandrogen_title)
+        Text(
+            text = antiandrogenTitleText,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.cjkTextOffset(antiandrogenTitleText)
+        )
     }
 }
 
@@ -686,11 +682,7 @@ private fun MainAntiandrogenMedicationSubCard(
                         R.drawable.ic_info
                     },
                     text = takenText,
-                    iconTint = if (hasPreviousRecord) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f, fill = false)
                 )
 

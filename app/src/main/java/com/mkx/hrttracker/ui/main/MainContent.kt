@@ -81,7 +81,7 @@ fun MainContent(
                     cards = uiState.antiandrogenCards,
                     now = uiState.now,
                     dateFormatter = dateFormatter,
-                    timeFormatter = timeFormatter
+                    timeFormatter = timeFormatter,
                 )
             }
         }

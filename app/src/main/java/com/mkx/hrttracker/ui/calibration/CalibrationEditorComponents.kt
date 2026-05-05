@@ -567,7 +567,7 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
     val icon = when (status) {
         CalibrationRangeStatus.ABOVE -> painterResource(R.drawable.ic_expand_circle_up)
         CalibrationRangeStatus.BELOW -> painterResource(R.drawable.ic_expand_circle_down)
-        CalibrationRangeStatus.IN_RANGE -> painterResource(R.drawable.ic_check_circle)
+        CalibrationRangeStatus.IN_RANGE -> painterResource(R.drawable.ic_adjust)
     }
     val labelRes = when (status) {
         CalibrationRangeStatus.ABOVE -> R.string.settings_calibration_range_status_above
