@@ -190,8 +190,7 @@ private fun SelectedDayRow(
     val rowState = when (row) {
         is SelectedDayRowModel.Scheduled -> when {
             row.entry.isFulfilled -> SelectedDayRowState.LOGGED
-            row.entry.hasOutsideScheduleWindowEntry && date.isBefore(today) -> SelectedDayRowState.MISSED
-            row.entry.hasOutsideScheduleWindowEntry && date == today -> SelectedDayRowState.PAST_DUE
+            row.entry.hasOutsideScheduleWindowEntry -> SelectedDayRowState.MISSED
             row.entry.isDueSoon -> SelectedDayRowState.DUE
             date == today && row.entry.isPastDue -> SelectedDayRowState.PAST_DUE
             date.isBefore(today) -> SelectedDayRowState.MISSED
@@ -771,7 +770,7 @@ private fun SelectedDayMedicationIconSurface(
         }
         if (showUnreadLoggedBadge) {
             Icon(
-                painter = painterResource(R.drawable.ic_check_circle_unread),
+                painter = painterResource(R.drawable.ic_check_circle_filled),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier

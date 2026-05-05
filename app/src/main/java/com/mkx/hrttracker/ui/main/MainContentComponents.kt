@@ -673,12 +673,13 @@ private fun MainTodayDoseRow(
         doseText,
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
-    val routeIconOutlined = row.loggedAt == null &&
-        row.outsideScheduleWindowLoggedAt == null &&
-        !mainTodayIsInGracePeriod(
+    val hasOnlyOutsideScheduleWindowLog = row.loggedAt == null &&
+        row.outsideScheduleWindowLoggedAt != null
+    val routeIconOutlined = hasOnlyOutsideScheduleWindowLog ||
+        (row.loggedAt == null && !mainTodayIsInGracePeriod(
             scheduledFor = row.scheduledAt,
             now = now
-        )
+        ))
     val onQuickLogClick = {
         onQuickLogDoseClick(
             row.groupUuid,
@@ -861,6 +862,7 @@ private fun MainTodayTrailingContent(
 ) {
     val loggedAt = row.loggedAt ?: row.outsideScheduleWindowLoggedAt
     val isLogged = loggedAt != null
+    val isMutedLogged = row.loggedAt == null && row.outsideScheduleWindowLoggedAt != null
     val isDueSoon = !isLogged && mainTodayIsInGracePeriod(
         scheduledFor = row.scheduledAt,
         now = now
@@ -906,7 +908,11 @@ private fun MainTodayTrailingContent(
         if (textLabel != null && textLabel.text.isNotBlank()) {
             Text(
                 text = textLabel.text,
-                style = MaterialTheme.typography.titleMedium,
+                style = if (textLabel.isDelta) {
+                    MaterialTheme.typography.labelLarge
+                } else {
+                    MaterialTheme.typography.titleMedium
+                },
                 color = if (textLabel.isDelta) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
@@ -923,6 +929,7 @@ private fun MainTodayTrailingContent(
         }
         MainTodayTrailingStatusButton(
             isLogged = isLogged,
+            isMutedLogged = isMutedLogged,
             isDueSoon = isDueSoon,
             onClick = onStatusClick
         )
@@ -937,6 +944,7 @@ private data class MainTodayTrailingText(
 @Composable
 private fun MainTodayTrailingStatusButton(
     isLogged: Boolean,
+    isMutedLogged: Boolean,
     isDueSoon: Boolean,
     onClick: () -> Unit,
 ) {
@@ -945,6 +953,7 @@ private fun MainTodayTrailingStatusButton(
         if (isLogged) R.string.edit_entry else R.string.main_today_quick_log
     )
     val containerColor = when {
+        isMutedLogged -> colorScheme.surfaceContainerHighest
         isLogged -> colorScheme.primaryContainer
         isDueSoon -> colorScheme.tertiaryContainer
         else -> Color.Transparent
