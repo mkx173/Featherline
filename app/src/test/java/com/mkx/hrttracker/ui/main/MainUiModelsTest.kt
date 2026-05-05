@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -501,6 +502,159 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_orders_planned_ties_by_groupCreation_andMedicationOrder() {
+        val schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(9, 0))
+        )
+        val olderGroupUuid = UUID.fromString("1e68415f-cf91-4aeb-aa2d-174b233a57c9")
+        val newerGroupUuid = UUID.fromString("bd2715d0-a95d-4e92-aa0a-a86f23357d96")
+        val olderFirstMedicationUuid = UUID.fromString("e07a7207-c38d-4e03-84b4-bc92efa39109")
+        val olderSecondMedicationUuid = UUID.fromString("89ebfa97-ae2a-4819-bf33-30d3ed3fb8af")
+        val newerMedicationUuid = UUID.fromString("ae02f5cb-e61d-4bfd-a17b-2634a1876d30")
+        val olderGroup = medicationGroup(
+            uuid = olderGroupUuid,
+            name = "Older plan",
+            schedule = schedule,
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = olderFirstMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                ),
+                testMedicationGroupMedication(
+                    uuid = olderSecondMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val newerGroup = medicationGroup(
+            uuid = newerGroupUuid,
+            name = "Newer plan",
+            schedule = schedule,
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = newerMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-02T00:00:00Z")
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(newerGroup, olderGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 7, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(
+            listOf(olderGroupUuid, olderGroupUuid, newerGroupUuid),
+            todaySection.rows.map { row -> row.groupUuid }
+        )
+        assertEquals(
+            listOf(olderFirstMedicationUuid, olderSecondMedicationUuid, newerMedicationUuid),
+            todaySection.rows.map { row -> row.medication.uuid }
+        )
+    }
+
+    @Test
+    fun buildMainTodaySection_includes_manual_records() {
+        val manualEntryUuid = UUID.fromString("0e9e45b6-e8a9-4a44-8073-fd34785df69f")
+        val earlierManualEntryUuid = UUID.fromString("a4596c95-a24a-40c2-a794-31d68aec6a25")
+        val manualAppliedAt = LocalDateTime.of(2026, 4, 18, 10, 15)
+        val earlierManualAppliedAt = LocalDateTime.of(2026, 4, 18, 7, 45)
+
+        val todaySection = buildMainTodaySection(
+            groups = emptyList(),
+            entries = listOf(
+                manualEntry(
+                    uuid = manualEntryUuid,
+                    appliedAt = manualAppliedAt,
+                    count = 2
+                ),
+                manualEntry(
+                    uuid = earlierManualEntryUuid,
+                    appliedAt = earlierManualAppliedAt
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(2, todaySection.doneCount)
+        assertEquals(2, todaySection.totalCount)
+        assertEquals(2, todaySection.rows.size)
+        assertEquals(
+            listOf(earlierManualEntryUuid, manualEntryUuid),
+            todaySection.rows.map { row -> row.medication.uuid }
+        )
+
+        val row = todaySection.rows.last()
+        assertEquals(MainTodayDoseStatus.DONE, row.status)
+        assertEquals(manualAppliedAt, row.scheduledAt)
+        assertEquals(manualAppliedAt, row.loggedAt)
+        assertEquals(listOf(manualEntryUuid), row.fulfillingEntryUuids)
+        assertEquals(2, row.loggedCount)
+        assertEquals(2, row.medication.count)
+        assertEquals(true, row.isManualRecord)
+        assertNull(row.groupUuid)
+        assertNull(row.groupColorKey)
+    }
+
+    @Test
+    fun buildMainTodaySection_orders_manual_record_after_scheduled_row_at_same_time() {
+        val scheduledGroupUuid = UUID.fromString("576db5e4-a76a-4fc3-8adb-89d83d914411")
+        val manualEntryUuid = UUID.fromString("82546aa9-e2d4-4db2-b376-b5d54f92ca0c")
+        val sharedTime = LocalDateTime.of(2026, 4, 18, 10, 15)
+        val scheduledGroup = medicationGroup(
+            uuid = scheduledGroupUuid,
+            name = "Scheduled estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(sharedTime.toLocalTime())
+            )
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(scheduledGroup),
+            entries = listOf(
+                manualEntry(
+                    uuid = manualEntryUuid,
+                    appliedAt = sharedTime
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(
+            listOf(false, true),
+            todaySection.rows.map { row -> row.isManualRecord }
+        )
+        assertEquals(scheduledGroupUuid, todaySection.rows.first().groupUuid)
+        assertEquals(manualEntryUuid, todaySection.rows.last().medication.uuid)
+    }
+
+    @Test
     fun buildMainUpcomingSection_returns_tomorrow_rows_when_tomorrow_has_unfulfilled_slots() {
         val group = medicationGroup(
             uuid = UUID.fromString("1ec1b1bf-f3ff-4104-9ed5-68d5aa7e5a47"),
@@ -556,13 +710,142 @@ class MainUiModelsTest {
         )
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
+        assertEquals(LocalDate.of(2026, 4, 20), upcomingSection.anchorDate)
         assertEquals(
             listOf(
-                LocalDateTime.of(2026, 4, 20, 13, 30),
-                LocalDateTime.of(2026, 4, 27, 13, 30),
-                LocalDateTime.of(2026, 5, 4, 13, 30)
+                LocalDateTime.of(2026, 4, 20, 13, 30)
             ),
             upcomingSection.rows.map { it.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildMainUpcomingSection_finds_next_schedule_beyond_two_weeks() {
+        val nextScheduleDate = LocalDate.of(2026, 5, 27)
+        val group = medicationGroup(
+            uuid = UUID.fromString("a69109cd-ea09-491c-a30f-43658fd3d5b4"),
+            name = "Sparse weekly estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = nextScheduleDate,
+                weeklyDaysOfWeek = setOf(nextScheduleDate.dayOfWeek),
+                times = listOf(LocalTime.of(8, 30))
+            )
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 5, 6, 11, 0)
+        )
+
+        assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
+        assertEquals(nextScheduleDate, upcomingSection.anchorDate)
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 5, 27, 8, 30)),
+            upcomingSection.rows.map { it.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildMainUpcomingSection_includes_schedule_exactly_ninety_days_out() {
+        val nextScheduleDate = LocalDate.of(2026, 8, 4)
+        val group = medicationGroup(
+            uuid = UUID.fromString("5262749b-4962-47c0-8c6f-71fe91e84e8d"),
+            name = "Three month boundary",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 1,
+                since = nextScheduleDate,
+                weeklyDaysOfWeek = setOf(nextScheduleDate.dayOfWeek),
+                times = listOf(LocalTime.of(8, 30))
+            )
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 5, 6, 11, 0)
+        )
+
+        assertEquals(nextScheduleDate, upcomingSection.anchorDate)
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 8, 4, 8, 30)),
+            upcomingSection.rows.map { it.scheduledAt }
+        )
+    }
+
+    @Test
+    fun buildMainUpcomingSection_orders_future_planned_ties_by_groupCreation_andMedicationOrder() {
+        val weeklyDate = LocalDate.of(2026, 4, 20)
+        val schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.WEEKLY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = setOf(weeklyDate.dayOfWeek),
+            times = listOf(LocalTime.of(9, 0))
+        )
+        val olderGroupUuid = UUID.fromString("23ee70f4-9f60-4c86-a068-3ee679f75531")
+        val newerGroupUuid = UUID.fromString("362e4541-18a0-419e-a012-16f21622d8a6")
+        val olderFirstMedicationUuid = UUID.fromString("4da07ba4-ad0d-43af-8651-07f37f4dfed0")
+        val olderSecondMedicationUuid = UUID.fromString("33f62c5a-f4c0-444e-86d8-d1cd4fd6cd6e")
+        val newerMedicationUuid = UUID.fromString("ef2acf68-7a13-422c-882b-a0d7d56aac2f")
+        val olderGroup = medicationGroup(
+            uuid = olderGroupUuid,
+            name = "Older weekly",
+            schedule = schedule,
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = olderFirstMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                ),
+                testMedicationGroupMedication(
+                    uuid = olderSecondMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z")
+        )
+        val newerGroup = medicationGroup(
+            uuid = newerGroupUuid,
+            name = "Newer weekly",
+            schedule = schedule,
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = newerMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    )
+                )
+            ),
+            createdAt = Instant.parse("2026-04-02T00:00:00Z")
+        )
+
+        val upcomingSection = buildMainUpcomingSection(
+            groups = listOf(newerGroup, olderGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 11, 0)
+        )
+
+        assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
+        assertEquals(
+            listOf(olderGroupUuid, olderGroupUuid, newerGroupUuid),
+            upcomingSection.rows.map { row -> row.groupUuid }
+        )
+        assertEquals(
+            listOf(olderFirstMedicationUuid, olderSecondMedicationUuid, newerMedicationUuid),
+            upcomingSection.rows.map { row -> row.medication.uuid }
         )
     }
 
@@ -593,11 +876,10 @@ class MainUiModelsTest {
         )
 
         assertEquals(MainUpcomingSectionTitle.UPCOMING, upcomingSection.title)
+        assertEquals(LocalDate.of(2026, 4, 20), upcomingSection.anchorDate)
         assertEquals(
             listOf(
-                LocalDateTime.of(2026, 4, 20, 8, 0),
-                LocalDateTime.of(2026, 4, 21, 8, 0),
-                LocalDateTime.of(2026, 4, 22, 8, 0)
+                LocalDateTime.of(2026, 4, 20, 8, 0)
             ),
             upcomingSection.rows.map { it.scheduledAt }
         )
@@ -688,6 +970,25 @@ class MainUiModelsTest {
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor
+        )
+    }
+
+    private fun manualEntry(
+        uuid: UUID = UUID.randomUUID(),
+        appliedAt: LocalDateTime,
+        count: Int = 1
+    ): MedicationLogEntry {
+        return testMedicationLogEntry(
+            uuid = uuid,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(appliedAt),
+            count = count
         )
     }
 }

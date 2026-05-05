@@ -59,7 +59,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationReminderScheduler: MedicationReminderScheduler,
     @param:ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
-    appTimeSource: AppTimeSource
+    private val appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val requestedEditingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
     private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
@@ -529,7 +529,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             resolvedDailyTimes = resolvedDailyTimes,
         )
         val recordGenerationNow = currentMinute.value
-        val recordGenerationInstant = recordGenerationNow.toSystemInstant()
+        val saveNow = appTimeSource.now()
         val shouldCreatePastRecords = currentState.canCreatePastScheduledSlotRecords &&
             currentState.createPastScheduledSlotRecords &&
             hasPastScheduleOptionWindow(
@@ -552,6 +552,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     medicationGroupRepository.updateScheduleTimes(
                         groupUuid = UUID.fromString(checkNotNull(currentState.editingGroupId)),
                         newTimes = scheduleTimesForSave(currentState),
+                        now = saveNow,
                     )
                 }
                 medicationGroupRepository.saveGroup(
@@ -586,7 +587,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     notificationsEnabled = currentState.notificationsEnabled,
                     includePastScheduledSlots = currentState.includePastScheduledSlots,
                     replacesGroupUuid = currentState.pendingReplacementGroupId?.let(UUID::fromString),
-                    now = recordGenerationInstant,
+                    now = saveNow,
                 )
             }
             val saveResult = savedGroupUuidResult.fold(
@@ -731,7 +732,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
         val groupId = currentState.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
-        val archiveNow = currentMinute.value.toSystemInstant()
+        val archiveNow = appTimeSource.now()
 
         viewModelScope.launch {
             _uiState.update {
@@ -780,7 +781,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
         val recreateNow = currentMinute.value
-        val recreateNowInstant = recreateNow.toSystemInstant()
+        val recreateNowInstant = appTimeSource.now()
         val recreateScheduleStartDate = recreateNow.toLocalDate()
         val resolvedGroupName = resolveMedicationGroupName(
             groupName = currentState.groupName,
@@ -1697,9 +1698,6 @@ internal fun relatedEntryCountForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
 ): Int = entryCountsForGroup(entries, groupId).relatedEntryCount
-
-private fun LocalDateTime.toSystemInstant(): Instant =
-    atZone(ZoneId.systemDefault()).toInstant()
 
 internal fun scheduleTimeInputsForSave(
     uiState: MedicationGroupEditorUiState,

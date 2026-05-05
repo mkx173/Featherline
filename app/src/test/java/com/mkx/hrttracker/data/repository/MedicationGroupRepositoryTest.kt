@@ -246,7 +246,7 @@ class MedicationGroupRepositoryTest {
     fun saveGroup_forFreshGroupWithBackfillOff_setsInitialScheduleTimesEffectiveFromCurrentMinute() = runTest {
         val savedGroup = slot<MedicationGroupEntity>()
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
-        val now = Instant.parse("2026-04-30T08:15:45Z")
+        val now = Instant.parse("2026-04-30T08:15:45.123Z")
         val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault())
             .toLocalDateTime()
             .truncatedTo(ChronoUnit.MINUTES)
@@ -283,6 +283,8 @@ class MedicationGroupRepositoryTest {
         }
         assertEquals(false, savedGroup.captured.includePastScheduledSlots)
         assertNull(savedGroup.captured.recreatedFromGroupUuid)
+        assertEquals(now.toEpochMilli(), savedGroup.captured.createdAtEpochMillis)
+        assertEquals(now.toEpochMilli(), savedGroup.captured.updatedAtEpochMillis)
         assertEquals(
             listOf(expectedEffectiveFrom, expectedEffectiveFrom),
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),

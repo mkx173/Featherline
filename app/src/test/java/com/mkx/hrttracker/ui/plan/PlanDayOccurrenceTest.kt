@@ -208,6 +208,118 @@ class PlanDayOccurrenceTest {
     }
 
     @Test
+    fun buildPlanDaySchedule_orders_planned_slots_by_time_groupCreation_andMedicationOrder() {
+        val zoneId = ZoneId.of("UTC")
+        val schedule = MedicationGroupSchedule(
+            type = MedicationGroupScheduleType.DAILY,
+            interval = 1,
+            since = LocalDate.of(2026, 4, 1),
+            weeklyDaysOfWeek = emptySet(),
+            times = listOf(LocalTime.of(9, 0))
+        )
+        val olderGroupUuid = UUID.fromString("e93b0560-cf66-4460-b7f3-265cfda912ed")
+        val newerGroupUuid = UUID.fromString("f9d93184-9c55-4ca0-a645-a26bdebe1e3f")
+        val olderFirstMedicationUuid = UUID.fromString("cc92195a-fd7d-4b45-9190-c088de6fe424")
+        val olderSecondMedicationUuid = UUID.fromString("a9b8b10e-f3ab-4f7c-949e-8e67c52f56e9")
+        val newerMedicationUuid = UUID.fromString("f75b7cdb-bf8b-4923-9091-baf5bc5de395")
+        val olderGroup = medicationGroup(schedule).copy(
+            uuid = olderGroupUuid,
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = olderFirstMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0)
+                    )
+                ),
+                testMedicationGroupMedication(
+                    uuid = olderSecondMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0)
+                    )
+                )
+            )
+        )
+        val newerGroup = medicationGroup(schedule).copy(
+            uuid = newerGroupUuid,
+            createdAt = Instant.parse("2026-04-02T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-02T00:00:00Z"),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    uuid = newerMedicationUuid,
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.CYPROTERONE_ACETATE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(12.5)
+                    )
+                )
+            )
+        )
+
+        val daySchedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = listOf(newerGroup, olderGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 7, 0),
+            zoneId = zoneId
+        )
+
+        assertEquals(
+            listOf(olderGroupUuid, olderGroupUuid, newerGroupUuid),
+            daySchedule.scheduledEntries.map { entry -> entry.groupUuid }
+        )
+        assertEquals(
+            listOf(olderFirstMedicationUuid, olderSecondMedicationUuid, newerMedicationUuid),
+            daySchedule.scheduledEntries.map { entry -> entry.medication.uuid }
+        )
+    }
+
+    @Test
+    fun buildPlanDaySchedule_orders_manual_entries_by_logged_time() {
+        val zoneId = ZoneId.of("UTC")
+        val morningEntryUuid = UUID.fromString("81010725-e95a-4055-992d-5bb10e307e98")
+        val eveningEntryUuid = UUID.fromString("e566ac73-c1f7-45e6-af71-cf5d8f511456")
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+
+        val daySchedule = buildPlanDaySchedule(
+            date = LocalDate.of(2026, 4, 18),
+            groups = emptyList(),
+            entries = listOf(
+                com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+                    uuid = eveningEntryUuid,
+                    details = details,
+                    dosageMgAsEstradiol = 2.0,
+                    sourceGroupUuid = null,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 21, 0).atZone(zoneId).toInstant()
+                ),
+                com.mkx.hrttracker.model.medication.testMedicationLogEntry(
+                    uuid = morningEntryUuid,
+                    details = details,
+                    dosageMgAsEstradiol = 2.0,
+                    sourceGroupUuid = null,
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 8, 0).atZone(zoneId).toInstant()
+                )
+            ),
+            now = LocalDateTime.of(2026, 4, 18, 22, 0),
+            zoneId = zoneId
+        )
+
+        assertEquals(
+            listOf(morningEntryUuid, eveningEntryUuid),
+            daySchedule.unplannedEntries.map { entry -> entry.uuid }
+        )
+    }
+
+    @Test
     fun buildPlanDaySchedule_shows_logged_slot_before_group_creation_as_planned() {
         val zoneId = ZoneId.of("UTC")
         val createdAt = LocalDateTime.of(2026, 4, 18, 10, 0)

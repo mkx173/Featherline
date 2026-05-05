@@ -65,6 +65,7 @@ import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -101,7 +102,7 @@ internal fun SelectedDaySection(
                     )
                 }
             )
-        }.sortedBy { it.sortTime }
+        }.sortedWith(selectedDayRowComparator)
     }
     val scheduledCount = daySchedule.scheduledEntries.size
     val completedScheduledCount = daySchedule.scheduledEntries.count { it.isFulfilled }
@@ -929,6 +930,15 @@ private sealed interface SelectedDayRowModel {
         override val groupColorKey: MedicationGroupColorKey? = null
     }
 }
+
+private val selectedDayRowComparator = compareBy<SelectedDayRowModel> { row -> row.sortTime }
+    .thenBy { row -> if (row is SelectedDayRowModel.Unplanned) 1 else 0 }
+    .thenBy { row ->
+        (row as? SelectedDayRowModel.Scheduled)?.entry?.groupCreatedAt ?: Instant.EPOCH
+    }
+    .thenBy { row ->
+        (row as? SelectedDayRowModel.Scheduled)?.entry?.medicationSortOrder ?: 0
+    }
 
 private enum class SelectedDayRowState {
     LOGGED,

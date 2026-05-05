@@ -17,10 +17,11 @@ import java.time.temporal.ChronoUnit
 
 interface AppTimeSource {
     val currentMinute: StateFlow<LocalDateTime>
+    fun now(): Instant
 }
 
 class DefaultAppTimeSource(
-    clock: Clock,
+    private val clock: Clock,
     appScope: CoroutineScope,
     stopTimeoutMillis: Long = APP_TIME_SOURCE_STOP_TIMEOUT_MILLIS
 ) : AppTimeSource {
@@ -30,6 +31,8 @@ class DefaultAppTimeSource(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis),
             initialValue = currentMinute(clock)
         )
+
+    override fun now(): Instant = Instant.now(clock)
 }
 
 internal fun currentMinuteTicker(clock: Clock): Flow<LocalDateTime> {

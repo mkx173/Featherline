@@ -21,6 +21,17 @@ import java.util.TimeZone
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppTimeSourceTest {
     @Test
+    fun defaultAppTimeSource_nowReturnsUntruncatedClockInstant() = runTest {
+        val instant = Instant.parse("2026-04-25T12:00:43.500Z")
+        val source = DefaultAppTimeSource(
+            clock = Clock.fixed(instant, ZoneOffset.UTC),
+            appScope = backgroundScope,
+        )
+
+        assertEquals(instant, source.now())
+    }
+
+    @Test
     fun currentMinuteTicker_emitsImmediatelyThenAtMinuteBoundaries() = runTest {
         val originalTimeZone = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))

@@ -681,6 +681,52 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun saveGroup_passesExactCurrentInstantForRepositoryTimestamps() = runTest {
+        val savedGroupUuid = UUID.fromString("93b421c9-c8ff-4d8f-85ca-c5ebbb8ad915")
+        val saveInstant = Instant.parse("2026-04-25T01:00:42.123Z")
+        val capturedNow = slot<Instant>()
+        appTimeSource.setCurrentInstant(saveInstant)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = capture(capturedNow),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        viewModel.showAddMedicationEditor()
+        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.saveEditingMedication()
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(saveInstant, capturedNow.captured)
+        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
+    }
+
+    @Test
     fun saveNewGroup_withCreatePastRecordsEnabled_addsPastScheduledRecords() = runTest {
         val savedGroupUuid = UUID.fromString("c697a076-3fb4-4dd4-a02b-39a3ec86fa4a")
         val savedEntries = slot<Collection<MedicationLogEntryInput>>()

@@ -84,6 +84,7 @@ import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -129,6 +130,7 @@ private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c9
 private const val MainScheduleGraceMinutes = 60L
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
+private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
 private enum class MainTodayTimeRange(
     val labelRes: Int,
@@ -1411,9 +1413,7 @@ internal fun MainUpcomingSection(
                         row = row,
                         index = index,
                         itemCount = section.rows.size,
-                        dateFormatter = dateFormatter,
-                        timeFormatter = timeFormatter,
-                        showDate = section.title == MainUpcomingSectionTitle.UPCOMING
+                        timeFormatter = timeFormatter
                     )
                 }
             }
@@ -1433,7 +1433,9 @@ private fun MainTodayDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
-    val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
+    val groupColorScheme = row.groupColorKey
+        ?.let { groupColorKey -> rememberMedicationGroupColorScheme(groupColorKey) }
+        ?: rememberManualMedicationColorScheme()
     val headline = medicationDisplayName(details)
     val routeLabel = stringResource(details.applicationType.labelRes)
     val doseText = medicationDoseText(details)
@@ -1446,17 +1448,20 @@ private fun MainTodayDoseRow(
         row.outsideScheduleWindowLoggedAt != null
     val routeIconOutlined = hasOnlyOutsideScheduleWindowLog ||
         (row.loggedAt == null && row.status == MainTodayDoseStatus.OVERDUE)
+    val quickLogGroupUuid = row.groupUuid
     val onQuickLogClick = {
-        onQuickLogDoseClick(
-            row.groupUuid,
-            row.scheduleTimeUuid,
-            row.scheduledAt,
-            row.medication.details,
-            remainingQuickLogCount(
-                totalCount = row.medication.count,
-                fulfilledCount = row.loggedCount
+        if (quickLogGroupUuid != null) {
+            onQuickLogDoseClick(
+                quickLogGroupUuid,
+                row.scheduleTimeUuid,
+                row.scheduledAt,
+                row.medication.details,
+                remainingQuickLogCount(
+                    totalCount = row.medication.count,
+                    fulfilledCount = row.loggedCount
+                )
             )
-        )
+        }
     }
     val onStatusClick = {
         if (entryEditorIds.isNotEmpty()) {
@@ -1534,9 +1539,7 @@ private fun MainUpcomingDoseRow(
     row: MainUpcomingDoseRowUiState,
     index: Int,
     itemCount: Int,
-    dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    showDate: Boolean,
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
@@ -1544,16 +1547,10 @@ private fun MainUpcomingDoseRow(
     val headline = medicationDisplayName(details)
     val routeLabel = stringResource(details.applicationType.labelRes)
     val doseText = medicationDoseText(details)
-    val extraSupportingText = if (showDate) {
-        dateFormatter(row.scheduledAt.toLocalDate())
-    } else {
-        null
-    }
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
         medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
-        extraSupportingText
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
 
@@ -1624,36 +1621,43 @@ private fun MainTodayTrailingContent(
         scheduledFor = row.scheduledAt,
         now = now
     )
-    val textLabel = when (loggedAt) {
-        null -> when {
-            mainTodayIsBeforeOrInGracePeriod(
-                scheduledFor = row.scheduledAt,
-                now = now
-            ) -> MainTodayTrailingText(
-                text = row.scheduledAt.toLocalTime().format(timeFormatter),
-                isDelta = false
-            )
-
-            else -> mainTodayScheduleOffsetText(
-                scheduledFor = row.scheduledAt,
-                comparedAt = now
-            )?.let { text ->
-                MainTodayTrailingText(
-                    text = text,
-                    isDelta = true
+    val textLabel = if (row.isManualRecord) {
+        MainTodayTrailingText(
+            text = stringResource(R.string.plan_entry_label_manual),
+            isDelta = true
+        )
+    } else {
+        when (loggedAt) {
+            null -> when {
+                mainTodayIsBeforeOrInGracePeriod(
+                    scheduledFor = row.scheduledAt,
+                    now = now
+                ) -> MainTodayTrailingText(
+                    text = row.scheduledAt.toLocalTime().format(timeFormatter),
+                    isDelta = false
                 )
+
+                else -> mainTodayScheduleOffsetText(
+                    scheduledFor = row.scheduledAt,
+                    comparedAt = now
+                )?.let { text ->
+                    MainTodayTrailingText(
+                        text = text,
+                        isDelta = true
+                    )
+                }
             }
-        }
 
-        else -> {
-            mainTodayScheduleOffsetText(
-                scheduledFor = row.scheduledAt,
-                comparedAt = loggedAt
-            )?.let { text ->
-                MainTodayTrailingText(
-                    text = text,
-                    isDelta = true
-                )
+            else -> {
+                mainTodayScheduleOffsetText(
+                    scheduledFor = row.scheduledAt,
+                    comparedAt = loggedAt
+                )?.let { text ->
+                    MainTodayTrailingText(
+                        text = text,
+                        isDelta = true
+                    )
+                }
             }
         }
     }
@@ -2185,7 +2189,6 @@ private fun MainTodayDoseRowPreview() {
 @Composable
 private fun MainUpcomingDoseRowPreview() {
     val uiState = buildMainContentPreviewUiState()
-    val dateFormatter = dateLabelFormatter(Locale.US, uiState.now.toLocalDate())
     val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
 
     MainContentComponentPreviewContainer {
@@ -2193,9 +2196,7 @@ private fun MainUpcomingDoseRowPreview() {
             row = uiState.upcomingSection.rows.first(),
             index = 0,
             itemCount = 3,
-            dateFormatter = dateFormatter,
-            timeFormatter = timeFormatter,
-            showDate = true
+            timeFormatter = timeFormatter
         )
     }
 }
@@ -2351,8 +2352,8 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         ),
         todaySection = MainTodaySectionUiState(
             date = now.toLocalDate(),
-            doneCount = 1,
-            totalCount = 4,
+            doneCount = 2,
+            totalCount = 5,
             rows = listOf(
                 MainTodayDoseRowUiState(
                     groupUuid = PreviewEstradiolGroupUuid,
@@ -2373,6 +2374,19 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                     scheduledAt = LocalDateTime.of(now.toLocalDate(), LocalTime.of(9, 0)),
                     medication = estradiolPatch,
                     status = MainTodayDoseStatus.OVERDUE
+                ),
+                MainTodayDoseRowUiState(
+                    groupUuid = null,
+                    groupName = "",
+                    groupColorKey = null,
+                    scheduleTimeUuid = null,
+                    scheduledAt = LocalDateTime.of(now.toLocalDate(), LocalTime.of(10, 20)),
+                    medication = estradiolSublingual,
+                    status = MainTodayDoseStatus.DONE,
+                    loggedAt = LocalDateTime.of(now.toLocalDate(), LocalTime.of(10, 20)),
+                    fulfillingEntryUuids = listOf(PreviewManualEntryUuid),
+                    loggedCount = 1,
+                    isManualRecord = true
                 ),
                 MainTodayDoseRowUiState(
                     groupUuid = PreviewAntiandrogenGroupUuid,

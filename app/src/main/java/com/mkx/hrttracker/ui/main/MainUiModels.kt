@@ -15,8 +15,8 @@ import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isEntryFulfillingPlanSlot
-import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -82,9 +82,9 @@ data class MainAntiandrogenCardUiState(
 )
 
 data class MainTodayDoseRowUiState(
-    val groupUuid: UUID,
+    val groupUuid: UUID?,
     val groupName: String,
-    val groupColorKey: MedicationGroupColorKey,
+    val groupColorKey: MedicationGroupColorKey?,
     val scheduleTimeUuid: UUID?,
     val scheduledAt: LocalDateTime,
     val medication: MedicationGroupMedication,
@@ -94,6 +94,9 @@ data class MainTodayDoseRowUiState(
     val fulfillingEntryUuids: List<UUID> = emptyList(),
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
+    val isManualRecord: Boolean = false,
+    val groupCreatedAt: Instant = Instant.EPOCH,
+    val medicationSortOrder: Int = 0,
 )
 
 enum class MainTodayDoseStatus {
@@ -340,7 +343,7 @@ internal fun buildMainTodaySection(
     )
 
     val entriesByUuid = entries.associateBy { it.uuid }
-    val rows = daySchedule.scheduledEntries.map { scheduledEntry ->
+    val scheduledRows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = scheduledEntry.scheduledFor
         val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
             .mapNotNull { entriesByUuid[it] }
@@ -366,9 +369,35 @@ internal fun buildMainTodaySection(
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
-            loggedCount = scheduledEntry.loggedCount
+            loggedCount = scheduledEntry.loggedCount,
+            groupCreatedAt = scheduledEntry.groupCreatedAt,
+            medicationSortOrder = scheduledEntry.medicationSortOrder
         )
     }
+    val manualRows = daySchedule.unplannedEntries.map { entry ->
+        val appliedAt = entry.appliedAt
+            .atZone(zoneId)
+            .toLocalDateTime()
+
+        MainTodayDoseRowUiState(
+            groupUuid = null,
+            groupName = "",
+            groupColorKey = null,
+            scheduleTimeUuid = null,
+            scheduledAt = appliedAt,
+            medication = MedicationGroupMedication(
+                uuid = entry.uuid,
+                details = entry.details,
+                count = entry.count
+            ),
+            status = MainTodayDoseStatus.DONE,
+            loggedAt = appliedAt,
+            fulfillingEntryUuids = listOf(entry.uuid),
+            loggedCount = entry.count,
+            isManualRecord = true
+        )
+    }
+    val rows = (scheduledRows + manualRows).sortedWith(mainTodayDoseRowComparator)
 
     return MainTodaySectionUiState(
         date = today,
@@ -378,19 +407,24 @@ internal fun buildMainTodaySection(
     )
 }
 
+private val mainTodayDoseRowComparator = compareBy<MainTodayDoseRowUiState> { row -> row.scheduledAt }
+    .thenBy { row -> if (row.isManualRecord) 1 else 0 }
+    .thenBy { row -> row.groupCreatedAt }
+    .thenBy { row -> row.medicationSortOrder }
+
 internal fun buildMainUpcomingSection(
     groups: List<MedicationGroup>,
     entries: List<MedicationLogEntry>,
     now: LocalDateTime,
-    lookaheadDays: Long = 14L,
-    upcomingLimit: Int = 3,
+    lookaheadDays: Long = MainUpcomingLookaheadDays,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): MainUpcomingSectionUiState {
     val tomorrow = now.toLocalDate().plusDays(1)
     val tomorrowRows = buildMainPreviewRowsForDate(
         date = tomorrow,
         groups = groups,
-        entries = entries
+        entries = entries,
+        zoneId = zoneId
     )
 
     if (tomorrowRows.isNotEmpty()) {
@@ -401,65 +435,44 @@ internal fun buildMainUpcomingSection(
         )
     }
 
-    val futureStartDate = tomorrow.plusDays(1)
-    val upcomingRows = groups
-        .flatMap { group ->
-            val distinctMedications = group.medications
-                .groupBy(MedicationSignature::fromGroupMedication)
-                .map { (_, meds) ->
-                    meds.first().copy(count = meds.sumOf { medication -> medication.count })
-                }
-            group
-                .occurrencesBetweenInPlanWindow(
-                    startDate = futureStartDate,
-                    endDate = futureStartDate.plusDays(lookaheadDays),
-                    zoneId = zoneId,
-                )
-                .asSequence()
-                .filterNot { occurrence ->
-                    isSlotFulfilled(
-                        group = group,
-                        slot = PlanScheduleTimeSlot(
-                            scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                            scheduledFor = occurrence.scheduledFor,
-                        ),
-                        entries = entries
-                    )
-                }
-                .flatMap { occurrence ->
-                    distinctMedications.map { medication ->
-                        MainUpcomingDoseRowUiState(
-                            groupUuid = group.uuid,
-                            groupName = group.name,
-                            groupColorKey = group.colorKey,
-                            scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                            scheduledAt = occurrence.scheduledFor,
-                            medication = medication
-                        )
-                    }
-                }
-                .toList()
+    val lastLookaheadDate = now.toLocalDate().plusDays(lookaheadDays)
+    var date = tomorrow.plusDays(1)
+    while (!date.isAfter(lastLookaheadDate)) {
+        val upcomingRows = buildMainPreviewRowsForDate(
+            date = date,
+            groups = groups,
+            entries = entries,
+            zoneId = zoneId
+        )
+        if (upcomingRows.isNotEmpty()) {
+            return MainUpcomingSectionUiState(
+                title = MainUpcomingSectionTitle.UPCOMING,
+                anchorDate = date,
+                rows = upcomingRows
+            )
         }
-        .sortedBy { it.scheduledAt }
-        .take(upcomingLimit)
+        date = date.plusDays(1)
+    }
 
     return MainUpcomingSectionUiState(
         title = MainUpcomingSectionTitle.UPCOMING,
-        anchorDate = upcomingRows.firstOrNull()?.scheduledAt?.toLocalDate(),
-        rows = upcomingRows
+        anchorDate = null,
+        rows = emptyList()
     )
 }
 
 internal fun buildMainPreviewRowsForDate(
     date: LocalDate,
     groups: List<MedicationGroup>,
-    entries: List<MedicationLogEntry>
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<MainUpcomingDoseRowUiState> {
     return buildPlanDaySchedule(
         date = date,
         groups = groups,
         entries = entries,
-        now = date.atStartOfDay()
+        now = date.atStartOfDay(),
+        zoneId = zoneId,
     ).scheduledEntries
         .asSequence()
         .filterNot { it.isFulfilled }
@@ -473,7 +486,6 @@ internal fun buildMainPreviewRowsForDate(
                 medication = scheduledEntry.medication
             )
         }
-        .sortedBy { it.scheduledAt }
         .toList()
 }
 
@@ -573,6 +585,7 @@ private fun Double.toVicoXHour(): Double {
 private const val MOCK_E2_TARGET_MIN = 100
 private const val MOCK_E2_TARGET_MAX = 200
 private const val E2_UNIT_PG_ML = "pg/mL"
+private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
 private const val MainAntiandrogenDueLookaheadDays = 90L
 private val MainAntiandrogenDisplayGracePeriod = Duration.ofHours(1)

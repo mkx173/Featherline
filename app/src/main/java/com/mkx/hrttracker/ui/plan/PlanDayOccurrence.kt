@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,10 +16,12 @@ data class PlanDayScheduleEntry(
     val groupUuid: UUID,
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
+    val groupCreatedAt: Instant = Instant.EPOCH,
     val scheduleTimeUuid: UUID? = null,
     val scheduledTime: LocalTime,
     val scheduledFor: LocalDateTime = LocalDateTime.of(LocalDate.now(), scheduledTime),
     val medication: MedicationGroupMedication,
+    val medicationSortOrder: Int = 0,
     val fulfillingEntryUuids: List<UUID>,
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
@@ -54,7 +57,10 @@ fun buildPlanDaySchedule(
     val scheduledEntries = scheduledGroups
         .flatMap { group ->
             val medicationsBySignature = group.medications
-                .groupBy(MedicationSignature::fromGroupMedication)
+                .withIndex()
+                .groupBy { indexedMedication ->
+                    MedicationSignature.fromGroupMedication(indexedMedication.value)
+                }
             group.scheduledSlotsForPlanDay(
                 date = date,
                 entries = entries,
@@ -90,8 +96,13 @@ fun buildPlanDaySchedule(
                     .groupBy(MedicationSignature::fromLogEntry)
                 val isDueSoonSlot = isDueSoon(slotDateTime, now)
 
-                medicationsBySignature.map { (signature, medicationsForSignature) ->
-                    val requiredCount = medicationsForSignature.sumOf { medication -> medication.count }
+                medicationsBySignature.map { (signature, indexedMedicationsForSignature) ->
+                    val requiredCount = indexedMedicationsForSignature.sumOf { indexedMedication ->
+                        indexedMedication.value.count
+                    }
+                    val medicationSortOrder = indexedMedicationsForSignature.minOf { indexedMedication ->
+                        indexedMedication.index
+                    }
                     val matchingLogs = logsBySignature[signature].orEmpty()
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val outsideWindowLogs = outsideWindowLogsBySignature[signature].orEmpty()
@@ -102,10 +113,12 @@ fun buildPlanDaySchedule(
                         groupUuid = group.uuid,
                         groupName = group.name,
                         groupColorKey = group.colorKey,
+                        groupCreatedAt = group.createdAt,
                         scheduleTimeUuid = slot.scheduleTimeUuid,
                         scheduledFor = slotDateTime,
                         scheduledTime = slot.time,
-                        medication = medicationsForSignature.first().copy(count = requiredCount),
+                        medication = indexedMedicationsForSignature.first().value.copy(count = requiredCount),
+                        medicationSortOrder = medicationSortOrder,
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
                         loggedAt = matchingLogs.lastOrNull()
@@ -124,7 +137,11 @@ fun buildPlanDaySchedule(
                 }
             }
         }
-        .sortedBy { it.scheduledTime }
+        .sortedWith(
+            compareBy<PlanDayScheduleEntry> { entry -> entry.scheduledFor }
+                .thenBy { entry -> entry.groupCreatedAt }
+                .thenBy { entry -> entry.medicationSortOrder }
+        )
 
     val unplannedEntries = entries
         .filter { entry ->
@@ -136,7 +153,7 @@ fun buildPlanDaySchedule(
                     zoneId = zoneId,
                 )
         }
-        .sortedByDescending { it.appliedAt }
+        .sortedBy { it.appliedAt }
 
     return PlanDaySchedule(
         date = date,
