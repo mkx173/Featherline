@@ -432,20 +432,14 @@ internal fun MainE2ChartCard(
     }
     val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
     val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
-    val isLongPressMarkerActive = interactiveMarkerXHoursValue != null
-    val interactionMarkerXHours = interactiveMarkerXHoursValue ?: currentTimeXHours
     val interactionMarkerConcentration = remember(
         interactiveMarkerXHoursValue,
         pointXHours,
         section.points,
-        interactionMarkerXHours,
-        currentTimeConcentration,
     ) {
-        if (interactiveMarkerXHoursValue == null) {
-            currentTimeConcentration
-        } else {
+        interactiveMarkerXHoursValue?.let { xHours ->
             mainE2ChartConcentrationAtX(
-                xHours = interactionMarkerXHours,
+                xHours = xHours,
                 pointXHours = pointXHours,
                 points = section.points,
             )
@@ -459,11 +453,15 @@ internal fun MainE2ChartCard(
         chartTimeFormatter,
         unit,
     ) {
-        interactiveMarkerXHoursValue?.let { xHours ->
+        val xHours = interactiveMarkerXHoursValue
+        val concentration = interactionMarkerConcentration
+        if (xHours != null && concentration != null) {
             val dateTime = chartWindowStart.plusMinutes((xHours * 60).roundToLong())
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
-            "$date $time\n${interactionMarkerConcentration.roundToInt()} $unit"
+            "$date $time\n${concentration.roundToInt()} $unit"
+        } else {
+            null
         }
     }
     val noonTickHours = remember(chartWindowHours, now) {
@@ -525,8 +523,6 @@ internal fun MainE2ChartCard(
         doseMarkerConcentrations,
         currentTimeXHours,
         currentTimeConcentration,
-        interactionMarkerXHours,
-        interactionMarkerConcentration,
     ) {
         modelProducer.runTransaction {
             lineSeries {
@@ -541,10 +537,6 @@ internal fun MainE2ChartCard(
                 series(
                     x = listOf(currentTimeXHours),
                     y = listOf(currentTimeConcentration),
-                )
-                series(
-                    x = listOf(interactionMarkerXHours),
-                    y = listOf(interactionMarkerConcentration),
                 )
                 if (doseMarkerXHours.isNotEmpty()) {
                     series(
@@ -600,16 +592,27 @@ internal fun MainE2ChartCard(
                 }
                 val interactionMarkerDecoration = remember(
                     interactiveMarkerXHoursValue,
+                    interactionMarkerConcentration,
                     interactionMarkerColor,
+                    markerSurfaceColor,
+                    yAxisSpec.maxY,
                     chartCoordinateMapper,
                 ) {
-                    interactiveMarkerXHoursValue?.let { xHours ->
+                    val xHours = interactiveMarkerXHoursValue
+                    val concentration = interactionMarkerConcentration
+                    if (xHours != null && concentration != null) {
                         VerticalLineDecoration(
                             x = xHours,
                             lineColor = interactionMarkerColor,
                             dashed = true,
                             coordinateMapper = chartCoordinateMapper,
+                            pointY = concentration.toDouble(),
+                            pointMaxY = yAxisSpec.maxY,
+                            pointFillColor = interactionMarkerColor,
+                            pointStrokeColor = markerSurfaceColor,
                         )
+                    } else {
+                        null
                     }
                 }
                 val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
@@ -618,33 +621,6 @@ internal fun MainE2ChartCard(
                             fill = Fill(currentTimeColor),
                             shape = CircleShape,
                             strokeFill = Fill(markerSurfaceColor),
-                            strokeThickness = 1.dp,
-                        ),
-                        size = 8.dp,
-                    )
-                }
-                val interactionMarkerPoint = remember(
-                    isLongPressMarkerActive,
-                    interactionMarkerColor,
-                    markerSurfaceColor,
-                ) {
-                    LineCartesianLayer.Point(
-                        component = ShapeComponent(
-                            fill = Fill(
-                                if (isLongPressMarkerActive) {
-                                    interactionMarkerColor
-                                } else {
-                                    Color.Transparent
-                                }
-                            ),
-                            shape = CircleShape,
-                            strokeFill = Fill(
-                                if (isLongPressMarkerActive) {
-                                    markerSurfaceColor
-                                } else {
-                                    Color.Transparent
-                                }
-                            ),
                             strokeThickness = 1.dp,
                         ),
                         size = 8.dp,
@@ -704,11 +680,6 @@ internal fun MainE2ChartCard(
                                                 fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
                                                 stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
                                                 pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
-                                            ),
-                                            LineCartesianLayer.rememberLine(
-                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                pointProvider = LineCartesianLayer.PointProvider.single(interactionMarkerPoint),
                                             ),
                                             LineCartesianLayer.rememberLine(
                                                 fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
@@ -1043,24 +1014,17 @@ private class VerticalLineDecoration(
     private val lineWidth: Dp = 1.dp,
     private val dashLength: Dp = 4.dp,
     private val dashGap: Dp = 2.dp,
+    private val pointY: Double? = null,
+    private val pointMaxY: Double = 1.0,
+    private val pointFillColor: Color = lineColor,
+    private val pointStrokeColor: Color = Color.Transparent,
+    private val pointSize: Dp = 8.dp,
+    private val pointStrokeThickness: Dp = 1.dp,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
             coordinateMapper?.update(context)
-            if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
-                return
-            }
-
-            val drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
-                layoutDirectionMultiplier * layerDimensions.startPadding -
-                scroll
-            val canvasX = drawingStart +
-                layoutDirectionMultiplier *
-                layerDimensions.xSpacing *
-                ((x - ranges.minX) / ranges.xStep).toFloat()
-            if (canvasX < layerBounds.left || canvasX > layerBounds.right) {
-                return
-            }
+            val canvasX = canvasXForLine() ?: return
 
             val strokeWidth = lineWidth.pixels
             val paint = Paint().apply {
@@ -1091,6 +1055,58 @@ private class VerticalLineDecoration(
                 )
                 dashTop = dashBottom + dashGapPx
             }
+        }
+    }
+
+    override fun drawOverLayers(context: CartesianDrawingContext) {
+        val y = pointY ?: return
+        with(context) {
+            coordinateMapper?.update(context)
+            val canvasX = canvasXForLine() ?: return
+            if (pointMaxY <= 0.0 || layerBounds.height <= 0f) {
+                return
+            }
+
+            val normalizedY = (y.coerceIn(0.0, pointMaxY) / pointMaxY).toFloat()
+            val canvasY = layerBounds.bottom - normalizedY * layerBounds.height
+            if (canvasY < layerBounds.top || canvasY > layerBounds.bottom) {
+                return
+            }
+
+            val radius = pointSize.pixels / 2f
+            if (radius <= 0f) {
+                return
+            }
+            val strokeWidth = pointStrokeThickness.pixels.coerceAtLeast(0f)
+            if (strokeWidth > 0f && pointStrokeColor.alpha > 0f) {
+                canvas.drawCircle(
+                    center = Offset(canvasX, canvasY),
+                    radius = radius,
+                    paint = Paint().apply { color = pointStrokeColor },
+                )
+            }
+            canvas.drawCircle(
+                center = Offset(canvasX, canvasY),
+                radius = (radius - strokeWidth).coerceAtLeast(0f),
+                paint = Paint().apply { color = pointFillColor },
+            )
+        }
+    }
+
+    private fun CartesianDrawingContext.canvasXForLine(): Float? {
+        if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
+            return null
+        }
+
+        val drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
+            layoutDirectionMultiplier * layerDimensions.startPadding -
+            scroll
+        val canvasX = drawingStart +
+            layoutDirectionMultiplier *
+            layerDimensions.xSpacing *
+            ((x - ranges.minX) / ranges.xStep).toFloat()
+        return canvasX.takeIf { value ->
+            value >= layerBounds.left && value <= layerBounds.right
         }
     }
 }
