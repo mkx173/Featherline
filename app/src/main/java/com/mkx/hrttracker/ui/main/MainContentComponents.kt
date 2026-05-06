@@ -122,13 +122,14 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.compose.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.CartesianLayerDimensions
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
+import com.patrykandpatrick.vico.compose.cartesian.layer.MutableCartesianLayerDimensions
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
@@ -160,6 +161,7 @@ private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
+private val MainE2ChartPointSpacing = 32.dp
 private val MainE2ChartMinimapHeight = 48.dp
 private val MainE2ChartMinimapHorizontalInset = 5.dp
 private val MainE2ChartMinimapResetButtonSize = 32.dp
@@ -716,7 +718,7 @@ internal fun MainE2ChartCard(
                         ) {
                             CartesianChartHost(
                                 chart = rememberCartesianChart(
-                                    rememberLineCartesianLayer(
+                                    rememberEdgeAlignedLineCartesianLayer(
                                         lineProvider =
                                             LineCartesianLayer.LineProvider.series(
                                                 LineCartesianLayer.rememberLine(
@@ -1323,6 +1325,47 @@ private class FixedHorizontalAxisItemPlacer(
         fullXRange: ClosedFloatingPointRange<Double>,
     ): List<Double> {
         return labelValues.ifEmpty { listOf(fullXRange.start) }
+    }
+}
+
+@Composable
+private fun rememberEdgeAlignedLineCartesianLayer(
+    lineProvider: LineCartesianLayer.LineProvider,
+    rangeProvider: CartesianLayerRangeProvider,
+    pointSpacing: Dp = MainE2ChartPointSpacing,
+): LineCartesianLayer {
+    return remember(lineProvider, rangeProvider, pointSpacing) {
+        EdgeAlignedLineCartesianLayer(
+            lineProvider = lineProvider,
+            pointSpacing = pointSpacing,
+            rangeProvider = rangeProvider,
+        )
+    }
+}
+
+private class EdgeAlignedLineCartesianLayer(
+    lineProvider: LineCartesianLayer.LineProvider,
+    pointSpacing: Dp,
+    rangeProvider: CartesianLayerRangeProvider,
+) : LineCartesianLayer(
+    lineProvider = lineProvider,
+    pointSpacing = pointSpacing,
+    rangeProvider = rangeProvider,
+) {
+    override fun updateDimensions(
+        context: CartesianMeasuringContext,
+        dimensions: MutableCartesianLayerDimensions,
+        model: LineCartesianLayerModel,
+    ) {
+        with(context) {
+            dimensions.ensureValuesAtLeast(
+                xSpacing = pointSpacing.pixels,
+                scalableStartPadding = layerPadding.scalableStart.pixels,
+                scalableEndPadding = layerPadding.scalableEnd.pixels,
+                unscalableStartPadding = layerPadding.unscalableStart.pixels,
+                unscalableEndPadding = layerPadding.unscalableEnd.pixels,
+            )
+        }
     }
 }
 
