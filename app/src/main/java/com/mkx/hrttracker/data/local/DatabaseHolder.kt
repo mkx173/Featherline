@@ -60,6 +60,7 @@ class DatabaseHolder @Inject constructor(
     }
 
     private fun buildDatabase(): HrtTrackerDatabase {
+        ensureSqlCipherLoaded()
         val openHelperFactory =
             SupportOpenHelperFactory(databasePassphraseProvider.getPassphrase())
 
@@ -78,6 +79,8 @@ class DatabaseHolder @Inject constructor(
                 MIGRATION_24_25,
                 MIGRATION_25_26,
                 MIGRATION_26_27,
+                MIGRATION_27_28,
+                MIGRATION_28_29,
             )
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
@@ -85,5 +88,21 @@ class DatabaseHolder @Inject constructor(
 
     private companion object {
         private const val DATABASE_NAME = "hrt_tracker.db"
+        private val SQL_CIPHER_LOAD_LOCK = Any()
+
+        @Volatile
+        private var sqlCipherLoaded = false
+
+        fun ensureSqlCipherLoaded() {
+            if (sqlCipherLoaded) {
+                return
+            }
+            synchronized(SQL_CIPHER_LOAD_LOCK) {
+                if (!sqlCipherLoaded) {
+                    System.loadLibrary("sqlcipher")
+                    sqlCipherLoaded = true
+                }
+            }
+        }
     }
 }

@@ -3,7 +3,6 @@ package com.mkx.hrttracker
 import android.app.Application
 import android.app.UiModeManager
 import androidx.appcompat.app.AppCompatDelegate
-import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -27,9 +26,6 @@ class HrtTrackerApplication : Application() {
     lateinit var settingsRepository: SettingsRepository
 
     @Inject
-    lateinit var databaseHolder: DatabaseHolder
-
-    @Inject
     lateinit var reminderNotificationManager: ReminderNotificationManager
 
     @Inject
@@ -47,10 +43,7 @@ class HrtTrackerApplication : Application() {
             }
         }
         ToastManager.init(this)
-        System.loadLibrary("sqlcipher")
-
         reminderNotificationManager.createNotificationChannel()
-        databaseHolder.warmUp()
         appScope.launch {
             medicationReminderScheduler.rescheduleAll()
         }

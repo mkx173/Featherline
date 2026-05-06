@@ -1,5 +1,6 @@
 package com.mkx.hrttracker
 
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -10,25 +11,28 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.startup.StartupPreloader
+import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.onboarding.OnboardingDialogs
-import com.mkx.hrttracker.ui.plan.PlanViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import javax.inject.Provider
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -38,13 +42,22 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var startupPreloaderProvider: Provider<StartupPreloader>
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val startupTimingEnabled =
+            (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 ||
+                packageName.endsWith(".benchmark")
+        StartupTiming.reset(enabled = startupTimingEnabled)
         val splashScreen = installSplashScreen()
         enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition {
-            mainViewModel.uiState.value.isLoading || !appLockViewModel.uiState.value.isReady
+            val appLockState = appLockViewModel.uiState.value
+            val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
+            !appLockState.isReady || (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         settingsRepository.refreshAppLanguageOption(this)
 
@@ -82,8 +95,22 @@ class MainActivity : AppCompatActivity() {
             ) {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+                val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
-                hiltViewModel<PlanViewModel>(viewModelStoreOwner = this@MainActivity)
+                LaunchedEffect(
+                    appLockUiState.isReady,
+                    appLockUiState.shouldShowLockScreen,
+                    mainUiState.homeDataReady,
+                ) {
+                    if (
+                        appLockUiState.isReady &&
+                        !appLockUiState.shouldShowLockScreen &&
+                        mainUiState.homeDataReady
+                    ) {
+                        withFrameNanos { }
+                        startupPreloaderProvider.get().startAfterFirstHomeFrame()
+                    }
+                }
 
                 AppAuthenticationPromptEffect(
                     request = appLockUiState.pendingPrompt,
@@ -99,6 +126,7 @@ class MainActivity : AppCompatActivity() {
                             onUnlockClick = appLockViewModel::requestUnlock
                         )
                     }
+                    !mainUiState.splashReady -> Unit
                     else -> {
                         HrtTrackerApp(navController = navController)
                         OnboardingDialogs()

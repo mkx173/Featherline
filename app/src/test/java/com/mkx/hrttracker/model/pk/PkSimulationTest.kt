@@ -178,4 +178,61 @@ class PkSimulationTest {
         assertNotNull(result)
         assertEquals(explicitDefaultResult, result)
     }
+
+    @Test
+    fun simulateMainEstradiolProjection_canServeLaterMainTrendFromCache() {
+        val zoneId = ZoneId.systemDefault()
+        val generatedAt = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val laterLaunch = generatedAt.plusDays(2).plusHours(3)
+        val entries = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL_VALERATE,
+                    applicationType = MedicationApplicationType.INJECTION,
+                    dose = MedicationDose.MgAsMedicine(5.0),
+                ),
+                dosageMgAsEstradiol = 5.0 * PkCatalog.activeFactor(PkCompound.EV),
+                sourceGroupUuid = null,
+                appliedAt = testInstant(generatedAt.minusDays(2)),
+            ),
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                dosageMgAsEstradiol = 2.0,
+                sourceGroupUuid = null,
+                appliedAt = testInstant(generatedAt.minusHours(6)),
+            )
+        )
+
+        val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+            entries = entries,
+            bodyWeightKg = 62.0,
+            generatedAt = generatedAt,
+            zoneId = zoneId,
+            futureDays = 14,
+        )
+        val cachedTrend = checkNotNull(
+            projection.toMainEstradiolTrend(
+                now = laterLaunch,
+                zoneId = zoneId,
+            )
+        )
+        val directTrend = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = entries,
+                bodyWeightKg = 62.0,
+                now = laterLaunch,
+                zoneId = zoneId,
+            )
+        )
+
+        assertEquals(directTrend.currentConcentration, cachedTrend.currentConcentration, 1e-9)
+        assertEquals(directTrend.previousDayConcentration, cachedTrend.previousDayConcentration, 1e-9)
+        assertEquals(directTrend.dailyConcentrations, cachedTrend.dailyConcentrations)
+        assertEquals(directTrend.chartWindowHours, cachedTrend.chartWindowHours)
+        assertEquals(directTrend.predictionStartTimeH, cachedTrend.predictionStartTimeH, 1e-9)
+    }
 }

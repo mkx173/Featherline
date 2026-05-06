@@ -44,6 +44,7 @@ class ReminderNotificationManager @Inject constructor(
         if (!canPostNotifications()) {
             return
         }
+        createNotificationChannel()
 
         val contentIntent = PendingIntent.getActivity(
             context,

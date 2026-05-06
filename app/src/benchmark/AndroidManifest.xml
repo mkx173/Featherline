@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:label="@string/app_name_benchmark"
+        tools:replace="android:label">
+        <profileable android:shell="true" />
+
+        <activity
+            android:name=".benchmark.StartupFixtureActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme" />
+    </application>
+</manifest>

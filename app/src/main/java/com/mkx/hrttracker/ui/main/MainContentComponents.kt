@@ -162,6 +162,7 @@ private const val MainE2ChartMaxZoomXRangeHours = 48.0
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
 private val MainE2ChartPointSpacing = 32.dp
+private val MainE2ChartPlotHeight = 184.dp
 private val MainE2ChartMinimapHeight = 48.dp
 private val MainE2ChartMinimapHorizontalInset = 5.dp
 private val MainE2ChartMinimapResetButtonSize = 32.dp
@@ -704,7 +705,7 @@ internal fun MainE2ChartCard(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(184.dp)
+                                .height(MainE2ChartPlotHeight)
                                 .padding(MainE2ChartContentPadding)
                                 .onSizeChanged { chartSize.value = it }
                                 .pointerInput(chartCoordinateMapper, chartWindowHours) {
@@ -3054,7 +3055,6 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
     )
 
     return MainUiState(
-        isLoading = false,
         now = now,
         e2Hero = MainE2HeroUiState(
             currentValue = 147.0,

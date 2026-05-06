@@ -10,6 +10,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -25,6 +26,7 @@ class UserProfileRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: UserProfileDao = mockk(relaxed = true)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: UserProfileRepository
 
@@ -35,7 +37,7 @@ class UserProfileRepositoryTest {
         every { database.userProfileDao() } returns dao
 
         val testScope = CoroutineScope(StandardTestDispatcher())
-        repository = UserProfileRepository(databaseHolder, testScope)
+        repository = UserProfileRepository(databaseHolder, homeSnapshotRepository, testScope)
     }
 
     @Test
@@ -71,6 +73,8 @@ class UserProfileRepositoryTest {
         assert(abs(captured.captured.weightKg!! - expectedKg) < 1e-9)
         assertEquals(160.0, captured.captured.weightOriginalValue!!, 1e-9)
         assertEquals("POUNDS", captured.captured.weightOriginalUnit)
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
     }
 
     @Test
@@ -85,6 +89,8 @@ class UserProfileRepositoryTest {
         assertNull(captured.captured.weightOriginalUnit)
         assertEquals(42L, captured.captured.updatedAtEpochMillis)
         coVerify(exactly = 1) { dao.upsertProfile(any()) }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
     }
 
     @Test

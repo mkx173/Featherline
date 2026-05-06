@@ -13,6 +13,7 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
@@ -51,6 +52,7 @@ class BackupRestoreService @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val databaseHolder: DatabaseHolder,
     private val settingsRepository: SettingsRepository,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val backupCrypto: BackupCrypto,
 ) {
@@ -114,6 +116,7 @@ class BackupRestoreService @Inject constructor(
                 database.userProfileDao().upsertProfile(profile)
             }
         }
+        homeSnapshotRepository.invalidateHomeSnapshot()
 
         settingsRepository.restoreSettings(
             darkModeOption = validatedSnapshot.settings.darkModeOption,
@@ -127,6 +130,7 @@ class BackupRestoreService @Inject constructor(
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
         )
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
         medicationReminderScheduler.rescheduleAll()
     }
 

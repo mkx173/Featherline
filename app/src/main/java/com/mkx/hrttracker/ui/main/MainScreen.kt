@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.main
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -44,6 +46,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationDetails
@@ -51,6 +54,7 @@ import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.startup.StartupTiming
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -68,6 +72,22 @@ fun MainScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    ReportDrawnWhen {
+        uiState.splashReady
+    }
+    LaunchedEffect(uiState.homeSource) {
+        when (uiState.homeSource) {
+            HomeInputSource.SNAPSHOT -> {
+                withFrameNanos { }
+                StartupTiming.mark("home_snapshot_rendered")
+            }
+            HomeInputSource.ROOM -> {
+                withFrameNanos { }
+                StartupTiming.mark("home_room_takeover_rendered")
+            }
+            null -> Unit
+        }
+    }
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(

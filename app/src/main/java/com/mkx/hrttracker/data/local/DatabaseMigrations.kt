@@ -7,6 +7,18 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
+val MIGRATION_27_28: Migration = object : Migration(27, 28) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // v28 only added a derived SQL cache that v29 removes.
+    }
+}
+
+val MIGRATION_28_29: Migration = object : Migration(28, 29) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS home_pk_cache")
+    }
+}
+
 val MIGRATION_26_27: Migration = object : Migration(26, 27) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE medication_groups ADD COLUMN recreatedFromGroupUuid TEXT")

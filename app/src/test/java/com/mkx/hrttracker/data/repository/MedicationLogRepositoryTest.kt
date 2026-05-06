@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ class MedicationLogRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicationLogDao = mockk(relaxed = true)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: MedicationLogRepository
 
@@ -44,6 +46,7 @@ class MedicationLogRepositoryTest {
 
         repository = MedicationLogRepository(
             databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
             appScope = CoroutineScope(StandardTestDispatcher()),
         )
     }
@@ -77,6 +80,44 @@ class MedicationLogRepositoryTest {
 
         coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
         coVerify(exactly = 1) { dao.deleteEntriesForGroup(groupUuid.toString()) }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+    }
+
+    @Test
+    fun deleteEntries_forEstradiolInvalidatesHomeSnapshotAndRefreshes() = runTest {
+        val entryUuid = UUID.fromString("bf5d6d17-097a-45a7-ae8e-8202aa10cf01")
+        val entry = testMedicationLogEntryEntity(
+            uuid = entryUuid.toString(),
+            appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
+        )
+        coEvery { dao.getEntriesByIds(listOf(entryUuid.toString())) } returns listOf(entry)
+        coEvery { dao.deleteEntries(listOf(entryUuid.toString())) } returns Unit
+
+        repository.deleteEntries(listOf(entryUuid))
+
+        coVerify(exactly = 1) { dao.deleteEntries(listOf(entryUuid.toString())) }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+    }
+
+    @Test
+    fun deleteEntries_forNonEstradiolInvalidatesHomeSnapshotAndRefreshes() = runTest {
+        val entryUuid = UUID.fromString("6745bdd6-2e58-42c0-8ea5-50b414313e22")
+        val entry = testMedicationLogEntryEntity(
+            uuid = entryUuid.toString(),
+            appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
+            category = MedicationCategory.ANTIANDROGEN,
+            medicationKey = MedicationKey.SPIRONOLACTONE,
+        )
+        coEvery { dao.getEntriesByIds(listOf(entryUuid.toString())) } returns listOf(entry)
+        coEvery { dao.deleteEntries(listOf(entryUuid.toString())) } returns Unit
+
+        repository.deleteEntries(listOf(entryUuid))
+
+        coVerify(exactly = 1) { dao.deleteEntries(listOf(entryUuid.toString())) }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
     }
 
     @Test
@@ -144,6 +185,7 @@ class MedicationLogRepositoryTest {
 
         return MedicationLogRepository(
             databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
             appScope = appScope,
         )
     }

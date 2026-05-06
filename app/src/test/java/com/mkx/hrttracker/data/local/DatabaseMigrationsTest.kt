@@ -14,6 +14,38 @@ import java.util.UUID
 
 class DatabaseMigrationsTest {
     @Test
+    fun migration28To29_dropsLegacyHomePkSqlCacheTable() {
+        val database = mockk<SupportSQLiteDatabase>()
+        val statements = mutableListOf<String>()
+        every { database.execSQL(any<String>()) } answers {
+            statements += firstArg<String>()
+            Unit
+        }
+
+        MIGRATION_28_29.migrate(database)
+
+        assertTrue(statements.any { sql ->
+            sql.contains("DROP TABLE IF EXISTS home_pk_cache")
+        })
+    }
+
+    @Test
+    fun migration27To28_doesNotCreateLegacyHomePkSqlCacheTable() {
+        val database = mockk<SupportSQLiteDatabase>()
+        val statements = mutableListOf<String>()
+        every { database.execSQL(any<String>()) } answers {
+            statements += firstArg<String>()
+            Unit
+        }
+
+        MIGRATION_27_28.migrate(database)
+
+        assertTrue(statements.none { sql ->
+            sql.contains("home_pk_cache")
+        })
+    }
+
+    @Test
     fun migration26To27_backfillsSuccessorLineageFromOriginalReplacementLink() {
         val database = mockk<SupportSQLiteDatabase>()
         val statements = mutableListOf<String>()

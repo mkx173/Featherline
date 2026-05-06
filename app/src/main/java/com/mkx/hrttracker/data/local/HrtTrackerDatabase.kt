@@ -15,7 +15,7 @@ import androidx.room.RoomDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 27,
+    version = 29,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -23,4 +23,5 @@ abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun medicationGroupDao(): MedicationGroupDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun bloodTestDao(): BloodTestDao
+    abstract fun homeDao(): HomeDao
 }

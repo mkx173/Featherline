@@ -1,9 +1,9 @@
 package com.mkx.hrttracker.ui.main
 
-import com.mkx.hrttracker.data.repository.MedicationGroupRepository
-import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.HomeInputSource
+import com.mkx.hrttracker.data.repository.HomeInputs
+import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -12,16 +12,20 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -33,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -43,15 +48,14 @@ import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
-    private val medicationGroupRepository: MedicationGroupRepository = mockk()
-    private val medicationLogRepository: MedicationLogRepository = mockk()
-    private val userProfileRepository: UserProfileRepository = mockk()
+    private val homeRepository: HomeRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        every { homeRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
     }
 
     @After
@@ -60,52 +64,111 @@ class MainViewModelTest {
     }
 
     @Test
-    fun clockTickAcrossMidnight_updatesTodaySectionDate() = runTest {
-        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 23, 59))
-        every { medicationGroupRepository.observeGroups() } returns flowOf(
-            listOf(medicationGroup())
-        )
-        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { userProfileRepository.observeProfile() } returns flowOf(UserProfile(weightKg = 60.0))
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
+    fun clockTickAcrossMidnight_updatesTodaySectionDateAndRefreshesSnapshot() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 23, 59)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any()) } answers {
+            flowOf(homeInputs(now = firstArg()))
+        }
 
         val viewModel = MainViewModel(
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            userProfileRepository = userProfileRepository,
+            homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.todaySection.date)
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(firstMinute, force = false) }
 
-        appTimeSource.setCurrentMinute(LocalDateTime.of(2026, 5, 1, 0, 0))
+        val nextMinute = LocalDateTime.of(2026, 5, 1, 0, 0)
+        appTimeSource.setCurrentMinute(nextMinute)
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.todaySection.date)
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(nextMinute, force = false) }
     }
 
     @Test
-    fun homeE2DisplayUnit_uses_home_preference_instead_of_calibration_default() = runTest {
-        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 12, 0))
-        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
-        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
-        every { userProfileRepository.observeProfile() } returns flowOf(UserProfile(weightKg = 60.0))
-        every { settingsRepository.settingsState } returns MutableStateFlow(
-            SettingsState(
-                calibrationDefaultUnits = mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
-                homeE2DisplayUnit = BloodUnitKey.NG_DL,
+    fun homeSnapshotInputRendersCompleteHomeStateWithoutSkeletonGate() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                activeGroups = listOf(medicationGroup()),
+                trendResult = PkTrendResult(
+                    currentConcentration = 124.0,
+                    previousDayConcentration = 100.0,
+                    dailyConcentrations = listOf(80.0, 92.0, 100.0, 124.0),
+                    concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+                ),
+                source = HomeInputSource.SNAPSHOT,
             )
         )
 
         val viewModel = MainViewModel(
-            medicationGroupRepository = medicationGroupRepository,
-            medicationLogRepository = medicationLogRepository,
-            userProfileRepository = userProfileRepository,
+            homeRepository = homeRepository,
             settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.homeDataReady)
+        assertEquals(HomeInputSource.SNAPSHOT, viewModel.uiState.value.homeSource)
+        assertEquals(true, viewModel.uiState.value.splashReady)
+        assertEquals(124.0, viewModel.uiState.value.e2Hero.currentValue, 1e-9)
+        assertEquals(LocalDate.of(2026, 4, 30), viewModel.uiState.value.todaySection.date)
+    }
+
+    @Test
+    fun staticSplashWaitsForSnapshotOrRoomInput() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        val homeInputFlow = MutableSharedFlow<HomeInputs>()
+        every { homeRepository.observeHomeInputs(any()) } returns homeInputFlow
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.homeDataReady)
+        assertEquals(false, viewModel.uiState.value.splashReady)
+
+        homeInputFlow.emit(homeInputs(now = now, source = HomeInputSource.ROOM))
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.homeDataReady)
+        assertEquals(true, viewModel.uiState.value.splashReady)
+        assertEquals(HomeInputSource.ROOM, viewModel.uiState.value.homeSource)
+    }
+
+    @Test
+    fun homeE2DisplayUnit_usesHomePreferenceFromInputs() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 12, 0))
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                settings = SettingsState(
+                    calibrationDefaultUnits = mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
+                    homeE2DisplayUnit = BloodUnitKey.NG_DL,
+                ),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
         )
         startUiStateCollection(viewModel)
         advanceUntilIdle()
@@ -116,10 +179,106 @@ class MainViewModelTest {
         assertEquals(20.0, viewModel.uiState.value.e2Hero.targetMax, 1e-9)
     }
 
+    @Test
+    fun roomTakeoverUpdatesHomeSourceAfterSnapshotFirstPaint() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val appTimeSource = FakeAppTimeSource(now)
+        val inputs = MutableSharedFlow<HomeInputs>()
+        every { homeRepository.observeHomeInputs(any()) } returns inputs
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        inputs.emit(homeInputs(now = now, source = HomeInputSource.SNAPSHOT))
+        advanceUntilIdle()
+        assertEquals(HomeInputSource.SNAPSHOT, viewModel.uiState.value.homeSource)
+
+        inputs.emit(homeInputs(now = now, source = HomeInputSource.ROOM))
+        advanceUntilIdle()
+        assertEquals(HomeInputSource.ROOM, viewModel.uiState.value.homeSource)
+    }
+
+    @Test
+    fun roomInputWithoutProjectionComputesE2FallbackFromRoomEntries() = runTest {
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val latestEstradiolEntry = MedicationLogEntry(
+            uuid = UUID.fromString("9b24ff3a-fc93-4fd1-8760-81a9ae8eae04"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-30T00:00:00Z"),
+            appliedAtTimeZoneId = "UTC",
+        )
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                trendResult = null,
+                latestEstradiolEntry = latestEstradiolEntry,
+                estradiolPkEntries = listOf(latestEstradiolEntry),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(HomeInputSource.ROOM, viewModel.uiState.value.homeSource)
+        assertEquals(
+            latestEstradiolEntry.appliedAt.atZone(java.time.ZoneId.systemDefault()).toLocalDateTime(),
+            viewModel.uiState.value.e2Hero.lastDoseAt,
+        )
+        assertTrue(viewModel.uiState.value.e2Hero.currentValue > 0.0)
+    }
+
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
         }
+    }
+
+    private fun homeInputs(
+        now: LocalDateTime = LocalDateTime.of(2026, 4, 30, 12, 0),
+        activeGroups: List<MedicationGroup> = emptyList(),
+        settings: SettingsState = SettingsState(),
+        trendResult: PkTrendResult? = PkTrendResult(
+            currentConcentration = 100.0,
+            previousDayConcentration = 90.0,
+            dailyConcentrations = listOf(70.0, 80.0, 90.0, 100.0),
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+        ),
+        latestEstradiolEntry: MedicationLogEntry? = null,
+        estradiolPkEntries: List<MedicationLogEntry> = emptyList(),
+        source: HomeInputSource = HomeInputSource.SNAPSHOT,
+    ): HomeInputs {
+        return HomeInputs(
+            activeGroups = activeGroups,
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+            profile = UserProfile(weightKg = 60.0),
+            settings = settings,
+            trendResult = trendResult,
+            latestEstradiolEntry = latestEstradiolEntry,
+            estradiolPkEntries = estradiolPkEntries,
+            source = source,
+            now = now,
+        )
     }
 
     private fun medicationGroup(): MedicationGroup {

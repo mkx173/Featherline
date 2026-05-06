@@ -46,6 +46,7 @@ import javax.inject.Singleton
 @Singleton
 class MedicationGroupRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -104,6 +105,7 @@ class MedicationGroupRepository @Inject constructor(
                 updatedAtEpochMillis = nowEpochMillis,
             )
         }
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun updateScheduleTimes(
@@ -179,6 +181,7 @@ class MedicationGroupRepository @Inject constructor(
                 }
             }
         }
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun saveGroup(
@@ -338,6 +341,7 @@ class MedicationGroupRepository @Inject constructor(
                 )
             }
         }
+        refreshHomeSnapshotAfterMutation()
 
         return groupUuid
     }
@@ -442,6 +446,12 @@ class MedicationGroupRepository @Inject constructor(
             }
             database.medicationGroupDao().deleteGroup(groupUuid)
         }
+        refreshHomeSnapshotAfterMutation()
+    }
+
+    private suspend fun refreshHomeSnapshotAfterMutation() {
+        homeSnapshotRepository.invalidateHomeSnapshot()
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 }
 

@@ -22,6 +22,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -44,6 +45,7 @@ class MedicationGroupRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val medicationGroupDao: MedicationGroupDao = mockk(relaxed = true)
     private val medicationLogDao: MedicationLogDao = mockk(relaxed = true)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: MedicationGroupRepository
 
@@ -56,6 +58,7 @@ class MedicationGroupRepositoryTest {
 
         repository = MedicationGroupRepository(
             databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
             appScope = CoroutineScope(StandardTestDispatcher()),
         )
     }
@@ -78,6 +81,8 @@ class MedicationGroupRepositoryTest {
             medicationLogDao.reclassifyEntriesForDeletedGroup(groupUuid.toString())
             medicationGroupDao.deleteGroup(groupUuid.toString())
         }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
     }
 
     @Test
@@ -98,6 +103,8 @@ class MedicationGroupRepositoryTest {
             medicationLogDao.deleteEntriesForGroup(groupUuid.toString())
             medicationGroupDao.deleteGroup(groupUuid.toString())
         }
+        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
+        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
     }
 
     @Test

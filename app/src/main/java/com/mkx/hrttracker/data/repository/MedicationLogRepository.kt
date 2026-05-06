@@ -34,6 +34,7 @@ import javax.inject.Singleton
 @Singleton
 class MedicationLogRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -127,18 +128,21 @@ class MedicationLogRepository @Inject constructor(
         }
 
         databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun deleteAllEntries() {
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteAllEntries()
         }
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun deleteEntriesForGroup(groupUuid: UUID) {
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
         }
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun saveEntry(
@@ -163,6 +167,7 @@ class MedicationLogRepository @Inject constructor(
                 appliedAtTimeZoneId = appliedAtTimeZoneId
             )
         )
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun saveEntries(
@@ -204,6 +209,7 @@ class MedicationLogRepository @Inject constructor(
                 )
             }
         )
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
@@ -225,6 +231,12 @@ class MedicationLogRepository @Inject constructor(
                 )
             }
         )
+        refreshHomeSnapshotAfterMutation()
+    }
+
+    private suspend fun refreshHomeSnapshotAfterMutation() {
+        homeSnapshotRepository.invalidateHomeSnapshot()
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 
     private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {

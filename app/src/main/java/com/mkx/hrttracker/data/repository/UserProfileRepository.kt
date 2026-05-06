@@ -22,6 +22,7 @@ import javax.inject.Singleton
 @Singleton
 class UserProfileRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     @AppScope appScope: CoroutineScope,
 ) {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +67,7 @@ class UserProfileRepository @Inject constructor(
                 updatedAtEpochMillis = now.toEpochMilli()
             )
         )
+        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun clearWeight(now: Instant = Instant.now()) {
@@ -77,6 +79,12 @@ class UserProfileRepository @Inject constructor(
                 updatedAtEpochMillis = now.toEpochMilli()
             )
         )
+        refreshHomeSnapshotAfterMutation()
+    }
+
+    private suspend fun refreshHomeSnapshotAfterMutation() {
+        homeSnapshotRepository.invalidateHomeSnapshot()
+        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 
     private fun UserProfileEntity.toModel(): UserProfile {
