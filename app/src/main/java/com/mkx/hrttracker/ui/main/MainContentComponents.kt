@@ -46,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -97,7 +98,9 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
+import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
@@ -133,6 +136,7 @@ private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c9
 private const val MainScheduleGraceMinutes = 60L
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
+private const val MainE2ChartMaxZoomXRangeHours = 24.0
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
@@ -216,49 +220,40 @@ internal fun MainE2HeroCard(
     val heroPillContainerColor = colorScheme.secondaryContainer.copy(alpha = 0.7f)
 
     Box(modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge)) {
-        EditorSegmentedListItem(
-            index = 0,
-            count = 1,
-            onClick = { },
-            modifier = Modifier.fillMaxWidth(),
-            containerColor = colorScheme.surfaceContainerLow,
-            cornerShape = MaterialTheme.shapes.extraLarge
+        Surface(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MonitorHeart,
-                                contentDescription = null,
-                                tint = heroSupportingColor,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = titleText,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                color = heroSupportingColor,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.cjkTextOffset(titleText)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.MonitorHeart,
+                            contentDescription = null,
+                            tint = heroSupportingColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = heroSupportingColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.cjkTextOffset(titleText)
+                        )
                     }
 
                     ConstraintLayout(
@@ -519,6 +514,19 @@ internal fun MainE2ChartCard(
             maxY = yAxisSpec.maxY,
         )
     }
+    val maxChartZoom = remember {
+        Zoom.max(
+            Zoom.Content,
+            Zoom.x(MainE2ChartMaxZoomXRangeHours),
+        )
+    }
+    val chartScrollState = rememberVicoScrollState(scrollEnabled = true)
+    val chartZoomState = rememberVicoZoomState(
+        zoomEnabled = true,
+        initialZoom = Zoom.Content,
+        minZoom = Zoom.Content,
+        maxZoom = maxChartZoom,
+    )
     val chartAnimationSpec = if (chartAnimationsEnabled.value) {
         tween<Float>(durationMillis = MainE2ChartInitialAnimationMillis)
     } else {
@@ -564,17 +572,14 @@ internal fun MainE2ChartCard(
         }
     }
 
-    EditorSegmentedListItem(
-        index = 0,
-        count = 1,
-        onClick = {},
-        cornerShape = MaterialTheme.shapes.extraLarge,
-        pressedShape = MaterialTheme.shapes.extraLarge,
-        modifier = modifier
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).padding(bottom = 6.dp)
         ) {
 
             MainE2ChartCardHeader(
@@ -666,6 +671,15 @@ internal fun MainE2ChartCard(
                             .height(184.dp)
                             .padding(MainE2ChartContentPadding)
                             .onSizeChanged { chartSize.value = it }
+                            .pointerInput(chartCoordinateMapper, chartWindowHours) {
+                                detectMainE2ChartMarkerGestures(
+                                    coordinateMapper = chartCoordinateMapper,
+                                    chartWindowHours = chartWindowHours,
+                                    onMarkerXChanged = { xHours ->
+                                        interactiveMarkerXHours.value = xHours
+                                    },
+                                )
+                            }
                     ) {
                         CartesianChartHost(
                             chart = rememberCartesianChart(
@@ -730,21 +744,8 @@ internal fun MainE2ChartCard(
                             modifier = Modifier.matchParentSize(),
                             animationSpec = chartAnimationSpec,
                             animateIn = chartAnimationsEnabled.value,
-                            scrollState = rememberVicoScrollState(scrollEnabled = false),
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .pointerInput(chartCoordinateMapper, chartWindowHours) {
-                                    detectMainE2ChartMarkerGestures(
-                                        coordinateMapper = chartCoordinateMapper,
-                                        chartWindowHours = chartWindowHours,
-                                        onMarkerXChanged = { xHours ->
-                                            interactiveMarkerXHours.value = xHours
-                                        },
-                                    )
-                                }
+                            scrollState = chartScrollState,
+                            zoomState = chartZoomState,
                         )
                     }
                 }
@@ -883,7 +884,6 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        down.consume()
         val longPress = awaitLongPressOrCancellation(down.id)
         if (longPress == null) {
             onMarkerXChanged(null)
@@ -894,7 +894,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
         onMarkerXChanged(markerXFor(longPress.position.x))
 
         while (true) {
-            val event = awaitPointerEvent()
+            val event = awaitPointerEvent(PointerEventPass.Initial)
             val change = event.changes.firstOrNull { change -> change.id == down.id }
                 ?: event.changes.firstOrNull()
                 ?: continue
@@ -1196,17 +1196,14 @@ internal fun MainAntiandrogenCard(
 ) {
     if (cards.isEmpty()) return
 
-    EditorSegmentedListItem(
-        index = 0,
-        count = 1,
-        onClick = {},
-        cornerShape = MaterialTheme.shapes.extraLarge,
-        pressedShape = MaterialTheme.shapes.extraLarge,
-        modifier = modifier
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 6.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
                 modifier = Modifier.padding(vertical = 4.dp)
@@ -1229,6 +1226,7 @@ internal fun MainAntiandrogenCard(
             }
         }
     }
+
 }
 
 @Composable
