@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -70,14 +71,17 @@ class MainUiModelsTest {
             zoneId = testZoneId
         )
 
-        assertEquals(160, hero.currentValue)
-        assertEquals(9, hero.changeSinceYesterday)
+        assertEquals(160.4, hero.currentValue, 1e-9)
+        assertEquals(9.3, hero.changeSinceYesterday, 1e-9)
+        assertEquals(100.0, hero.targetMin, 1e-9)
+        assertEquals(200.0, hero.targetMax, 1e-9)
+        assertEquals("pg/mL", hero.unit)
         assertEquals(latestEstradiolDoseTime, hero.lastDoseAt)
         assertEquals(latestEstradiolDoseDetails, hero.lastDoseDetails)
     }
 
     @Test
-    fun buildMainE2Chart_uses_pk_chart_concentrations() {
+    fun buildMainE2Chart_converts_pk_chart_concentrations_to_display_unit() {
         val chart = buildMainE2Chart(
             trendResult = PkTrendResult(
                 currentConcentration = 70.0,
@@ -90,16 +94,25 @@ class MainUiModelsTest {
                 chartWindowHours = 168,
                 predictionStartTimeH = 2.0,
                 concentrationUnit = PkConcentrationUnit.PG_PER_ML,
-            )
+            ),
+            displayUnit = BloodUnitKey.NG_DL,
         )
 
         assertEquals(5, chart.points.size)
         assertEquals(1, chart.sampleIntervalHours)
-        assertEquals(listOf(10f, 20f, 10f, 40f, 15f), chart.points)
+        assertEquals(listOf(1f, 2f, 1f, 4f, 1.5f), chart.points)
         assertEquals(listOf(0.0, 0.5, 1.0, 2.0, 4.0), chart.pointXHours)
-        assertEquals(listOf(MainE2DoseMarkerUiState(xHours = 0.5, concentration = 20f)), chart.doseMarkers)
+        assertEquals(listOf(MainE2DoseMarkerUiState(xHours = 0.5, concentration = 2f)), chart.doseMarkers)
         assertEquals(168, chart.windowHours)
         assertEquals(2.0, chart.predictionStartXHours, 1e-9)
+    }
+
+    @Test
+    fun formatMainE2ConcentrationValue_rounds_by_display_unit() {
+        assertEquals("160", formatMainE2ConcentrationValue(160.4, BloodUnitKey.PG_ML))
+        assertEquals("589", formatMainE2ConcentrationValue(588.8, BloodUnitKey.PMOL_L))
+        assertEquals("16.0", formatMainE2ConcentrationValue(16.04, BloodUnitKey.NG_DL))
+        assertEquals("16.1", formatMainE2ConcentrationValue(16.06, BloodUnitKey.NG_DL))
     }
 
     @Test

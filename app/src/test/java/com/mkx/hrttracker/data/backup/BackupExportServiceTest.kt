@@ -111,6 +111,7 @@ class BackupExportServiceTest {
                 BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L,
                 BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
             ),
+            homeE2DisplayUnit = BloodUnitKey.NG_DL,
             remindersEnabled = false,
             screenLockProtectionEnabled = true,
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
@@ -251,6 +252,7 @@ class BackupExportServiceTest {
         assertEquals(true, snapshot.settings.hideScreenContentEnabled)
         assertEquals(true, snapshot.settings.onboardingCompleted)
         assertEquals("SIMPLIFIED_CHINESE", snapshot.settings.appLanguageOption)
+        assertEquals("ng_dl", snapshot.settings.homeE2DisplayUnit)
         assertEquals(
             mapOf("e2" to "pmol_l", "t" to "nmol_l"),
             snapshot.settings.calibrationDefaultUnits,

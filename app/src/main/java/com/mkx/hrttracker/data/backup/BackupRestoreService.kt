@@ -125,6 +125,7 @@ class BackupRestoreService @Inject constructor(
             onboardingCompleted = validatedSnapshot.settings.onboardingCompleted,
             appLanguageOption = validatedSnapshot.settings.appLanguageOption,
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
+            homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
         )
         medicationReminderScheduler.rescheduleAll()
     }
@@ -543,6 +544,12 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         }
         analyteKey to unitKey
     }.toMap()
+    val homeE2DisplayUnitKey = checkNotNull(BloodUnitKey.fromStorageValue(homeE2DisplayUnit)) {
+        "Unsupported home E2 display unit key $homeE2DisplayUnit."
+    }
+    require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, homeE2DisplayUnitKey)) {
+        "Unit ${homeE2DisplayUnitKey.storageValue} is not allowed for home E2 display."
+    }
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -554,6 +561,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         onboardingCompleted = onboardingCompleted,
         appLanguageOption = appLanguageOption,
         calibrationDefaultUnits = calibrationDefaultUnits,
+        homeE2DisplayUnit = homeE2DisplayUnitKey,
     )
 }
 
@@ -669,6 +677,7 @@ internal data class ValidatedBackupSettings(
     val onboardingCompleted: Boolean,
     val appLanguageOption: AppLanguageOption,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
+    val homeE2DisplayUnit: BloodUnitKey,
 )
 
 private data class ValidatedMedicationData(

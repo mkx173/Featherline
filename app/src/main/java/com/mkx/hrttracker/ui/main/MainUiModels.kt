@@ -1,5 +1,8 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -10,7 +13,10 @@ import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
+import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
+import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
 import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
@@ -21,10 +27,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.Locale
 import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.roundToLong
-import kotlin.math.roundToInt
 
 data class MainTodaySectionUiState(
     val date: LocalDate,
@@ -35,10 +41,10 @@ data class MainTodaySectionUiState(
 )
 
 data class MainE2HeroUiState(
-    val currentValue: Int = 0,
-    val changeSinceYesterday: Int = 0,
-    val targetMin: Int = MOCK_E2_TARGET_MIN,
-    val targetMax: Int = MOCK_E2_TARGET_MAX,
+    val currentValue: Double = 0.0,
+    val changeSinceYesterday: Double = 0.0,
+    val targetMin: Double = E2_TARGET_MIN_CANONICAL,
+    val targetMax: Double = E2_TARGET_MAX_CANONICAL,
     val unit: String = E2_UNIT_PG_ML,
     val lastDoseDetails: MedicationDetails? = null,
     val lastDoseAt: LocalDateTime? = null,
@@ -131,14 +137,44 @@ data class MainUpcomingDoseRowUiState(
 internal fun buildMainE2Hero(
     entries: List<MedicationLogEntry>,
     trendResult: PkTrendResult? = null,
+    displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     zoneId: ZoneId = ZoneId.systemDefault()
 ): MainE2HeroUiState {
     val lastEstradiolEntry = findLastEstradiolEntry(entries)
+    val concentrationUnit = trendResult?.concentrationUnit ?: PkConcentrationUnit.PG_PER_ML
 
     return MainE2HeroUiState(
-        currentValue = trendResult?.currentConcentration?.roundToInt() ?: 0,
-        changeSinceYesterday = trendResult?.changeSincePreviousDay?.roundToInt() ?: 0,
-        unit = trendResult?.concentrationUnit?.symbol ?: E2_UNIT_PG_ML,
+        currentValue = trendResult
+            ?.currentConcentration
+            ?.let { concentration ->
+                mainE2ConcentrationInDisplayUnit(
+                    value = concentration,
+                    sourceUnit = concentrationUnit,
+                    displayUnit = displayUnit,
+                )
+            }
+            ?: 0.0,
+        changeSinceYesterday = trendResult
+            ?.changeSincePreviousDay
+            ?.let { concentration ->
+                mainE2ConcentrationInDisplayUnit(
+                    value = concentration,
+                    sourceUnit = concentrationUnit,
+                    displayUnit = displayUnit,
+                )
+            }
+            ?: 0.0,
+        targetMin = BloodTestCatalog.fromCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            canonicalValue = E2_TARGET_MIN_CANONICAL,
+            unit = displayUnit,
+        ),
+        targetMax = BloodTestCatalog.fromCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            canonicalValue = E2_TARGET_MAX_CANONICAL,
+            unit = displayUnit,
+        ),
+        unit = mainE2DisplayUnitLabel(displayUnit),
         lastDoseDetails = lastEstradiolEntry?.details,
         lastDoseAt = lastEstradiolEntry
             ?.appliedAt
@@ -149,6 +185,7 @@ internal fun buildMainE2Hero(
 
 internal fun buildMainE2Chart(
     trendResult: PkTrendResult? = null,
+    displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
 ): MainE2ChartUiState {
     val chartConcentrations = trendResult
         ?.chartConcentrations
@@ -159,7 +196,13 @@ internal fun buildMainE2Chart(
 
     return MainE2ChartUiState(
         points = chartConcentrations
-            ?.map { concentration -> concentration.toFloat() }
+            ?.map { concentration ->
+                mainE2ConcentrationInDisplayUnit(
+                    value = concentration,
+                    sourceUnit = trendResult.concentrationUnit,
+                    displayUnit = displayUnit,
+                ).toFloat()
+            }
             ?: EmptyE2ChartPoints,
         pointXHours = chartTimeH
             ?.map { timeH -> timeH.toVicoXHour() }
@@ -174,7 +217,11 @@ internal fun buildMainE2Chart(
             ?.map { marker ->
                 MainE2DoseMarkerUiState(
                     xHours = marker.timeH.toVicoXHour(),
-                    concentration = marker.concentration.toFloat(),
+                    concentration = mainE2ConcentrationInDisplayUnit(
+                        value = marker.concentration,
+                        sourceUnit = trendResult.concentrationUnit,
+                        displayUnit = displayUnit,
+                    ).toFloat(),
                 )
             }
             ?: emptyList(),
@@ -369,6 +416,69 @@ internal fun buildMainTodaySection(
         manualCount = manualRows.size,
         rows = rows
     )
+}
+
+internal fun formatMainE2ConcentrationValue(
+    value: Double,
+    displayUnit: BloodUnitKey,
+): String {
+    return when (displayUnit) {
+        BloodUnitKey.PG_ML,
+        BloodUnitKey.PMOL_L,
+        -> value.roundToLong().toString()
+
+        BloodUnitKey.NG_DL -> {
+            val roundedValue = (value * 10.0).roundToLong() / 10.0
+            String.format(Locale.US, "%.1f", roundedValue)
+        }
+
+        else -> formatCalibrationConvertedValue(value)
+    }
+}
+
+private fun mainE2DisplayUnitLabel(displayUnit: BloodUnitKey): String {
+    return calibrationUnitLabel(displayUnit)
+}
+
+private fun mainE2ConcentrationInDisplayUnit(
+    value: Double,
+    sourceUnit: PkConcentrationUnit,
+    displayUnit: BloodUnitKey,
+): Double {
+    val canonicalValue = mainE2ConcentrationToCanonical(
+        value = value,
+        sourceUnit = sourceUnit,
+    )
+    return BloodTestCatalog.fromCanonical(
+        analyteKey = BloodAnalyteKey.E2,
+        canonicalValue = canonicalValue,
+        unit = displayUnit,
+    )
+}
+
+private fun mainE2ConcentrationToCanonical(
+    value: Double,
+    sourceUnit: PkConcentrationUnit,
+): Double {
+    return when (sourceUnit) {
+        PkConcentrationUnit.PG_PER_ML -> value
+        PkConcentrationUnit.PMOL_PER_L -> BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            value = value,
+            unit = BloodUnitKey.PMOL_L,
+        )
+        PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            value = value,
+            unit = BloodUnitKey.NG_DL,
+        )
+        PkConcentrationUnit.NG_PER_ML -> value * 1_000.0
+        PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(
+            analyteKey = BloodAnalyteKey.E2,
+            value = value * 1_000.0,
+            unit = BloodUnitKey.PMOL_L,
+        )
+    }
 }
 
 private data class MainTodayRowsForDate(
@@ -646,8 +756,8 @@ private fun Double.toVicoXHour(): Double {
     return (this * VicoXPrecisionScale).roundToLong() / VicoXPrecisionScale
 }
 
-private const val MOCK_E2_TARGET_MIN = 100
-private const val MOCK_E2_TARGET_MAX = 200
+private const val E2_TARGET_MIN_CANONICAL = 100.0
+private const val E2_TARGET_MAX_CANONICAL = 200.0
 private const val E2_UNIT_PG_ML = "pg/mL"
 private const val MainUpcomingLookaheadDays = 90L
 private const val MainAntiandrogenDueLookbackDays = 2L
@@ -661,7 +771,21 @@ private const val MainE2YAxisMaxTickIntervals = 5
 private const val EmptyE2ChartSampleIntervalHours = 24
 private const val EmptyE2ChartWindowHours = 7 * 24
 private const val EmptyE2ChartPredictionStartXHours = 3 * 24.0
-private val MainE2YAxisTickSteps = listOf(25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0)
+private val MainE2YAxisTickSteps = listOf(
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    250.0,
+    500.0,
+    1000.0,
+    2500.0,
+    5000.0
+)
 private val EmptyE2ChartPoints = List(7) { 0f }
 private val EmptyE2ChartPointXHours = List(7) { index ->
     index * EmptyE2ChartWindowHours.toDouble() / (EmptyE2ChartPoints.size - 1)

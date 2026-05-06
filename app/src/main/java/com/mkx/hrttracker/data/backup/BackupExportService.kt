@@ -176,6 +176,7 @@ class BackupExportService @Inject constructor(
                 hideScreenContentEnabled = settings.hideScreenContentEnabled,
                 onboardingCompleted = onboardingCompleted,
                 appLanguageOption = settings.appLanguageOption.name,
+                homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
                 calibrationDefaultUnits = settings.calibrationDefaultUnits.entries
                     .associate { (analyteKey, unitKey) ->
                         analyteKey.storageValue to unitKey.storageValue

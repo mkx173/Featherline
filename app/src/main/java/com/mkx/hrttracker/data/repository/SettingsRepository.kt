@@ -43,6 +43,7 @@ class SettingsRepository @Inject constructor(
     private val calibrationDefaultUnitKeys = BloodAnalyteKey.entries.associateWith { analyteKey ->
         stringPreferencesKey("calibration_default_unit_${analyteKey.storageValue}")
     }
+    private val homeE2DisplayUnitKey = stringPreferencesKey("home_e2_display_unit")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
@@ -103,6 +104,20 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setHomeE2DisplayUnit(unit: BloodUnitKey) {
+        require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit)) {
+            "Unit ${unit.storageValue} is not allowed for home E2 display."
+        }
+
+        context.dataStore.edit { preferences ->
+            if (unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
+                preferences.remove(homeE2DisplayUnitKey)
+            } else {
+                preferences[homeE2DisplayUnitKey] = unit.storageValue
+            }
+        }
+    }
+
     suspend fun setRemindersEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[remindersEnabledKey] = enabled
@@ -149,11 +164,15 @@ class SettingsRepository @Inject constructor(
         onboardingCompleted: Boolean,
         appLanguageOption: AppLanguageOption,
         calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
+        homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     ) {
         calibrationDefaultUnits.forEach { (analyteKey, unit) ->
             require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
                 "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
             }
+        }
+        require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, homeE2DisplayUnit)) {
+            "Unit ${homeE2DisplayUnit.storageValue} is not allowed for home E2 display."
         }
 
         context.dataStore.edit { preferences ->
@@ -170,6 +189,11 @@ class SettingsRepository @Inject constructor(
                 if (unit != BloodTestCatalog.canonicalUnitFor(analyteKey)) {
                     preferences[calibrationDefaultUnitKeys.getValue(analyteKey)] = unit.storageValue
                 }
+            }
+            if (homeE2DisplayUnit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
+                preferences.remove(homeE2DisplayUnitKey)
+            } else {
+                preferences[homeE2DisplayUnitKey] = homeE2DisplayUnit.storageValue
             }
         }
 
@@ -195,6 +219,10 @@ class SettingsRepository @Inject constructor(
                     ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
                     ?.let { unit -> analyteKey to unit }
             }.toMap(),
+            homeE2DisplayUnit = preferences[homeE2DisplayUnitKey]
+                ?.let(BloodUnitKey::fromStorageValue)
+                ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit) }
+                ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(

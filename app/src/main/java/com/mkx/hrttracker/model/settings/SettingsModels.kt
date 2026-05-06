@@ -120,6 +120,7 @@ data class SettingsState(
     val adaptiveColorEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
+    val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val remindersEnabled: Boolean = true,
     val showArchivedGroupRecords: Boolean = true,
     val screenLockProtectionEnabled: Boolean = false,

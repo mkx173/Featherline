@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
@@ -119,6 +120,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -172,11 +174,13 @@ private data class MainTodayTimeRangeGroup(
 internal fun MainE2HeroCard(
     section: MainE2HeroUiState,
     now: LocalDateTime,
+    displayUnit: BloodUnitKey,
     modifier: Modifier = Modifier
 ) {
     val trendDeltaLabel = mainTrendDeltaLabel(
         changeSinceYesterday = section.changeSinceYesterday,
-        unit = section.unit
+        unit = section.unit,
+        displayUnit = displayUnit,
     )
     val trendIcon = when {
         section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
@@ -189,6 +193,7 @@ internal fun MainE2HeroCard(
     )
     val hasPreviousRecord = section.lastDoseAt != null
     val titleText = stringResource(R.string.main_e2_title)
+    val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
     val rangeStatusIconDrawableRes = when {
         section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up
@@ -258,7 +263,7 @@ internal fun MainE2HeroCard(
                         val (valueRef, unitRef, rangeStatusRef) = createRefs()
 
                         Text(
-                            text = section.currentValue.toString(),
+                            text = currentValueText,
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Medium,
                             color = heroContentColor,
@@ -309,16 +314,16 @@ internal fun MainE2HeroCard(
                                     tint = heroSupportingColor
                                 )
 
-                                val sinceYesterdayTextString = stringResource(
+                                val sinceYesterdayText = stringResource(
                                     R.string.main_e2_change_since_yesterday,
                                     trendDeltaLabel
                                 )
                                 Text(
-                                    text = sinceYesterdayTextString,
+                                    text = sinceYesterdayText,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = heroSupportingColor,
-                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayTextString)
+                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayText)
                                 )
                             }
                         }
@@ -391,6 +396,9 @@ internal fun MainE2ChartCard(
     now: LocalDateTime,
     appLocale: Locale,
     unit: String,
+    displayUnit: BloodUnitKey,
+    targetRangeLow: Double,
+    targetRangeHigh: Double,
     modifier: Modifier = Modifier
 ) {
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -459,7 +467,7 @@ internal fun MainE2ChartCard(
             val dateTime = chartWindowStart.plusMinutes((xHours * 60).roundToLong())
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
-            "$date $time\n${concentration.roundToInt()} $unit"
+            "$date $time\n${formatMainE2ConcentrationValue(concentration.toDouble(), displayUnit)} $unit"
         } else {
             null
         }
@@ -563,8 +571,9 @@ internal fun MainE2ChartCard(
 
             MainE2ChartCardHeader(
                 modifier = Modifier.padding(vertical = 4.dp),
-                targetRangeLow = 100,
-                targetRangeHigh = 200,
+                targetRangeLow = targetRangeLow,
+                targetRangeHigh = targetRangeHigh,
+                displayUnit = displayUnit,
                 unit = unit
             )
 
@@ -574,7 +583,7 @@ internal fun MainE2ChartCard(
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
                 val currentTimeLineColor =
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
-                val interactionMarkerColor = MaterialTheme.colorScheme.outlineVariant
+                val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
                 val chartCoordinateMapper = remember { MainE2ChartCoordinateMapper() }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
@@ -695,7 +704,7 @@ internal fun MainE2ChartCard(
                                 ),
                                 startAxis = VerticalAxis.rememberStart(
                                     valueFormatter = CartesianValueFormatter { _, value, _ ->
-                                        value.toInt().toString()
+                                        formatMainE2ConcentrationValue(value, displayUnit)
                                     },
                                     line = null,
                                     tick = null,
@@ -1114,8 +1123,9 @@ private class VerticalLineDecoration(
 @Composable
 private fun MainE2ChartCardHeader(
     modifier: Modifier = Modifier,
-    targetRangeLow: Int,
-    targetRangeHigh: Int,
+    targetRangeLow: Double,
+    targetRangeHigh: Double,
+    displayUnit: BloodUnitKey,
     unit: String,
 ) {
     Row(
@@ -1153,7 +1163,12 @@ private fun MainE2ChartCardHeader(
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
             Text(
-                text = stringResource(R.string.main_e2_chart_target, targetRangeLow, targetRangeHigh, unit),
+                text = stringResource(
+                    R.string.main_e2_chart_target,
+                    formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
+                    formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
+                    unit
+                ),
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
@@ -2217,12 +2232,13 @@ private fun mainE2LastDoseSummary(
 }
 
 private fun mainTrendDeltaLabel(
-    changeSinceYesterday: Int,
-    unit: String
+    changeSinceYesterday: Double,
+    unit: String,
+    displayUnit: BloodUnitKey,
 ): String {
     val valueLabel = when {
-        changeSinceYesterday > 0 -> "+$changeSinceYesterday"
-        changeSinceYesterday < 0 -> changeSinceYesterday.toString()
+        changeSinceYesterday > 0 -> "+${formatMainE2ConcentrationValue(changeSinceYesterday, displayUnit)}"
+        changeSinceYesterday < 0 -> "-${formatMainE2ConcentrationValue(abs(changeSinceYesterday), displayUnit)}"
         else -> "0"
     }
     return listOf(valueLabel, unit)
@@ -2245,7 +2261,8 @@ private fun MainE2HeroCardPreview() {
     MainContentComponentPreviewContainer {
         MainE2HeroCard(
             section = uiState.e2Hero,
-            now = uiState.now
+            now = uiState.now,
+            displayUnit = uiState.homeE2DisplayUnit,
         )
     }
 }
@@ -2260,7 +2277,10 @@ private fun MainE2ChartCardPreview() {
             section = uiState.e2Chart,
             now = uiState.now,
             appLocale = Locale.US,
-            unit = uiState.e2Hero.unit
+            unit = uiState.e2Hero.unit,
+            displayUnit = uiState.homeE2DisplayUnit,
+            targetRangeLow = uiState.e2Hero.targetMin,
+            targetRangeHigh = uiState.e2Hero.targetMax,
         )
     }
 }
@@ -2481,10 +2501,10 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         isLoading = false,
         now = now,
         e2Hero = MainE2HeroUiState(
-            currentValue = 147,
-            changeSinceYesterday = 8,
-            targetMin = 100,
-            targetMax = 200,
+            currentValue = 147.0,
+            changeSinceYesterday = 8.0,
+            targetMin = 100.0,
+            targetMax = 200.0,
             lastDoseDetails = estradiolTablet.details,
             lastDoseAt = now.minusHours(2).minusMinutes(25)
         ),

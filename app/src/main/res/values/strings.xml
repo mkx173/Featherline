@@ -42,7 +42,7 @@
     <string name="main_e2_status_in_range">IN RANGE</string>
     <string name="main_e2_status_below_range">BELOW RANGE</string>
     <string name="main_e2_chart_title">7-day trend</string>
-    <string name="main_e2_chart_target">Target %1$d–%2$d %3$s</string>
+    <string name="main_e2_chart_target">Target %1$s–%2$s %3$s</string>
     <string name="main_e2_change_since_yesterday">%1$s from 24h ago</string>
     <string name="main_e2_last_dose_with_time">Last dose %1$s ago</string>
     <string name="main_e2_no_last_dose">No logged dose yet</string>
@@ -63,6 +63,8 @@
     <string name="main_relative_today_time">today, %1$s</string>
     <string name="main_relative_tomorrow_time">tomorrow, %1$s</string>
     <string name="main_relative_date_time">%1$s, %2$s</string>
+    <string name="main_more_options">More options</string>
+    <string name="main_display_unit">Display unit</string>
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_body">It\'s time for your dose.</string>

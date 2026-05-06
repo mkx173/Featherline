@@ -40,7 +40,7 @@
     <string name="main_e2_status_in_range">在范围内</string>
     <string name="main_e2_status_below_range">低于范围</string>
     <string name="main_e2_chart_title">7 天趋势</string>
-    <string name="main_e2_chart_target">目标 %1$d–%2$d %3$s</string>
+    <string name="main_e2_chart_target">目标 %1$s–%2$s %3$s</string>
     <string name="main_e2_change_since_yesterday">较24小时前 %1$s</string>
     <string name="main_e2_last_dose_with_time">上次用药 %1$s前</string>
     <string name="main_e2_no_last_dose">还没有记录</string>
@@ -61,6 +61,8 @@
     <string name="main_relative_today_time">今天 %1$s</string>
     <string name="main_relative_tomorrow_time">明天 %1$s</string>
     <string name="main_relative_date_time">%1$s %2$s</string>
+    <string name="main_more_options">更多选项</string>
+    <string name="main_display_unit">显示单位</string>
     <string name="reminder_notification_channel_name">用药提醒</string>
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_body">该用药了</string>

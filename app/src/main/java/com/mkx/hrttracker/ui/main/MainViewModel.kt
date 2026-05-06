@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneId
 import javax.inject.Inject
@@ -23,6 +26,7 @@ class MainViewModel @Inject constructor(
     medicationGroupRepository: MedicationGroupRepository,
     medicationLogRepository: MedicationLogRepository,
     userProfileRepository: UserProfileRepository,
+    private val settingsRepository: SettingsRepository,
     appTimeSource: AppTimeSource
 ) : ViewModel() {
     private val currentDateTime = appTimeSource.currentMinute
@@ -32,11 +36,13 @@ class MainViewModel @Inject constructor(
         medicationGroupRepository.observeGroups(),
         medicationLogRepository.observeEntries(),
         userProfileRepository.observeProfile(),
+        settingsRepository.settingsState,
         currentDateTime
-    ) { groupsOrNull, entriesOrNull, profileOrNull, now ->
+    ) { groupsOrNull, entriesOrNull, profileOrNull, settingsState, now ->
         val isLoading = groupsOrNull == null || entriesOrNull == null || profileOrNull == null
         val groups = groupsOrNull.orEmpty().filter(MedicationGroup::isActive)
         val entries = entriesOrNull.orEmpty()
+        val homeE2DisplayUnit = settingsState.homeE2DisplayUnit
         val estradiolTrend = PkMedicationSimulation.simulateMainEstradiolTrend(
             entries = entries,
             bodyWeightKg = profileOrNull?.weightKg,
@@ -47,13 +53,16 @@ class MainViewModel @Inject constructor(
         MainUiState(
             isLoading = isLoading,
             now = now,
+            homeE2DisplayUnit = homeE2DisplayUnit,
             e2Hero = buildMainE2Hero(
                 entries = entries,
                 trendResult = estradiolTrend,
+                displayUnit = homeE2DisplayUnit,
                 zoneId = zoneId,
             ),
             e2Chart = buildMainE2Chart(
                 trendResult = estradiolTrend,
+                displayUnit = homeE2DisplayUnit,
             ),
             antiandrogenCards = buildMainAntiandrogenCards(
                 groups = groups,
@@ -80,6 +89,12 @@ class MainViewModel @Inject constructor(
         initialValue = MainUiState(now = currentDateTime.value)
     )
 
+    fun setHomeE2DisplayUnit(unit: BloodUnitKey) {
+        viewModelScope.launch {
+            settingsRepository.setHomeE2DisplayUnit(unit)
+        }
+    }
+
     private companion object {
         const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
@@ -88,6 +103,7 @@ class MainViewModel @Inject constructor(
 data class MainUiState(
     val isLoading: Boolean = true,
     val now: LocalDateTime = LocalDateTime.now(),
+    val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
     val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),

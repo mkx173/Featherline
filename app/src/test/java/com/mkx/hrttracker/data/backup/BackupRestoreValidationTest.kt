@@ -38,6 +38,7 @@ class BackupRestoreValidationTest {
                 hideScreenContentEnabled = true,
                 onboardingCompleted = true,
                 appLanguageOption = "SIMPLIFIED_CHINESE",
+                homeE2DisplayUnit = BloodUnitKey.NG_DL.storageValue,
                 calibrationDefaultUnits = mapOf(
                     BloodAnalyteKey.E2.storageValue to BloodUnitKey.PMOL_L.storageValue,
                 ),
@@ -167,6 +168,7 @@ class BackupRestoreValidationTest {
         assertEquals(true, validatedSnapshot.settings.hideScreenContentEnabled)
         assertEquals(true, validatedSnapshot.settings.onboardingCompleted)
         assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, validatedSnapshot.settings.appLanguageOption)
+        assertEquals(BloodUnitKey.NG_DL, validatedSnapshot.settings.homeE2DisplayUnit)
         assertEquals(
             mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
             validatedSnapshot.settings.calibrationDefaultUnits,

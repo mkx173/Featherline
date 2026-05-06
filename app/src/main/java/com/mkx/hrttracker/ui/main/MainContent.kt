@@ -64,7 +64,8 @@ fun MainContent(
         item(key = "e2-hero") {
             MainE2HeroCard(
                 section = uiState.e2Hero,
-                now = uiState.now
+                now = uiState.now,
+                displayUnit = uiState.homeE2DisplayUnit,
             )
         }
 
@@ -74,7 +75,10 @@ fun MainContent(
                 section = uiState.e2Chart,
                 now = uiState.now,
                 appLocale = appLocale,
-                unit = uiState.e2Hero.unit
+                unit = uiState.e2Hero.unit,
+                displayUnit = uiState.homeE2DisplayUnit,
+                targetRangeLow = uiState.e2Hero.targetMin,
+                targetRangeHigh = uiState.e2Hero.targetMax,
             )
         }
 

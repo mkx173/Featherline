@@ -30,6 +30,7 @@ data class BackupSettingsSnapshot(
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val appLanguageOption: String,
+    val homeE2DisplayUnit: String = "pg_ml",
     val calibrationDefaultUnits: Map<String, String>,
 )
 

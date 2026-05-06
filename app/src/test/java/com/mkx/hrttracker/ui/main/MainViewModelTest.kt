@@ -2,7 +2,10 @@ package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -12,11 +15,13 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -41,6 +46,7 @@ class MainViewModelTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val userProfileRepository: UserProfileRepository = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -61,11 +67,13 @@ class MainViewModelTest {
         )
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         every { userProfileRepository.observeProfile() } returns flowOf(UserProfile(weightKg = 60.0))
+        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
 
         val viewModel = MainViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
             userProfileRepository = userProfileRepository,
+            settingsRepository = settingsRepository,
             appTimeSource = appTimeSource,
         )
         startUiStateCollection(viewModel)
@@ -77,6 +85,35 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 5, 1), viewModel.uiState.value.todaySection.date)
+    }
+
+    @Test
+    fun homeE2DisplayUnit_uses_home_preference_instead_of_calibration_default() = runTest {
+        val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 30, 12, 0))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        every { userProfileRepository.observeProfile() } returns flowOf(UserProfile(weightKg = 60.0))
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(
+                calibrationDefaultUnits = mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
+                homeE2DisplayUnit = BloodUnitKey.NG_DL,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            userProfileRepository = userProfileRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(BloodUnitKey.NG_DL, viewModel.uiState.value.homeE2DisplayUnit)
+        assertEquals("ng/dL", viewModel.uiState.value.e2Hero.unit)
+        assertEquals(10.0, viewModel.uiState.value.e2Hero.targetMin, 1e-9)
+        assertEquals(20.0, viewModel.uiState.value.e2Hero.targetMax, 1e-9)
     }
 
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
