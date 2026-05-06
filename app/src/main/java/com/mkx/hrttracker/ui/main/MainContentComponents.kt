@@ -1447,7 +1447,12 @@ private class MainE2ChartCoordinateMapper {
     }
 
     fun pointerXToXHours(pointerX: Float): Double? {
-        return rawXHoursForCanvasX(pointerX)?.coerceIn(minX, maxX)
+        val rawXHours = rawXHoursForCanvasX(pointerX) ?: return null
+        val visibleRange = visibleXRange() ?: return rawXHours.coerceIn(minX, maxX)
+        return rawXHours.coerceIn(
+            visibleRange.start,
+            visibleRange.endInclusive,
+        )
     }
 
     fun canvasXForXHours(xHours: Double): Float? {
