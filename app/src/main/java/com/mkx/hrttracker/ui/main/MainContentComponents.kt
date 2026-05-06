@@ -831,7 +831,6 @@ internal fun MainE2ChartCard(
                 MainE2ChartMinimap(
                     pointXHours = pointXHours,
                     points = section.points,
-                    doseMarkerXHours = doseMarkerXHours,
                     currentTimeXHours = currentTimeXHours,
                     chartWindowStart = chartWindowStart,
                     dateFormatter = chartDateFormatter,
@@ -870,7 +869,6 @@ private data class MainE2ChartViewportSnapshot(
 private fun MainE2ChartMinimap(
     pointXHours: List<Double>,
     points: List<Float>,
-    doseMarkerXHours: List<Double>,
     currentTimeXHours: Double,
     chartWindowStart: LocalDateTime,
     dateFormatter: LocalDateFormatter,
@@ -887,8 +885,7 @@ private fun MainE2ChartMinimap(
     val resetDescription = stringResource(R.string.main_e2_chart_reset_view)
     val colorScheme = MaterialTheme.colorScheme
     val lineColor = colorScheme.primary
-    val markerColor = colorScheme.primary
-    val currentTimeColor = colorScheme.tertiary
+    val currentTimeLineColor = colorScheme.tertiary.copy(alpha = 0.5f)
     val trackColor = colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
     val viewportColor = colorScheme.primary.copy(alpha = 0.14f)
     val viewportStrokeColor = colorScheme.primary.copy(alpha = 0.72f)
@@ -1119,16 +1116,6 @@ private fun MainE2ChartMinimap(
                         cornerRadius = cornerRadius,
                     )
 
-                    doseMarkerXHours.forEach { xHours ->
-                        val canvasX = xToCanvas(xHours)
-                        drawLine(
-                            color = markerColor.copy(alpha = 0.32f),
-                            start = Offset(canvasX, plotTop),
-                            end = Offset(canvasX, plotBottom),
-                            strokeWidth = 1.dp.toPx(),
-                        )
-                    }
-
                     val finitePoints = pointXHours
                         .zip(points)
                         .filter { (x, y) -> x.isFinite() && y.isFinite() }
@@ -1153,10 +1140,10 @@ private fun MainE2ChartMinimap(
 
                     val currentX = xToCanvas(currentTimeXHours)
                     drawLine(
-                        color = currentTimeColor.copy(alpha = 0.78f),
+                        color = currentTimeLineColor,
                         start = Offset(currentX, plotTop),
                         end = Offset(currentX, plotBottom),
-                        strokeWidth = 1.5.dp.toPx(),
+                        strokeWidth = 1.dp.toPx(),
                     )
 
                     drawRoundRect(
