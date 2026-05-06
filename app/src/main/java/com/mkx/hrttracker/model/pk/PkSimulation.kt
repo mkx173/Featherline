@@ -12,6 +12,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.roundToLong
 
@@ -158,9 +159,22 @@ object PkMedicationSimulation {
     private const val MainChartPastDays = 3L
     private const val MainChartSampleIntervalHours = 1
     private const val MainChartWindowHours = MainChartWindowDays * 24
-    private const val MainHourlySteps = MainChartWindowHours + 1
+    private const val MainChartFallbackSteps = MainChartWindowHours + 1
+    private const val MainChartDenseSampleIntervalHours = 0.1
     private const val DefaultBodyWeightKg = 70.0
     private const val ChartXPrecisionScale = 10_000.0
+    private val MainChartPostDoseSampleOffsetsHours = listOf(
+        0.25,
+        0.5,
+        1.0,
+        2.0,
+        4.0,
+        6.0,
+        8.0,
+        12.0,
+        24.0,
+        48.0,
+    )
 
     fun simulateMainEstradiolTrend(
         entries: List<MedicationLogEntry>,
@@ -191,13 +205,10 @@ object PkMedicationSimulation {
             .distinct()
             .sorted()
             .toList()
-        val chartSampleTimeH = (
-            (0..MainChartWindowHours.toInt()).map(Int::toDouble) +
-                doseMarkerTimeH +
-                predictionStartTimeH.toChartXHour()
-            )
-            .distinct()
-            .sorted()
+        val chartSampleTimeH = mainChartSampleTimeH(
+            events = events,
+            predictionStartTimeH = predictionStartTimeH,
+        )
 
         val result = PkSimulationEngine(
             events = events,
@@ -205,7 +216,7 @@ object PkMedicationSimulation {
             bodyWeightKg = resolvedBodyWeightKg,
             startTimeH = 0.0,
             endTimeH = MainChartWindowHours.toDouble(),
-            numberOfSteps = MainHourlySteps.toInt(),
+            numberOfSteps = MainChartFallbackSteps.toInt(),
         ).run(sampleTimeH = chartSampleTimeH)
 
         val dailyConcentrations = (0..MainChartWindowDays.toInt()).map { index ->
@@ -235,6 +246,63 @@ object PkMedicationSimulation {
 
     private fun Double.toChartXHour(): Double {
         return (this * ChartXPrecisionScale).roundToLong() / ChartXPrecisionScale
+    }
+
+    private fun mainChartSampleTimeH(
+        events: List<PkDoseEvent>,
+        predictionStartTimeH: Double,
+    ): List<Double> {
+        val windowStart = 0.0
+        val windowEnd = MainChartWindowHours.toDouble()
+        val previousDayTimeH = predictionStartTimeH - HoursPerDay
+        val denseSampleTimeH = mainChartDenseSampleTimeH(
+            startTimeH = windowStart,
+            endTimeH = windowEnd,
+        )
+        val loggedEventTimeH = events
+            .asSequence()
+            .map { event -> event.timeH.toChartXHour() }
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+            .toList()
+        val exactSampleTimeH = (
+            listOf(predictionStartTimeH.toChartXHour()) +
+                listOf(previousDayTimeH.toChartXHour()).filter { timeH ->
+                    timeH.isFinite() && timeH in windowStart..windowEnd
+                } +
+                loggedEventTimeH
+            )
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+        val postDoseSampleTimeH = events
+            .asSequence()
+            .filter(PkDoseEvent::isDoseMarkerCandidate)
+            .flatMap { event ->
+                MainChartPostDoseSampleOffsetsHours.asSequence().map { offsetHours ->
+                    (event.timeH + offsetHours).toChartXHour()
+                }
+            }
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+            .toList()
+
+        return (denseSampleTimeH + exactSampleTimeH + postDoseSampleTimeH)
+            .map { timeH -> timeH.toChartXHour() }
+            .distinct()
+            .sorted()
+    }
+
+    private fun mainChartDenseSampleTimeH(
+        startTimeH: Double,
+        endTimeH: Double,
+    ): List<Double> {
+        val span = endTimeH - startTimeH
+        if (span <= 0.0) {
+            return emptyList()
+        }
+        val segmentCount = ceil(span / MainChartDenseSampleIntervalHours).toInt().coerceAtLeast(1)
+        return (0..segmentCount).map { index ->
+            (startTimeH + MainChartDenseSampleIntervalHours * index)
+                .coerceAtMost(endTimeH)
+                .toChartXHour()
+        }
     }
 }
 
