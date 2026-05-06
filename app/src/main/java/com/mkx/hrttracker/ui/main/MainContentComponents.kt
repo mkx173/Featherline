@@ -662,6 +662,7 @@ internal fun MainE2ChartCard(
                             lineColor = interactionMarkerColor,
                             dashed = true,
                             coordinateMapper = chartCoordinateMapper,
+                            clampToLayerBounds = true,
                             pointY = concentration.toDouble(),
                             pointMaxY = yAxisSpec.maxY,
                             pointFillColor = interactionMarkerColor,
@@ -1580,6 +1581,7 @@ private class VerticalLineDecoration(
     private val lineWidth: Dp = 1.dp,
     private val dashLength: Dp = 4.dp,
     private val dashGap: Dp = 2.dp,
+    private val clampToLayerBounds: Boolean = false,
     private val pointY: Double? = null,
     private val pointMaxY: Double = 1.0,
     private val pointFillColor: Color = lineColor,
@@ -1671,6 +1673,9 @@ private class VerticalLineDecoration(
             layoutDirectionMultiplier *
             layerDimensions.xSpacing *
             ((x - ranges.minX) / ranges.xStep).toFloat()
+        if (clampToLayerBounds) {
+            return canvasX.coerceIn(layerBounds.left, layerBounds.right)
+        }
         return canvasX.takeIf { value ->
             value >= layerBounds.left && value <= layerBounds.right
         }
