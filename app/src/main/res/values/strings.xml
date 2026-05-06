@@ -43,6 +43,8 @@
     <string name="main_e2_status_below_range">BELOW RANGE</string>
     <string name="main_e2_chart_title">7-day trend</string>
     <string name="main_e2_chart_target">Target %1$s–%2$s %3$s</string>
+    <string name="main_e2_chart_overview">Chart overview</string>
+    <string name="main_e2_chart_reset_view">Reset chart view</string>
     <string name="main_e2_change_since_yesterday">%1$s from 24h ago</string>
     <string name="main_e2_no_change_since_yesterday">No change from 24h ago</string>
     <string name="main_e2_last_dose_with_time">Last dose %1$s ago</string>

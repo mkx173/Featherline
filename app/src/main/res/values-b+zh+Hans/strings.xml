@@ -41,6 +41,8 @@
     <string name="main_e2_status_below_range">低于范围</string>
     <string name="main_e2_chart_title">7 天趋势</string>
     <string name="main_e2_chart_target">目标 %1$s–%2$s %3$s</string>
+    <string name="main_e2_chart_overview">图表概览</string>
+    <string name="main_e2_chart_reset_view">重置图表视图</string>
     <string name="main_e2_change_since_yesterday">较24小时前 %1$s</string>
     <string name="main_e2_no_change_since_yesterday">较24小时前无变化</string>
     <string name="main_e2_last_dose_with_time">上次用药 %1$s前</string>

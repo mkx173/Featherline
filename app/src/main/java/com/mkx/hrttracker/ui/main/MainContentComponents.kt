@@ -3,15 +3,18 @@ package com.mkx.hrttracker.ui.main
 import android.text.format.DateFormat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,17 +38,28 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -98,6 +112,9 @@ import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianDrawingContext
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.CartesianMeasuringContext
+import com.patrykandpatrick.vico.compose.cartesian.Scroll
+import com.patrykandpatrick.vico.compose.cartesian.VicoScrollState
+import com.patrykandpatrick.vico.compose.cartesian.VicoZoomState
 import com.patrykandpatrick.vico.compose.cartesian.Zoom
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
@@ -123,6 +140,10 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -139,6 +160,9 @@ private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private const val MainE2ChartMaxZoomXRangeHours = 24.0
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
+private val MainE2ChartMinimapHeight = 48.dp
+private val MainE2ChartMinimapHorizontalInset = 5.dp
+private val MainE2ChartMinimapResetButtonSize = 32.dp
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
 private enum class MainTodayTimeRange(
@@ -235,7 +259,7 @@ internal fun MainE2HeroCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -520,13 +544,16 @@ internal fun MainE2ChartCard(
             Zoom.x(MainE2ChartMaxZoomXRangeHours),
         )
     }
-    val chartScrollState = rememberVicoScrollState(scrollEnabled = true)
-    val chartZoomState = rememberVicoZoomState(
-        zoomEnabled = true,
-        initialZoom = Zoom.Content,
-        minZoom = Zoom.Content,
-        maxZoom = maxChartZoom,
-    )
+    val chartViewportResetVersion = rememberSaveable { mutableIntStateOf(0) }
+    val (chartScrollState, chartZoomState) = key(chartViewportResetVersion.intValue) {
+        rememberVicoScrollState(scrollEnabled = true) to rememberVicoZoomState(
+            zoomEnabled = true,
+            initialZoom = Zoom.Content,
+            minZoom = Zoom.Content,
+            maxZoom = maxChartZoom,
+        )
+    }
+    val chartCoroutineScope = rememberCoroutineScope()
     val chartAnimationSpec = if (chartAnimationsEnabled.value) {
         tween<Float>(durationMillis = MainE2ChartInitialAnimationMillis)
     } else {
@@ -590,7 +617,10 @@ internal fun MainE2ChartCard(
                 unit = unit
             )
 
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 val lineColor = MaterialTheme.colorScheme.primary
                 val doseMarkerColor = MaterialTheme.colorScheme.primary
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
@@ -598,7 +628,9 @@ internal fun MainE2ChartCard(
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
                 val interactionMarkerColor = MaterialTheme.colorScheme.onSurfaceVariant
                 val markerSurfaceColor = MaterialTheme.colorScheme.surfaceContainer
-                val chartCoordinateMapper = remember { MainE2ChartCoordinateMapper() }
+                val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
+                    MainE2ChartCoordinateMapper()
+                }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
@@ -660,140 +692,580 @@ internal fun MainE2ChartCard(
                     )
                 }
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainer
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(184.dp)
-                            .padding(MainE2ChartContentPadding)
-                            .onSizeChanged { chartSize.value = it }
-                            .pointerInput(chartCoordinateMapper, chartWindowHours) {
-                                detectMainE2ChartMarkerGestures(
-                                    coordinateMapper = chartCoordinateMapper,
-                                    chartWindowHours = chartWindowHours,
-                                    onMarkerXChanged = { xHours ->
-                                        interactiveMarkerXHours.value = xHours
-                                    },
-                                )
-                            }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
-                        CartesianChartHost(
-                            chart = rememberCartesianChart(
-                                rememberLineCartesianLayer(
-                                    lineProvider =
-                                        LineCartesianLayer.LineProvider.series(
-                                            LineCartesianLayer.rememberLine(
-                                                fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                                areaFill =
-                                                    LineCartesianLayer.AreaFill.single(
-                                                        Fill(
-                                                            Brush.verticalGradient(
-                                                                listOf(
-                                                                    lineColor.copy(
-                                                                        alpha = 0.4f
-                                                                    ), Color.Transparent
-                                                                )
-                                                            )
-                                                        )
-                                                    ),
-                                                interpolator = LineCartesianLayer.Interpolator.catmullRom(),
-                                            ),
-                                            LineCartesianLayer.rememberLine(
-                                                fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                                stroke = LineCartesianLayer.LineStroke.Dashed(),
-                                                interpolator = LineCartesianLayer.Interpolator.catmullRom(),
-                                            ),
-                                            LineCartesianLayer.rememberLine(
-                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
-                                            ),
-                                            LineCartesianLayer.rememberLine(
-                                                fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
-                                            ),
-                                        ),
-                                    rangeProvider = rangeProvider,
-                                ),
-                                decorations = listOfNotNull(
-                                    currentTimeDecoration,
-                                    interactionMarkerDecoration,
-                                ),
-                                startAxis = VerticalAxis.rememberStart(
-                                    valueFormatter = CartesianValueFormatter { _, value, _ ->
-                                        formatMainE2ConcentrationValue(value, displayUnit)
-                                    },
-                                    line = null,
-                                    tick = null,
-                                    itemPlacer = startAxisItemPlacer,
-                                ),
-                                bottomAxis = HorizontalAxis.rememberBottom(
-                                    valueFormatter = bottomAxisValueFormatter,
-                                    tick = null,
-                                    guideline = null,
-                                    itemPlacer = bottomAxisItemPlacer,
-                                ),
-                                getXStep = { 1.0 },
-                            ),
-                            modelProducer = modelProducer,
-                            modifier = Modifier.matchParentSize(),
-                            animationSpec = chartAnimationSpec,
-                            animateIn = chartAnimationsEnabled.value,
-                            scrollState = chartScrollState,
-                            zoomState = chartZoomState,
-                        )
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(horizontal = MainE2ChartContentPadding)
-                ) {
-                    val chartContentPaddingPx = with(LocalDensity.current) {
-                        MainE2ChartContentPadding.toPx()
-                    }
-                    val markerLabelGapPx = with(LocalDensity.current) {
-                        MainE2ChartMarkerLabelGap.toPx()
-                    }
-                    val markerLabel = interactiveMarkerLabel
-                    val markerCanvasX = interactiveMarkerXHours.value
-                        ?.let { xHours -> chartCoordinateMapper.canvasXForXHours(xHours) }
-                    val markerCanvasTopY = chartCoordinateMapper.layerTopCanvasY()
-                    if (markerLabel != null && markerCanvasX != null && markerCanvasTopY != null) {
-                        Surface(
+                        Box(
                             modifier = Modifier
-                                .onSizeChanged { markerLabelSize.value = it }
-                                .offset {
-                                    val labelWidth = markerLabelSize.value.width
-                                    val labelHeight = markerLabelSize.value.height
-                                    val maxXOffset = (chartSize.value.width - labelWidth).coerceAtLeast(0)
-                                    IntOffset(
-                                        x = (markerCanvasX.roundToInt() - labelWidth / 2)
-                                            .coerceIn(0, maxXOffset),
-                                        y = (chartContentPaddingPx + markerCanvasTopY - labelHeight - markerLabelGapPx)
-                                            .roundToInt(),
+                                .fillMaxWidth()
+                                .height(184.dp)
+                                .padding(MainE2ChartContentPadding)
+                                .onSizeChanged { chartSize.value = it }
+                                .pointerInput(chartCoordinateMapper, chartWindowHours) {
+                                    detectMainE2ChartMarkerGestures(
+                                        coordinateMapper = chartCoordinateMapper,
+                                        chartWindowHours = chartWindowHours,
+                                        onMarkerXChanged = { xHours ->
+                                            interactiveMarkerXHours.value = xHours
+                                        },
                                     )
                                 }
-                            ,
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ) {
-                            Text(
-                                text = markerLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            CartesianChartHost(
+                                chart = rememberCartesianChart(
+                                    rememberLineCartesianLayer(
+                                        lineProvider =
+                                            LineCartesianLayer.LineProvider.series(
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                                    areaFill =
+                                                        LineCartesianLayer.AreaFill.single(
+                                                            Fill(
+                                                                Brush.verticalGradient(
+                                                                    listOf(
+                                                                        lineColor.copy(
+                                                                            alpha = 0.4f
+                                                                        ), Color.Transparent
+                                                                    )
+                                                                )
+                                                            )
+                                                        ),
+                                                    interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
+                                                    stroke = LineCartesianLayer.LineStroke.Dashed(),
+                                                    interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
+                                                ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
+                                                ),
+                                            ),
+                                        rangeProvider = rangeProvider,
+                                    ),
+                                    decorations = listOfNotNull(
+                                        currentTimeDecoration,
+                                        interactionMarkerDecoration,
+                                    ),
+                                    startAxis = VerticalAxis.rememberStart(
+                                        valueFormatter = CartesianValueFormatter { _, value, _ ->
+                                            formatMainE2ConcentrationValue(value, displayUnit)
+                                        },
+                                        line = null,
+                                        tick = null,
+                                        itemPlacer = startAxisItemPlacer,
+                                    ),
+                                    bottomAxis = HorizontalAxis.rememberBottom(
+                                        valueFormatter = bottomAxisValueFormatter,
+                                        tick = null,
+                                        guideline = null,
+                                        itemPlacer = bottomAxisItemPlacer,
+                                    ),
+                                    getXStep = { 1.0 },
+                                ),
+                                modelProducer = modelProducer,
+                                modifier = Modifier.matchParentSize(),
+                                animationSpec = chartAnimationSpec,
+                                animateIn = chartAnimationsEnabled.value,
+                                scrollState = chartScrollState,
+                                zoomState = chartZoomState,
                             )
                         }
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(horizontal = MainE2ChartContentPadding)
+                    ) {
+                        val chartContentPaddingPx = with(LocalDensity.current) {
+                            MainE2ChartContentPadding.toPx()
+                        }
+                        val markerLabelGapPx = with(LocalDensity.current) {
+                            MainE2ChartMarkerLabelGap.toPx()
+                        }
+                        val markerLabel = interactiveMarkerLabel
+                        val markerCanvasX = interactiveMarkerXHours.value
+                            ?.let { xHours -> chartCoordinateMapper.canvasXForXHours(xHours) }
+                        val markerCanvasTopY = chartCoordinateMapper.layerTopCanvasY()
+                        if (markerLabel != null && markerCanvasX != null && markerCanvasTopY != null) {
+                            Surface(
+                                modifier = Modifier
+                                    .onSizeChanged { markerLabelSize.value = it }
+                                    .offset {
+                                        val labelWidth = markerLabelSize.value.width
+                                        val labelHeight = markerLabelSize.value.height
+                                        val maxXOffset = (chartSize.value.width - labelWidth).coerceAtLeast(0)
+                                        IntOffset(
+                                            x = (markerCanvasX.roundToInt() - labelWidth / 2)
+                                                .coerceIn(0, maxXOffset),
+                                            y = (chartContentPaddingPx + markerCanvasTopY - labelHeight - markerLabelGapPx)
+                                                .roundToInt(),
+                                        )
+                                    },
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ) {
+                                Text(
+                                    text = markerLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
+                    }
                 }
+
+                MainE2ChartMinimap(
+                    pointXHours = pointXHours,
+                    points = section.points,
+                    doseMarkerXHours = doseMarkerXHours,
+                    currentTimeXHours = currentTimeXHours,
+                    chartWindowStart = chartWindowStart,
+                    dateFormatter = chartDateFormatter,
+                    chartWindowHours = chartWindowHours,
+                    maxY = yAxisSpec.maxY,
+                    coordinateMapper = chartCoordinateMapper,
+                    scrollState = chartScrollState,
+                    zoomState = chartZoomState,
+                    onReset = {
+                        chartViewportResetVersion.intValue += 1
+                    },
+                    onViewportScrollFractionChanged = { scrollFraction ->
+                        chartCoroutineScope.launch {
+                            chartScrollState.scroll(
+                                Scroll.Absolute.pixels(chartScrollState.maxValue * scrollFraction)
+                            )
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+private data class MainE2ChartVisibleXRange(
+    val start: Double,
+    val endInclusive: Double,
+)
+
+private data class MainE2ChartViewportSnapshot(
+    val rawVisibleRange: MainE2ChartVisibleXRange,
+    val visibleRange: MainE2ChartVisibleXRange,
+)
+
+@Composable
+private fun MainE2ChartMinimap(
+    pointXHours: List<Double>,
+    points: List<Float>,
+    doseMarkerXHours: List<Double>,
+    currentTimeXHours: Double,
+    chartWindowStart: LocalDateTime,
+    dateFormatter: LocalDateFormatter,
+    chartWindowHours: Int,
+    maxY: Double,
+    coordinateMapper: MainE2ChartCoordinateMapper,
+    scrollState: VicoScrollState,
+    zoomState: VicoZoomState,
+    onReset: () -> Unit,
+    onViewportScrollFractionChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val overviewDescription = stringResource(R.string.main_e2_chart_overview)
+    val resetDescription = stringResource(R.string.main_e2_chart_reset_view)
+    val colorScheme = MaterialTheme.colorScheme
+    val lineColor = colorScheme.primary
+    val markerColor = colorScheme.primary
+    val currentTimeColor = colorScheme.tertiary
+    val trackColor = colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
+    val viewportColor = colorScheme.primary.copy(alpha = 0.14f)
+    val viewportStrokeColor = colorScheme.primary.copy(alpha = 0.72f)
+    val subtleLineColor = colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
+    val minimapHorizontalInsetPx = with(LocalDensity.current) {
+        MainE2ChartMinimapHorizontalInset.toPx()
+    }
+    val minimapCanvasSize = remember { mutableStateOf(IntSize.Zero) }
+    val startDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
+    val endDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
+    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val viewportSnapshot = coordinateMapper.viewportSnapshot.collectAsState().value
+    val rawVisibleRange = viewportSnapshot?.rawVisibleRange
+        ?: MainE2ChartVisibleXRange(0.0, fullHours)
+    val visibleRange = viewportSnapshot?.visibleRange
+        ?: MainE2ChartVisibleXRange(0.0, fullHours)
+    val startDateLabel = remember(chartWindowStart, dateFormatter, visibleRange.start) {
+        dateFormatter(
+            chartWindowStart
+                .plusMinutes((visibleRange.start * 60).roundToLong())
+                .toLocalDate()
+        )
+    }
+    val endDateLabel = remember(chartWindowStart, dateFormatter, visibleRange.endInclusive) {
+        dateFormatter(
+            chartWindowStart
+                .plusMinutes((visibleRange.endInclusive * 60).roundToLong())
+                .toLocalDate()
+        )
+    }
+    val minimapMinViewportWidthPx = with(LocalDensity.current) { 4.dp.toPx() }
+
+    fun viewportMetrics(canvasWidth: Float): Pair<Float, Float> {
+        val plotWidth = (canvasWidth - minimapHorizontalInsetPx * 2).coerceAtLeast(1f)
+        val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
+            .coerceIn(0.0, fullHours)
+        val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
+        val viewportWidth = if (scrollState.maxValue <= 0f) {
+            plotWidth
+        } else {
+            rawViewportWidth.coerceAtLeast(minimapMinViewportWidthPx)
+        }.coerceAtMost(plotWidth)
+        val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+        val viewportLeft = minimapHorizontalInsetPx + if (scrollState.maxValue <= 0f) {
+            0f
+        } else {
+            (scrollState.value / scrollState.maxValue).coerceIn(0f, 1f) * scrollablePlotWidth
+        }
+        return viewportLeft to viewportWidth
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = colorScheme.surfaceContainer,
+        contentColor = colorScheme.onSurfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(bottom = 4.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(MainE2ChartMinimapHeight)
+                    .padding(horizontal = 8.dp)
+                    .padding(top = 4.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .onSizeChanged { minimapCanvasSize.value = it }
+                            .pointerInput(
+                                chartWindowHours,
+                                minimapHorizontalInsetPx,
+                                onViewportScrollFractionChanged,
+                            ) {
+                        var dragPointerOffsetFromViewportStartPx = 0f
+                        var dragViewportWidthPx = 0f
+
+                        fun viewportMetrics(): Pair<Float, Float> {
+                            val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+                            val plotWidth =
+                                (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                    .coerceAtLeast(1f)
+                            val maxScroll = scrollState.maxValue
+                            if (maxScroll <= 0f) return 0f to plotWidth
+                            val visibleRange = coordinateMapper.rawVisibleXRange()
+                                ?: MainE2ChartVisibleXRange(0.0, fullHours)
+                            val visibleSpan = (visibleRange.endInclusive - visibleRange.start)
+                                .coerceIn(0.0, fullHours)
+                            val viewportWidth = (visibleSpan / fullHours).toFloat()
+                                .times(plotWidth)
+                                .coerceIn(0f, plotWidth)
+                            val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                            val viewportLeft = (scrollState.value / maxScroll)
+                                .coerceIn(0f, 1f) * scrollablePlotWidth
+                            return viewportLeft to viewportWidth
+                        }
+
+                        fun scrollFractionFor(pointerX: Float): Float {
+                            val plotWidth =
+                                (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                    .coerceAtLeast(1f)
+                            val scrollablePlotWidth =
+                                (plotWidth - dragViewportWidthPx).coerceAtLeast(0f)
+                            if (scrollablePlotWidth <= 0f) return 0f
+                            val pointerPlotX =
+                                (pointerX - minimapHorizontalInsetPx).coerceIn(0f, plotWidth)
+                            return ((pointerPlotX - dragPointerOffsetFromViewportStartPx) /
+                                scrollablePlotWidth).coerceIn(0f, 1f)
+                        }
+
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                val (viewportLeft, viewportWidth) = viewportMetrics()
+                                dragViewportWidthPx = viewportWidth
+                                val plotWidth =
+                                    (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                        .coerceAtLeast(1f)
+                                val pointerPlotX =
+                                    (offset.x - minimapHorizontalInsetPx)
+                                        .coerceIn(0f, plotWidth)
+                                dragPointerOffsetFromViewportStartPx =
+                                    if (pointerPlotX in viewportLeft..(viewportLeft + viewportWidth)) {
+                                        pointerPlotX - viewportLeft
+                                    } else {
+                                        viewportWidth / 2f
+                                    }
+                                onViewportScrollFractionChanged(scrollFractionFor(offset.x))
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                onViewportScrollFractionChanged(
+                                    scrollFractionFor(change.position.x)
+                                )
+                            },
+                        )
+                    }
+                    .semantics { contentDescription = overviewDescription }
+                ) {
+                val scrollValue = scrollState.value
+                val zoomValue = zoomState.value
+                if (!scrollValue.isFinite() || !zoomValue.isFinite()) {
+                    return@Canvas
+                }
+
+                val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+                val rawVisibleRange = coordinateMapper.rawVisibleXRange()
+                    ?: MainE2ChartVisibleXRange(0.0, fullHours)
+                val horizontalInset = minimapHorizontalInsetPx
+                val verticalInset = 6.dp.toPx()
+                val plotWidth = (size.width - horizontalInset * 2).coerceAtLeast(1f)
+                val plotHeight = (size.height - verticalInset * 2).coerceAtLeast(1f)
+                val plotTop = verticalInset
+                val plotBottom = plotTop + plotHeight
+                val plotTopLeft = Offset(horizontalInset, plotTop)
+                val plotSize = Size(plotWidth, plotHeight)
+                val cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                val trackPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            rect = Rect(
+                                offset = plotTopLeft,
+                                size = plotSize,
+                            ),
+                            cornerRadius = cornerRadius,
+                        )
+                    )
+                }
+
+                fun xToCanvas(xHours: Double): Float {
+                    return horizontalInset +
+                        (xHours.coerceIn(0.0, fullHours) / fullHours).toFloat() * plotWidth
+                }
+
+                fun yToCanvas(value: Float): Float {
+                    val yMax = maxY.coerceAtLeast(1.0)
+                    return plotBottom -
+                        (value.toDouble().coerceIn(0.0, yMax) / yMax).toFloat() * plotHeight
+                }
+
+                drawRoundRect(
+                    color = trackColor,
+                    topLeft = plotTopLeft,
+                    size = plotSize,
+                    cornerRadius = cornerRadius,
+                )
+
+                val minViewportWidth = 4.dp.toPx()
+                val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
+                    .coerceIn(0.0, fullHours)
+                val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
+                val viewportWidth = if (scrollState.maxValue <= 0f) {
+                    plotWidth
+                } else if (rawViewportWidth < minViewportWidth) {
+                    minViewportWidth
+                } else {
+                    rawViewportWidth
+                }
+                val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                val viewportLeft = if (scrollState.maxValue <= 0f) {
+                    horizontalInset
+                } else {
+                    horizontalInset +
+                        (scrollValue / scrollState.maxValue).coerceIn(0f, 1f) *
+                        scrollablePlotWidth
+                }
+                val viewportStrokeWidth = 1.25.dp.toPx()
+                val viewportStrokeInset = viewportStrokeWidth / 2f
+                val viewportStrokeCornerRadius = CornerRadius(
+                    x = (cornerRadius.x - viewportStrokeInset).coerceAtLeast(0f),
+                    y = (cornerRadius.y - viewportStrokeInset).coerceAtLeast(0f),
+                )
+
+                clipPath(trackPath) {
+                    drawRoundRect(
+                        color = viewportColor,
+                        topLeft = Offset(viewportLeft, plotTop),
+                        size = Size(viewportWidth, plotHeight),
+                        cornerRadius = cornerRadius,
+                    )
+
+                    doseMarkerXHours.forEach { xHours ->
+                        val canvasX = xToCanvas(xHours)
+                        drawLine(
+                            color = markerColor.copy(alpha = 0.32f),
+                            start = Offset(canvasX, plotTop),
+                            end = Offset(canvasX, plotBottom),
+                            strokeWidth = 1.dp.toPx(),
+                        )
+                    }
+
+                    val finitePoints = pointXHours
+                        .zip(points)
+                        .filter { (x, y) -> x.isFinite() && y.isFinite() }
+                        .sortedBy { (x, _) -> x }
+                    if (finitePoints.size == 1) {
+                        val (x, y) = finitePoints.first()
+                        drawCircle(
+                            color = lineColor.copy(alpha = 0.72f),
+                            radius = 2.dp.toPx(),
+                            center = Offset(xToCanvas(x), yToCanvas(y)),
+                        )
+                    } else {
+                        finitePoints.zipWithNext().forEach { (left, right) ->
+                            drawLine(
+                                color = lineColor.copy(alpha = 0.72f),
+                                start = Offset(xToCanvas(left.first), yToCanvas(left.second)),
+                                end = Offset(xToCanvas(right.first), yToCanvas(right.second)),
+                                strokeWidth = 1.5.dp.toPx(),
+                            )
+                        }
+                    }
+
+                    val currentX = xToCanvas(currentTimeXHours)
+                    drawLine(
+                        color = currentTimeColor.copy(alpha = 0.78f),
+                        start = Offset(currentX, plotTop),
+                        end = Offset(currentX, plotBottom),
+                        strokeWidth = 1.5.dp.toPx(),
+                    )
+
+                    drawRoundRect(
+                        color = viewportStrokeColor,
+                        topLeft = Offset(
+                            x = viewportLeft + viewportStrokeInset,
+                            y = plotTop + viewportStrokeInset,
+                        ),
+                        size = Size(
+                            width = (viewportWidth - viewportStrokeWidth).coerceAtLeast(0f),
+                            height = (plotHeight - viewportStrokeWidth).coerceAtLeast(0f),
+                        ),
+                        cornerRadius = viewportStrokeCornerRadius,
+                        style = Stroke(width = viewportStrokeWidth),
+                    )
+                    drawLine(
+                        color = subtleLineColor,
+                        start = Offset(horizontalInset, plotBottom),
+                        end = Offset(horizontalInset + plotWidth, plotBottom),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .size(MainE2ChartMinimapResetButtonSize)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClick = onReset)
+                        .semantics { contentDescription = resetDescription },
+                    shape = CircleShape,
+                    color = colorScheme.secondaryContainer.copy(alpha = 0.72f),
+                    contentColor = colorScheme.onSecondaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_restart_alt),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .padding(bottom = 4.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = startDateLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .onSizeChanged { startDateLabelSize.value = it }
+                            .offset {
+                                val (viewportLeft, _) = viewportMetrics(
+                                    minimapCanvasSize.value.width.toFloat()
+                                )
+                                val maxX = (
+                                    minimapCanvasSize.value.width -
+                                        startDateLabelSize.value.width
+                                    ).coerceAtLeast(0)
+                                IntOffset(
+                                    x = viewportLeft.roundToInt().coerceIn(0, maxX),
+                                    y = 0,
+                                )
+                            },
+                    )
+                    Text(
+                        text = endDateLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier
+                            .onSizeChanged { endDateLabelSize.value = it }
+                            .offset {
+                                val (viewportLeft, viewportWidth) = viewportMetrics(
+                                    minimapCanvasSize.value.width.toFloat()
+                                )
+                                val maxX = (
+                                    minimapCanvasSize.value.width -
+                                        endDateLabelSize.value.width
+                                    ).coerceAtLeast(0)
+                                val x = (viewportLeft + viewportWidth).roundToInt() -
+                                    endDateLabelSize.value.width
+                                IntOffset(
+                                    x = x.coerceIn(0, maxX),
+                                    y = 0,
+                                )
+                            },
+                    )
+                }
+                Spacer(
+                    modifier = Modifier.size(
+                        width = MainE2ChartMinimapResetButtonSize,
+                        height = 16.dp,
+                    ),
+                )
             }
         }
     }
@@ -909,6 +1381,7 @@ private suspend fun PointerInputScope.detectMainE2ChartMarkerGestures(
 }
 
 private class MainE2ChartCoordinateMapper {
+    private val _viewportSnapshot = MutableStateFlow<MainE2ChartViewportSnapshot?>(null)
     private var drawingStart: Float = 0f
     private var layerLeft: Float = 0f
     private var layerRight: Float = 0f
@@ -920,6 +1393,8 @@ private class MainE2ChartCoordinateMapper {
     private var xSpacing: Float = 0f
     private var layoutDirectionMultiplier: Int = 1
     private var hasLayerBounds: Boolean = false
+
+    val viewportSnapshot: StateFlow<MainE2ChartViewportSnapshot?> = _viewportSnapshot.asStateFlow()
 
     fun update(context: CartesianDrawingContext) {
         with(context) {
@@ -938,15 +1413,11 @@ private class MainE2ChartCoordinateMapper {
                 layoutDirectionMultiplier
             hasLayerBounds = true
         }
+        updateViewportSnapshot()
     }
 
     fun pointerXToXHours(pointerX: Float): Double? {
-        if (!hasUsableMapping()) return null
-        val rawX = minX +
-            (pointerX - drawingStart) /
-            (layoutDirectionMultiplier * xSpacing) *
-            xStep
-        return rawX.coerceIn(minX, maxX)
+        return rawXHoursForCanvasX(pointerX)?.coerceIn(minX, maxX)
     }
 
     fun canvasXForXHours(xHours: Double): Float? {
@@ -966,8 +1437,51 @@ private class MainE2ChartCoordinateMapper {
         }
     }
 
+    fun visibleXRange(): MainE2ChartVisibleXRange? {
+        return rawVisibleXRange()?.let { range ->
+            MainE2ChartVisibleXRange(
+                start = range.start.coerceIn(minX, maxX),
+                endInclusive = range.endInclusive.coerceIn(minX, maxX),
+            )
+        }
+    }
+
+    fun rawVisibleXRange(): MainE2ChartVisibleXRange? {
+        if (!hasLayerBounds || layerLeft >= layerRight) return null
+        val leftX = rawXHoursForCanvasX(layerLeft) ?: return null
+        val rightX = rawXHoursForCanvasX(layerRight) ?: return null
+        return MainE2ChartVisibleXRange(
+            start = minOf(leftX, rightX),
+            endInclusive = maxOf(leftX, rightX),
+        )
+    }
+
+    private fun rawXHoursForCanvasX(canvasX: Float): Double? {
+        if (!hasUsableMapping()) return null
+        return minX +
+            (canvasX - drawingStart) /
+            (layoutDirectionMultiplier * xSpacing) *
+            xStep
+    }
+
     private fun hasUsableMapping(): Boolean {
         return xStep != 0.0 && xSpacing != 0f && minX <= maxX
+    }
+
+    private fun updateViewportSnapshot() {
+        val rawVisibleRange = rawVisibleXRange()
+        val visibleRange = visibleXRange()
+        val nextSnapshot = if (rawVisibleRange != null && visibleRange != null) {
+            MainE2ChartViewportSnapshot(
+                rawVisibleRange = rawVisibleRange,
+                visibleRange = visibleRange,
+            )
+        } else {
+            null
+        }
+        if (_viewportSnapshot.value != nextSnapshot) {
+            _viewportSnapshot.value = nextSnapshot
+        }
     }
 }
 
@@ -1206,7 +1720,7 @@ internal fun MainAntiandrogenCard(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).padding(bottom = 6.dp)
         ) {
             MainAntiandrogenCardHeader(
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(vertical = 6.dp)
             )
 
             Column(
