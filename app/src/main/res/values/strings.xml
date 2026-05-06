@@ -44,6 +44,7 @@
     <string name="main_e2_chart_title">7-day trend</string>
     <string name="main_e2_chart_target">Target %1$s–%2$s %3$s</string>
     <string name="main_e2_change_since_yesterday">%1$s from 24h ago</string>
+    <string name="main_e2_no_change_since_yesterday">No change from 24h ago</string>
     <string name="main_e2_last_dose_with_time">Last dose %1$s ago</string>
     <string name="main_e2_no_last_dose">No logged dose yet</string>
     <string name="main_antiandrogen_title">Antiandrogen</string>

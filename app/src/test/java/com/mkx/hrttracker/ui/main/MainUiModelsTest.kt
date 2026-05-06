@@ -116,6 +116,20 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun isMainE2TrendDeltaDisplayZero_uses_rounded_display_value() {
+        assertEquals(true, isMainE2TrendDeltaDisplayZero(0.0, BloodUnitKey.PG_ML))
+        assertEquals(true, isMainE2TrendDeltaDisplayZero(-0.4, BloodUnitKey.PG_ML))
+        assertEquals(true, isMainE2TrendDeltaDisplayZero(-0.04, BloodUnitKey.NG_DL))
+        assertEquals(false, isMainE2TrendDeltaDisplayZero(-0.06, BloodUnitKey.NG_DL))
+    }
+
+    @Test
+    fun formatMainE2TrendDeltaValue_formats_signed_non_zero_delta() {
+        assertEquals("-0.1", formatMainE2TrendDeltaValue(-0.06, BloodUnitKey.NG_DL))
+        assertEquals("+1", formatMainE2TrendDeltaValue(0.6, BloodUnitKey.PG_ML))
+    }
+
+    @Test
     fun mainE2ChartNoonTickHours_centers_current_day_as_fourth_tick() {
         val ticks = mainE2ChartNoonTickHours(
             now = LocalDateTime.of(2026, 5, 5, 23, 37),

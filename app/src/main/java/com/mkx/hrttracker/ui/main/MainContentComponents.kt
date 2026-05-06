@@ -120,7 +120,6 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -182,7 +181,12 @@ internal fun MainE2HeroCard(
         unit = section.unit,
         displayUnit = displayUnit,
     )
+    val isTrendDeltaDisplayZero = isMainE2TrendDeltaDisplayZero(
+        changeSinceYesterday = section.changeSinceYesterday,
+        displayUnit = displayUnit,
+    )
     val trendIcon = when {
+        isTrendDeltaDisplayZero -> Icons.AutoMirrored.Rounded.TrendingFlat
         section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
         section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Rounded.TrendingDown
         else -> Icons.AutoMirrored.Rounded.TrendingFlat
@@ -314,10 +318,14 @@ internal fun MainE2HeroCard(
                                     tint = heroSupportingColor
                                 )
 
-                                val sinceYesterdayText = stringResource(
-                                    R.string.main_e2_change_since_yesterday,
-                                    trendDeltaLabel
-                                )
+                                val sinceYesterdayText = if (isTrendDeltaDisplayZero) {
+                                    stringResource(R.string.main_e2_no_change_since_yesterday)
+                                } else {
+                                    stringResource(
+                                        R.string.main_e2_change_since_yesterday,
+                                        trendDeltaLabel
+                                    )
+                                }
                                 Text(
                                     text = sinceYesterdayText,
                                     style = MaterialTheme.typography.labelSmall,
@@ -1162,14 +1170,15 @@ private fun MainE2ChartCardHeader(
             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
+            val targetText = stringResource(
+                R.string.main_e2_chart_target,
+                formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
+                formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
+                unit
+            )
             Text(
-                text = stringResource(
-                    R.string.main_e2_chart_target,
-                    formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
-                    formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
-                    unit
-                ),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                text = targetText,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).cjkTextOffset(targetText),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -2236,12 +2245,7 @@ private fun mainTrendDeltaLabel(
     unit: String,
     displayUnit: BloodUnitKey,
 ): String {
-    val valueLabel = when {
-        changeSinceYesterday > 0 -> "+${formatMainE2ConcentrationValue(changeSinceYesterday, displayUnit)}"
-        changeSinceYesterday < 0 -> "-${formatMainE2ConcentrationValue(abs(changeSinceYesterday), displayUnit)}"
-        else -> "0"
-    }
-    return listOf(valueLabel, unit)
+    return listOf(formatMainE2TrendDeltaValue(changeSinceYesterday, displayUnit), unit)
         .filter(String::isNotBlank)
         .joinToString(separator = " ")
 }

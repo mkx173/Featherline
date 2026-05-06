@@ -29,6 +29,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToLong
 
@@ -434,6 +435,29 @@ internal fun formatMainE2ConcentrationValue(
 
         else -> formatCalibrationConvertedValue(value)
     }
+}
+
+internal fun formatMainE2TrendDeltaValue(
+    changeSinceYesterday: Double,
+    displayUnit: BloodUnitKey,
+): String {
+    val absoluteValueLabel = formatMainE2ConcentrationValue(abs(changeSinceYesterday), displayUnit)
+    val sign = if (isMainE2TrendDeltaDisplayZero(changeSinceYesterday, displayUnit) ||
+        changeSinceYesterday >= 0.0
+    ) {
+        "+"
+    } else {
+        "-"
+    }
+    return "$sign$absoluteValueLabel"
+}
+
+internal fun isMainE2TrendDeltaDisplayZero(
+    changeSinceYesterday: Double,
+    displayUnit: BloodUnitKey,
+): Boolean {
+    return formatMainE2ConcentrationValue(abs(changeSinceYesterday), displayUnit) ==
+        formatMainE2ConcentrationValue(0.0, displayUnit)
 }
 
 private fun mainE2DisplayUnitLabel(displayUnit: BloodUnitKey): String {
