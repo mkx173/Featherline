@@ -78,6 +78,30 @@ class UserProfileRepositoryTest {
     }
 
     @Test
+    fun setWeight_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+        val events = mutableListOf<String>()
+        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
+            events += "invalidate"
+        }
+        coEvery { dao.upsertProfile(any()) } coAnswers {
+            events += "write"
+        }
+        every {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+        } answers {
+            events += "refresh"
+        }
+
+        repository.setWeight(
+            originalValue = 72.5,
+            originalUnit = WeightUnit.KILOGRAMS,
+            now = Instant.ofEpochMilli(1_700_000_000_000L)
+        )
+
+        assertEquals(listOf("invalidate", "write", "refresh"), events)
+    }
+
+    @Test
     fun clearWeight_persists_all_null_fields() = runTest {
         val captured = slot<UserProfileEntity>()
         coEvery { dao.upsertProfile(capture(captured)) } returns Unit

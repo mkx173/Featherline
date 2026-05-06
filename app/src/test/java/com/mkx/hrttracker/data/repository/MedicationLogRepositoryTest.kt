@@ -6,8 +6,11 @@ import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -121,6 +124,31 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
+    fun saveEntry_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+        val events = mutableListOf<String>()
+        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
+            events += "invalidate"
+        }
+        coEvery { dao.insertEntry(any()) } coAnswers {
+            events += "write"
+        }
+        every {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+        } answers {
+            events += "refresh"
+        }
+
+        repository.saveEntry(
+            uuid = UUID.fromString("f0a2fa33-4456-4b53-8c6e-e26e694e44e0"),
+            medication = testMedicationDetails(),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
+        )
+
+        assertEquals(listOf("invalidate", "write", "refresh"), events)
+    }
+
+    @Test
     fun getObservedLatestEstradiolEntryOnOrBefore_returnsLatestObservedEntryAtOrBeforeTarget() = runTest {
         val target = Instant.parse("2026-04-30T00:00:00Z")
         val latestEntry = testMedicationLogEntryEntity(
@@ -211,6 +239,15 @@ class MedicationLogRepositoryTest {
             dosageMgAsEstradiol = 2.0,
             sourceGroupUuid = null,
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
+        )
+    }
+
+    private fun testMedicationDetails(): MedicationDetails {
+        return MedicationDetails(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
+            dose = MedicationDose.MgAsMedicine(2.0),
         )
     }
 }

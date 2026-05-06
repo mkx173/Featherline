@@ -127,11 +127,13 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
         refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun deleteAllEntries() {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteAllEntries()
         }
@@ -139,6 +141,7 @@ class MedicationLogRepository @Inject constructor(
     }
 
     suspend fun deleteEntriesForGroup(groupUuid: UUID) {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
         }
@@ -155,6 +158,7 @@ class MedicationLogRepository @Inject constructor(
         count: Int = 1,
         appliedAtTimeZoneId: String = ZoneId.systemDefault().id
     ) {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().medicationLogDao().insertEntry(
             buildEntryEntity(
                 uuid = uuid ?: UUID.randomUUID(),
@@ -195,6 +199,7 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().medicationLogDao().insertEntries(
             targetUuids.map { uuid ->
                 buildEntryEntity(
@@ -217,6 +222,7 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().medicationLogDao().insertEntries(
             entries.map { entry ->
                 buildEntryEntity(
@@ -234,8 +240,11 @@ class MedicationLogRepository @Inject constructor(
         refreshHomeSnapshotAfterMutation()
     }
 
-    private suspend fun refreshHomeSnapshotAfterMutation() {
+    private suspend fun invalidateHomeSnapshotBeforeMutation() {
         homeSnapshotRepository.invalidateHomeSnapshot()
+    }
+
+    private fun refreshHomeSnapshotAfterMutation() {
         homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 

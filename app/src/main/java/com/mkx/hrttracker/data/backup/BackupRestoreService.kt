@@ -78,6 +78,7 @@ class BackupRestoreService @Inject constructor(
             ?: throw IOException("Unable to decode the selected backup file.")
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)
 
+        homeSnapshotRepository.invalidateHomeSnapshot()
         databaseHolder.runTransaction { database ->
             database.medicationLogDao().deleteAllEntries()
             database.medicationGroupDao().deleteAllGroups()
@@ -116,7 +117,6 @@ class BackupRestoreService @Inject constructor(
                 database.userProfileDao().upsertProfile(profile)
             }
         }
-        homeSnapshotRepository.invalidateHomeSnapshot()
 
         settingsRepository.restoreSettings(
             darkModeOption = validatedSnapshot.settings.darkModeOption,

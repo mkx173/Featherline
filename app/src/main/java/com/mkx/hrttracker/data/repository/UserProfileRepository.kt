@@ -59,6 +59,7 @@ class UserProfileRepository @Inject constructor(
         originalUnit: WeightUnit,
         now: Instant = Instant.now(),
     ) {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().userProfileDao().upsertProfile(
             UserProfileEntity(
                 weightKg = originalUnit.toKg(originalValue),
@@ -71,6 +72,7 @@ class UserProfileRepository @Inject constructor(
     }
 
     suspend fun clearWeight(now: Instant = Instant.now()) {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.get().userProfileDao().upsertProfile(
             UserProfileEntity(
                 weightKg = null,
@@ -82,8 +84,11 @@ class UserProfileRepository @Inject constructor(
         refreshHomeSnapshotAfterMutation()
     }
 
-    private suspend fun refreshHomeSnapshotAfterMutation() {
+    private suspend fun invalidateHomeSnapshotBeforeMutation() {
         homeSnapshotRepository.invalidateHomeSnapshot()
+    }
+
+    private fun refreshHomeSnapshotAfterMutation() {
         homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 

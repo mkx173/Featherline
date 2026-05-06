@@ -86,6 +86,35 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
+    fun deleteGroup_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+        val groupUuid = UUID.fromString("14f6c652-a26d-4b68-ac54-c70cbec929d9")
+        val events = mutableListOf<String>()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
+            events += "invalidate"
+        }
+        coEvery { medicationLogDao.reclassifyEntriesForDeletedGroup(groupUuid.toString()) } coAnswers {
+            events += "write-log"
+        }
+        coEvery { medicationGroupDao.deleteGroup(groupUuid.toString()) } coAnswers {
+            events += "write-group"
+        }
+        every {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+        } answers {
+            events += "refresh"
+        }
+
+        repository.deleteGroup(groupUuid)
+
+        assertEquals(listOf("invalidate", "write-log", "write-group", "refresh"), events)
+    }
+
+    @Test
     fun deleteGroupAndRelatedEntries_deletesEntriesAndGroupInSingleTransaction() = runTest {
         val groupUuid = UUID.fromString("f2f8890f-09ab-4775-85cb-cf4aa896f0b7")
         coEvery {

@@ -97,6 +97,7 @@ class MedicationGroupRepository @Inject constructor(
     ) {
         val nowEpochMillis = now.toEpochMilli()
         val nowLocal = now.toLocalDateTime()
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             database.medicationGroupDao().updateGroupArchiveState(
                 uuid = uuid.toString(),
@@ -113,6 +114,7 @@ class MedicationGroupRepository @Inject constructor(
         newTimes: List<LocalTime>,
         now: Instant = Instant.now(),
     ) {
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             val groupDao = database.medicationGroupDao()
             val logDao = database.medicationLogDao()
@@ -198,6 +200,7 @@ class MedicationGroupRepository @Inject constructor(
         val nowEpochMillis = now.toEpochMilli()
         val nowLocal = now.toLocalDateTime()
         val groupUuid = uuid ?: UUID.randomUUID()
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             val dao = database.medicationGroupDao()
             val existingGroup = uuid?.let { dao.getGroup(it.toString()) }
@@ -438,6 +441,7 @@ class MedicationGroupRepository @Inject constructor(
         deleteRelatedEntries: Boolean,
     ) {
         val groupUuid = uuid.toString()
+        invalidateHomeSnapshotBeforeMutation()
         databaseHolder.withTransaction { database ->
             if (deleteRelatedEntries) {
                 database.medicationLogDao().deleteEntriesForGroup(groupUuid)
@@ -449,8 +453,11 @@ class MedicationGroupRepository @Inject constructor(
         refreshHomeSnapshotAfterMutation()
     }
 
-    private suspend fun refreshHomeSnapshotAfterMutation() {
+    private suspend fun invalidateHomeSnapshotBeforeMutation() {
         homeSnapshotRepository.invalidateHomeSnapshot()
+    }
+
+    private fun refreshHomeSnapshotAfterMutation() {
         homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
     }
 }
