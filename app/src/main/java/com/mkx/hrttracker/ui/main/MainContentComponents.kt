@@ -886,9 +886,9 @@ private fun MainE2ChartMinimap(
     val colorScheme = MaterialTheme.colorScheme
     val lineColor = colorScheme.primary
     val currentTimeLineColor = colorScheme.tertiary.copy(alpha = 0.5f)
-    val trackColor = colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
-    val viewportColor = colorScheme.primary.copy(alpha = 0.14f)
-    val viewportStrokeColor = colorScheme.primary.copy(alpha = 0.72f)
+    val trackColor = colorScheme.surfaceContainerHigh
+    val viewportColor = colorScheme.surfaceContainerHighest
+    val viewportStrokeColor = colorScheme.outlineVariant
     val subtleLineColor = colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
     val minimapHorizontalInsetPx = with(LocalDensity.current) {
         MainE2ChartMinimapHorizontalInset.toPx()
