@@ -413,7 +413,7 @@ internal fun MainE2HeroCard(
         }
 
         Icon(
-            imageVector = Icons.Rounded.WaterDrop,
+            painter = painterResource(R.drawable.ic_notification_icon),
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.TopEnd)
