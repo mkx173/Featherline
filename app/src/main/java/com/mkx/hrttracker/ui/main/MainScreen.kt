@@ -264,12 +264,14 @@ private fun HomeDisplayUnitSubmenu(
                 onClick = { onUnitSelected(unit) },
                 text = { Text(text = calibrationUnitLabel(unit)) },
                 shapes = MenuDefaults.itemShape(index, units.size),
-                selectedLeadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(MenuDefaults.LeadingIconSize),
-                    )
+                trailingIcon = {
+                    if (selectedUnit == unit) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(MenuDefaults.TrailingIconSize),
+                        )
+                    }
                 },
             )
         }
