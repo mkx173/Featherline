@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,6 +37,7 @@ class SettingsViewModel @Inject constructor(
     private val bloodTestRepository: BloodTestRepository,
     private val appLockSecurityManager: AppLockSecurityManager,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
 ) : ViewModel() {
@@ -101,6 +103,9 @@ class SettingsViewModel @Inject constructor(
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setRemindersEnabled(enabled)
+            if (!enabled) {
+                medicationReminderSnoozeScheduler.clearAllSnoozes()
+            }
             medicationReminderScheduler.rescheduleAll()
         }
     }

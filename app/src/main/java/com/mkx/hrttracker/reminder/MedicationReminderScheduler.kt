@@ -132,7 +132,8 @@ class MedicationReminderScheduler @Inject constructor(
 
         val pendingIntent = buildReminderPendingIntent(
             groupUuid = plan.groupUuid,
-            scheduledAt = plan.scheduledAt
+            scheduledAt = plan.scheduledAt,
+            scheduleTimeUuid = plan.scheduleTimeUuid,
         )
 
         if (canScheduleExactReminders()) {
@@ -152,12 +153,16 @@ class MedicationReminderScheduler @Inject constructor(
 
     private fun buildReminderPendingIntent(
         groupUuid: UUID,
-        scheduledAt: LocalDateTime? = null
+        scheduledAt: LocalDateTime? = null,
+        scheduleTimeUuid: UUID? = null,
     ): PendingIntent {
         val intent = Intent(context, MedicationReminderReceiver::class.java).apply {
             action = ACTION_MEDICATION_REMINDER
             data = reminderIntentData(groupUuid)
             putExtra(EXTRA_GROUP_UUID, groupUuid.toString())
+            scheduleTimeUuid?.let { value ->
+                putExtra(EXTRA_SCHEDULE_TIME_UUID, value.toString())
+            }
             scheduledAt?.let { value ->
                 putExtra(EXTRA_SCHEDULED_AT, value.toString())
             }
@@ -184,4 +189,5 @@ private const val REMINDER_REQUEST_CODE = 0
 private const val REMINDER_INTENT_URI_PREFIX = "hrttracker://medication-reminder"
 const val ACTION_MEDICATION_REMINDER = "com.mkx.hrttracker.action.MEDICATION_REMINDER"
 const val EXTRA_GROUP_UUID = "groupUuid"
+const val EXTRA_SCHEDULE_TIME_UUID = "scheduleTimeUuid"
 const val EXTRA_SCHEDULED_AT = "scheduledAt"

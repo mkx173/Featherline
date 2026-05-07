@@ -13,6 +13,7 @@ data class MedicationReminderPlan(
     val groupUuid: UUID,
     val groupName: String,
     val scheduledAt: LocalDateTime,
+    val scheduleTimeUuid: UUID?,
 )
 
 internal fun buildNextMedicationReminderPlans(
@@ -45,7 +46,8 @@ internal fun buildNextMedicationReminderPlans(
                     MedicationReminderPlan(
                         groupUuid = group.uuid,
                         groupName = group.name,
-                        scheduledAt = occurrence.scheduledFor
+                        scheduledAt = occurrence.scheduledFor,
+                        scheduleTimeUuid = occurrence.scheduleTimeUuid,
                     )
                 }
         }

@@ -7,8 +7,6 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
-import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -53,21 +51,15 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                     return@runCatching
                 }
 
-                val group = medicationGroupRepository.getGroup(groupUuid)
-                if (group != null && group.isActive() && group.notificationsEnabled) {
-                    val entries = medicationLogRepository.getScheduledGroupEntriesSince(scheduledAt)
-                    val isCurrentSlotFulfilled = isSlotFulfilled(
-                        group = group,
-                        date = scheduledAt.toLocalDate(),
-                        time = scheduledAt.toLocalTime(),
-                        entries = entries
-                    )
-                    if (!isCurrentSlotFulfilled) {
-                        reminderNotificationManager.showDoseReminderNotification(
-                            groupUuid = group.uuid.toString(),
-                            groupName = group.name
-                        )
-                    }
+                val groups = medicationGroupRepository.getGroups()
+                val entries = medicationLogRepository.getScheduledGroupEntriesSince(scheduledAt)
+                val bundle = buildMedicationReminderBundle(
+                    scheduledAt = scheduledAt,
+                    groups = groups,
+                    entries = entries,
+                )
+                if (bundle != null) {
+                    reminderNotificationManager.showDoseReminderNotification(bundle)
                 }
 
                 medicationReminderScheduler.rescheduleGroup(

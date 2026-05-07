@@ -69,6 +69,11 @@
     <string name="reminder_notification_channel_name">用药提醒</string>
     <string name="reminder_notification_channel_description">计划用药提醒</string>
     <string name="reminder_notification_body">该用药了</string>
+    <string name="reminder_notification_single_title">该用药了</string>
+    <string name="reminder_notification_merged_title">该用药了</string>
+    <string name="reminder_notification_action_log_now">立即记录</string>
+    <string name="reminder_notification_action_log_all">全部记录</string>
+    <string name="reminder_notification_action_remind_later">稍后提醒</string>
     <string name="fab_add_entry">添加用药记录</string>
     <string name="fab_add_medication_group">添加用药分组</string>
     <string name="plan_empty_state">暂无用药分组</string>
@@ -527,6 +532,9 @@
 
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
+    </plurals>
+    <plurals name="reminder_notification_more_groups">
+        <item quantity="other">%1$s 和 %2$d 个其他分组</item>
     </plurals>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 分组</item>

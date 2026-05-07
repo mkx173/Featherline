@@ -71,6 +71,11 @@
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
     <string name="reminder_notification_body">It\'s time for your dose.</string>
+    <string name="reminder_notification_single_title">Time for your dose</string>
+    <string name="reminder_notification_merged_title">Time for your doses</string>
+    <string name="reminder_notification_action_log_now">Log now</string>
+    <string name="reminder_notification_action_log_all">Log all</string>
+    <string name="reminder_notification_action_remind_later">Remind later</string>
     <string name="fab_add_entry">Add medication log entry</string>
     <string name="fab_add_medication_group">Add medication group</string>
     <string name="plan_empty_state">No medication groups yet.</string>
@@ -537,6 +542,10 @@
     <plurals name="plan_group_medication_count">
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
+    </plurals>
+    <plurals name="reminder_notification_more_groups">
+        <item quantity="one">%1$s and %2$d more group</item>
+        <item quantity="other">%1$s and %2$d more groups</item>
     </plurals>
     <plurals name="plan_regimen_group_count">
         <item quantity="one">%1$d group</item>

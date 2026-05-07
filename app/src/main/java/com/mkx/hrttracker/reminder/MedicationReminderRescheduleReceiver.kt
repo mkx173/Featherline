@@ -19,6 +19,9 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
     @Inject
     lateinit var medicationReminderScheduler: MedicationReminderScheduler
 
+    @Inject
+    lateinit var medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
@@ -33,6 +36,7 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
         appScope.launch {
             runCatching {
                 medicationReminderScheduler.rescheduleAll()
+                medicationReminderSnoozeScheduler.rescheduleAll()
             }.also {
                 pendingResult.finish()
             }
