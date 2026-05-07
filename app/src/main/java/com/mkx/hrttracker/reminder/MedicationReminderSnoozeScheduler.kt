@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
@@ -19,6 +20,7 @@ import javax.inject.Singleton
 class MedicationReminderSnoozeScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val snoozeStore: MedicationReminderSnoozeStore,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
@@ -28,9 +30,11 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
         now: LocalDateTime = LocalDateTime.now(),
     ): List<MedicationReminderSnoozeRecord> {
         if (slots.isEmpty()) {
+            diagnosticsLogger.info(TAG, "snooze_slots_skipped reason=empty_slots now=$now")
             return emptyList()
         }
 
+        diagnosticsLogger.info(TAG, "snooze_slots_start slots=${slots.size} now=$now")
         val existingRecords = snoozeStore.getSnoozeRecords()
         val snoozeAt = now.plusMinutes(REMINDER_SNOOZE_MINUTES)
         val nextRecords = buildNextSnoozeRecords(
@@ -44,18 +48,26 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
 
         snoozeStore.replaceSnoozeRecords(updatedRecords)
         scheduleSnoozeRecords(nextRecords)
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_slots_complete slots=${slots.size} scheduled=${nextRecords.size} " +
+                "existing=${existingRecords.size} stored=${updatedRecords.size} snoozeAt=$snoozeAt"
+        )
         return nextRecords
     }
 
     suspend fun clearSnoozesForSlots(slots: List<MedicationReminderSlot>) {
         if (slots.isEmpty()) {
+            diagnosticsLogger.info(TAG, "snooze_clear_slots_skipped reason=empty_slots")
             return
         }
 
+        diagnosticsLogger.info(TAG, "snooze_clear_slots_start slots=${slots.size}")
         clearSnoozesMatching { record -> record.slot in slots }
     }
 
     suspend fun clearStaleSnoozesForGroup(group: MedicationGroup) {
+        diagnosticsLogger.info(TAG, "snooze_clear_stale_group_start groupUuid=${group.uuid}")
         val slotTimesByUuid = group.schedule.timeSlots
             .associate { slot -> slot.uuid to slot.time }
         clearSnoozesMatching { record ->
@@ -74,6 +86,10 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .map(MedicationReminderSnoozeRecord::snoozeAt)
             .toSet()
         if (affectedSnoozeTimes.isEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "snooze_clear_matching_complete cleared=0 existing=${existingRecords.size}"
+            )
             return
         }
 
@@ -92,24 +108,46 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
             .values
             .forEach(::scheduleSnoozeBundle)
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_clear_matching_complete cleared=${existingRecords.size - remainingRecords.size} " +
+                "affectedBundles=${affectedSnoozeTimes.size} stored=${remainingRecords.size}"
+        )
     }
 
     suspend fun clearAllSnoozes() {
+        diagnosticsLogger.info(TAG, "snooze_clear_all_start")
         val existingRecords = snoozeStore.getSnoozeRecords()
         existingRecords
             .groupBy(MedicationReminderSnoozeRecord::snoozeAt)
             .values
             .forEach(::cancelSnoozeBundle)
         snoozeStore.replaceSnoozeRecords(emptyList())
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_clear_all_complete cleared=${existingRecords.size} " +
+                "bundles=${existingRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
+        )
     }
 
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
+        diagnosticsLogger.info(TAG, "snooze_reschedule_all_start now=$now")
         val records = snoozeStore.getSnoozeRecords()
         val futureRecords = records.filter { record -> record.snoozeAt.isAfter(now) }
         if (futureRecords.size != records.size) {
             snoozeStore.replaceSnoozeRecords(futureRecords)
+            diagnosticsLogger.info(
+                TAG,
+                "snooze_reschedule_all_pruned expired=${records.size - futureRecords.size} " +
+                    "remaining=${futureRecords.size}"
+            )
         }
         scheduleSnoozeRecords(futureRecords)
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_reschedule_all_complete records=${futureRecords.size} " +
+                "bundles=${futureRecords.groupBy(MedicationReminderSnoozeRecord::snoozeAt).size}"
+        )
     }
 
     suspend fun getSnoozeRecords(): List<MedicationReminderSnoozeRecord> {
@@ -134,6 +172,11 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .toEpochMilli()
         val pendingIntent = buildSnoozePendingIntent(records)
 
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_alarm_schedule snoozeAt=${records.first().snoozeAt} " +
+                "slots=${records.size} triggerAtMillis=$triggerAtMillis"
+        )
         alarmManager.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             triggerAtMillis,
@@ -145,6 +188,10 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
         if (records.isEmpty()) {
             return
         }
+        diagnosticsLogger.info(
+            TAG,
+            "snooze_alarm_cancel snoozeAt=${records.first().snoozeAt} slots=${records.size}"
+        )
         alarmManager.cancel(buildSnoozePendingIntent(records))
     }
 
@@ -190,3 +237,4 @@ private fun MedicationReminderSlot.matchesCurrentScheduleTime(
 
 private const val REMINDER_SNOOZE_REQUEST_CODE = 0
 private const val REMINDER_SNOOZE_URI_PREFIX = "hrttracker://medication-reminder-snooze"
+private const val TAG = "MedicationReminderSnoozeScheduler"

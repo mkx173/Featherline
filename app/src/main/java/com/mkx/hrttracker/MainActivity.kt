@@ -31,6 +31,7 @@ import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import javax.inject.Provider
@@ -46,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var startupPreloaderProvider: Provider<StartupPreloader>
 
+    @Inject
+    lateinit var diagnosticsLogger: AppDiagnosticsLogger
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val startupTimingEnabled =
             (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 ||
@@ -55,14 +59,24 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        diagnosticsLogger.info(
+            TAG,
+            "main_activity_on_create_after_super " +
+                "savedInstanceState=${savedInstanceState != null} startupTimingEnabled=$startupTimingEnabled"
+        )
         splashScreen.setKeepOnScreenCondition {
             val appLockState = appLockViewModel.uiState.value
             val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
             !appLockState.isReady || (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
+        diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
         settingsRepository.refreshAppLanguageOption(this)
+        diagnosticsLogger.info(TAG, "main_activity_language_refresh_requested")
 
         setContent {
+            LaunchedEffect(Unit) {
+                diagnosticsLogger.info(TAG, "main_activity_set_content_entered")
+            }
             val settingsState by settingsRepository.settingsState.collectAsStateWithLifecycle()
 
             val isDarkTheme = settingsState.darkModeOption.resolveDarkTheme(isSystemInDarkTheme())
@@ -109,10 +123,18 @@ class MainActivity : AppCompatActivity() {
                     }
                     when (mainUiState.homeSource) {
                         HomeInputSource.SNAPSHOT -> {
+                            diagnosticsLogger.info(
+                                TAG,
+                                "main_activity_home_data_ready source=snapshot now=${mainUiState.now}"
+                            )
                             startupPreloaderProvider.get()
                                 .startReminderRescheduleFromSnapshot(mainUiState.now)
                         }
                         HomeInputSource.ROOM -> {
+                            diagnosticsLogger.info(
+                                TAG,
+                                "main_activity_home_data_ready source=room now=${mainUiState.now}"
+                            )
                             startupPreloaderProvider.get()
                                 .startReminderRescheduleFromWarmDatabase(mainUiState.now)
                         }
@@ -131,6 +153,7 @@ class MainActivity : AppCompatActivity() {
                         mainUiState.homeDataReady
                     ) {
                         withFrameNanos { }
+                        diagnosticsLogger.info(TAG, "main_activity_first_home_frame_ready")
                         startupPreloaderProvider.get().startAfterFirstHomeFrame()
                     }
                 }
@@ -161,12 +184,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        diagnosticsLogger.info(TAG, "main_activity_on_start")
         appLockViewModel.onForegrounded()
     }
 
     override fun onStop() {
         if (!isChangingConfigurations) {
+            diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=true")
             appLockViewModel.onBackgrounded()
+        } else {
+            diagnosticsLogger.info(TAG, "main_activity_on_stop backgrounding=false reason=configuration_change")
         }
         super.onStop()
     }
@@ -181,5 +208,9 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             setRecentsScreenshotEnabled(!enabled)
         }
+    }
+
+    private companion object {
+        const val TAG = "MainActivity"
     }
 }

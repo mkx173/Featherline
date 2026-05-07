@@ -4,11 +4,13 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.slot
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CompletableDeferred
@@ -36,6 +38,7 @@ class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
+    private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
 
     @Before
@@ -180,6 +183,37 @@ class HomeSnapshotRepositoryTest {
         )
 
         assertNull(repository.readUsableHomeSnapshot(now = now))
+    }
+
+    @Test
+    fun readUsableHomeSnapshot_logsVerificationRejectionReason() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        coEvery { homeSnapshotStore.readSnapshot() } returns homeSnapshotRecord(
+            generation = 1L,
+            now = now,
+        ).copy(schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION - 1)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+            diagnosticsLogger = diagnosticsLogger,
+        )
+
+        assertNull(repository.readUsableHomeSnapshot(now = now))
+
+        verify {
+            diagnosticsLogger.info(
+                "HomeSnapshotRepository",
+                match { message ->
+                    "home_snapshot_read_rejected" in message &&
+                        "reason=schema_version" in message &&
+                        "actual=2" in message
+                }
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

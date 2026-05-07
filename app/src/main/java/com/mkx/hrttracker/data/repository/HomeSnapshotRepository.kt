@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.util.Log
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
@@ -10,6 +9,7 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.startup.StartupTiming
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -37,6 +37,7 @@ class HomeSnapshotRepository @Inject constructor(
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val refreshMutex = Mutex()
     private val homeDataMutationMutex = Mutex()
@@ -47,8 +48,30 @@ class HomeSnapshotRepository @Inject constructor(
             homeSnapshotStore.observeSnapshot(),
             homeSnapshotGenerationStore.observeGeneration(),
         ) { snapshot, generation ->
-            snapshot?.takeIf {
-                it.generation >= generation
+            when {
+                snapshot == null -> {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_observed_missing durableGeneration=$generation"
+                    )
+                    null
+                }
+                snapshot.generation < generation -> {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_observed_rejected reason=generation " +
+                            "snapshotGeneration=${snapshot.generation} durableGeneration=$generation"
+                    )
+                    null
+                }
+                else -> {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_observed_loaded ${snapshot.diagnosticSummary()} " +
+                            "durableGeneration=$generation"
+                    )
+                    snapshot
+                }
             }
         }
             .distinctUntilChanged()
@@ -68,10 +91,20 @@ class HomeSnapshotRepository @Inject constructor(
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
         return homeDataMutationMutex.withLock {
             refreshMutex.withLock {
-                homeSnapshotGenerationStore.incrementGeneration()
+                diagnosticsLogger.info(TAG, "home_data_mutation_start")
+                val generation = homeSnapshotGenerationStore.incrementGeneration()
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_data_mutation_generation_incremented generation=$generation"
+                )
                 val result = block()
+                diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
                 clearSnapshotBestEffort()
                 refreshHomeSnapshotAsync(force = true)
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_data_mutation_snapshot_refresh_requested generation=$generation"
+                )
                 result
             }
         }
@@ -82,36 +115,49 @@ class HomeSnapshotRepository @Inject constructor(
         now: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): Boolean {
-        if (snapshot.schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
-            return false
-        }
-        if (snapshot.zoneId != zoneId.id) {
-            return false
-        }
-        val anchorDate = LocalDate.ofEpochDay(snapshot.anchorDateEpochDay)
-        val today = now.toLocalDate()
-        if (today.isBefore(anchorDate) || today.isAfter(anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS))) {
-            return false
-        }
-        val pkProjection = snapshot.pkProjection ?: return false
-        val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId)
-        return pkProjection.windowStartEpochMillis <= chartWindow.windowStartEpochMillis &&
-            pkProjection.windowEndEpochMillis >= chartWindow.windowEndEpochMillis
+        return snapshotUsabilityFailure(
+            snapshot = snapshot,
+            now = now,
+            zoneId = zoneId,
+        ) == null
     }
 
     suspend fun readUsableHomeSnapshot(
         now: LocalDateTime = LocalDateTime.now(),
     ): HomeSnapshotRecord? {
-        val snapshot = homeSnapshotStore.readSnapshot() ?: return null
+        val snapshot = homeSnapshotStore.readSnapshot()
+            ?: return null.also {
+                diagnosticsLogger.info(TAG, "home_snapshot_read_missing now=$now")
+            }
         val generation = homeSnapshotGenerationStore.readGeneration()
-        return snapshot.takeIf {
-            it.generation >= generation &&
-                isSnapshotUsable(
-                    snapshot = it,
-                    now = now,
-                    zoneId = ZoneId.systemDefault(),
-                )
+        if (snapshot.generation < generation) {
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_read_rejected reason=generation " +
+                    "snapshotGeneration=${snapshot.generation} durableGeneration=$generation now=$now"
+            )
+            return null
         }
+        val zoneId = ZoneId.systemDefault()
+        val usabilityFailure = snapshotUsabilityFailure(
+            snapshot = snapshot,
+            now = now,
+            zoneId = zoneId,
+        )
+        if (usabilityFailure != null) {
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_read_rejected reason=$usabilityFailure " +
+                    "${snapshot.diagnosticSummary()} now=$now"
+            )
+            return null
+        }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_read_usable ${snapshot.diagnosticSummary()} " +
+                "durableGeneration=$generation now=$now"
+        )
+        return snapshot
     }
 
     fun scheduleEntriesForHome(
@@ -150,10 +196,43 @@ class HomeSnapshotRepository @Inject constructor(
         }.getOrNull()
     }
 
+    private fun snapshotUsabilityFailure(
+        snapshot: HomeSnapshotRecord,
+        now: LocalDateTime,
+        zoneId: ZoneId,
+    ): String? {
+        if (snapshot.schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
+            return "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=${snapshot.schemaVersion}"
+        }
+        if (snapshot.zoneId != zoneId.id) {
+            return "zone_id expected=${zoneId.id} actual=${snapshot.zoneId}"
+        }
+        val anchorDate = LocalDate.ofEpochDay(snapshot.anchorDateEpochDay)
+        val today = now.toLocalDate()
+        val validUntil = anchorDate.plusDays(HOME_SNAPSHOT_VALIDITY_DAYS)
+        if (today.isBefore(anchorDate) || today.isAfter(validUntil)) {
+            return "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"
+        }
+        val pkProjection = snapshot.pkProjection ?: return "missing_pk_projection"
+        val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId)
+        if (
+            pkProjection.windowStartEpochMillis > chartWindow.windowStartEpochMillis ||
+            pkProjection.windowEndEpochMillis < chartWindow.windowEndEpochMillis
+        ) {
+            return "pk_projection_window " +
+                "projectionStart=${pkProjection.windowStartEpochMillis} " +
+                "projectionEnd=${pkProjection.windowEndEpochMillis} " +
+                "requiredStart=${chartWindow.windowStartEpochMillis} " +
+                "requiredEnd=${chartWindow.windowEndEpochMillis}"
+        }
+        return null
+    }
+
     fun refreshHomeSnapshotAsync(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
     ) {
+        diagnosticsLogger.info(TAG, "home_snapshot_refresh_async_enqueued force=$force now=$now")
         appScope.launch {
             try {
                 refreshHomeSnapshotIfNeeded(now = now, force = force)
@@ -161,15 +240,18 @@ class HomeSnapshotRepository @Inject constructor(
                 if (throwable is CancellationException) {
                     throw throwable
                 }
-                Log.w(TAG, "Home snapshot refresh failed.", throwable)
+                diagnosticsLogger.warning(TAG, "home_snapshot_refresh_failed force=$force now=$now", throwable)
             }
         }
     }
 
     suspend fun invalidateHomeSnapshot() {
-        homeSnapshotGenerationStore.incrementGeneration()
+        diagnosticsLogger.info(TAG, "home_snapshot_invalidate_start")
+        val generation = homeSnapshotGenerationStore.incrementGeneration()
+        diagnosticsLogger.info(TAG, "home_snapshot_invalidate_generation_incremented generation=$generation")
         snapshotMutationMutex.withLock {
             homeSnapshotStore.clearSnapshot()
+            diagnosticsLogger.info(TAG, "home_snapshot_invalidated generation=$generation")
         }
     }
 
@@ -177,18 +259,30 @@ class HomeSnapshotRepository @Inject constructor(
         now: LocalDateTime = LocalDateTime.now(),
         force: Boolean = false,
     ) {
+        diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
         refreshMutex.withLock {
             val refreshGeneration = homeSnapshotGenerationStore.readGeneration()
             val zoneId = ZoneId.systemDefault()
             val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId)
             val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
             val existingSnapshot = homeSnapshotStore.readSnapshot()
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_refresh_verify_existing force=$force " +
+                    "generation=$refreshGeneration " +
+                    "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
+            )
             if (
                 !force &&
                 existingSnapshot != null &&
                 existingSnapshot.generation >= refreshGeneration &&
                 isSnapshotUsable(existingSnapshot, now, zoneId)
             ) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_snapshot_refresh_skipped reason=existing_usable " +
+                        "${existingSnapshot.diagnosticSummary()} now=$now"
+                )
                 return@withLock
             }
 
@@ -225,6 +319,15 @@ class HomeSnapshotRepository @Inject constructor(
                         ?: UserProfile(),
                 )
             }
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
+                    "activeGroups=${inputs.activeGroups.size} " +
+                    "scheduleEntries=${inputs.scheduleEntries.size} " +
+                    "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
+                    "pkEntries=${inputs.pkEntries.size} " +
+                    "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
+            )
             val fingerprint = sourceFingerprint(
                 zoneId = zoneId,
                 anchorDate = now.toLocalDate(),
@@ -240,6 +343,12 @@ class HomeSnapshotRepository @Inject constructor(
                     futureDays = HOME_PK_PROJECTION_FUTURE_DAYS,
                 )
             }
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
+                    "fingerprint=${fingerprint.shortDiagnosticFingerprint()} " +
+                    "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd}"
+            )
             val pkProjectionRecord = HomePkProjectionRecord(
                 generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
                 windowStartEpochMillis = projection.windowStart.toEpochMilli(),
@@ -265,8 +374,23 @@ class HomeSnapshotRepository @Inject constructor(
                 // Avoid restoring stale snapshot data from a refresh that raced with a write.
                 snapshotMutationMutex.withLock {
                     if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
+                        diagnosticsLogger.info(
+                            TAG,
+                            "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
+                        )
                         homeSnapshotStore.writeSnapshot(snapshotRecord)
                         StartupTiming.mark("home_snapshot_rebuilt")
+                        diagnosticsLogger.info(
+                            TAG,
+                            "home_snapshot_refreshed ${snapshotRecord.diagnosticSummary()}"
+                        )
+                    } else {
+                        diagnosticsLogger.info(
+                            TAG,
+                            "home_snapshot_write_skipped reason=generation_changed " +
+                                "refreshGeneration=$refreshGeneration " +
+                                "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
+                        )
                     }
                 }
             }
@@ -436,11 +560,26 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun clearSnapshotBestEffortLocked() {
         runCatching {
             homeSnapshotStore.clearSnapshot()
+            diagnosticsLogger.info(TAG, "home_snapshot_cleared_best_effort")
         }.onFailure { throwable ->
-            Log.w(TAG, "Home snapshot clear failed.", throwable)
+            diagnosticsLogger.warning(TAG, "home_snapshot_clear_failed", throwable)
         }
     }
 }
+
+private fun HomeSnapshotRecord.diagnosticSummary(): String {
+    return "schema=$schemaVersion " +
+        "generation=$generation " +
+        "anchorDate=${LocalDate.ofEpochDay(anchorDateEpochDay)} " +
+        "zone=$zoneId " +
+        "fingerprint=${sourceFingerprint.shortDiagnosticFingerprint()} " +
+        "groups=${activeGroups.size} " +
+        "scheduleEntries=${scheduleEntries.size} " +
+        "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
+        "hasPkProjection=${pkProjection != null}"
+}
+
+private fun String.shortDiagnosticFingerprint(): String = take(12)
 
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 3
 private const val TAG = "HomeSnapshotRepository"

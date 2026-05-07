@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -35,18 +36,34 @@ class MedicationReminderReceiver : BroadcastReceiver() {
     @Inject
     lateinit var reminderNotificationManager: ReminderNotificationManager
 
+    @Inject
+    lateinit var diagnosticsLogger: AppDiagnosticsLogger
+
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         val groupUuid = intent.getStringExtra(EXTRA_GROUP_UUID)
-            ?.let(UUID::fromString)
-            ?: return pendingResult.finish()
+            ?.let { value -> runCatching { UUID.fromString(value) }.getOrNull() }
+            ?: return pendingResult.finish().also {
+                diagnosticsLogger.info(
+                    TAG,
+                    "reminder_receiver_ignored reason=missing_or_invalid_group_uuid action=${intent.action}"
+                )
+            }
         val scheduledAt = intent.getStringExtra(EXTRA_SCHEDULED_AT)
             ?.let(LocalDateTime::parse)
             ?: LocalDateTime.now()
 
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_receiver_received groupUuid=$groupUuid scheduledAt=$scheduledAt action=${intent.action}"
+        )
         appScope.launch {
             runCatching {
                 if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "reminder_receiver_master_disabled groupUuid=$groupUuid scheduledAt=$scheduledAt"
+                    )
                     medicationReminderScheduler.cancelReminder(groupUuid)
                     return@runCatching
                 }
@@ -60,15 +77,41 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                 )
                 if (bundle != null) {
                     reminderNotificationManager.showDoseReminderNotification(bundle)
+                    diagnosticsLogger.info(
+                        TAG,
+                        "reminder_receiver_notification_shown groupUuid=$groupUuid " +
+                            "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size} " +
+                            "items=${bundle.items.size}"
+                    )
+                } else {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "reminder_receiver_notification_skipped reason=no_bundle groupUuid=$groupUuid " +
+                            "scheduledAt=$scheduledAt groups=${groups.size} entries=${entries.size}"
+                    )
                 }
 
                 medicationReminderScheduler.rescheduleGroup(
                     groupUuid = groupUuid,
                     after = scheduledAt.plusSeconds(1)
                 )
+                diagnosticsLogger.info(
+                    TAG,
+                    "reminder_receiver_reschedule_requested groupUuid=$groupUuid after=${scheduledAt.plusSeconds(1)}"
+                )
+            }.onFailure { throwable ->
+                diagnosticsLogger.warning(
+                    TAG,
+                    "reminder_receiver_failed groupUuid=$groupUuid scheduledAt=$scheduledAt",
+                    throwable,
+                )
             }.also {
                 pendingResult.finish()
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "MedicationReminderReceiver"
     }
 }

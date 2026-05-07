@@ -17,16 +17,19 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ReminderNotificationManager @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            diagnosticsLogger.info(TAG, "reminder_notification_channel_skipped sdk=${Build.VERSION.SDK_INT}")
             return
         }
 
@@ -39,6 +42,7 @@ class ReminderNotificationManager @Inject constructor(
             description = context.getString(R.string.reminder_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
+        diagnosticsLogger.info(TAG, "reminder_notification_channel_created channelId=$REMINDER_CHANNEL_ID")
     }
 
     fun showDoseReminderNotification(
@@ -46,6 +50,11 @@ class ReminderNotificationManager @Inject constructor(
         canSnooze: Boolean = true,
     ) {
         if (!canPostNotifications()) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_notification_show_skipped reason=no_permission " +
+                    "tag=${bundle.notificationTag} items=${bundle.items.size}"
+            )
             return
         }
         createNotificationChannel()
@@ -116,12 +125,22 @@ class ReminderNotificationManager @Inject constructor(
                 DOSE_REMINDER_NOTIFICATION_ID,
                 notification
             )
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_notification_shown tag=$notificationTag " +
+                    "items=${bundle.items.size} canSnooze=$canSnooze isMerged=$isMerged"
+            )
         } catch (_: SecurityException) {
             // Notification permission can be revoked after the preflight check.
+            diagnosticsLogger.warning(
+                TAG,
+                "reminder_notification_show_failed reason=security_exception tag=$notificationTag"
+            )
         }
     }
 
     fun showDoseReminderLoggedToast(entryCount: Int) {
+        diagnosticsLogger.info(TAG, "reminder_notification_logged_toast entryCount=$entryCount")
         showToast(
             context.resources.getQuantityString(
                 R.plurals.reminder_notification_entries_added,
@@ -132,6 +151,7 @@ class ReminderNotificationManager @Inject constructor(
     }
 
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
+        diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
         showToast(
             context.getString(
                 R.string.reminder_notification_snoozed,
@@ -145,6 +165,7 @@ class ReminderNotificationManager @Inject constructor(
             notificationTag,
             DOSE_REMINDER_NOTIFICATION_ID,
         )
+        diagnosticsLogger.info(TAG, "reminder_notification_cancelled tag=$notificationTag")
     }
 
     fun canPostNotifications(): Boolean {
@@ -229,3 +250,4 @@ private const val REMINDER_NOTIFICATION_CONTENT_URI_PREFIX =
 private const val REMINDER_NOTIFICATION_ACTION_URI_PREFIX =
     "hrttracker://medication-reminder-action"
 const val REMINDER_CHANNEL_ID = "dose_reminders"
+private const val TAG = "ReminderNotificationManager"

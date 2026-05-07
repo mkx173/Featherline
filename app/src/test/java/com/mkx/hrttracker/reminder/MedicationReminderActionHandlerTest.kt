@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -40,6 +41,7 @@ class MedicationReminderActionHandlerTest {
     private val reminderScheduler: MedicationReminderScheduler = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
+    private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     private lateinit var actionHandler: MedicationReminderActionHandler
 
@@ -56,6 +58,7 @@ class MedicationReminderActionHandlerTest {
             medicationReminderScheduler = reminderScheduler,
             medicationReminderSnoozeScheduler = snoozeScheduler,
             reminderNotificationManager = notificationManager,
+            diagnosticsLogger = diagnosticsLogger,
         )
     }
 
@@ -112,6 +115,17 @@ class MedicationReminderActionHandlerTest {
         coVerify { reminderScheduler.rescheduleGroup(secondGroup.uuid, any()) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
         verify { notificationManager.showDoseReminderLoggedToast(2) }
+        verify {
+            diagnosticsLogger.info(
+                "MedicationReminderActionHandler",
+                match { message ->
+                    "reminder_action_log_now_complete" in message &&
+                        "slots=2" in message &&
+                        "entriesSaved=2" in message &&
+                        "groupsRescheduled=2" in message
+                }
+            )
+        }
     }
 
     @Test

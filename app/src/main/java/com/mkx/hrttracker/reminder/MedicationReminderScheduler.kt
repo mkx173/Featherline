@@ -10,6 +10,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.isArchived
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -25,18 +26,30 @@ class MedicationReminderScheduler @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val reminderScheduleStore: ReminderScheduleStore,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
+        diagnosticsLogger.info(TAG, "reminder_reschedule_all_start now=$now")
         val groups = medicationGroupRepository.getGroups()
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
-        val uuidsToCancel = reminderScheduleStore.getScheduledGroupUuids() + groupUuids
+        val storedGroupUuids = reminderScheduleStore.getScheduledGroupUuids()
+        val uuidsToCancel = storedGroupUuids + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_all_disabled groups=${groups.size} " +
+                    "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
+            )
             uuidsToCancel.forEach(::cancelReminderAlarm)
             reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_all_complete groups=${groups.size} entries=0 plans=0 stored=0"
+            )
             return
         }
 
@@ -54,19 +67,42 @@ class MedicationReminderScheduler @Inject constructor(
         reminderScheduleStore.replaceScheduledGroupUuids(
             plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
         )
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_all_complete groups=${groups.size} " +
+                "entries=${entries.size} plans=${plans.size} " +
+                "stored=${plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid).size} " +
+                "cancel=${uuidsToCancel.size}"
+        )
     }
 
     suspend fun rescheduleFromHomeSnapshot(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime = LocalDateTime.now(),
     ) {
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_from_snapshot_start now=$now " +
+                "generation=${snapshot.generation} groups=${snapshot.activeGroups.size} " +
+                "snapshotEntries=${snapshot.scheduleEntries.size}"
+        )
         val groups = snapshot.activeGroups
         val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
-        val uuidsToCancel = reminderScheduleStore.getScheduledGroupUuids() + groupUuids
+        val storedGroupUuids = reminderScheduleStore.getScheduledGroupUuids()
+        val uuidsToCancel = storedGroupUuids + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_from_snapshot_disabled groups=${groups.size} " +
+                    "stored=${storedGroupUuids.size} cancel=${uuidsToCancel.size}"
+            )
             uuidsToCancel.forEach(::cancelReminderAlarm)
             reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_from_snapshot_complete groups=${groups.size} entries=0 plans=0 stored=0"
+            )
             return
         }
 
@@ -89,37 +125,70 @@ class MedicationReminderScheduler @Inject constructor(
         reminderScheduleStore.replaceScheduledGroupUuids(
             plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
         )
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_from_snapshot_complete groups=${groups.size} " +
+                "entries=${entries.size} plans=${plans.size} " +
+                "stored=${plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid).size} " +
+                "cancel=${uuidsToCancel.size}"
+        )
     }
 
     suspend fun rescheduleGroup(
         groupUuid: UUID,
         after: LocalDateTime = LocalDateTime.now()
     ) {
+        diagnosticsLogger.info(TAG, "reminder_reschedule_group_start groupUuid=$groupUuid after=$after")
         cancelReminder(groupUuid)
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_group_skipped reason=master_disabled groupUuid=$groupUuid"
+            )
             return
         }
 
-        val group = medicationGroupRepository.getGroup(groupUuid) ?: return
+        val group = medicationGroupRepository.getGroup(groupUuid)
+            ?: return diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_group_skipped reason=missing_group groupUuid=$groupUuid"
+            )
         medicationReminderSnoozeScheduler.clearStaleSnoozesForGroup(group)
         if (group.isArchived() || !group.notificationsEnabled) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_reschedule_group_skipped reason=inactive_or_notifications_disabled " +
+                    "groupUuid=$groupUuid archived=${group.isArchived()} " +
+                    "notificationsEnabled=${group.notificationsEnabled}"
+            )
             return
         }
 
+        val entries = medicationLogRepository.getScheduledGroupEntriesSince(after)
         val plan = buildNextMedicationReminderPlans(
             groups = listOf(group),
-            entries = medicationLogRepository.getScheduledGroupEntriesSince(after),
+            entries = entries,
             now = after
-        ).firstOrNull() ?: return
+        ).firstOrNull() ?: return diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_group_skipped reason=no_plan groupUuid=$groupUuid entries=${entries.size}"
+        )
 
         scheduleReminder(plan)
         reminderScheduleStore.addScheduledGroupUuid(plan.groupUuid)
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_reschedule_group_complete groupUuid=${plan.groupUuid} " +
+                "scheduledAt=${plan.scheduledAt} scheduleTimeUuid=${plan.scheduleTimeUuid} entries=${entries.size}"
+        )
     }
 
     suspend fun cancelReminder(groupUuid: UUID) {
+        diagnosticsLogger.info(TAG, "reminder_cancel_start groupUuid=$groupUuid")
         cancelReminderAlarm(groupUuid)
         reminderScheduleStore.removeScheduledGroupUuid(groupUuid)
+        diagnosticsLogger.info(TAG, "reminder_cancel_complete groupUuid=$groupUuid")
     }
 
     fun canScheduleExactReminders(): Boolean {
@@ -138,7 +207,15 @@ class MedicationReminderScheduler @Inject constructor(
             scheduleTimeUuid = plan.scheduleTimeUuid,
         )
 
-        if (canScheduleExactReminders()) {
+        val exactAlarm = canScheduleExactReminders()
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_alarm_schedule groupUuid=${plan.groupUuid} " +
+                "scheduleTimeUuid=${plan.scheduleTimeUuid} scheduledAt=${plan.scheduledAt} " +
+                "triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
+        )
+
+        if (exactAlarm) {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
@@ -179,7 +256,12 @@ class MedicationReminderScheduler @Inject constructor(
     }
 
     private fun cancelReminderAlarm(groupUuid: UUID) {
+        diagnosticsLogger.info(TAG, "reminder_alarm_cancel groupUuid=$groupUuid")
         alarmManager.cancel(buildReminderPendingIntent(groupUuid))
+    }
+
+    private companion object {
+        const val TAG = "MedicationReminderScheduler"
     }
 }
 

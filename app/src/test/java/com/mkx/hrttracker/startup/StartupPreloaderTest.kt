@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -37,6 +38,7 @@ class StartupPreloaderTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     @Test
     fun startAfterFirstHomeFrame_reschedulesRemindersAfterWarmup() = runTest {
@@ -63,6 +65,7 @@ class StartupPreloaderTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         ).startAfterFirstHomeFrame()
 
         coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
@@ -94,17 +97,18 @@ class StartupPreloaderTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         ).startReminderRescheduleFromSnapshot(now = now)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { homeSnapshotRepository.readUsableHomeSnapshot(now = now) }
-        coVerify(exactly = 1) {
+        coVerify(timeout = 1_000, exactly = 1) { homeSnapshotRepository.readUsableHomeSnapshot(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(
                 snapshot = snapshot,
                 now = now,
             )
         }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
     }
 
@@ -126,14 +130,24 @@ class StartupPreloaderTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         ).startReminderRescheduleFromSnapshot(now = now)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
-        coVerify(exactly = 0) {
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 0) {
             medicationReminderScheduler.rescheduleFromHomeSnapshot(any(), any())
         }
         verify(exactly = 0) { databaseHolder.get() }
+        verify {
+            diagnosticsLogger.info(
+                "StartupPreloader",
+                match { message ->
+                    "snapshot_reminder_reschedule_no_usable_snapshot" in message &&
+                        "now=2026-05-06T10:15" in message
+                }
+            )
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -154,11 +168,12 @@ class StartupPreloaderTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         ).startReminderRescheduleFromWarmDatabase(now = now)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
         coVerify(exactly = 0) { medicationGroupRepository.getGroups() }
         coVerify(exactly = 0) { medicationLogRepository.getEntries() }
@@ -185,11 +200,12 @@ class StartupPreloaderTest {
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         ).startReminderRescheduleFromWarmDatabase(now = now)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
-        coVerify(exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderScheduler.rescheduleAll(now = now) }
+        coVerify(timeout = 1_000, exactly = 1) { medicationReminderSnoozeScheduler.rescheduleAll(now = now) }
         verify(exactly = 0) { databaseHolder.get() }
     }
 }

@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -46,6 +47,7 @@ class MedicationReminderSchedulerTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
 
     private lateinit var scheduler: MedicationReminderScheduler
 
@@ -73,6 +75,7 @@ class MedicationReminderSchedulerTest {
             settingsRepository = settingsRepository,
             reminderScheduleStore = reminderScheduleStore,
             medicationReminderSnoozeScheduler = snoozeScheduler,
+            diagnosticsLogger = diagnosticsLogger,
         )
     }
 
@@ -141,6 +144,17 @@ class MedicationReminderSchedulerTest {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
         coVerify { reminderScheduleStore.replaceScheduledGroupUuids(setOf(group.uuid)) }
+        verify {
+            diagnosticsLogger.info(
+                "MedicationReminderScheduler",
+                match { message ->
+                    "reminder_reschedule_all_complete" in message &&
+                        "groups=1" in message &&
+                        "plans=1" in message &&
+                        "stored=1" in message
+                }
+            )
+        }
     }
 
     @Test
