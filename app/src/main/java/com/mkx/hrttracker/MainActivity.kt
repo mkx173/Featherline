@@ -20,6 +20,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
@@ -96,6 +97,28 @@ class MainActivity : AppCompatActivity() {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
                 val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(
+                    appLockUiState.isReady,
+                    mainUiState.homeDataReady,
+                    mainUiState.homeSource,
+                    mainUiState.now,
+                ) {
+                    if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
+                        return@LaunchedEffect
+                    }
+                    when (mainUiState.homeSource) {
+                        HomeInputSource.SNAPSHOT -> {
+                            startupPreloaderProvider.get()
+                                .startReminderRescheduleFromSnapshot(mainUiState.now)
+                        }
+                        HomeInputSource.ROOM -> {
+                            startupPreloaderProvider.get()
+                                .startReminderRescheduleFromWarmDatabase(mainUiState.now)
+                        }
+                        null -> Unit
+                    }
+                }
 
                 LaunchedEffect(
                     appLockUiState.isReady,

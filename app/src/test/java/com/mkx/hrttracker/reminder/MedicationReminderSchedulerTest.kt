@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
+import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -121,6 +122,40 @@ class MedicationReminderSchedulerTest {
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
+    }
+
+    @Test
+    fun rescheduleFromHomeSnapshot_schedules_enabled_groups_without_room_reads() = runTest {
+        val now = LocalDateTime.of(2026, 4, 20, 8, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("c532a083-f7ef-464a-9cdb-b70a5eaf4c9c"),
+            notificationsEnabled = true
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns
+            SettingsState(remindersEnabled = true)
+
+        scheduler.rescheduleFromHomeSnapshot(
+            snapshot = HomeSnapshotRecord(
+                schemaVersion = 3,
+                generation = 1L,
+                generatedAtEpochMillis = Instant.parse("2026-04-20T00:00:00Z").toEpochMilli(),
+                anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+                zoneId = "Asia/Tokyo",
+                sourceFingerprint = "fingerprint",
+                pkProjection = null,
+                activeGroups = listOf(group),
+                scheduleEntries = emptyList(),
+                antiandrogenHistoryEntries = emptyList(),
+            ),
+            now = now,
+        )
+
+        verify {
+            alarmManager.cancel(any<PendingIntent>())
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+        coVerify(exactly = 0) { groupRepository.getGroups() }
+        coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
     }
 
     private fun medicationGroup(

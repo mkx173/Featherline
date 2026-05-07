@@ -15,6 +15,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -25,7 +27,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,15 +34,24 @@ import javax.inject.Singleton
 class HomeSnapshotRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotStore: HomeSnapshotStore,
+    private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) {
     private val refreshMutex = Mutex()
+    private val homeDataMutationMutex = Mutex()
     private val snapshotMutationMutex = Mutex()
-    private val invalidationGeneration = AtomicLong(0)
 
     fun observeHomeSnapshot(): Flow<HomeSnapshotRecord?> {
-        return homeSnapshotStore.observeSnapshot()
+        return combine(
+            homeSnapshotStore.observeSnapshot(),
+            homeSnapshotGenerationStore.observeGeneration(),
+        ) { snapshot, generation ->
+            snapshot?.takeIf {
+                it.generation >= generation
+            }
+        }
+            .distinctUntilChanged()
             .onEach { snapshot ->
                 StartupTiming.mark(
                     if (snapshot == null) {
@@ -51,6 +61,20 @@ class HomeSnapshotRepository @Inject constructor(
                     }
                 )
             }
+    }
+
+    // All medication group, medication log, and profile writes that affect Home data
+    // must go through this gate so stale snapshots are rejected before the DB changes.
+    suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
+        return homeDataMutationMutex.withLock {
+            refreshMutex.withLock {
+                homeSnapshotGenerationStore.incrementGeneration()
+                val result = block()
+                clearSnapshotBestEffort()
+                refreshHomeSnapshotAsync(force = true)
+                result
+            }
+        }
     }
 
     fun isSnapshotUsable(
@@ -73,6 +97,21 @@ class HomeSnapshotRepository @Inject constructor(
         val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId)
         return pkProjection.windowStartEpochMillis <= chartWindow.windowStartEpochMillis &&
             pkProjection.windowEndEpochMillis >= chartWindow.windowEndEpochMillis
+    }
+
+    suspend fun readUsableHomeSnapshot(
+        now: LocalDateTime = LocalDateTime.now(),
+    ): HomeSnapshotRecord? {
+        val snapshot = homeSnapshotStore.readSnapshot() ?: return null
+        val generation = homeSnapshotGenerationStore.readGeneration()
+        return snapshot.takeIf {
+            it.generation >= generation &&
+                isSnapshotUsable(
+                    snapshot = it,
+                    now = now,
+                    zoneId = ZoneId.systemDefault(),
+                )
+        }
     }
 
     fun scheduleEntriesForHome(
@@ -128,8 +167,8 @@ class HomeSnapshotRepository @Inject constructor(
     }
 
     suspend fun invalidateHomeSnapshot() {
+        homeSnapshotGenerationStore.incrementGeneration()
         snapshotMutationMutex.withLock {
-            invalidationGeneration.incrementAndGet()
             homeSnapshotStore.clearSnapshot()
         }
     }
@@ -139,12 +178,17 @@ class HomeSnapshotRepository @Inject constructor(
         force: Boolean = false,
     ) {
         refreshMutex.withLock {
-            val refreshGeneration = invalidationGeneration.get()
+            val refreshGeneration = homeSnapshotGenerationStore.readGeneration()
             val zoneId = ZoneId.systemDefault()
             val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId)
             val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
             val existingSnapshot = homeSnapshotStore.readSnapshot()
-            if (!force && existingSnapshot != null && isSnapshotUsable(existingSnapshot, now, zoneId)) {
+            if (
+                !force &&
+                existingSnapshot != null &&
+                existingSnapshot.generation >= refreshGeneration &&
+                isSnapshotUsable(existingSnapshot, now, zoneId)
+            ) {
                 return@withLock
             }
 
@@ -206,6 +250,7 @@ class HomeSnapshotRepository @Inject constructor(
             )
             val snapshotRecord = HomeSnapshotRecord(
                 schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+                generation = refreshGeneration,
                 generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
                 anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                 zoneId = zoneId.id,
@@ -219,7 +264,7 @@ class HomeSnapshotRepository @Inject constructor(
             withContext(Dispatchers.IO) {
                 // Avoid restoring stale snapshot data from a refresh that raced with a write.
                 snapshotMutationMutex.withLock {
-                    if (invalidationGeneration.get() == refreshGeneration) {
+                    if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
                         homeSnapshotStore.writeSnapshot(snapshotRecord)
                         StartupTiming.mark("home_snapshot_rebuilt")
                     }
@@ -379,6 +424,20 @@ class HomeSnapshotRepository @Inject constructor(
                         .toEpochMilli(),
                 )
             }
+        }
+    }
+
+    private suspend fun clearSnapshotBestEffort() {
+        snapshotMutationMutex.withLock {
+            clearSnapshotBestEffortLocked()
+        }
+    }
+
+    private suspend fun clearSnapshotBestEffortLocked() {
+        runCatching {
+            homeSnapshotStore.clearSnapshot()
+        }.onFailure { throwable ->
+            Log.w(TAG, "Home snapshot clear failed.", throwable)
         }
     }
 }

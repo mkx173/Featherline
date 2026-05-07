@@ -93,6 +93,7 @@ class HomeSnapshotCodecTest {
         )
         val record = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 7L,
             generatedAtEpochMillis = 100L,
             anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
             zoneId = "Asia/Tokyo",

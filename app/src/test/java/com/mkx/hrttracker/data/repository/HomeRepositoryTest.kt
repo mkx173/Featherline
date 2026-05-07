@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -49,6 +50,7 @@ class HomeRepositoryTest {
     private val settingsRepository: SettingsRepository = mockk()
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
+    private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
 
@@ -169,11 +171,14 @@ class HomeRepositoryTest {
         )
 
         every { homeSnapshotStore.observeSnapshot() } returns flowOf(snapshot)
+        every { homeSnapshotGenerationStore.observeGeneration() } returns MutableStateFlow(0L)
+        coEvery { homeSnapshotGenerationStore.readGeneration() } returns 0L
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshotRepository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )

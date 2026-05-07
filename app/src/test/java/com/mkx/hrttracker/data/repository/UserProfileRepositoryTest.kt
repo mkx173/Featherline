@@ -10,7 +10,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -35,6 +34,9 @@ class UserProfileRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.userProfileDao() } returns dao
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
 
         val testScope = CoroutineScope(StandardTestDispatcher())
         repository = UserProfileRepository(databaseHolder, homeSnapshotRepository, testScope)
@@ -73,23 +75,19 @@ class UserProfileRepositoryTest {
         assert(abs(captured.captured.weightKg!! - expectedKg) < 1e-9)
         assertEquals(160.0, captured.captured.weightOriginalValue!!, 1e-9)
         assertEquals("POUNDS", captured.captured.weightOriginalUnit)
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
-    fun setWeight_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+    fun setWeight_runsWriteInsideHomeDataMutation() = runTest {
         val events = mutableListOf<String>()
-        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
-            events += "invalidate"
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            events += "mutation-start"
+            firstArg<suspend () -> Unit>().invoke()
+            events += "mutation-end"
         }
         coEvery { dao.upsertProfile(any()) } coAnswers {
             events += "write"
-        }
-        every {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
-        } answers {
-            events += "refresh"
         }
 
         repository.setWeight(
@@ -98,7 +96,7 @@ class UserProfileRepositoryTest {
             now = Instant.ofEpochMilli(1_700_000_000_000L)
         )
 
-        assertEquals(listOf("invalidate", "write", "refresh"), events)
+        assertEquals(listOf("mutation-start", "write", "mutation-end"), events)
     }
 
     @Test
@@ -113,8 +111,7 @@ class UserProfileRepositoryTest {
         assertNull(captured.captured.weightOriginalUnit)
         assertEquals(42L, captured.captured.updatedAtEpochMillis)
         coVerify(exactly = 1) { dao.upsertProfile(any()) }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test

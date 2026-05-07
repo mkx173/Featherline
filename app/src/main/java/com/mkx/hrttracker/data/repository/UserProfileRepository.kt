@@ -59,37 +59,29 @@ class UserProfileRepository @Inject constructor(
         originalUnit: WeightUnit,
         now: Instant = Instant.now(),
     ) {
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().userProfileDao().upsertProfile(
-            UserProfileEntity(
-                weightKg = originalUnit.toKg(originalValue),
-                weightOriginalValue = originalValue,
-                weightOriginalUnit = originalUnit.name,
-                updatedAtEpochMillis = now.toEpochMilli()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().userProfileDao().upsertProfile(
+                UserProfileEntity(
+                    weightKg = originalUnit.toKg(originalValue),
+                    weightOriginalValue = originalValue,
+                    weightOriginalUnit = originalUnit.name,
+                    updatedAtEpochMillis = now.toEpochMilli()
+                )
             )
-        )
-        refreshHomeSnapshotAfterMutation()
+        }
     }
 
     suspend fun clearWeight(now: Instant = Instant.now()) {
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().userProfileDao().upsertProfile(
-            UserProfileEntity(
-                weightKg = null,
-                weightOriginalValue = null,
-                weightOriginalUnit = null,
-                updatedAtEpochMillis = now.toEpochMilli()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().userProfileDao().upsertProfile(
+                UserProfileEntity(
+                    weightKg = null,
+                    weightOriginalValue = null,
+                    weightOriginalUnit = null,
+                    updatedAtEpochMillis = now.toEpochMilli()
+                )
             )
-        )
-        refreshHomeSnapshotAfterMutation()
-    }
-
-    private suspend fun invalidateHomeSnapshotBeforeMutation() {
-        homeSnapshotRepository.invalidateHomeSnapshot()
-    }
-
-    private fun refreshHomeSnapshotAfterMutation() {
-        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+        }
     }
 
     private fun UserProfileEntity.toModel(): UserProfile {

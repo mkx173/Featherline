@@ -16,7 +16,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +45,9 @@ class MedicationLogRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicationLogDao() } returns dao
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
 
         repository = MedicationLogRepository(
             databaseHolder = databaseHolder,
@@ -83,12 +85,11 @@ class MedicationLogRepositoryTest {
 
         coVerify(exactly = 1) { databaseHolder.withTransaction<Unit>(any()) }
         coVerify(exactly = 1) { dao.deleteEntriesForGroup(groupUuid.toString()) }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
-    fun deleteEntries_forEstradiolInvalidatesHomeSnapshotAndRefreshes() = runTest {
+    fun deleteEntries_forEstradiolRunsInsideHomeDataMutation() = runTest {
         val entryUuid = UUID.fromString("bf5d6d17-097a-45a7-ae8e-8202aa10cf01")
         val entry = testMedicationLogEntryEntity(
             uuid = entryUuid.toString(),
@@ -100,12 +101,11 @@ class MedicationLogRepositoryTest {
         repository.deleteEntries(listOf(entryUuid))
 
         coVerify(exactly = 1) { dao.deleteEntries(listOf(entryUuid.toString())) }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
-    fun deleteEntries_forNonEstradiolInvalidatesHomeSnapshotAndRefreshes() = runTest {
+    fun deleteEntries_forNonEstradiolRunsInsideHomeDataMutation() = runTest {
         val entryUuid = UUID.fromString("6745bdd6-2e58-42c0-8ea5-50b414313e22")
         val entry = testMedicationLogEntryEntity(
             uuid = entryUuid.toString(),
@@ -119,23 +119,19 @@ class MedicationLogRepositoryTest {
         repository.deleteEntries(listOf(entryUuid))
 
         coVerify(exactly = 1) { dao.deleteEntries(listOf(entryUuid.toString())) }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
-    fun saveEntry_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+    fun saveEntry_runsWriteInsideHomeDataMutation() = runTest {
         val events = mutableListOf<String>()
-        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
-            events += "invalidate"
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            events += "mutation-start"
+            firstArg<suspend () -> Unit>().invoke()
+            events += "mutation-end"
         }
         coEvery { dao.insertEntry(any()) } coAnswers {
             events += "write"
-        }
-        every {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
-        } answers {
-            events += "refresh"
         }
 
         repository.saveEntry(
@@ -145,7 +141,7 @@ class MedicationLogRepositoryTest {
             appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
         )
 
-        assertEquals(listOf("invalidate", "write", "refresh"), events)
+        assertEquals(listOf("mutation-start", "write", "mutation-end"), events)
     }
 
     @Test

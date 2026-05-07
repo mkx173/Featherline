@@ -78,43 +78,44 @@ class BackupRestoreService @Inject constructor(
             ?: throw IOException("Unable to decode the selected backup file.")
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)
 
-        homeSnapshotRepository.invalidateHomeSnapshot()
-        databaseHolder.runTransaction { database ->
-            database.medicationLogDao().deleteAllEntries()
-            database.medicationGroupDao().deleteAllGroups()
-            database.bloodTestDao().deleteAllResults()
-            database.bloodTestDao().deleteAllPanels()
-            database.bloodTestDao().deleteAllCustomAnalytes()
-            database.userProfileDao().deleteProfile()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.runTransaction { database ->
+                database.medicationLogDao().deleteAllEntries()
+                database.medicationGroupDao().deleteAllGroups()
+                database.bloodTestDao().deleteAllResults()
+                database.bloodTestDao().deleteAllPanels()
+                database.bloodTestDao().deleteAllCustomAnalytes()
+                database.userProfileDao().deleteProfile()
 
-            if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
-                database.bloodTestDao().insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
-            }
-            if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
-                database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
-            }
-            if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
-                database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
-            }
-            if (validatedSnapshot.medicationGroups.isNotEmpty()) {
-                database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
-            }
-            if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
-                database.medicationGroupDao().insertItems(validatedSnapshot.medicationGroupItems)
-            }
-            if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
-                database.medicationGroupDao()
-                    .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
-            }
-            if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
-                database.medicationGroupDao()
-                    .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
-            }
-            if (validatedSnapshot.medicationLogs.isNotEmpty()) {
-                database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
-            }
-            validatedSnapshot.userProfile?.let { profile ->
-                database.userProfileDao().upsertProfile(profile)
+                if (validatedSnapshot.customBloodAnalytes.isNotEmpty()) {
+                    database.bloodTestDao().insertCustomAnalytes(validatedSnapshot.customBloodAnalytes)
+                }
+                if (validatedSnapshot.bloodTestPanels.isNotEmpty()) {
+                    database.bloodTestDao().insertPanels(validatedSnapshot.bloodTestPanels)
+                }
+                if (validatedSnapshot.bloodTestResults.isNotEmpty()) {
+                    database.bloodTestDao().insertResults(validatedSnapshot.bloodTestResults)
+                }
+                if (validatedSnapshot.medicationGroups.isNotEmpty()) {
+                    database.medicationGroupDao().insertGroups(validatedSnapshot.medicationGroups)
+                }
+                if (validatedSnapshot.medicationGroupItems.isNotEmpty()) {
+                    database.medicationGroupDao().insertItems(validatedSnapshot.medicationGroupItems)
+                }
+                if (validatedSnapshot.medicationGroupScheduleTimes.isNotEmpty()) {
+                    database.medicationGroupDao()
+                        .insertScheduleTimes(validatedSnapshot.medicationGroupScheduleTimes)
+                }
+                if (validatedSnapshot.medicationGroupWeeklyDays.isNotEmpty()) {
+                    database.medicationGroupDao()
+                        .insertWeeklyDays(validatedSnapshot.medicationGroupWeeklyDays)
+                }
+                if (validatedSnapshot.medicationLogs.isNotEmpty()) {
+                    database.medicationLogDao().insertEntries(validatedSnapshot.medicationLogs)
+                }
+                validatedSnapshot.userProfile?.let { profile ->
+                    database.userProfileDao().upsertProfile(profile)
+                }
             }
         }
 
@@ -130,7 +131,6 @@ class BackupRestoreService @Inject constructor(
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
         )
-        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
         medicationReminderScheduler.rescheduleAll()
     }
 

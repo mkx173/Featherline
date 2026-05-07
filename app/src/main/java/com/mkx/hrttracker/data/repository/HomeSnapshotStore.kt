@@ -6,6 +6,9 @@ import android.security.keystore.KeyProperties
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
@@ -54,6 +57,10 @@ private val Context.homeSnapshotDataStore: DataStore<HomeSnapshotState> by dataS
     serializer = HomeSnapshotSerializer(AndroidHomeSnapshotCrypto()),
 )
 
+private val Context.homeSnapshotGenerationDataStore by preferencesDataStore(
+    name = "home_snapshot_metadata",
+)
+
 @Singleton
 class HomeSnapshotStore @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -81,8 +88,35 @@ class HomeSnapshotStore @Inject constructor(
     }
 }
 
+@Singleton
+class HomeSnapshotGenerationStore @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+) {
+    fun observeGeneration(): Flow<Long> {
+        return context.homeSnapshotGenerationDataStore.data
+            .map { preferences -> preferences[HOME_SNAPSHOT_GENERATION_KEY] ?: 0L }
+            .distinctUntilChanged()
+    }
+
+    suspend fun readGeneration(): Long {
+        return context.homeSnapshotGenerationDataStore.data
+            .map { preferences -> preferences[HOME_SNAPSHOT_GENERATION_KEY] ?: 0L }
+            .first()
+    }
+
+    suspend fun incrementGeneration(): Long {
+        var nextGeneration = 0L
+        context.homeSnapshotGenerationDataStore.edit { preferences ->
+            nextGeneration = (preferences[HOME_SNAPSHOT_GENERATION_KEY] ?: 0L) + 1L
+            preferences[HOME_SNAPSHOT_GENERATION_KEY] = nextGeneration
+        }
+        return nextGeneration
+    }
+}
+
 data class HomeSnapshotRecord(
     val schemaVersion: Int,
+    val generation: Long = 0L,
     val generatedAtEpochMillis: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
@@ -148,6 +182,7 @@ internal object HomeSnapshotCodec {
         DataOutputStream(output).use { stream ->
             stream.writeInt(SNAPSHOT_CODEC_VERSION)
             stream.writeInt(record.schemaVersion)
+            stream.writeLong(record.generation)
             stream.writeLong(record.generatedAtEpochMillis)
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeString(record.zoneId)
@@ -163,11 +198,13 @@ internal object HomeSnapshotCodec {
     fun decode(bytes: ByteArray): HomeSnapshotRecord {
         return DataInputStream(ByteArrayInputStream(bytes)).use { stream ->
             val version = stream.readInt()
-            require(version == SNAPSHOT_CODEC_VERSION) {
+            require(version in 2..SNAPSHOT_CODEC_VERSION) {
                 "Unsupported Home snapshot version: $version."
             }
+            val schemaVersion = stream.readInt()
             HomeSnapshotRecord(
-                schemaVersion = stream.readInt(),
+                schemaVersion = schemaVersion,
+                generation = if (version >= 3) stream.readLong() else 0L,
                 generatedAtEpochMillis = stream.readLong(),
                 anchorDateEpochDay = stream.readLong(),
                 zoneId = stream.readString(),
@@ -535,7 +572,8 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
     }
 }
 
-private const val SNAPSHOT_CODEC_VERSION = 2
+private const val SNAPSHOT_CODEC_VERSION = 3
+private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"

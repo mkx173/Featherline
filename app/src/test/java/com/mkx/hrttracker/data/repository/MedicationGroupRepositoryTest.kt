@@ -22,7 +22,6 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -55,6 +54,9 @@ class MedicationGroupRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.medicationGroupDao() } returns medicationGroupDao
         every { database.medicationLogDao() } returns medicationLogDao
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
 
         repository = MedicationGroupRepository(
             databaseHolder = databaseHolder,
@@ -81,12 +83,11 @@ class MedicationGroupRepositoryTest {
             medicationLogDao.reclassifyEntriesForDeletedGroup(groupUuid.toString())
             medicationGroupDao.deleteGroup(groupUuid.toString())
         }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test
-    fun deleteGroup_invalidatesHomeSnapshotBeforeWritingAndRefreshesAfter() = runTest {
+    fun deleteGroup_runsWritesInsideHomeDataMutation() = runTest {
         val groupUuid = UUID.fromString("14f6c652-a26d-4b68-ac54-c70cbec929d9")
         val events = mutableListOf<String>()
         coEvery {
@@ -94,8 +95,10 @@ class MedicationGroupRepositoryTest {
         } coAnswers {
             firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
         }
-        coEvery { homeSnapshotRepository.invalidateHomeSnapshot() } coAnswers {
-            events += "invalidate"
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            events += "mutation-start"
+            firstArg<suspend () -> Unit>().invoke()
+            events += "mutation-end"
         }
         coEvery { medicationLogDao.reclassifyEntriesForDeletedGroup(groupUuid.toString()) } coAnswers {
             events += "write-log"
@@ -103,15 +106,10 @@ class MedicationGroupRepositoryTest {
         coEvery { medicationGroupDao.deleteGroup(groupUuid.toString()) } coAnswers {
             events += "write-group"
         }
-        every {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
-        } answers {
-            events += "refresh"
-        }
 
         repository.deleteGroup(groupUuid)
 
-        assertEquals(listOf("invalidate", "write-log", "write-group", "refresh"), events)
+        assertEquals(listOf("mutation-start", "write-log", "write-group", "mutation-end"), events)
     }
 
     @Test
@@ -132,8 +130,7 @@ class MedicationGroupRepositoryTest {
             medicationLogDao.deleteEntriesForGroup(groupUuid.toString())
             medicationGroupDao.deleteGroup(groupUuid.toString())
         }
-        coVerify(exactly = 1) { homeSnapshotRepository.invalidateHomeSnapshot() }
-        verify(exactly = 1) { homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true) }
+        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
     }
 
     @Test

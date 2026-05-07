@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -40,6 +41,39 @@ class MedicationReminderScheduler @Inject constructor(
             groups = groups,
             entries = entries,
             now = now
+        )
+
+        groups.forEach { group ->
+            cancelReminder(group.uuid)
+        }
+        plans.forEach { plan ->
+            scheduleReminder(plan)
+        }
+    }
+
+    suspend fun rescheduleFromHomeSnapshot(
+        snapshot: HomeSnapshotRecord,
+        now: LocalDateTime = LocalDateTime.now(),
+    ) {
+        val groups = snapshot.activeGroups
+
+        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            groups.forEach { group ->
+                cancelReminder(group.uuid)
+            }
+            return
+        }
+
+        val entries = snapshot.scheduleEntries.filter { entry ->
+            val scheduledFor = entry.scheduledFor
+            entry.sourceGroupUuid != null &&
+                scheduledFor != null &&
+                !scheduledFor.isBefore(now)
+        }
+        val plans = buildNextMedicationReminderPlans(
+            groups = groups,
+            entries = entries,
+            now = now,
         )
 
         groups.forEach { group ->

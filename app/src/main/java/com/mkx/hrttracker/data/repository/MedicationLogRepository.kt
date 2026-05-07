@@ -127,25 +127,25 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
-        refreshHomeSnapshotAfterMutation()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().medicationLogDao().deleteEntries(uuids.map(UUID::toString))
+        }
     }
 
     suspend fun deleteAllEntries() {
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.withTransaction { database ->
-            database.medicationLogDao().deleteAllEntries()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                database.medicationLogDao().deleteAllEntries()
+            }
         }
-        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun deleteEntriesForGroup(groupUuid: UUID) {
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.withTransaction { database ->
-            database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                database.medicationLogDao().deleteEntriesForGroup(groupUuid.toString())
+            }
         }
-        refreshHomeSnapshotAfterMutation()
     }
 
     suspend fun saveEntry(
@@ -158,20 +158,20 @@ class MedicationLogRepository @Inject constructor(
         count: Int = 1,
         appliedAtTimeZoneId: String = ZoneId.systemDefault().id
     ) {
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().medicationLogDao().insertEntry(
-            buildEntryEntity(
-                uuid = uuid ?: UUID.randomUUID(),
-                medication = medication,
-                sourceGroupUuid = sourceGroupUuid,
-                scheduleTimeUuid = scheduleTimeUuid,
-                appliedAt = appliedAt,
-                scheduledFor = scheduledFor,
-                count = count,
-                appliedAtTimeZoneId = appliedAtTimeZoneId
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().medicationLogDao().insertEntry(
+                buildEntryEntity(
+                    uuid = uuid ?: UUID.randomUUID(),
+                    medication = medication,
+                    sourceGroupUuid = sourceGroupUuid,
+                    scheduleTimeUuid = scheduleTimeUuid,
+                    appliedAt = appliedAt,
+                    scheduledFor = scheduledFor,
+                    count = count,
+                    appliedAtTimeZoneId = appliedAtTimeZoneId
+                )
             )
-        )
-        refreshHomeSnapshotAfterMutation()
+        }
     }
 
     suspend fun saveEntries(
@@ -199,22 +199,22 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().medicationLogDao().insertEntries(
-            targetUuids.map { uuid ->
-                buildEntryEntity(
-                    uuid = uuid,
-                    medication = medication,
-                    sourceGroupUuid = sourceGroupUuid,
-                    scheduleTimeUuid = scheduleTimeUuid,
-                    appliedAt = appliedAt,
-                    scheduledFor = scheduledFor,
-                    count = count,
-                    appliedAtTimeZoneId = appliedAtTimeZoneId
-                )
-            }
-        )
-        refreshHomeSnapshotAfterMutation()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().medicationLogDao().insertEntries(
+                targetUuids.map { uuid ->
+                    buildEntryEntity(
+                        uuid = uuid,
+                        medication = medication,
+                        sourceGroupUuid = sourceGroupUuid,
+                        scheduleTimeUuid = scheduleTimeUuid,
+                        appliedAt = appliedAt,
+                        scheduledFor = scheduledFor,
+                        count = count,
+                        appliedAtTimeZoneId = appliedAtTimeZoneId
+                    )
+                }
+            )
+        }
     }
 
     suspend fun saveNewEntries(entries: Collection<MedicationLogEntryInput>) {
@@ -222,30 +222,22 @@ class MedicationLogRepository @Inject constructor(
             return
         }
 
-        invalidateHomeSnapshotBeforeMutation()
-        databaseHolder.get().medicationLogDao().insertEntries(
-            entries.map { entry ->
-                buildEntryEntity(
-                    uuid = UUID.randomUUID(),
-                    medication = entry.medication,
-                    sourceGroupUuid = entry.sourceGroupUuid,
-                    scheduleTimeUuid = entry.scheduleTimeUuid,
-                    appliedAt = entry.appliedAt,
-                    scheduledFor = entry.scheduledFor,
-                    count = entry.count,
-                    appliedAtTimeZoneId = entry.appliedAtTimeZoneId
-                )
-            }
-        )
-        refreshHomeSnapshotAfterMutation()
-    }
-
-    private suspend fun invalidateHomeSnapshotBeforeMutation() {
-        homeSnapshotRepository.invalidateHomeSnapshot()
-    }
-
-    private fun refreshHomeSnapshotAfterMutation() {
-        homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.get().medicationLogDao().insertEntries(
+                entries.map { entry ->
+                    buildEntryEntity(
+                        uuid = UUID.randomUUID(),
+                        medication = entry.medication,
+                        sourceGroupUuid = entry.sourceGroupUuid,
+                        scheduleTimeUuid = entry.scheduleTimeUuid,
+                        appliedAt = entry.appliedAt,
+                        scheduledFor = entry.scheduledFor,
+                        count = entry.count,
+                        appliedAtTimeZoneId = entry.appliedAtTimeZoneId
+                    )
+                }
+            )
+        }
     }
 
     private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
