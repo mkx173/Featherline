@@ -88,6 +88,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -1467,13 +1468,13 @@ private fun HistoryMonthPickerDialog(
                     label = stringResource(R.string.history_month_picker_month),
                     value = historyMonthPickerMonthLabel(pickerMonth.monthValue, appLocale),
                     expanded = expandedDropdown == HistoryMonthPickerDropdownKind.MONTH,
-                    onExpandedChange = { expanded ->
-                        expandedDropdown = if (expanded) {
-                            HistoryMonthPickerDropdownKind.MONTH
-                        } else {
-                            null
-                        }
+                    onFieldClick = { expanded ->
+                        expandedDropdown = historyMonthPickerDropdownStateAfterFieldClick(
+                            dropdown = HistoryMonthPickerDropdownKind.MONTH,
+                            expanded = expanded,
+                        )
                     },
+                    onDismissRequest = { expandedDropdown = null },
                     items = monthOptions.map { monthValue ->
                         HrtDropdownMenuItem(
                             text = historyMonthPickerMonthLabel(monthValue, appLocale),
@@ -1493,13 +1494,13 @@ private fun HistoryMonthPickerDialog(
                     label = stringResource(R.string.history_month_picker_year),
                     value = pickerMonth.year.toString(),
                     expanded = expandedDropdown == HistoryMonthPickerDropdownKind.YEAR,
-                    onExpandedChange = { expanded ->
-                        expandedDropdown = if (expanded) {
-                            HistoryMonthPickerDropdownKind.YEAR
-                        } else {
-                            null
-                        }
+                    onFieldClick = { expanded ->
+                        expandedDropdown = historyMonthPickerDropdownStateAfterFieldClick(
+                            dropdown = HistoryMonthPickerDropdownKind.YEAR,
+                            expanded = expanded,
+                        )
                     },
+                    onDismissRequest = { expandedDropdown = null },
                     items = yearOptions.map { year ->
                         HrtDropdownMenuItem(
                             text = year.toString(),
@@ -1530,20 +1531,18 @@ private fun HistoryMonthPickerDialog(
     )
 }
 
-private enum class HistoryMonthPickerDropdownKind {
-    MONTH,
-    YEAR,
-}
-
 @Composable
 private fun HistoryMonthPickerDropdown(
     label: String,
     value: String,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
+    onFieldClick: (expanded: Boolean) -> Unit,
+    onDismissRequest: () -> Unit,
     items: List<HrtDropdownMenuItem>,
     modifier: Modifier = Modifier,
 ) {
+    val focusManager = LocalFocusManager.current
+
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val menuWidth = maxWidth
         OutlinedTextField(
@@ -1560,21 +1559,24 @@ private fun HistoryMonthPickerDropdown(
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .pointerInput(value) {
+                .pointerInput(value, expanded) {
                     awaitEachGesture {
                         // Modifier.clickable doesn't work for text fields, so observe pointer
                         // events before the text field consumes them in the Main pass.
                         awaitFirstDown(pass = PointerEventPass.Initial)
                         val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
                         if (upEvent != null) {
-                            onExpandedChange(true)
+                            onFieldClick(expanded)
                         }
                     }
                 },
         )
         HrtDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) },
+            onDismissRequest = {
+                focusManager.clearFocus()
+                onDismissRequest()
+            },
             items = items,
             modifier = Modifier
                 .width(menuWidth)

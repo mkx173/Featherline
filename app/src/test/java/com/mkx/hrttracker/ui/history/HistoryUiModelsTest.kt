@@ -584,6 +584,24 @@ class HistoryUiModelsTest {
     }
 
     @Test
+    fun historyMonthPickerDropdownStateAfterFieldClick_closesExpandedDropdown() {
+        assertEquals(
+            null,
+            historyMonthPickerDropdownStateAfterFieldClick(
+                dropdown = HistoryMonthPickerDropdownKind.MONTH,
+                expanded = true,
+            )
+        )
+        assertEquals(
+            null,
+            historyMonthPickerDropdownStateAfterFieldClick(
+                dropdown = HistoryMonthPickerDropdownKind.YEAR,
+                expanded = true,
+            )
+        )
+    }
+
+    @Test
     fun buildHistoryMonthSummary_counts_logged_on_track_partial_missed_and_off_plan_days() {
         val summary = buildHistoryMonthSummary(
             entries = listOf(

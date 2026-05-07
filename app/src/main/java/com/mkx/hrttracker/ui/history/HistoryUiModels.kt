@@ -200,6 +200,22 @@ internal fun coerceHistoryMonthPickerSelection(
     ).coerceIn(calendarStartMonth, calendarEndMonth)
 }
 
+internal enum class HistoryMonthPickerDropdownKind {
+    MONTH,
+    YEAR,
+}
+
+internal fun historyMonthPickerDropdownStateAfterFieldClick(
+    dropdown: HistoryMonthPickerDropdownKind,
+    expanded: Boolean,
+): HistoryMonthPickerDropdownKind? {
+    return if (expanded) {
+        null
+    } else {
+        dropdown
+    }
+}
+
 private const val historyCalendarResetAnimationThresholdMonths = 6L
 
 internal fun buildHistoryMonthSummary(
