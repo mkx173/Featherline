@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -118,6 +121,25 @@ class ReminderNotificationManager @Inject constructor(
         }
     }
 
+    fun showDoseReminderLoggedToast(entryCount: Int) {
+        showToast(
+            context.resources.getQuantityString(
+                R.plurals.reminder_notification_entries_added,
+                entryCount,
+                entryCount,
+            )
+        )
+    }
+
+    fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
+        showToast(
+            context.getString(
+                R.string.reminder_notification_snoozed,
+                snoozeMinutes,
+            )
+        )
+    }
+
     fun cancelDoseReminderNotification(notificationTag: String) {
         NotificationManagerCompat.from(context).cancel(
             notificationTag,
@@ -174,6 +196,12 @@ class ReminderNotificationManager @Inject constructor(
                 firstGroupName,
                 additionalGroupCount,
             )
+        }
+    }
+
+    private fun showToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 }

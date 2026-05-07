@@ -111,6 +111,7 @@ class MedicationReminderActionHandlerTest {
         coVerify { reminderScheduler.rescheduleGroup(firstGroup.uuid, any()) }
         coVerify { reminderScheduler.rescheduleGroup(secondGroup.uuid, any()) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        verify { notificationManager.showDoseReminderLoggedToast(2) }
     }
 
     @Test
@@ -133,6 +134,44 @@ class MedicationReminderActionHandlerTest {
         coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
         coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+    }
+
+    @Test
+    fun remindLater_shows_snoozed_toast_when_slots_are_snoozed() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("b3fdc11f-33d2-4ce7-a759-79a9d56ba577"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery {
+            snoozeScheduler.snoozeSlots(
+                slots = listOf(slot),
+                now = scheduledAt.plusMinutes(1),
+            )
+        } returns listOf(
+            MedicationReminderSnoozeRecord(
+                slot = slot,
+                snoozeAt = scheduledAt.plusMinutes(16),
+                snoozeCount = 1,
+            )
+        )
+
+        actionHandler.remindLater(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(1),
+        )
+
+        verify {
+            notificationManager.showDoseReminderSnoozedToast(REMINDER_SNOOZE_MINUTES)
+        }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
     }
 
     @Test

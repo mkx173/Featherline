@@ -55,6 +55,7 @@ class MedicationReminderActionHandler @Inject constructor(
             medicationLogRepository.saveNewEntries(entriesToSave)
         }
 
+        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
         normalizedSlots
@@ -84,6 +85,8 @@ class MedicationReminderActionHandler @Inject constructor(
         )
         if (scheduledSnoozes.isEmpty()) {
             medicationReminderSnoozeScheduler.clearSnoozesForSlots(unfulfilledSlots)
+        } else {
+            reminderNotificationManager.showDoseReminderSnoozedToast(REMINDER_SNOOZE_MINUTES)
         }
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
     }
