@@ -473,6 +473,10 @@
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_password_message_with_name">这会用 %1$s 替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_confirm">恢复</string>
+    <string name="settings_diagnostics">诊断</string>
+    <string name="settings_diagnostics_export_logs">导出诊断日志</string>
+    <string name="settings_diagnostics_export_success">诊断日志已导出</string>
+    <string name="settings_diagnostics_export_failed">无法导出诊断日志</string>
     <string name="settings_about">关于</string>
     <string name="settings_about_privacy_policy">隐私政策</string>
     <string name="settings_about_model">关于模型</string>

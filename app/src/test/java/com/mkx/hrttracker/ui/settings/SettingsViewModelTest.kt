@@ -9,6 +9,8 @@ import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.util.AppDiagnosticsExportService
+import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -43,6 +45,7 @@ class SettingsViewModelTest {
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val backupExportService: BackupExportService = mockk()
     private val backupRestoreService: BackupRestoreService = mockk()
+    private val diagnosticsExportService: AppDiagnosticsExportService = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -55,6 +58,8 @@ class SettingsViewModelTest {
         coEvery { settingsRepository.setRemindersEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
+        every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
+            "hrttracker-diagnostics-2026-05-07_12-04-05.txt"
     }
 
     @After
@@ -121,6 +126,32 @@ class SettingsViewModelTest {
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
     }
 
+    @Test
+    fun exportDiagnosticLogs_delegatesToDiagnosticsExportService() = runTest {
+        val viewModel = createViewModel()
+        val uri: Uri = mockk()
+        coEvery {
+            diagnosticsExportService.exportLogs(destinationUri = uri, exportedAt = any())
+        } returns AppDiagnosticsExportedFile(displayName = "diagnostics.txt")
+
+        val exportedFile = viewModel.exportDiagnosticLogs(uri)
+
+        assertEquals("diagnostics.txt", exportedFile.displayName)
+        coVerify(exactly = 1) {
+            diagnosticsExportService.exportLogs(destinationUri = uri, exportedAt = any())
+        }
+    }
+
+    @Test
+    fun diagnosticsExportFileName_delegatesToDiagnosticsExportService() {
+        val viewModel = createViewModel()
+
+        assertEquals(
+            "hrttracker-diagnostics-2026-05-07_12-04-05.txt",
+            viewModel.diagnosticsExportFileName(),
+        )
+    }
+
     private fun createViewModel(): SettingsViewModel {
         return SettingsViewModel(
             settingsRepository = settingsRepository,
@@ -131,6 +162,7 @@ class SettingsViewModelTest {
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             backupExportService = backupExportService,
             backupRestoreService = backupRestoreService,
+            diagnosticsExportService = diagnosticsExportService,
         )
     }
 }

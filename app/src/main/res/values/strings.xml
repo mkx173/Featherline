@@ -482,6 +482,10 @@
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_confirm">Restore</string>
+    <string name="settings_diagnostics">Diagnostics</string>
+    <string name="settings_diagnostics_export_logs">Export diagnostic logs</string>
+    <string name="settings_diagnostics_export_success">Diagnostic logs exported</string>
+    <string name="settings_diagnostics_export_failed">Unable to export diagnostic logs</string>
     <string name="settings_about">About</string>
     <string name="settings_about_privacy_policy">Privacy policy</string>
     <string name="settings_about_model">About the model</string>

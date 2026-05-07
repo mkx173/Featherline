@@ -6,10 +6,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-open class AppDiagnosticsLogger @Inject constructor() {
+open class AppDiagnosticsLogger @Inject constructor(
+    private val logStore: AppDiagnosticsLogStore,
+) {
     private var enabled: Boolean = BuildConfig.DEBUG
 
-    internal constructor(enabled: Boolean) : this() {
+    constructor() : this(AppDiagnosticsLogStore.disabled())
+
+    internal constructor(
+        enabled: Boolean,
+        logStore: AppDiagnosticsLogStore = AppDiagnosticsLogStore.disabled(),
+    ) : this(logStore) {
         this.enabled = enabled
     }
 
@@ -17,6 +24,7 @@ open class AppDiagnosticsLogger @Inject constructor() {
         if (!enabled) {
             return
         }
+        logStore.record(AppDiagnosticsLogLevel.INFO, tag, message, null)
         runCatching {
             Log.i(tag, message)
         }
@@ -30,6 +38,7 @@ open class AppDiagnosticsLogger @Inject constructor() {
         if (!enabled) {
             return
         }
+        logStore.record(AppDiagnosticsLogLevel.WARNING, tag, message, throwable)
         runCatching {
             if (throwable == null) {
                 Log.w(tag, message)

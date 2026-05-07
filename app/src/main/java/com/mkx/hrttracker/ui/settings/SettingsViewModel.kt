@@ -20,6 +20,8 @@ import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.security.AuthenticationPromptRequest
+import com.mkx.hrttracker.util.AppDiagnosticsExportService
+import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupExportService: BackupExportService,
     private val backupRestoreService: BackupRestoreService,
+    private val diagnosticsExportService: AppDiagnosticsExportService,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
@@ -214,6 +217,16 @@ class SettingsViewModel @Inject constructor(
             fileUri = fileUri,
             password = password,
         )
+    }
+
+    fun diagnosticsExportFileName(): String {
+        return diagnosticsExportService.buildExportFileName()
+    }
+
+    suspend fun exportDiagnosticLogs(
+        destinationUri: Uri,
+    ): AppDiagnosticsExportedFile {
+        return diagnosticsExportService.exportLogs(destinationUri = destinationUri)
     }
 
     fun setPendingRestoreRequest(

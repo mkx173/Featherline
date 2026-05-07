@@ -76,6 +76,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -118,6 +119,7 @@ fun SettingsScreen(
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
     var isBackupRestoreInProgress by rememberSaveable { mutableStateOf(false) }
+    var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
     var pendingPreparedBackupDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPreparedBackupTempFilePath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -142,6 +144,8 @@ fun SettingsScreen(
     }
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
+    val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
+    val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -231,6 +235,36 @@ fun SettingsScreen(
             fileUri = fileUri,
             displayName = resolveDocumentDisplayName(context, fileUri),
         )
+    }
+    val diagnosticsExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(DIAGNOSTICS_EXPORT_MIME_TYPE)
+    ) { destinationUri ->
+        if (
+            destinationUri == null ||
+            isDiagnosticsExportInProgress ||
+            !BuildConfig.DEBUG
+        ) {
+            return@rememberLauncherForActivityResult
+        }
+        coroutineScope.launch {
+            isDiagnosticsExportInProgress = true
+            try {
+                viewModel.exportDiagnosticLogs(destinationUri)
+                Toast.makeText(
+                    context,
+                    diagnosticsExportSuccessMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } catch (_: Exception) {
+                Toast.makeText(
+                    context,
+                    diagnosticsExportFailedMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } finally {
+                isDiagnosticsExportInProgress = false
+            }
+        }
     }
 
     LaunchedEffect(configuration) {
@@ -349,6 +383,21 @@ fun SettingsScreen(
         },
         isBackupExportInProgress = isBackupExportInProgress || isBackupFlowPending,
         isBackupRestoreInProgress = isBackupRestoreInProgress,
+        showDiagnosticsExport = BuildConfig.DEBUG,
+        isDiagnosticsExportInProgress = isDiagnosticsExportInProgress,
+        onExportDiagnosticLogsClick = {
+            if (!isDiagnosticsExportInProgress && BuildConfig.DEBUG) {
+                try {
+                    diagnosticsExportLauncher.launch(viewModel.diagnosticsExportFileName())
+                } catch (_: Exception) {
+                    Toast.makeText(
+                        context,
+                        diagnosticsExportFailedMessage,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        },
         onCalibrationClick = onCalibrationClick,
         scrollToTopSignal = scrollToTopSignal,
         modifier = modifier
@@ -472,6 +521,9 @@ private fun SettingsScreenContent(
     onRestoreFromFileClick: () -> Unit,
     isBackupExportInProgress: Boolean,
     isBackupRestoreInProgress: Boolean,
+    showDiagnosticsExport: Boolean,
+    isDiagnosticsExportInProgress: Boolean,
+    onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
     scrollToTopSignal: Int = 0,
     modifier: Modifier = Modifier
@@ -894,6 +946,36 @@ private fun SettingsScreenContent(
                         SettingsChevronTrailingIcon()
                     }
                 )
+            }
+
+            if (showDiagnosticsExport) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+                SettingsSectionTitle(
+                    text = stringResource(R.string.settings_diagnostics)
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.list_segment_gap)
+                    )
+                ) {
+                    SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_diagnostics_export_logs),
+                        enabled = !isDiagnosticsExportInProgress,
+                        index = 0,
+                        count = 1,
+                        onClick = onExportDiagnosticLogsClick,
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_bug_report)
+                            )
+                        },
+                        trailingContent = {
+                            SettingsChevronTrailingIcon()
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1370,12 +1452,16 @@ private fun SettingsScreenPreview() {
             onRestoreFromFileClick = { },
             isBackupExportInProgress = false,
             isBackupRestoreInProgress = false,
+            showDiagnosticsExport = true,
+            isDiagnosticsExportInProgress = false,
+            onExportDiagnosticLogsClick = { },
             onCalibrationClick = { },
         )
     }
 }
 
 private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6
+private const val DIAGNOSTICS_EXPORT_MIME_TYPE = "text/plain"
 
 private fun persistBackupRestoreReadPermission(
     context: Context,
