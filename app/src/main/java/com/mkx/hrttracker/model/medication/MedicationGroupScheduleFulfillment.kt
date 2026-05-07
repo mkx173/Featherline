@@ -55,12 +55,12 @@ fun isWithinScheduleFulfillmentWindow(
 ): Boolean {
     val offset = Duration.between(scheduledFor, appliedAt)
     return if (offset.isNegative) {
-        offset.abs() <= scheduleFulfillmentAllowedOffset(
+        offset.abs() < scheduleFulfillmentAllowedOffset(
             scheduledFor = scheduledFor,
             adjacentScheduledFor = previousScheduledFor ?: nextScheduledFor
         )
     } else {
-        offset <= scheduleFulfillmentAllowedOffset(
+        offset < scheduleFulfillmentAllowedOffset(
             scheduledFor = scheduledFor,
             adjacentScheduledFor = nextScheduledFor
         )

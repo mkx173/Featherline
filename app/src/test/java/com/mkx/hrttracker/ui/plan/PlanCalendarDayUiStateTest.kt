@@ -742,7 +742,7 @@ class PlanCalendarDayUiStateTest {
     }
 
     @Test
-    fun isSlotFulfilled_ignores_group_entry_outside_schedule_fulfillment_window() {
+    fun isSlotFulfilled_uses_strict_schedule_fulfillment_window() {
         val group = medicationGroup(
             uuid = UUID.fromString("570b5e05-5409-4979-971e-140f26eba0fd"),
             schedule = MedicationGroupSchedule(
@@ -765,7 +765,7 @@ class PlanCalendarDayUiStateTest {
         val scheduledFor = LocalDateTime.of(2026, 4, 16, 9, 0)
 
         assertEquals(
-            true,
+            false,
             isSlotFulfilled(
                 group = group,
                 date = scheduledFor.toLocalDate(),
@@ -790,7 +790,39 @@ class PlanCalendarDayUiStateTest {
                     groupEntry(
                         groupUuid = group.uuid,
                         details = group.medications.single().details,
+                        appliedAt = scheduledFor.plusHours(1).minusSeconds(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+        assertEquals(
+            false,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
                         appliedAt = scheduledFor.minusHours(1),
+                        scheduledFor = scheduledFor
+                    )
+                )
+            )
+        )
+        assertEquals(
+            true,
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(
+                    groupEntry(
+                        groupUuid = group.uuid,
+                        details = group.medications.single().details,
+                        appliedAt = scheduledFor.minusHours(1).plusSeconds(1),
                         scheduledFor = scheduledFor
                     )
                 )

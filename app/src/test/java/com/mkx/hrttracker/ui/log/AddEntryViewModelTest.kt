@@ -327,7 +327,7 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun scheduleFulfillmentWindow_uses_previous_and_next_dose_offsets() {
+    fun scheduleFulfillmentWindow_excludes_exact_previous_and_next_dose_offsets() {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
         val previousScheduledFor = LocalDateTime.of(2026, 4, 22, 7, 0)
         val nextScheduledFor = LocalDateTime.of(2026, 4, 22, 13, 0)
@@ -346,13 +346,22 @@ class AddEntryViewModelTest {
                 adjacentScheduledFor = previousScheduledFor
             )
         )
-        assertFalse(
+        assertTrue(
             shouldWarnScheduleWillNotBeFulfilled(
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
                 appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0)
+            )
+        )
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 8, 0, 1)
             )
         )
         assertTrue(
@@ -364,13 +373,22 @@ class AddEntryViewModelTest {
                 appliedAt = LocalDateTime.of(2026, 4, 22, 7, 59)
             )
         )
-        assertFalse(
+        assertTrue(
             shouldWarnScheduleWillNotBeFulfilled(
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = previousScheduledFor,
                 sourceGroupNextScheduledFor = nextScheduledFor,
                 appliedAt = LocalDateTime.of(2026, 4, 22, 11, 0)
+            )
+        )
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = previousScheduledFor,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 10, 59, 59)
             )
         )
         assertTrue(
@@ -390,13 +408,22 @@ class AddEntryViewModelTest {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
         val nextScheduledFor = LocalDateTime.of(2026, 4, 22, 13, 0)
 
-        assertFalse(
+        assertTrue(
             shouldWarnScheduleWillNotBeFulfilled(
                 sourceGroupUuid = groupId,
                 scheduledFor = scheduledFor,
                 sourceGroupPreviousScheduledFor = null,
                 sourceGroupNextScheduledFor = nextScheduledFor,
                 appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0)
+            )
+        )
+        assertFalse(
+            shouldWarnScheduleWillNotBeFulfilled(
+                sourceGroupUuid = groupId,
+                scheduledFor = scheduledFor,
+                sourceGroupPreviousScheduledFor = null,
+                sourceGroupNextScheduledFor = nextScheduledFor,
+                appliedAt = LocalDateTime.of(2026, 4, 22, 7, 0, 1)
             )
         )
         assertTrue(
