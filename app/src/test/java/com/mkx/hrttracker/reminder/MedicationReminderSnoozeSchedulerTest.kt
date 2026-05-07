@@ -4,6 +4,10 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.net.Uri
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -13,11 +17,16 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.UUID
 
 class MedicationReminderSnoozeSchedulerTest {
@@ -78,16 +87,86 @@ class MedicationReminderSnoozeSchedulerTest {
         coVerify(exactly = 1) { snoozeStore.replaceSnoozeRecords(emptyList()) }
     }
 
+    @Test
+    fun clearStaleSnoozesForGroup_removes_records_for_changed_schedule_time_slots() = runTest {
+        val groupUuid = UUID.fromString("2b233a8f-1d50-4664-a810-8f117b05a5fd")
+        val changedScheduleTimeUuid = UUID.fromString("17f70e3e-5698-487c-9206-63c4d2d3992b")
+        val unchangedScheduleTimeUuid = UUID.fromString("17e9d170-9824-450a-aa9a-e608615e0121")
+        val otherGroupUuid = UUID.fromString("94733f54-a441-457d-93f0-3fd8f733f223")
+        val sharedSnoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15)
+        val changedRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = changedScheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = sharedSnoozeAt,
+        )
+        val unchangedRecord = snoozeRecord(
+            groupUuid = groupUuid,
+            scheduleTimeUuid = unchangedScheduleTimeUuid,
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 21, 0),
+            snoozeAt = sharedSnoozeAt,
+        )
+        val otherGroupRecord = snoozeRecord(
+            groupUuid = otherGroupUuid,
+            scheduleTimeUuid = UUID.fromString("0296c27f-5f6c-40c4-b104-162d070b68e4"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 30),
+        )
+        val storedRecords = slot<List<MedicationReminderSnoozeRecord>>()
+        coEvery { snoozeStore.getSnoozeRecords() } returns listOf(
+            changedRecord,
+            unchangedRecord,
+            otherGroupRecord,
+        )
+        coEvery { snoozeStore.replaceSnoozeRecords(capture(storedRecords)) } just Runs
+
+        scheduler.clearStaleSnoozesForGroup(
+            MedicationGroup(
+                uuid = groupUuid,
+                name = "Group",
+                schedule = MedicationGroupSchedule(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(10, 0), LocalTime.of(21, 0)),
+                    timeSlots = listOf(
+                        MedicationGroupScheduleTime(
+                            uuid = changedScheduleTimeUuid,
+                            time = LocalTime.of(10, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 20, 9, 5),
+                        ),
+                        MedicationGroupScheduleTime(
+                            uuid = unchangedScheduleTimeUuid,
+                            time = LocalTime.of(21, 0),
+                            effectiveFrom = LocalDateTime.of(2026, 4, 1, 0, 0),
+                        ),
+                    ),
+                ),
+                medications = emptyList(),
+                createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+                updatedAt = Instant.parse("2026-04-20T00:00:00Z"),
+            )
+        )
+
+        assertEquals(listOf(unchangedRecord, otherGroupRecord), storedRecords.captured)
+        verify(exactly = 1) { alarmManager.cancel(any<PendingIntent>()) }
+        verify(exactly = 1) {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+    }
+
     private fun snoozeRecord(
         groupUuid: UUID,
         scheduledAt: LocalDateTime,
         snoozeAt: LocalDateTime,
+        scheduleTimeUuid: UUID = UUID.nameUUIDFromBytes(groupUuid.toString().toByteArray()),
     ): MedicationReminderSnoozeRecord {
         return MedicationReminderSnoozeRecord(
             slot = MedicationReminderSlot(
                 groupUuid = groupUuid,
                 scheduledAt = scheduledAt,
-                scheduleTimeUuid = UUID.nameUUIDFromBytes(groupUuid.toString().toByteArray()),
+                scheduleTimeUuid = scheduleTimeUuid,
             ),
             snoozeAt = snoozeAt,
             snoozeCount = 1,

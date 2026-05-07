@@ -32,6 +32,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,6 +55,7 @@ class BackupRestoreService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupCrypto: BackupCrypto,
 ) {
     suspend fun restoreBackup(
@@ -132,6 +134,7 @@ class BackupRestoreService @Inject constructor(
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
         )
         medicationReminderScheduler.rescheduleAll()
+        medicationReminderSnoozeScheduler.clearAllSnoozes()
     }
 
     private fun persistReadAccess(fileUri: Uri) {

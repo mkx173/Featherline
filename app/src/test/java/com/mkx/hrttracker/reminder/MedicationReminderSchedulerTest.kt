@@ -45,6 +45,7 @@ class MedicationReminderSchedulerTest {
     private val logRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduleStore: ReminderScheduleStore = mockk()
+    private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
 
     private lateinit var scheduler: MedicationReminderScheduler
 
@@ -63,13 +64,15 @@ class MedicationReminderSchedulerTest {
         coEvery { reminderScheduleStore.addScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.removeScheduledGroupUuid(any()) } just Runs
         coEvery { reminderScheduleStore.replaceScheduledGroupUuids(any()) } just Runs
+        coEvery { snoozeScheduler.clearStaleSnoozesForGroup(any()) } just Runs
 
         scheduler = MedicationReminderScheduler(
             context = context,
             medicationGroupRepository = groupRepository,
             medicationLogRepository = logRepository,
             settingsRepository = settingsRepository,
-            reminderScheduleStore = reminderScheduleStore
+            reminderScheduleStore = reminderScheduleStore,
+            medicationReminderSnoozeScheduler = snoozeScheduler,
         )
     }
 
@@ -319,6 +322,24 @@ class MedicationReminderSchedulerTest {
         verify {
             alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
+    }
+
+    @Test
+    fun rescheduleGroup_clears_stale_snoozes_for_current_group_schedule() = runTest {
+        val group = medicationGroup(
+            uuid = UUID.fromString("ff687dfd-1ec9-49d3-9901-d99a6636e66d"),
+            notificationsEnabled = true,
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns
+            SettingsState(remindersEnabled = true)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(any()) } returns emptyList()
+        scheduler.rescheduleGroup(
+            groupUuid = group.uuid,
+            after = LocalDateTime.of(2026, 4, 20, 8, 0),
+        )
+
+        coVerify { snoozeScheduler.clearStaleSnoozesForGroup(group) }
     }
 
     private fun medicationGroup(

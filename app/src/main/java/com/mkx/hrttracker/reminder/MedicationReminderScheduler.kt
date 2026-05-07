@@ -24,6 +24,7 @@ class MedicationReminderScheduler @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     private val reminderScheduleStore: ReminderScheduleStore,
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
 ) {
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
@@ -101,6 +102,7 @@ class MedicationReminderScheduler @Inject constructor(
         }
 
         val group = medicationGroupRepository.getGroup(groupUuid) ?: return
+        medicationReminderSnoozeScheduler.clearStaleSnoozesForGroup(group)
         if (group.isArchived() || !group.notificationsEnabled) {
             return
         }

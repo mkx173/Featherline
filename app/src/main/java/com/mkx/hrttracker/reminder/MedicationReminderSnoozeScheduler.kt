@@ -5,9 +5,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.mkx.hrttracker.model.medication.MedicationGroup
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
@@ -50,9 +52,25 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             return
         }
 
+        clearSnoozesMatching { record -> record.slot in slots }
+    }
+
+    suspend fun clearStaleSnoozesForGroup(group: MedicationGroup) {
+        val slotTimesByUuid = group.schedule.timeSlots
+            .associate { slot -> slot.uuid to slot.time }
+        clearSnoozesMatching { record ->
+            val slot = record.slot
+            slot.groupUuid == group.uuid &&
+                !slot.matchesCurrentScheduleTime(slotTimesByUuid)
+        }
+    }
+
+    private suspend fun clearSnoozesMatching(
+        shouldClear: (MedicationReminderSnoozeRecord) -> Boolean,
+    ) {
         val existingRecords = snoozeStore.getSnoozeRecords()
         val affectedSnoozeTimes = existingRecords
-            .filter { record -> record.slot in slots }
+            .filter(shouldClear)
             .map(MedicationReminderSnoozeRecord::snoozeAt)
             .toSet()
         if (affectedSnoozeTimes.isEmpty()) {
@@ -67,7 +85,7 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .values
             .forEach(::cancelSnoozeBundle)
 
-        val remainingRecords = existingRecords.filterNot { record -> record.slot in slots }
+        val remainingRecords = existingRecords.filterNot(shouldClear)
         snoozeStore.replaceSnoozeRecords(remainingRecords)
         remainingRecords
             .filter { record -> record.snoozeAt in affectedSnoozeTimes }
@@ -160,6 +178,14 @@ private fun snoozeIntentData(records: List<MedicationReminderSnoozeRecord>): Uri
         .joinToString(separator = ";")
     val bundleUuid = UUID.nameUUIDFromBytes(slotsKey.toByteArray(StandardCharsets.UTF_8))
     return Uri.parse("$REMINDER_SNOOZE_URI_PREFIX/$snoozeAt/$bundleUuid")
+}
+
+private fun MedicationReminderSlot.matchesCurrentScheduleTime(
+    slotTimesByUuid: Map<UUID, LocalTime>,
+): Boolean {
+    val scheduleTimeUuid = scheduleTimeUuid ?: return false
+    val currentTime = slotTimesByUuid[scheduleTimeUuid] ?: return false
+    return currentTime == scheduledAt.toLocalTime()
 }
 
 private const val REMINDER_SNOOZE_REQUEST_CODE = 0
