@@ -202,6 +202,46 @@ class MedicationEditorSheetsTest {
         )
         assertEquals(
             MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_minutes_later,
+                value = 59
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusMinutes(59)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_minutes_earlier,
+                value = 59
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusMinutes(59)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_hours_later,
+                value = 1
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.plusHours(1)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
+                labelRes = R.string.medication_editor_schedule_offset_hours_earlier,
+                value = 1
+            ),
+            medicationLogScheduleOffset(
+                scheduledFor = scheduledFor,
+                appliedAt = scheduledFor.minusHours(1)
+            )
+        )
+        assertEquals(
+            MedicationLogScheduleOffset(
                 labelRes = R.string.medication_editor_schedule_offset_hours_later,
                 value = 1
             ),

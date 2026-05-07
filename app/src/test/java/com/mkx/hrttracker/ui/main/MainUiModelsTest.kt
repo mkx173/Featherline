@@ -323,6 +323,24 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainAntiandrogenCards_marks_due_slot_past_due_at_exactlyOneHour() {
+        val antiandrogenGroup = antiandrogenGroup(
+            uuid = UUID.fromString("3af0ed19-8986-4a66-8ced-3a2b06c219e8"),
+            times = listOf(LocalTime.of(19, 30))
+        )
+
+        val cards = buildMainAntiandrogenCards(
+            groups = listOf(antiandrogenGroup),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 20, 30),
+            zoneId = testZoneId
+        )
+
+        assertEquals(LocalDateTime.of(2026, 4, 18, 19, 30), cards.single().nextDoseAt)
+        assertEquals(true, cards.single().isNextDosePastDue)
+    }
+
+    @Test
     fun buildMainAntiandrogenCards_returns_next_scheduled_slot_after_past_due_window_expires() {
         val antiandrogenGroup = antiandrogenGroup(
             uuid = UUID.fromString("c240fd51-2797-47dc-a6ff-ad2e22309641"),
@@ -526,6 +544,30 @@ class MainUiModelsTest {
             todaySection.rows.map { it.groupColorKey }
         )
         assertNotNull(todaySection.rows.first().loggedAt)
+    }
+
+    @Test
+    fun buildMainTodaySection_marks_exactlyOneHourLateSlot_overdue() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("53f2b974-b2de-49c4-9160-c83a2219f803"),
+            name = "Daily estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(21, 0))
+            )
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 22, 0),
+            zoneId = testZoneId
+        )
+
+        assertEquals(MainTodayDoseStatus.OVERDUE, todaySection.rows.single().status)
     }
 
     @Test

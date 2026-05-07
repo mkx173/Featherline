@@ -23,7 +23,7 @@ import java.util.UUID
 
 class PlanDayOccurrenceTest {
     @Test
-    fun buildPlanDaySchedule_marks_slots_within_one_hour_of_schedule_as_due_soon() {
+    fun buildPlanDaySchedule_marks_slots_within_strictSubHourGrace_as_dueSoon() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.DAILY,
@@ -43,23 +43,23 @@ class PlanDayOccurrenceTest {
 
         assertFalse(schedule.scheduledEntries[0].isDueSoon)
         assertTrue(schedule.scheduledEntries[0].isPastDue)
-        assertTrue(schedule.scheduledEntries[1].isDueSoon)
-        assertFalse(schedule.scheduledEntries[1].isPastDue)
+        assertFalse(schedule.scheduledEntries[1].isDueSoon)
+        assertTrue(schedule.scheduledEntries[1].isPastDue)
         assertTrue(schedule.scheduledEntries[2].isDueSoon)
         assertFalse(schedule.scheduledEntries[2].isPastDue)
         assertEquals(MedicationGroupColorKey.TEAL, schedule.scheduledEntries[0].groupColorKey)
     }
 
     @Test
-    fun dueSoonAndPastDue_useOneHourGracePeriodAroundScheduledTime() {
+    fun dueSoonAndPastDue_useStrictSubHourGracePeriodAroundScheduledTime() {
         val scheduledAt = LocalDateTime.of(2026, 4, 18, 9, 0)
 
-        assertTrue(isDueSoon(scheduledAt, scheduledAt.minusHours(1)))
-        assertTrue(isDueSoon(scheduledAt, scheduledAt.plusHours(1)))
-        assertFalse(isDueSoon(scheduledAt, scheduledAt.minusHours(1).minusMinutes(1)))
-        assertFalse(isDueSoon(scheduledAt, scheduledAt.plusHours(1).plusMinutes(1)))
-        assertFalse(isPastDue(scheduledAt, scheduledAt.plusHours(1)))
-        assertTrue(isPastDue(scheduledAt, scheduledAt.plusHours(1).plusMinutes(1)))
+        assertTrue(isDueSoon(scheduledAt, scheduledAt.minusHours(1).plusSeconds(1)))
+        assertTrue(isDueSoon(scheduledAt, scheduledAt.plusHours(1).minusSeconds(1)))
+        assertFalse(isDueSoon(scheduledAt, scheduledAt.minusHours(1)))
+        assertFalse(isDueSoon(scheduledAt, scheduledAt.plusHours(1)))
+        assertFalse(isPastDue(scheduledAt, scheduledAt.plusHours(1).minusSeconds(1)))
+        assertTrue(isPastDue(scheduledAt, scheduledAt.plusHours(1)))
     }
 
     @Test

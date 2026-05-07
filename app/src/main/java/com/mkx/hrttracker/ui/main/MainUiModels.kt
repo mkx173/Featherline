@@ -727,7 +727,7 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                 return@firstNotNullOfOrNull null
             }
 
-            if (!now.isAfter(scheduledAt.plus(MainAntiandrogenDisplayGracePeriod))) {
+            if (now.isBefore(scheduledAt.plus(MainAntiandrogenDisplayGracePeriod))) {
                 MainAntiandrogenDueSlot(
                     scheduledAt = scheduledAt,
                     isPastDue = false,

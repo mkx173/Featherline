@@ -166,14 +166,14 @@ internal fun isDueSoon(
     scheduledAt: LocalDateTime,
     now: LocalDateTime
 ): Boolean {
-    return Duration.between(scheduledAt, now).abs() <= planDueSoonGracePeriod
+    return Duration.between(scheduledAt, now).abs() < planDueSoonGracePeriod
 }
 
 internal fun isPastDue(
     scheduledAt: LocalDateTime,
     now: LocalDateTime
 ): Boolean {
-    return scheduledAt.isBefore(now.minus(planDueSoonGracePeriod))
+    return !now.isBefore(scheduledAt.plus(planDueSoonGracePeriod))
 }
 
 private val planDueSoonGracePeriod: Duration = Duration.ofHours(1)

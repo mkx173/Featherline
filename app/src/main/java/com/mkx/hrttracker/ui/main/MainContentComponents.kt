@@ -140,6 +140,7 @@ import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.common.Fill
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -163,6 +164,7 @@ private val PreviewMorningScheduleUuid = UUID.fromString("f4ea56fc-0856-485e-9af
 private val PreviewPatchScheduleUuid = UUID.fromString("99cc2da0-e3ea-4bbd-a3ce-d6532b73f474")
 private val PreviewAntiandrogenScheduleUuid = UUID.fromString("35bbf5a3-7ee0-4c93-b8cf-54292964a3d7")
 private const val MainScheduleGraceMinutes = 60L
+private val MainScheduleGracePeriod = Duration.ofMinutes(MainScheduleGraceMinutes)
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
@@ -2623,16 +2625,14 @@ private fun mainTodayIsBeforeOrInGracePeriod(
     scheduledFor: LocalDateTime,
     now: LocalDateTime,
 ): Boolean {
-    return !scheduledFor.isBefore(now.minusMinutes(MainScheduleGraceMinutes))
+    return scheduledFor.isAfter(now.minus(MainScheduleGracePeriod))
 }
 
 private fun mainTodayIsInGracePeriod(
     scheduledFor: LocalDateTime,
     now: LocalDateTime,
 ): Boolean {
-    return kotlin.math.abs(
-        ChronoUnit.MINUTES.between(scheduledFor, now)
-    ) <= MainScheduleGraceMinutes
+    return Duration.between(scheduledFor, now).abs() < MainScheduleGracePeriod
 }
 
 private fun mainTodayTimeRangeTimeLabel(
