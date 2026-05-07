@@ -1924,13 +1924,11 @@ private fun MainAntiandrogenMedicationSubCard(
                     },
                     text = takenText,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 MainInfoPill(
                     iconDrawableRes = R.drawable.ic_schedule,
                     text = dueText,
-                    modifier = Modifier.weight(1f, fill = false)
                 )
             }
         }

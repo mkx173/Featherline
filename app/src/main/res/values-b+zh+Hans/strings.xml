@@ -57,8 +57,8 @@
     <string name="main_duration_compact_days">%1$d天</string>
     <string name="main_duration_compact_hours">%1$d小时</string>
     <string name="main_duration_compact_minutes">%1$d分钟</string>
-    <string name="main_duration_days_hours">%1$d天 %2$d小时</string>
-    <string name="main_duration_hours_minutes">%1$d小时 %2$d分钟</string>
+    <string name="main_duration_days_hours">%1$d天%2$d小时</string>
+    <string name="main_duration_hours_minutes">%1$d小时%2$d分钟</string>
     <string name="main_duration_minutes">%1$d分钟</string>
     <string name="main_relative_tomorrow">明天</string>
     <string name="main_relative_today_time">今天 %1$s</string>
