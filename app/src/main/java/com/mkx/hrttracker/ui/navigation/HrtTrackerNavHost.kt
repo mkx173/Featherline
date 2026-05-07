@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -235,6 +237,8 @@ fun HrtTrackerNavHost(
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     val currentBackStackEntry = navController.currentBackStackEntryAsState().value
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
@@ -315,10 +319,10 @@ fun HrtTrackerNavHost(
             navController = navController,
             startDestination = Screen.Main.route,
             modifier = Modifier.consumeWindowInsets(innerPadding),
-            enterTransition = { hrtNavHostEnterTransition() },
-            exitTransition = { hrtNavHostExitTransition() },
-            popEnterTransition = { hrtNavHostPopEnterTransition() },
-            popExitTransition = { hrtNavHostPopExitTransition() },
+            enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
+            exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
+            popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
+            popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
         ) {
             composable(Screen.Main.route) {
                 MainScreen(

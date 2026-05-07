@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.navigation
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -140,6 +142,75 @@ class NavigationTransitionsTest {
                 initialRoute = Screen.SettingsCalibrationEntry.baseRoute,
                 targetRoute = Screen.SettingsCalibration.baseRoute,
                 isPop = true,
+            )
+        )
+    }
+
+    @Test
+    fun sharedAxisXEnterOffset_movesForwardTargetsInFromTrailingEdge() {
+        assertEquals(
+            30,
+            sharedAxisXEnterOffset(
+                slideDistancePx = 30,
+                forward = true,
+                layoutDirection = LayoutDirection.Ltr,
+            )
+        )
+    }
+
+    @Test
+    fun sharedAxisXSlideDistancePx_matchesMaterialDefaultAtMdpi() {
+        assertEquals(30, sharedAxisXSlideDistancePx(Density(density = 1f)))
+    }
+
+    @Test
+    fun sharedAxisXExitOffset_movesForwardInitialContentTowardLeadingEdge() {
+        assertEquals(
+            -30,
+            sharedAxisXExitOffset(
+                slideDistancePx = 30,
+                forward = true,
+                layoutDirection = LayoutDirection.Ltr,
+            )
+        )
+    }
+
+    @Test
+    fun sharedAxisXOffsets_reverseForBackwardNavigation() {
+        assertEquals(
+            -30,
+            sharedAxisXEnterOffset(
+                slideDistancePx = 30,
+                forward = false,
+                layoutDirection = LayoutDirection.Ltr,
+            )
+        )
+        assertEquals(
+            30,
+            sharedAxisXExitOffset(
+                slideDistancePx = 30,
+                forward = false,
+                layoutDirection = LayoutDirection.Ltr,
+            )
+        )
+    }
+
+    @Test
+    fun sharedAxisXOffsets_mirrorForRtlNavigation() {
+        assertEquals(
+            -30,
+            sharedAxisXEnterOffset(
+                slideDistancePx = 30,
+                forward = true,
+                layoutDirection = LayoutDirection.Rtl,
+            )
+        )
+        assertEquals(
+            30,
+            sharedAxisXExitOffset(
+                slideDistancePx = 30,
+                forward = true,
+                layoutDirection = LayoutDirection.Rtl,
             )
         )
     }

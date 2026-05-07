@@ -11,13 +11,29 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
-import kotlin.math.roundToInt
 
+// Bottom-tab Fade Through duration. Matches Material's motionDurationLong1 default;
+// raise/lower to tune section-swap speed.
 private const val topLevelTransitionDurationMillis = 300
+
+// Bottom-tab Fade Through secondary scale. Lower values make incoming sections feel
+// farther away before settling.
 private const val topLevelFadeThroughInitialScale = 0.92f
+
+// Nested Shared Axis duration. Matches MaterialSharedAxis motionDurationLong1; tune
+// together with slide distance.
 private const val nestedTransitionDurationMillis = 300
-private const val nestedSlideDistanceFraction = 0.1f
+
+// Nested Shared Axis X slide distance. Matches R.dimen.mtrl_transition_shared_axis_slide_distance.
+private val sharedAxisXSlideDistance: Dp = 30.dp
+
+// FadeThroughProvider threshold. Outgoing content fades during 0..threshold;
+// incoming fades during threshold..1.
 internal const val navigationFadeThroughProgressThreshold = 0.35f
 
 private val navigationFadeThroughEnterEasing = Easing { fraction ->
@@ -66,7 +82,10 @@ internal fun resolveNavigationMotionPattern(
     }
 }
 
-internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTransition(): EnterTransition {
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTransition(
+    density: Density,
+    layoutDirection: LayoutDirection,
+): EnterTransition {
     return when (
         resolveNavigationMotionPattern(
             initialRoute = initialState.destination.route,
@@ -75,12 +94,19 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTr
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
-        NavigationMotionPattern.NESTED_FORWARD -> nestedEnterTransition(forward = true)
+        NavigationMotionPattern.NESTED_FORWARD -> nestedEnterTransition(
+            forward = true,
+            slideDistancePx = sharedAxisXSlideDistancePx(density),
+            layoutDirection = layoutDirection,
+        )
         else -> EnterTransition.None
     }
 }
 
-internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTransition(): ExitTransition {
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTransition(
+    density: Density,
+    layoutDirection: LayoutDirection,
+): ExitTransition {
     return when (
         resolveNavigationMotionPattern(
             initialRoute = initialState.destination.route,
@@ -89,12 +115,19 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTra
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
-        NavigationMotionPattern.NESTED_FORWARD -> nestedExitTransition(forward = true)
+        NavigationMotionPattern.NESTED_FORWARD -> nestedExitTransition(
+            forward = true,
+            slideDistancePx = sharedAxisXSlideDistancePx(density),
+            layoutDirection = layoutDirection,
+        )
         else -> ExitTransition.None
     }
 }
 
-internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnterTransition(): EnterTransition {
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnterTransition(
+    density: Density,
+    layoutDirection: LayoutDirection,
+): EnterTransition {
     return when (
         resolveNavigationMotionPattern(
             initialRoute = initialState.destination.route,
@@ -103,12 +136,19 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnte
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
-        NavigationMotionPattern.NESTED_BACKWARD -> nestedEnterTransition(forward = false)
+        NavigationMotionPattern.NESTED_BACKWARD -> nestedEnterTransition(
+            forward = false,
+            slideDistancePx = sharedAxisXSlideDistancePx(density),
+            layoutDirection = layoutDirection,
+        )
         else -> EnterTransition.None
     }
 }
 
-internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExitTransition(): ExitTransition {
+internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExitTransition(
+    density: Density,
+    layoutDirection: LayoutDirection,
+): ExitTransition {
     return when (
         resolveNavigationMotionPattern(
             initialRoute = initialState.destination.route,
@@ -117,7 +157,11 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExit
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
-        NavigationMotionPattern.NESTED_BACKWARD -> nestedExitTransition(forward = false)
+        NavigationMotionPattern.NESTED_BACKWARD -> nestedExitTransition(
+            forward = false,
+            slideDistancePx = sharedAxisXSlideDistancePx(density),
+            layoutDirection = layoutDirection,
+        )
         else -> ExitTransition.None
     }
 }
@@ -145,6 +189,39 @@ internal fun navigationFadeThroughAppearingAlphaProgress(fraction: Float): Float
 
 internal fun navigationFadeThroughDisappearingAlphaProgress(fraction: Float): Float {
     return fadeThroughDisappearingAlphaProgress(FastOutSlowInEasing.transform(fraction))
+}
+
+internal fun sharedAxisXSlideDistancePx(density: Density): Int {
+    return with(density) { sharedAxisXSlideDistance.roundToPx() }
+}
+
+// slideDistancePx is the density-resolved 30dp Material distance; forward mirrors
+// MaterialSharedAxis' forward flag, where X-forward moves content left in LTR.
+internal fun sharedAxisXEnterOffset(
+    slideDistancePx: Int,
+    forward: Boolean,
+    layoutDirection: LayoutDirection,
+): Int {
+    val trailingEdgeSign = if (layoutDirection == LayoutDirection.Ltr) 1 else -1
+    return if (forward) {
+        trailingEdgeSign * slideDistancePx
+    } else {
+        -trailingEdgeSign * slideDistancePx
+    }
+}
+
+// slideDistancePx is the density-resolved 30dp Material distance; forward mirrors
+// MaterialSharedAxis' forward flag, where X-forward moves content left in LTR.
+internal fun sharedAxisXExitOffset(
+    slideDistancePx: Int,
+    forward: Boolean,
+    layoutDirection: LayoutDirection,
+): Int {
+    return -sharedAxisXEnterOffset(
+        slideDistancePx = slideDistancePx,
+        forward = forward,
+        layoutDirection = layoutDirection,
+    )
 }
 
 private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
@@ -189,15 +266,22 @@ private fun topLevelExitTransition(): ExitTransition {
 }
 
 // Child pages within one section use directional motion to reinforce forward/back navigation.
-private fun nestedEnterTransition(forward: Boolean): EnterTransition {
+private fun nestedEnterTransition(
+    forward: Boolean,
+    slideDistancePx: Int,
+    layoutDirection: LayoutDirection,
+): EnterTransition {
     return slideInHorizontally(
         animationSpec = tween(
             durationMillis = nestedTransitionDurationMillis,
             easing = FastOutSlowInEasing,
         ),
-        initialOffsetX = { fullWidth ->
-            val distance = (fullWidth * nestedSlideDistanceFraction).roundToInt()
-            if (forward) distance else -distance
+        initialOffsetX = {
+            sharedAxisXEnterOffset(
+                slideDistancePx = slideDistancePx,
+                forward = forward,
+                layoutDirection = layoutDirection,
+            )
         }
     ) + fadeIn(
         animationSpec = tween(
@@ -207,15 +291,22 @@ private fun nestedEnterTransition(forward: Boolean): EnterTransition {
     )
 }
 
-private fun nestedExitTransition(forward: Boolean): ExitTransition {
+private fun nestedExitTransition(
+    forward: Boolean,
+    slideDistancePx: Int,
+    layoutDirection: LayoutDirection,
+): ExitTransition {
     return slideOutHorizontally(
         animationSpec = tween(
             durationMillis = nestedTransitionDurationMillis,
             easing = FastOutSlowInEasing,
         ),
-        targetOffsetX = { fullWidth ->
-            val distance = (fullWidth * nestedSlideDistanceFraction).roundToInt()
-            if (forward) -distance else distance
+        targetOffsetX = {
+            sharedAxisXExitOffset(
+                slideDistancePx = slideDistancePx,
+                forward = forward,
+                layoutDirection = layoutDirection,
+            )
         }
     ) + fadeOut(
         animationSpec = tween(
