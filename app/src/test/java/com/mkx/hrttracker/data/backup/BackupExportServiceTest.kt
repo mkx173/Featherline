@@ -448,7 +448,7 @@ class BackupExportServiceTest {
             zoneId = ZoneId.of("Asia/Tokyo"),
         )
 
-        assertEquals("hrttracker-backup-2026-04-26_12-04-05.hrtbackup", fileName)
+        assertEquals("plume-backup-2026-04-26_12-04-05.hrtbackup", fileName)
     }
 
     private fun assertContains(

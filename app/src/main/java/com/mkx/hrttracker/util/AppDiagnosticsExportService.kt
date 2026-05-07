@@ -51,7 +51,7 @@ open class AppDiagnosticsExportService @Inject constructor(
         zoneId: ZoneId = ZoneId.systemDefault(),
     ): String {
         val timestamp = FILE_NAME_TIMESTAMP_FORMATTER.format(exportedAt.atZone(zoneId))
-        return "hrttracker-diagnostics-$timestamp.txt"
+        return "plume-diagnostics-$timestamp.txt"
     }
 
     private fun buildExportText(
@@ -60,7 +60,7 @@ open class AppDiagnosticsExportService @Inject constructor(
         logcatCapture: AppDiagnosticsLogcatCapture,
     ): String {
         return buildString {
-            appendLine("HRT Tracker diagnostic logs")
+            appendLine("Plume diagnostic logs")
             appendLine("Exported at: $exportedAt")
             appendLine("Package: ${context.packageName}")
             appendLine("Application ID: ${BuildConfig.APPLICATION_ID}")

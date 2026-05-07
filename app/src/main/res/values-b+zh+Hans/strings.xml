@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HRT 记录</string>
+    <string name="app_name">Plume</string>
     <string name="tab_main">主页</string>
     <string name="tab_plan">计划</string>
     <string name="tab_history">历史</string>

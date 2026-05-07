@@ -388,7 +388,7 @@ class BackupExportService @Inject constructor(
             zoneId: ZoneId = ZoneId.systemDefault(),
         ): String {
             val timestamp = backupFileNameTimestampFormatter().format(exportedAt.atZone(zoneId))
-            return "hrttracker-backup-$timestamp.hrtbackup"
+            return "plume-backup-$timestamp.hrtbackup"
         }
 
         private const val BACKUP_MIME_TYPE = "application/octet-stream"

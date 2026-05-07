@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HRT Tracker</string>
+    <string name="app_name">Plume</string>
     <string name="tab_main">Home</string>
     <string name="tab_plan">Plan</string>
     <string name="tab_history">History</string>
