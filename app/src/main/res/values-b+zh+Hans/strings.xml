@@ -10,7 +10,7 @@
     <string name="add_medication_group">添加分组</string>
     <string name="edit_medication_group">编辑分组</string>
     <string name="archived_medication_group">已归档的分组</string>
-    <string name="main_empty_state">在这里记录下一次用药。</string>
+    <string name="main_empty_state">在这里记录下一次用药</string>
     <string name="main_today_title">今天</string>
     <string name="main_tomorrow_title">明天</string>
     <string name="main_upcoming_title">即将到来</string>
@@ -51,7 +51,7 @@
     <string name="medical_disclaimer_home_estimates_and_ranges">血药浓度为模型估算值，WPATH SOC-8 目标范围仅作参考；二者并非实测值或医疗建议，你的目标范围可能不同</string>
     <string name="medical_disclaimer_preset_doses">预设剂量为参考值，不构成医疗建议，用药安全取决于检查结果、合并用药、既往病史以及医生的监督</string>
     <string name="medical_disclaimer_reference_ranges">目标范围仅作通用指引，不构成医疗建议——你的目标范围可能因治疗方案而异</string>
-    <string name="medical_disclaimer_wpath_reference_ranges">目标范围基于 WPATH 第八版照护标准（SOC-8），仅作通用指引，不构成医疗建议——你的目标范围可能因治疗方案而异。</string>
+    <string name="medical_disclaimer_wpath_reference_ranges">目标范围基于 WPATH 第八版照护标准（SOC-8），仅作通用指引，不构成医疗建议——你的目标范围可能因治疗方案而异</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血药浓度数值为基于服药记录的模型估算值，并非实测值</string>
     <string name="main_antiandrogen_title">抗雄激素</string>
     <string name="main_antiandrogen_active_count">%1$d 活跃</string>
