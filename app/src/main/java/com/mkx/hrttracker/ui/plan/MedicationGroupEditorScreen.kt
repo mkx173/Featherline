@@ -564,8 +564,13 @@ private fun MedicationGroupEditorScreenContent(
         isNewGroupCreationFlow = isNewGroupCreationFlow,
         isFinishingAfterSave = isFinishingAfterSave,
     )
-    val shouldRenderSaveCompletionAsNewGroup = isNewGroupCreationFlow && isFinishingAfterSave
-    val shouldRenderLockedState = uiState.isLocked && !shouldRenderSaveCompletionAsNewGroup
+    val shouldSuppressLockedStateDuringGeneratedHistorySave =
+        shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
+            uiState = uiState,
+            isNewGroupCreationFlow = isNewGroupCreationFlow,
+            isFinishingAfterSave = isFinishingAfterSave,
+        )
+    val shouldRenderLockedState = uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
     val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.isArchived,
@@ -1476,7 +1481,11 @@ private fun MedicationGroupEditorScreenContent(
 
             if (shouldRenderAsEditing) {
                 item {
-                    val hasRelatedRecords = uiState.relatedEntryCount > 0
+                    val hasRelatedRecords = shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
+                        uiState = uiState,
+                        isNewGroupCreationFlow = isNewGroupCreationFlow,
+                        isFinishingAfterSave = isFinishingAfterSave,
+                    )
                     val dangerZoneItemCount = 3
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))
                     Column(
@@ -1622,6 +1631,28 @@ internal fun shouldRenderMedicationGroupEditorAsEditing(
     return uiState.isEditing && !(isNewGroupCreationFlow && isFinishingAfterSave)
 }
 
+internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
+    uiState: MedicationGroupEditorUiState,
+    isNewGroupCreationFlow: Boolean,
+    isFinishingAfterSave: Boolean,
+): Boolean {
+    return (isFinishingAfterSave || uiState.isSaving) &&
+        (isNewGroupCreationFlow || uiState.createPastScheduledSlotRecords)
+}
+
+internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
+    uiState: MedicationGroupEditorUiState,
+    isNewGroupCreationFlow: Boolean,
+    isFinishingAfterSave: Boolean,
+): Boolean {
+    return uiState.relatedEntryCount > 0 &&
+        !shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
+            uiState = uiState,
+            isNewGroupCreationFlow = isNewGroupCreationFlow,
+            isFinishingAfterSave = isFinishingAfterSave,
+        )
+}
+
 internal enum class PastScheduleOption {
     DO_NOT_SHOW,
     SHOW,
@@ -1659,10 +1690,7 @@ internal fun shouldShowGeneratePastScheduledSlotRecordsOption(
     isNewGroupCreationFlow: Boolean,
     isFinishingAfterSave: Boolean,
 ): Boolean {
-    val isCreatingGroup = !uiState.isEditing ||
-        (isNewGroupCreationFlow && isFinishingAfterSave)
-    return isCreatingGroup &&
-        !uiState.isArchived &&
+    return !uiState.isArchived &&
         !shouldShowRecreatedPastScheduleMessage(uiState)
 }
 

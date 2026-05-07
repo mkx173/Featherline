@@ -1576,8 +1576,7 @@ data class MedicationGroupEditorUiState(
             )
 
     val canCreatePastScheduledSlotRecords: Boolean
-        get() = !isEditing &&
-            includePastScheduledSlots &&
+        get() = includePastScheduledSlots &&
             canEditBackfillOption
 }
 
