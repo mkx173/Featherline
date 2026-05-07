@@ -3,8 +3,6 @@ package com.mkx.hrttracker.ui.main
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.ReportDrawnWhen
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorPosition
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -148,22 +144,64 @@ fun MainScreen(
     }
 }
 
+internal enum class HomeMoreOptionsMenuState {
+    CLOSED,
+    OPTIONS,
+    DISPLAY_UNIT,
+}
+
+internal enum class HomeMoreOptionsMenuAction {
+    OPEN_OPTIONS,
+    OPEN_DISPLAY_UNIT,
+    DISMISS,
+}
+
+internal data class HomeMoreOptionsMenuExpansion(
+    val optionsExpanded: Boolean,
+    val displayUnitExpanded: Boolean,
+)
+
+internal fun reduceHomeMoreOptionsMenuState(
+    state: HomeMoreOptionsMenuState,
+    action: HomeMoreOptionsMenuAction,
+): HomeMoreOptionsMenuState {
+    return when (action) {
+        HomeMoreOptionsMenuAction.OPEN_OPTIONS -> HomeMoreOptionsMenuState.OPTIONS
+        HomeMoreOptionsMenuAction.OPEN_DISPLAY_UNIT -> when (state) {
+            HomeMoreOptionsMenuState.OPTIONS,
+            HomeMoreOptionsMenuState.DISPLAY_UNIT -> HomeMoreOptionsMenuState.DISPLAY_UNIT
+            HomeMoreOptionsMenuState.CLOSED -> HomeMoreOptionsMenuState.CLOSED
+        }
+        HomeMoreOptionsMenuAction.DISMISS -> HomeMoreOptionsMenuState.CLOSED
+    }
+}
+
+internal fun HomeMoreOptionsMenuState.toHomeMoreOptionsMenuExpansion(): HomeMoreOptionsMenuExpansion {
+    return HomeMoreOptionsMenuExpansion(
+        optionsExpanded = this == HomeMoreOptionsMenuState.OPTIONS,
+        displayUnitExpanded = this == HomeMoreOptionsMenuState.DISPLAY_UNIT,
+    )
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun HomeMoreOptionsMenu(
     selectedUnit: BloodUnitKey,
     onUnitSelected: (BloodUnitKey) -> Unit,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    var unitSubmenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var menuState by rememberSaveable { mutableStateOf(HomeMoreOptionsMenuState.CLOSED) }
+    val menuExpansion = menuState.toHomeMoreOptionsMenuExpansion()
+
+    fun updateMenuState(action: HomeMoreOptionsMenuAction) {
+        menuState = reduceHomeMoreOptionsMenuState(menuState, action)
+    }
 
     fun dismissMenus() {
-        expanded = false
-        unitSubmenuExpanded = false
+        updateMenuState(HomeMoreOptionsMenuAction.DISMISS)
     }
 
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { updateMenuState(HomeMoreOptionsMenuAction.OPEN_OPTIONS) }) {
             Icon(
                 imageVector = Icons.Rounded.MoreVert,
                 contentDescription = stringResource(R.string.main_more_options),
@@ -171,51 +209,40 @@ private fun HomeMoreOptionsMenu(
         }
 
         DropdownMenuPopup(
-            expanded = expanded,
+            expanded = menuExpansion.optionsExpanded,
             onDismissRequest = ::dismissMenus,
         ) {
             DropdownMenuGroup(
                 shapes = MenuDefaults.groupShape(0, 1),
             ) {
-                Box {
-                    val itemInteractionSource = remember { MutableInteractionSource() }
-                    val itemHovered by itemInteractionSource.collectIsHoveredAsState()
-                    val submenuExpanded = unitSubmenuExpanded || itemHovered
-                    val selectUnitText = stringResource(R.string.main_display_unit)
+                val selectUnitText = stringResource(R.string.main_display_unit)
 
-                    DropdownMenuItem(
-                        interactionSource = itemInteractionSource,
-                        onClick = { unitSubmenuExpanded = !unitSubmenuExpanded },
-                        text = { Text(text = selectUnitText, modifier = Modifier.cjkTextOffset(selectUnitText)) },
-                        shape = MaterialTheme.shapes.medium,
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = null,
-                                modifier = Modifier.size(MenuDefaults.TrailingIconSize),
-                            )
-                        },
-                    )
-
-                    DropdownMenuPopup(
-                        popupPositionProvider =
-                            MenuDefaults.rememberDropdownMenuPopupPositionProvider(
-                                MenuAnchorPosition.End
-                            ),
-                        expanded = submenuExpanded,
-                        onDismissRequest = { unitSubmenuExpanded = false },
-                        properties = PopupProperties(focusable = false),
-                    ) {
-                        HomeDisplayUnitSubmenu(
-                            selectedUnit = selectedUnit,
-                            onUnitSelected = { unit ->
-                                onUnitSelected(unit)
-                                dismissMenus()
-                            },
+                DropdownMenuItem(
+                    onClick = { updateMenuState(HomeMoreOptionsMenuAction.OPEN_DISPLAY_UNIT) },
+                    text = { Text(text = selectUnitText, modifier = Modifier.cjkTextOffset(selectUnitText)) },
+                    shape = MaterialTheme.shapes.medium,
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            modifier = Modifier.size(MenuDefaults.TrailingIconSize),
                         )
-                    }
-                }
+                    },
+                )
             }
+        }
+
+        DropdownMenuPopup(
+            expanded = menuExpansion.displayUnitExpanded,
+            onDismissRequest = ::dismissMenus,
+        ) {
+            HomeDisplayUnitSubmenu(
+                selectedUnit = selectedUnit,
+                onUnitSelected = { unit ->
+                    onUnitSelected(unit)
+                    dismissMenus()
+                },
+            )
         }
     }
 }
