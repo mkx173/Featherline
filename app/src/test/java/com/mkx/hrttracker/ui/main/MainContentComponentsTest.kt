@@ -48,4 +48,51 @@ class MainContentComponentsTest {
             )
         )
     }
+
+    @Test
+    fun canResetMainE2ChartMinimap_disables_when_full_range_visible() {
+        assertEquals(
+            false,
+            canResetMainE2ChartMinimap(
+                visibleRange = MainE2ChartVisibleXRange(0.0, 168.0),
+                chartWindowHours = 168,
+                hasPendingReset = false,
+            )
+        )
+    }
+
+    @Test
+    fun canResetMainE2ChartMinimap_enables_when_visible_range_is_zoomed() {
+        assertEquals(
+            true,
+            canResetMainE2ChartMinimap(
+                visibleRange = MainE2ChartVisibleXRange(48.0, 96.0),
+                chartWindowHours = 168,
+                hasPendingReset = false,
+            )
+        )
+    }
+
+    @Test
+    fun canResetMainE2ChartMinimap_disables_while_reset_is_pending() {
+        assertEquals(
+            false,
+            canResetMainE2ChartMinimap(
+                visibleRange = MainE2ChartVisibleXRange(48.0, 96.0),
+                chartWindowHours = 168,
+                hasPendingReset = true,
+            )
+        )
+    }
+
+    @Test
+    fun resolveMainE2ChartMinimapDateLabelRange_uses_pending_reset_target() {
+        assertEquals(
+            MainE2ChartVisibleXRange(0.0, 168.0),
+            resolveMainE2ChartMinimapDateLabelRange(
+                visibleRange = MainE2ChartVisibleXRange(48.0, 96.0),
+                pendingResetRange = MainE2ChartVisibleXRange(0.0, 168.0),
+            )
+        )
+    }
 }

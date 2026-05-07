@@ -166,6 +166,7 @@ private const val MainScheduleGraceMinutes = 60L
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
+private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
 private val MainE2ChartPointSpacing = 32.dp
@@ -894,10 +895,47 @@ internal fun MainE2ChartCard(
     }
 }
 
-private data class MainE2ChartVisibleXRange(
+internal data class MainE2ChartVisibleXRange(
     val start: Double,
     val endInclusive: Double,
 )
+
+internal fun canResetMainE2ChartMinimap(
+    visibleRange: MainE2ChartVisibleXRange,
+    chartWindowHours: Int,
+    hasPendingReset: Boolean,
+): Boolean {
+    return !hasPendingReset &&
+        mainE2ChartMinimapIsZoomed(
+            visibleRange = visibleRange,
+            chartWindowHours = chartWindowHours,
+        )
+}
+
+internal fun resolveMainE2ChartMinimapDateLabelRange(
+    visibleRange: MainE2ChartVisibleXRange,
+    pendingResetRange: MainE2ChartVisibleXRange?,
+): MainE2ChartVisibleXRange {
+    return pendingResetRange ?: visibleRange
+}
+
+private fun mainE2ChartMinimapIsZoomed(
+    visibleRange: MainE2ChartVisibleXRange,
+    chartWindowHours: Int,
+): Boolean {
+    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val start = visibleRange.start.coerceIn(0.0, fullHours)
+    val end = visibleRange.endInclusive.coerceIn(0.0, fullHours)
+    return start > MainE2ChartMinimapRangeEpsilonHours ||
+        end < fullHours - MainE2ChartMinimapRangeEpsilonHours
+}
+
+private fun mainE2ChartMinimapFullVisibleRange(chartWindowHours: Int): MainE2ChartVisibleXRange {
+    return MainE2ChartVisibleXRange(
+        start = 0.0,
+        endInclusive = chartWindowHours.toDouble().coerceAtLeast(1.0),
+    )
+}
 
 private data class MainE2ChartViewportSnapshot(
     val rawVisibleRange: MainE2ChartVisibleXRange,
@@ -936,22 +974,53 @@ private fun MainE2ChartMinimap(
     val startDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
     val endDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
     val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val fullVisibleRange = remember(chartWindowHours) {
+        mainE2ChartMinimapFullVisibleRange(chartWindowHours)
+    }
+    val pendingResetDateLabelRange = remember(chartWindowHours) {
+        mutableStateOf<MainE2ChartVisibleXRange?>(null)
+    }
     val viewportSnapshot = coordinateMapper.viewportSnapshot.collectAsState().value
     val rawVisibleRange = viewportSnapshot?.rawVisibleRange
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
     val visibleRange = viewportSnapshot?.visibleRange
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
-    val startDateLabel = remember(chartWindowStart, dateFormatter, visibleRange.start) {
+    val pendingResetRange = pendingResetDateLabelRange.value
+    LaunchedEffect(visibleRange, pendingResetRange) {
+        if (
+            pendingResetRange != null &&
+            !mainE2ChartMinimapIsZoomed(
+                visibleRange = visibleRange,
+                chartWindowHours = chartWindowHours,
+            )
+        ) {
+            pendingResetDateLabelRange.value = null
+        }
+    }
+    val dateLabelVisibleRange = resolveMainE2ChartMinimapDateLabelRange(
+        visibleRange = visibleRange,
+        pendingResetRange = pendingResetRange,
+    )
+    val resetEnabled = canResetMainE2ChartMinimap(
+        visibleRange = visibleRange,
+        chartWindowHours = chartWindowHours,
+        hasPendingReset = pendingResetRange != null,
+    )
+    val startDateLabel = remember(chartWindowStart, dateFormatter, dateLabelVisibleRange.start) {
         dateFormatter(
             chartWindowStart
-                .plusMinutes((visibleRange.start * 60).roundToLong())
+                .plusMinutes((dateLabelVisibleRange.start * 60).roundToLong())
                 .toLocalDate()
         )
     }
-    val endDateLabel = remember(chartWindowStart, dateFormatter, visibleRange.endInclusive) {
+    val endDateLabel = remember(
+        chartWindowStart,
+        dateFormatter,
+        dateLabelVisibleRange.endInclusive,
+    ) {
         dateFormatter(
             chartWindowStart
-                .plusMinutes((visibleRange.endInclusive * 60).roundToLong())
+                .plusMinutes((dateLabelVisibleRange.endInclusive * 60).roundToLong())
                 .toLocalDate()
         )
     }
@@ -974,6 +1043,27 @@ private fun MainE2ChartMinimap(
             (scrollState.value / scrollState.maxValue).coerceIn(0f, 1f) * scrollablePlotWidth
         }
         return viewportLeft to viewportWidth
+    }
+
+    fun viewportMetricsForRange(
+        canvasWidth: Float,
+        visibleRange: MainE2ChartVisibleXRange,
+    ): Pair<Float, Float> {
+        val plotWidth = (canvasWidth - minimapHorizontalInsetPx * 2).coerceAtLeast(1f)
+        val startFraction = (visibleRange.start.coerceIn(0.0, fullHours) / fullHours)
+            .toFloat()
+        val endFraction = (visibleRange.endInclusive.coerceIn(0.0, fullHours) / fullHours)
+            .toFloat()
+        val leftFraction = minOf(startFraction, endFraction)
+        val rightFraction = maxOf(startFraction, endFraction)
+        return minimapHorizontalInsetPx + leftFraction * plotWidth to
+            ((rightFraction - leftFraction) * plotWidth).coerceIn(0f, plotWidth)
+    }
+
+    fun dateLabelViewportMetrics(canvasWidth: Float): Pair<Float, Float> {
+        return pendingResetRange
+            ?.let { range -> viewportMetricsForRange(canvasWidth, range) }
+            ?: viewportMetrics(canvasWidth)
     }
 
     Surface(
@@ -1212,11 +1302,26 @@ private fun MainE2ChartMinimap(
                     modifier = Modifier
                         .size(MainE2ChartMinimapResetButtonSize)
                         .clip(CircleShape)
-                        .clickable(role = Role.Button, onClick = onReset)
+                        .clickable(
+                            enabled = resetEnabled,
+                            role = Role.Button,
+                            onClick = {
+                                pendingResetDateLabelRange.value = fullVisibleRange
+                                onReset()
+                            },
+                        )
                         .semantics { contentDescription = resetDescription },
                     shape = CircleShape,
-                    color = colorScheme.secondaryContainer.copy(alpha = 0.72f),
-                    contentColor = colorScheme.onSecondaryContainer,
+                    color = if (resetEnabled) {
+                        colorScheme.secondaryContainer.copy(alpha = 0.72f)
+                    } else {
+                        colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+                    },
+                    contentColor = if (resetEnabled) {
+                        colorScheme.onSecondaryContainer
+                    } else {
+                        colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                    },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1247,7 +1352,7 @@ private fun MainE2ChartMinimap(
                         modifier = Modifier
                             .onSizeChanged { startDateLabelSize.value = it }
                             .offset {
-                                val (viewportLeft, _) = viewportMetrics(
+                                val (viewportLeft, _) = dateLabelViewportMetrics(
                                     minimapCanvasSize.value.width.toFloat()
                                 )
                                 val maxX = (
@@ -1270,7 +1375,7 @@ private fun MainE2ChartMinimap(
                         modifier = Modifier
                             .onSizeChanged { endDateLabelSize.value = it }
                             .offset {
-                                val (viewportLeft, viewportWidth) = viewportMetrics(
+                                val (viewportLeft, viewportWidth) = dateLabelViewportMetrics(
                                     minimapCanvasSize.value.width.toFloat()
                                 )
                                 val maxX = (
