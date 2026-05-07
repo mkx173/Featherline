@@ -542,23 +542,15 @@ private fun MedicationGroupEditorScreenContent(
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val groupNameFocusRequester = remember { FocusRequester() }
+    val shouldDisableActions = shouldDisableMedicationGroupEditorActions(
+        uiState = uiState,
+        isFinishingAfterSave = isFinishingAfterSave,
+    )
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
-        !uiState.isLoadingGroupForEditing &&
-        !uiState.isSaving &&
-        !isFinishingAfterSave &&
-        !uiState.isDeleting &&
-        !uiState.isArchiving &&
-        !uiState.isRecreatingAfterArchive &&
-        !uiState.isDeletingRelatedEntries &&
+        !shouldDisableActions &&
         !uiState.isArchived &&
         !uiState.scheduleTimeOrderError
-    val dangerZoneActionEnabled = !uiState.isLoadingGroupForEditing &&
-        !uiState.isSaving &&
-        !isFinishingAfterSave &&
-        !uiState.isDeleting &&
-        !uiState.isArchiving &&
-        !uiState.isRecreatingAfterArchive &&
-        !uiState.isDeletingRelatedEntries
+    val dangerZoneActionEnabled = !shouldDisableActions
     val shouldRenderAsEditing = shouldRenderMedicationGroupEditorAsEditing(
         uiState = uiState,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
@@ -1292,34 +1284,10 @@ private fun MedicationGroupEditorScreenContent(
                                 } else {
                                     null
                                 }
-                            val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
-                            val isPastScheduleSaveInProgress = uiState.isSaving || isFinishingAfterSave
-                            val pastScheduleOptionsAllowed = recreatedLockedMessage == null &&
-                                !uiState.isLoadingGroupForEditing &&
-                                !uiState.isDeleting &&
-                                !uiState.isArchiving &&
-                                !uiState.isRecreatingAfterArchive &&
-                                !uiState.isDeletingRelatedEntries
-                            val pastScheduleOptionsInteractive = pastScheduleOptionsAllowed &&
-                                uiState.canEditBackfillOption &&
-                                !isPastScheduleSaveInProgress
-                            val shouldKeepNewGroupPastScheduleOptionsStable =
-                                isNewGroupCreationFlow && isPastScheduleSaveInProgress
-                            val pastScheduleOptionsEnabled = pastScheduleOptionsAllowed &&
-                                (uiState.canEditBackfillOption || shouldKeepNewGroupPastScheduleOptionsStable)
-                            val showGeneratePastRecordsOption =
-                                shouldShowGeneratePastScheduledSlotRecordsOption(
-                                    uiState = uiState,
-                                    isNewGroupCreationFlow = isNewGroupCreationFlow,
-                                    isFinishingAfterSave = isFinishingAfterSave,
-                                ) ||
-                                    selectedPastScheduleOption ==
-                                    PastScheduleOption.SHOW_AND_GENERATE_RECORDS
-                            PastScheduleSelectorUiState(
-                                selectedOption = selectedPastScheduleOption,
-                                showGeneratePastRecordsOption = showGeneratePastRecordsOption,
-                                enabled = pastScheduleOptionsEnabled,
-                                interactive = pastScheduleOptionsInteractive,
+                            resolvePastScheduleSelectorState(
+                                uiState = uiState,
+                                isNewGroupCreationFlow = isNewGroupCreationFlow,
+                                isFinishingAfterSave = isFinishingAfterSave,
                                 lockedMessage = recreatedLockedMessage,
                             )
                         } else {
@@ -1631,6 +1599,19 @@ internal fun shouldRenderMedicationGroupEditorAsEditing(
     return uiState.isEditing && !(isNewGroupCreationFlow && isFinishingAfterSave)
 }
 
+internal fun shouldDisableMedicationGroupEditorActions(
+    uiState: MedicationGroupEditorUiState,
+    isFinishingAfterSave: Boolean,
+): Boolean {
+    return uiState.isLoadingGroupForEditing ||
+        uiState.isSaving ||
+        isFinishingAfterSave ||
+        uiState.isDeleting ||
+        uiState.isArchiving ||
+        uiState.isRecreatingAfterArchive ||
+        uiState.isDeletingRelatedEntries
+}
+
 internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
@@ -1669,6 +1650,36 @@ internal fun resolvePastScheduleOption(
         uiState.includePastScheduledSlots -> PastScheduleOption.SHOW
         else -> PastScheduleOption.DO_NOT_SHOW
     }
+}
+
+internal fun resolvePastScheduleSelectorState(
+    uiState: MedicationGroupEditorUiState,
+    isNewGroupCreationFlow: Boolean,
+    isFinishingAfterSave: Boolean,
+    lockedMessage: String?,
+): PastScheduleSelectorUiState {
+    val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
+    val pastScheduleOptionsEnabled = lockedMessage == null &&
+        uiState.canEditBackfillOption &&
+        !shouldDisableMedicationGroupEditorActions(
+            uiState = uiState,
+            isFinishingAfterSave = isFinishingAfterSave,
+        )
+    val showGeneratePastRecordsOption =
+        shouldShowGeneratePastScheduledSlotRecordsOption(
+            uiState = uiState,
+            isNewGroupCreationFlow = isNewGroupCreationFlow,
+            isFinishingAfterSave = isFinishingAfterSave,
+        ) ||
+            selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
+
+    return PastScheduleSelectorUiState(
+        selectedOption = selectedPastScheduleOption,
+        showGeneratePastRecordsOption = showGeneratePastRecordsOption,
+        enabled = pastScheduleOptionsEnabled,
+        interactive = pastScheduleOptionsEnabled,
+        lockedMessage = lockedMessage,
+    )
 }
 
 internal fun shouldShowPastScheduleSection(

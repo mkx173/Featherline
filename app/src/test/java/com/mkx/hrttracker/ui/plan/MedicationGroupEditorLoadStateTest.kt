@@ -434,6 +434,71 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun existingGroupSaveInProgress_disablesPastScheduleOptionsImmediately() {
+        val savingExistingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            createPastScheduledSlotRecords = true,
+            isSaving = true,
+        )
+
+        val selectorState = resolvePastScheduleSelectorState(
+            uiState = savingExistingGroupState,
+            isNewGroupCreationFlow = false,
+            isFinishingAfterSave = false,
+            lockedMessage = null,
+        )
+
+        assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
+        assertTrue(selectorState.showGeneratePastRecordsOption)
+        assertFalse(selectorState.enabled)
+        assertFalse(selectorState.interactive)
+    }
+
+    @Test
+    fun saveCompletion_disablesPastScheduleOptionsUntilNavigation() {
+        val finishingExistingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            createPastScheduledSlotRecords = true,
+            isSaved = true,
+        )
+
+        val selectorState = resolvePastScheduleSelectorState(
+            uiState = finishingExistingGroupState,
+            isNewGroupCreationFlow = false,
+            isFinishingAfterSave = true,
+            lockedMessage = null,
+        )
+
+        assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
+        assertTrue(selectorState.showGeneratePastRecordsOption)
+        assertFalse(selectorState.enabled)
+        assertFalse(selectorState.interactive)
+    }
+
+    @Test
+    fun editableExistingGroup_enablesPastScheduleOptionsOutsideActionProgress() {
+        val editingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            createPastScheduledSlotRecords = true,
+        )
+
+        val selectorState = resolvePastScheduleSelectorState(
+            uiState = editingGroupState,
+            isNewGroupCreationFlow = false,
+            isFinishingAfterSave = false,
+            lockedMessage = null,
+        )
+
+        assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
+        assertTrue(selectorState.showGeneratePastRecordsOption)
+        assertTrue(selectorState.enabled)
+        assertTrue(selectorState.interactive)
+    }
+
+    @Test
     fun newGroupSaveCompletion_keepsNewGroupOnlyOptionsStableUntilNavigation() {
         val savedNewGroupState = MedicationGroupEditorUiState(
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
