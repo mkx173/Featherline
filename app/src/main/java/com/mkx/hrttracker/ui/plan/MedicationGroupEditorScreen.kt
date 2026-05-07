@@ -149,8 +149,6 @@ fun MedicationGroupEditorScreen(
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val isNewGroupCreationFlow = remember { !uiState.isEditing }
-    var isFinishingAfterSave by rememberSaveable { mutableStateOf(false) }
-    val shouldRenderSaveCompletionState = uiState.isSaved || isFinishingAfterSave
     val createdPastScheduledSlotRecordCount = uiState.createdPastScheduledSlotRecordCount ?: 0
     val createPastScheduledSlotRecordsSuccessMessage = pluralStringResource(
         R.plurals.plan_batch_add_success,
@@ -266,7 +264,6 @@ fun MedicationGroupEditorScreen(
         uiState.createdPastScheduledSlotRecordCount,
     ) {
         if (uiState.isSaved) {
-            isFinishingAfterSave = true
             when (uiState.createPastScheduledSlotRecordsResult) {
                 CreatePastScheduledSlotRecordsResult.FAILURE -> Toast.makeText(
                     context,
@@ -386,7 +383,7 @@ fun MedicationGroupEditorScreen(
         },
         onRecoverMasterReminders = enableMasterReminders,
         hasNotificationAccess = hasNotificationAccess,
-        notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess && !uiState.isArchived,
+        notificationsToggleEnabled = uiState.remindersEnabled && hasNotificationAccess,
         showInexactReminderWarning = showInexactReminderWarning,
         onWeeklyIntervalChange = viewModel::updateWeeklyIntervalWeeks,
         onWeeklyDayChange = viewModel::toggleWeeklyDayOfWeek,
@@ -427,7 +424,6 @@ fun MedicationGroupEditorScreen(
         onDeleteWithRecordsConfirm = viewModel::deleteGroupAndRelatedEntries,
         occurrenceReferenceTime = currentMinute,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
-        isFinishingAfterSave = shouldRenderSaveCompletionState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
         modifier = modifier
     )
@@ -487,7 +483,6 @@ private fun MedicationGroupEditorScreenContent(
     onDeleteWithRecordsConfirm: () -> Unit,
     occurrenceReferenceTime: LocalDateTime? = null,
     isNewGroupCreationFlow: Boolean = !uiState.isEditing,
-    isFinishingAfterSave: Boolean = false,
     openedFromArchivedGroupsPage: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -544,25 +539,25 @@ private fun MedicationGroupEditorScreenContent(
     val groupNameFocusRequester = remember { FocusRequester() }
     val shouldDisableActions = shouldDisableMedicationGroupEditorActions(
         uiState = uiState,
-        isFinishingAfterSave = isFinishingAfterSave,
     )
     val canSave = hasSaveableMedicationGroupContent(uiState) &&
         !shouldDisableActions &&
         !uiState.isArchived &&
         !uiState.scheduleTimeOrderError
     val dangerZoneActionEnabled = !shouldDisableActions
+    val presentedNotificationsToggleEnabled =
+        notificationsToggleEnabled && !shouldDisableActions && !uiState.isArchived
     val shouldRenderAsEditing = shouldRenderMedicationGroupEditorAsEditing(
         uiState = uiState,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
-        isFinishingAfterSave = isFinishingAfterSave,
     )
     val shouldSuppressLockedStateDuringGeneratedHistorySave =
         shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
             uiState = uiState,
             isNewGroupCreationFlow = isNewGroupCreationFlow,
-            isFinishingAfterSave = isFinishingAfterSave,
         )
-    val shouldRenderLockedState = uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
+    val shouldRenderLockedState =
+        uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
     val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.isArchived,
@@ -842,7 +837,7 @@ private fun MedicationGroupEditorScreenContent(
         var shouldCreateActiveCopyAfterArchive by rememberSaveable { mutableStateOf(false) }
         var hasAcknowledgedArchiveIsPermanent by rememberSaveable { mutableStateOf(false) }
         val isArchiveActionInProgress = uiState.isSaving ||
-            isFinishingAfterSave ||
+            uiState.isFinishingAfterSave ||
             uiState.isArchiving ||
             uiState.isRecreatingAfterArchive
         AlertDialog(
@@ -1137,7 +1132,10 @@ private fun MedicationGroupEditorScreenContent(
                                 contentDescription = null
                             )
                         },
-                        trailingIcon = if (!uiState.isArchived && shouldShowGroupNameClearAction(uiState.groupName)) {
+                        trailingIcon = if (
+                            !uiState.isArchived &&
+                            shouldShowGroupNameClearAction(uiState.groupName)
+                        ) {
                             {
                                 IconButton(
                                     onClick = {
@@ -1239,7 +1237,10 @@ private fun MedicationGroupEditorScreenContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (uiState.isScheduleStartDateLocked && !uiState.isArchived) {
+                    if (
+                        uiState.isScheduleStartDateLocked &&
+                        !uiState.isArchived
+                    ) {
                         SupportMessageListItem(
                             text = stringResource(R.string.group_schedule_start_date_locked_note),
                             painter = painterResource(R.drawable.ic_calendar_lock),
@@ -1287,7 +1288,6 @@ private fun MedicationGroupEditorScreenContent(
                             resolvePastScheduleSelectorState(
                                 uiState = uiState,
                                 isNewGroupCreationFlow = isNewGroupCreationFlow,
-                                isFinishingAfterSave = isFinishingAfterSave,
                                 lockedMessage = recreatedLockedMessage,
                             )
                         } else {
@@ -1311,7 +1311,8 @@ private fun MedicationGroupEditorScreenContent(
                             selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
                             time = uiState.weeklyTime,
                             originalTime = uiState.originalWeeklyTime.takeIf {
-                                uiState.originalScheduleType == MedicationGroupScheduleType.WEEKLY
+                                uiState.originalScheduleType ==
+                                    MedicationGroupScheduleType.WEEKLY
                             },
                             previewOccurrences = upcomingOccurrences,
                             currentDate = currentDate,
@@ -1386,7 +1387,7 @@ private fun MedicationGroupEditorScreenContent(
                 ) {
                     NotificationsCard(
                         enabled = uiState.notificationsEnabled,
-                        toggleEnabled = notificationsToggleEnabled,
+                        toggleEnabled = presentedNotificationsToggleEnabled,
                         onToggle = onNotificationsEnabledChange,
                         index = 0,
                         count = notificationItemCount,
@@ -1452,7 +1453,6 @@ private fun MedicationGroupEditorScreenContent(
                     val hasRelatedRecords = shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
                         uiState = uiState,
                         isNewGroupCreationFlow = isNewGroupCreationFlow,
-                        isFinishingAfterSave = isFinishingAfterSave,
                     )
                     val dangerZoneItemCount = 3
                     EditorSectionHeader(title = stringResource(R.string.group_danger_zone_title))
@@ -1594,18 +1594,20 @@ internal fun medicationGroupEditorUpcomingOccurrenceLimit(
 internal fun shouldRenderMedicationGroupEditorAsEditing(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
-    isFinishingAfterSave: Boolean,
 ): Boolean {
-    return uiState.isEditing && !(isNewGroupCreationFlow && isFinishingAfterSave)
+    return uiState.isEditing &&
+        !(isNewGroupCreationFlow && (uiState.isSaved || uiState.isFinishingAfterSave))
 }
 
 internal fun shouldDisableMedicationGroupEditorActions(
     uiState: MedicationGroupEditorUiState,
-    isFinishingAfterSave: Boolean,
 ): Boolean {
     return uiState.isLoadingGroupForEditing ||
         uiState.isSaving ||
-        isFinishingAfterSave ||
+        uiState.isSaved ||
+        uiState.isFinishingAfterSave ||
+        uiState.isDeleted ||
+        uiState.isFinishingAfterDeleteOrArchive ||
         uiState.isDeleting ||
         uiState.isArchiving ||
         uiState.isRecreatingAfterArchive ||
@@ -1615,22 +1617,19 @@ internal fun shouldDisableMedicationGroupEditorActions(
 internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
-    isFinishingAfterSave: Boolean,
 ): Boolean {
-    return (isFinishingAfterSave || uiState.isSaving) &&
+    return (uiState.isSaving || uiState.isSaved || uiState.isFinishingAfterSave) &&
         (isNewGroupCreationFlow || uiState.createPastScheduledSlotRecords)
 }
 
 internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
-    isFinishingAfterSave: Boolean,
 ): Boolean {
     return uiState.relatedEntryCount > 0 &&
         !shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
             uiState = uiState,
             isNewGroupCreationFlow = isNewGroupCreationFlow,
-            isFinishingAfterSave = isFinishingAfterSave,
         )
 }
 
@@ -1655,7 +1654,6 @@ internal fun resolvePastScheduleOption(
 internal fun resolvePastScheduleSelectorState(
     uiState: MedicationGroupEditorUiState,
     isNewGroupCreationFlow: Boolean,
-    isFinishingAfterSave: Boolean,
     lockedMessage: String?,
 ): PastScheduleSelectorUiState {
     val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
@@ -1663,13 +1661,12 @@ internal fun resolvePastScheduleSelectorState(
         uiState.canEditBackfillOption &&
         !shouldDisableMedicationGroupEditorActions(
             uiState = uiState,
-            isFinishingAfterSave = isFinishingAfterSave,
         )
     val showGeneratePastRecordsOption =
         shouldShowGeneratePastScheduledSlotRecordsOption(
             uiState = uiState,
             isNewGroupCreationFlow = isNewGroupCreationFlow,
-            isFinishingAfterSave = isFinishingAfterSave,
+            isFinishingAfterSave = uiState.isFinishingAfterSave,
         ) ||
             selectedPastScheduleOption == PastScheduleOption.SHOW_AND_GENERATE_RECORDS
 

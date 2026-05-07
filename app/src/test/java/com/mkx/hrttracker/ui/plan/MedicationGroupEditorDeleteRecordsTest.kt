@@ -135,11 +135,13 @@ class MedicationGroupEditorDeleteRecordsTest {
                     details = testMedicationDetails(),
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
+                    scheduledFor = LocalDateTime.of(2026, 4, 26, 9, 0),
                 ),
                 testMedicationLogEntry(
                     details = testMedicationDetails(),
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
+                    scheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
                 ),
                 testMedicationLogEntry(
                     details = testMedicationDetails(),
@@ -165,6 +167,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         advanceUntilIdle()
 
         assertEquals(2, viewModel.uiState.value.relatedEntryCount)
+        assertEquals(2, viewModel.uiState.value.plannedEntryCount)
 
         viewModel.showDeleteRelatedEntriesConfirmation()
         assertEquals(true, viewModel.uiState.value.isDeleteRelatedEntriesConfirmationVisible)
@@ -178,6 +181,9 @@ class MedicationGroupEditorDeleteRecordsTest {
             viewModel.uiState.value.deleteRelatedEntriesResult,
         )
         assertEquals(false, viewModel.uiState.value.isDeleteRelatedEntriesConfirmationVisible)
+        assertEquals(0, viewModel.uiState.value.relatedEntryCount)
+        assertEquals(0, viewModel.uiState.value.plannedEntryCount)
+        assertFalse(viewModel.uiState.value.isLocked)
 
         viewModel.consumeDeleteRelatedEntriesResult()
         assertNull(viewModel.uiState.value.deleteRelatedEntriesResult)

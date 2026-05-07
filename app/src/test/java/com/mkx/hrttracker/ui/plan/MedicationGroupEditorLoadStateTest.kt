@@ -445,7 +445,6 @@ class MedicationGroupEditorLoadStateTest {
         val selectorState = resolvePastScheduleSelectorState(
             uiState = savingExistingGroupState,
             isNewGroupCreationFlow = false,
-            isFinishingAfterSave = false,
             lockedMessage = null,
         )
 
@@ -467,7 +466,6 @@ class MedicationGroupEditorLoadStateTest {
         val selectorState = resolvePastScheduleSelectorState(
             uiState = finishingExistingGroupState,
             isNewGroupCreationFlow = false,
-            isFinishingAfterSave = true,
             lockedMessage = null,
         )
 
@@ -475,6 +473,20 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(selectorState.showGeneratePastRecordsOption)
         assertFalse(selectorState.enabled)
         assertFalse(selectorState.interactive)
+    }
+
+    @Test
+    fun saveCompletion_disablesEditorActionsBeforeCompletionLatch() {
+        val savedExistingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isSaved = true,
+        )
+
+        assertTrue(
+            shouldDisableMedicationGroupEditorActions(
+                uiState = savedExistingGroupState,
+            )
+        )
     }
 
     @Test
@@ -488,7 +500,6 @@ class MedicationGroupEditorLoadStateTest {
         val selectorState = resolvePastScheduleSelectorState(
             uiState = editingGroupState,
             isNewGroupCreationFlow = false,
-            isFinishingAfterSave = false,
             lockedMessage = null,
         )
 
@@ -496,6 +507,280 @@ class MedicationGroupEditorLoadStateTest {
         assertTrue(selectorState.showGeneratePastRecordsOption)
         assertTrue(selectorState.enabled)
         assertTrue(selectorState.interactive)
+    }
+
+    @Test
+    fun deleteOrArchiveCompletionLatch_disablesPastScheduleOptionsAfterDeletedStateIsConsumed() {
+        val consumedDeletedGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            createPastScheduledSlotRecords = true,
+            isDeleted = false,
+            isFinishingAfterDeleteOrArchive = true,
+        )
+
+        val selectorState = resolvePastScheduleSelectorState(
+            uiState = consumedDeletedGroupState,
+            isNewGroupCreationFlow = false,
+            lockedMessage = null,
+        )
+
+        assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
+        assertTrue(selectorState.showGeneratePastRecordsOption)
+        assertFalse(selectorState.enabled)
+        assertFalse(selectorState.interactive)
+    }
+
+    @Test
+    fun deleteOrArchiveCompletion_disablesEditorActionsImmediately() {
+        val deletedGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isDeleted = true,
+        )
+
+        assertTrue(
+            shouldDisableMedicationGroupEditorActions(
+                uiState = deletedGroupState,
+            )
+        )
+    }
+
+    @Test
+    fun deleteOrArchiveCompletionLatch_keepsEditorActionsDisabledAfterDeletedStateIsConsumed() {
+        val consumedDeletedGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isDeleted = false,
+            isFinishingAfterDeleteOrArchive = true,
+        )
+
+        assertTrue(
+            shouldDisableMedicationGroupEditorActions(
+                uiState = consumedDeletedGroupState,
+            )
+        )
+    }
+
+    @Test
+    fun editableExistingGroup_keepsEditorActionsEnabledOutsideActionProgress() {
+        val editingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+        )
+
+        assertFalse(
+            shouldDisableMedicationGroupEditorActions(
+                uiState = editingGroupState,
+            )
+        )
+    }
+
+    @Test
+    fun deleteOrArchiveCompletion_preservesRecordPresentationInUiState() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isDeleting = true,
+            relatedEntryCount = 4,
+            plannedEntryCount = 2,
+            isArchived = false,
+            scheduleTimeOrderError = true,
+        )
+        val nextState = previousState.copy(
+            isDeleting = false,
+            isDeleted = true,
+            isFinishingAfterDeleteOrArchive = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            isArchived = true,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = nextState,
+        )
+
+        assertEquals(4, resolvedState.relatedEntryCount)
+        assertEquals(2, resolvedState.plannedEntryCount)
+        assertFalse(resolvedState.isArchived)
+        assertTrue(resolvedState.scheduleTimeOrderError)
+        assertTrue(resolvedState.isDeleted)
+        assertTrue(resolvedState.isFinishingAfterDeleteOrArchive)
+    }
+
+    @Test
+    fun editableUpdate_usesNextRecordPresentationInUiState() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            relatedEntryCount = 4,
+            plannedEntryCount = 2,
+            isArchived = false,
+            scheduleTimeOrderError = true,
+        )
+        val nextState = previousState.copy(
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            isArchived = true,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = nextState,
+        )
+
+        assertEquals(0, resolvedState.relatedEntryCount)
+        assertEquals(0, resolvedState.plannedEntryCount)
+        assertTrue(resolvedState.isArchived)
+        assertFalse(resolvedState.scheduleTimeOrderError)
+    }
+
+    @Test
+    fun deleteOrArchiveProgress_keepsRecordPresentationOnPreviousUiState() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isArchived = false,
+            relatedEntryCount = 4,
+            plannedEntryCount = 2,
+            scheduleTimeOrderError = true,
+        )
+        val nextState = previousState.copy(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isDeleting = true,
+            isArchived = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = nextState,
+        )
+
+        assertEquals(4, resolvedState.relatedEntryCount)
+        assertEquals(2, resolvedState.plannedEntryCount)
+        assertFalse(resolvedState.isArchived)
+        assertTrue(resolvedState.scheduleTimeOrderError)
+        assertTrue(resolvedState.isDeleting)
+    }
+
+    @Test
+    fun deleteOrArchiveCompletionLatch_keepsRecordPresentationOnPreviousUiState() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isArchived = false,
+            relatedEntryCount = 3,
+            plannedEntryCount = 1,
+            scheduleTimeOrderError = true,
+        )
+        val consumedDeletedGroupState = previousState.copy(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isDeleted = false,
+            isFinishingAfterDeleteOrArchive = true,
+            isArchived = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = consumedDeletedGroupState,
+        )
+
+        assertEquals(3, resolvedState.relatedEntryCount)
+        assertEquals(1, resolvedState.plannedEntryCount)
+        assertFalse(resolvedState.isArchived)
+        assertTrue(resolvedState.scheduleTimeOrderError)
+        assertTrue(resolvedState.isFinishingAfterDeleteOrArchive)
+    }
+
+    @Test
+    fun editableExistingGroup_usesNextRecordPresentationOutsideActionProgress() {
+        val previousState = MedicationGroupEditorUiState(
+            relatedEntryCount = 3,
+            plannedEntryCount = 1,
+            isArchived = false,
+            scheduleTimeOrderError = true,
+        )
+        val liveEditingState = previousState.copy(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isArchived = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = liveEditingState,
+        )
+
+        assertEquals(0, resolvedState.relatedEntryCount)
+        assertEquals(0, resolvedState.plannedEntryCount)
+        assertTrue(resolvedState.isArchived)
+        assertFalse(resolvedState.scheduleTimeOrderError)
+    }
+
+    @Test
+    fun saveCompletion_keepsRecordPresentationOnPreviousUiState() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            relatedEntryCount = 2,
+            plannedEntryCount = 1,
+            isArchived = false,
+            scheduleTimeOrderError = true,
+        )
+        val savedGroupState = previousState.copy(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isSaved = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            scheduleTimeOrderError = false,
+        )
+
+        val resolvedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = savedGroupState,
+        )
+
+        assertEquals(2, resolvedState.relatedEntryCount)
+        assertEquals(1, resolvedState.plannedEntryCount)
+        assertFalse(resolvedState.isArchived)
+        assertTrue(resolvedState.scheduleTimeOrderError)
+        assertTrue(resolvedState.isSaved)
+    }
+
+    @Test
+    fun stableRecordPresentation_keepsDerivedLockedAndBackfillStateStable() {
+        val previousState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            relatedEntryCount = 4,
+            plannedEntryCount = 2,
+            isArchived = false,
+            scheduleTimeOrderError = true,
+        )
+        val liveActionState = previousState.copy(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            isArchiving = true,
+            isArchived = true,
+            relatedEntryCount = 0,
+            plannedEntryCount = 0,
+            scheduleTimeOrderError = false,
+        )
+
+        val presentedState = resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+            previousState = previousState,
+            nextState = liveActionState,
+        )
+
+        assertEquals(4, presentedState.relatedEntryCount)
+        assertEquals(2, presentedState.plannedEntryCount)
+        assertFalse(presentedState.isArchived)
+        assertTrue(presentedState.scheduleTimeOrderError)
+        assertTrue(presentedState.isLocked)
+        assertFalse(presentedState.canEditBackfillOption)
     }
 
     @Test
@@ -518,7 +803,22 @@ class MedicationGroupEditorLoadStateTest {
             shouldRenderMedicationGroupEditorAsEditing(
                 uiState = savedNewGroupState,
                 isNewGroupCreationFlow = true,
-                isFinishingAfterSave = true,
+            )
+        )
+    }
+
+    @Test
+    fun newGroupSaveCompletionBeforeLatch_keepsNewGroupOnlyOptionsStableUntilNavigation() {
+        val savedNewGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
+            includePastScheduledSlots = true,
+            isSaved = true,
+        )
+
+        assertFalse(
+            shouldRenderMedicationGroupEditorAsEditing(
+                uiState = savedNewGroupState,
+                isNewGroupCreationFlow = true,
             )
         )
     }
@@ -542,7 +842,6 @@ class MedicationGroupEditorLoadStateTest {
             shouldRenderMedicationGroupEditorAsEditing(
                 uiState = savedExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = true,
             )
         )
     }
@@ -561,14 +860,30 @@ class MedicationGroupEditorLoadStateTest {
             shouldRenderMedicationGroupEditorAsEditing(
                 uiState = savedExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = true,
             )
         )
         assertTrue(
             shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
                 uiState = savedExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = true,
+            )
+        )
+    }
+
+    @Test
+    fun existingGroupSaveCompletionBeforeLatch_withGeneratedHistorySelected_keepsEditPresentationStable() {
+        val savedExistingGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            includePastScheduledSlots = true,
+            createPastScheduledSlotRecords = true,
+            isSaved = true,
+            plannedEntryCount = 1,
+        )
+
+        assertTrue(
+            shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
+                uiState = savedExistingGroupState,
+                isNewGroupCreationFlow = false,
             )
         )
     }
@@ -587,14 +902,12 @@ class MedicationGroupEditorLoadStateTest {
             shouldRenderMedicationGroupEditorAsEditing(
                 uiState = savingExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = false,
             )
         )
         assertTrue(
             shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
                 uiState = savingExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = false,
             )
         )
     }
@@ -613,7 +926,6 @@ class MedicationGroupEditorLoadStateTest {
             shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
                 uiState = savingExistingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = false,
             )
         )
     }
@@ -630,7 +942,6 @@ class MedicationGroupEditorLoadStateTest {
             shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
                 uiState = editingGroupState,
                 isNewGroupCreationFlow = false,
-                isFinishingAfterSave = false,
             )
         )
     }

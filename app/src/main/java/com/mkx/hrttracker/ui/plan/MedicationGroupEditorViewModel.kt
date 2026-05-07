@@ -148,7 +148,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
                 .collect { counts ->
                     _uiState.update {
-                        it.copy(
+                        val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
                             scheduleTimeOrderError = if (counts.plannedEntryCount == 0) {
@@ -156,6 +156,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
                             } else {
                                 it.scheduleTimeOrderError
                             },
+                        )
+                        resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                            previousState = it,
+                            nextState = nextState,
                         )
                     }
                 }
@@ -503,6 +507,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isArchiving ||
             currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries ||
+            currentState.isSaved ||
+            currentState.isFinishingAfterSave ||
+            currentState.isDeleted ||
+            currentState.isFinishingAfterDeleteOrArchive ||
             currentState.isArchived ||
             currentState.scheduleTimeOrderError ||
             !hasSaveableMedicationGroupContent(currentState)
@@ -605,7 +613,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             _uiState.update {
-                it.copy(
+                val nextState = it.copy(
                     groupName = if (isSaved) {
                         resolvedGroupName
                     } else {
@@ -619,9 +627,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     },
                     isSaving = false,
                     isSaved = isSaved,
+                    isFinishingAfterSave = isSaved,
                     saveMedicationGroupResult = saveResult,
                     createPastScheduledSlotRecordsResult = recordGenerationResult?.result,
                     createdPastScheduledSlotRecordCount = recordGenerationResult?.savedRecordCount,
+                )
+                resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                    previousState = it,
+                    nextState = nextState,
                 )
             }
         }
@@ -753,10 +766,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             _uiState.update {
-                it.copy(
+                val nextState = it.copy(
                     isArchiving = false,
                     isDeleted = archived,
+                    isFinishingAfterDeleteOrArchive = archived,
                     archiveMedicationGroupResult = archiveResult,
+                )
+                resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                    previousState = it,
+                    nextState = nextState,
                 )
             }
         }
@@ -964,6 +982,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         it.relatedEntryCount
                     },
+                    plannedEntryCount = if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                        0
+                    } else {
+                        it.plannedEntryCount
+                    },
+                    scheduleTimeOrderError = if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                        false
+                    } else {
+                        it.scheduleTimeOrderError
+                    },
                 )
             }
         }
@@ -971,10 +999,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun consumeSavedState() {
         _uiState.update {
-            it.copy(
+            val nextState = it.copy(
                 isSaved = false,
                 createPastScheduledSlotRecordsResult = null,
                 createdPastScheduledSlotRecordCount = null,
+            )
+            resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                previousState = it,
+                nextState = nextState,
             )
         }
     }
@@ -984,7 +1016,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun consumeDeletedState() {
-        _uiState.update { it.copy(isDeleted = false) }
+        _uiState.update {
+            val nextState = it.copy(isDeleted = false)
+            resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                previousState = it,
+                nextState = nextState,
+            )
+        }
     }
 
     fun consumeDeleteRelatedEntriesResult() {
@@ -1092,10 +1130,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             _uiState.update {
-                it.copy(
+                val nextState = it.copy(
                     isDeleting = false,
                     isDeleted = isDeleted,
+                    isFinishingAfterDeleteOrArchive = isDeleted,
                     deleteMedicationGroupResult = deleteResult,
+                )
+                resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+                    previousState = it,
+                    nextState = nextState,
                 )
             }
         }
@@ -1285,6 +1328,8 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         isLoadingGroupForEditing = false,
         isSaved = false,
         isDeleted = false,
+        isFinishingAfterSave = false,
+        isFinishingAfterDeleteOrArchive = false,
         isArchived = false,
         includePastScheduledSlots = includePastScheduledSlots,
         createPastScheduledSlotRecords = false,
@@ -1522,6 +1567,8 @@ data class MedicationGroupEditorUiState(
     val isLoadingGroupForEditing: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
+    val isFinishingAfterSave: Boolean = false,
+    val isFinishingAfterDeleteOrArchive: Boolean = false,
     val isArchived: Boolean = false,
     val includePastScheduledSlots: Boolean = true,
     val createPastScheduledSlotRecords: Boolean = false,
@@ -1578,6 +1625,36 @@ data class MedicationGroupEditorUiState(
     val canCreatePastScheduledSlotRecords: Boolean
         get() = includePastScheduledSlots &&
             canEditBackfillOption
+}
+
+internal fun resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
+    previousState: MedicationGroupEditorUiState,
+    nextState: MedicationGroupEditorUiState,
+): MedicationGroupEditorUiState {
+    return if (shouldFreezeMedicationGroupEditorRecordPresentation(nextState)) {
+        nextState.copy(
+            relatedEntryCount = previousState.relatedEntryCount,
+            plannedEntryCount = previousState.plannedEntryCount,
+            isArchived = previousState.isArchived,
+            scheduleTimeOrderError = previousState.scheduleTimeOrderError,
+        )
+    } else {
+        nextState
+    }
+}
+
+internal fun shouldFreezeMedicationGroupEditorRecordPresentation(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return uiState.isSaving ||
+        uiState.isSaved ||
+        uiState.isFinishingAfterSave ||
+        uiState.isDeleting ||
+        uiState.isDeleted ||
+        uiState.isFinishingAfterDeleteOrArchive ||
+        uiState.isArchiving ||
+        uiState.isRecreatingAfterArchive ||
+        uiState.isDeletingRelatedEntries
 }
 
 enum class CreatePastScheduledSlotRecordsResult {
