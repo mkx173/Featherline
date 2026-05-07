@@ -1050,6 +1050,7 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_feedback),
+                    supportingText = stringResource(R.string.settings_about_feedback_summary),
                     index = 3,
                     count = 5,
                     onClick = { showFeedbackEmailDialog = true },
