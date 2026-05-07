@@ -272,6 +272,7 @@ private fun CalibrationScreenContent(
                     )
                 ) {
                     CalibrationTargetRangeCard(settingsState = uiState.settingsState)
+                    CalibrationReferenceRangeDisclaimerCard()
                     CalibrationInfoCard(panelCount = uiState.panels.size)
                 }
             }
@@ -376,8 +377,8 @@ private fun CalibrationInfoCard(
 //        painter = painterResource(R.drawable.ic_lab_panel),
         text = stringResource(R.string.settings_calibration_under_development_message),
         painter = painterResource(R.drawable.ic_construction),
-        index = 1,
-        count = 2,
+        index = 2,
+        count = 3,
         modifier = modifier,
         trailingContent = {
             val totalCountLabel = pluralStringResource(
@@ -396,6 +397,19 @@ private fun CalibrationInfoCard(
 }
 
 @Composable
+private fun CalibrationReferenceRangeDisclaimerCard(
+    modifier: Modifier = Modifier,
+) {
+    SupportMessageListItem(
+        text = stringResource(R.string.medical_disclaimer_reference_ranges),
+        painter = painterResource(R.drawable.ic_help_clinic),
+        index = 1,
+        count = 3,
+        modifier = modifier,
+    )
+}
+
+@Composable
 private fun CalibrationTargetRangeCard(
     settingsState: SettingsState,
     modifier: Modifier = Modifier,
@@ -405,7 +419,7 @@ private fun CalibrationTargetRangeCard(
         text = stringResource(R.string.settings_calibration_target_ranges_title),
         painter = painterResource(R.drawable.ic_bloodtype),
         index = 0,
-        count = 2,
+        count = 3,
         modifier = modifier,
         textStyle = MaterialTheme.typography.titleMedium,
         supportingTextStyle = MaterialTheme.typography.labelMedium.copy(

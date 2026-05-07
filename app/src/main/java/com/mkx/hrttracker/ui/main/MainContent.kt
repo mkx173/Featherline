@@ -16,6 +16,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
@@ -98,6 +100,11 @@ fun MainContent(
                 dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter
             )
+        }
+
+        item(key = "medical-disclaimer") {
+            Spacer(modifier = Modifier.height(16.dp))
+            MedicalDisclaimerText(kinds = MedicalDisclaimerSets.home)
         }
     }
 }

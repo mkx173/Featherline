@@ -39,6 +39,7 @@
     </plurals>
     <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="main_e2_title">Estradiol · estimated</string>
+    <string name="main_e2_estimate_info">Show estradiol estimate information</string>
     <string name="main_e2_status_in_range">IN RANGE</string>
     <string name="main_e2_status_below_range">BELOW RANGE</string>
     <string name="main_e2_chart_title">7-day trend</string>
@@ -49,6 +50,11 @@
     <string name="main_e2_no_change_since_yesterday">No change from 24h ago</string>
     <string name="main_e2_last_dose_with_time">Last dose %1$s ago</string>
     <string name="main_e2_no_last_dose">No logged dose yet</string>
+    <string name="medical_disclaimer_home_estimates_and_ranges">Estimated concentrations and WPATH SOC-8 target ranges are references, not measured values or medical advice; your targets may differ.</string>
+    <string name="medical_disclaimer_preset_doses">Preset doses are reference values, not medical advice. Safe dosing depends on lab results, other medications, medical history, and clinician supervision.</string>
+    <string name="medical_disclaimer_reference_ranges">Target ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
+    <string name="medical_disclaimer_wpath_reference_ranges">Target ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
+    <string name="medical_disclaimer_plasma_concentration_estimates">Plasma concentration values are model estimates based on your dosing schedule, not measured values.</string>
     <string name="main_antiandrogen_title">Antiandrogen</string>
     <string name="main_antiandrogen_active_count">%1$d active</string>
     <string name="main_antiandrogen_last_dose_elapsed">Last dose %1$s ago</string>

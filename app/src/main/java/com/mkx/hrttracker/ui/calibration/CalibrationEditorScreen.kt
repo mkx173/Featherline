@@ -66,6 +66,8 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -499,6 +501,10 @@ private fun CalibrationEditorScreenContent(
                             ),
                         )
                     }
+                }
+                item(key = "medical-disclaimer") {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
                 }
             }
         }

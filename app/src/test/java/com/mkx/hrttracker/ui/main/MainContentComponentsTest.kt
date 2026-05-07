@@ -1,9 +1,18 @@
 package com.mkx.hrttracker.ui.main
 
+import com.mkx.hrttracker.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MainContentComponentsTest {
+    @Test
+    fun mainE2EstimateInfoToastRes_uses_plasma_concentration_estimate_disclaimer() {
+        assertEquals(
+            R.string.medical_disclaimer_plasma_concentration_estimates,
+            mainE2EstimateInfoToastRes()
+        )
+    }
+
     @Test
     fun mainTodayCountLabel_omits_manual_count_when_absent() {
         assertEquals(

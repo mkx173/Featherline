@@ -92,6 +92,9 @@ import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -143,6 +146,7 @@ fun MedicationDefinitionEditorSheet(
         onCloseClick = onCloseClick,
         fillAvailableHeight = true,
         isSaving = isSaving,
+        disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = onConfirm
     ) {
         MedicationDraftEditorContent(
@@ -242,6 +246,11 @@ fun MedicationLogEntryEditorSheet(
         isSaving = isSaving,
         destructiveButtonText = destructiveButtonText,
         onDestructiveAction = onDestructiveAction,
+        disclaimerKinds = if (canEditMedicationIdentity) {
+            MedicalDisclaimerSets.medicationEditor
+        } else {
+            emptyList()
+        },
         onConfirm = onConfirm
     ) {
         if (canEditMedicationIdentity) {
@@ -302,6 +311,7 @@ private fun MedicationEditorSheetScaffold(
     isSaving: Boolean,
     destructiveButtonText: String? = null,
     onDestructiveAction: (() -> Unit)? = null,
+    disclaimerKinds: List<MedicalDisclaimerKind> = emptyList(),
     onConfirm: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -344,6 +354,11 @@ private fun MedicationEditorSheetScaffold(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
             content()
+
+            if (disclaimerKinds.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                MedicalDisclaimerText(kinds = disclaimerKinds)
+            }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 

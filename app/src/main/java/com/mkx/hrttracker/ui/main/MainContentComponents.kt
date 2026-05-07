@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
+import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ShowChart
@@ -33,10 +36,13 @@ import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
@@ -64,6 +70,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -168,6 +175,10 @@ private val MainE2ChartMinimapHorizontalInset = 5.dp
 private val MainE2ChartMinimapResetButtonSize = 32.dp
 private val PreviewManualEntryUuid = UUID.fromString("d54fbd94-9631-4c20-b79f-9e431d51a719")
 
+@StringRes
+internal fun mainE2EstimateInfoToastRes(): Int =
+    R.string.medical_disclaimer_plasma_concentration_estimates
+
 private enum class MainTodayTimeRange(
     val labelRes: Int,
     val startHour: Int,
@@ -227,7 +238,9 @@ internal fun MainE2HeroCard(
         now = now
     )
     val hasPreviousRecord = section.lastDoseAt != null
+    val context = LocalContext.current
     val titleText = stringResource(R.string.main_e2_title)
+    val estimateInfoToastText = stringResource(mainE2EstimateInfoToastRes())
     val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
     val rangeStatusIconDrawableRes = when {
@@ -264,7 +277,6 @@ internal fun MainE2HeroCard(
                     Row(
                         modifier = Modifier.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.MonitorHeart,
@@ -272,6 +284,7 @@ internal fun MainE2HeroCard(
                             tint = heroSupportingColor,
                             modifier = Modifier.size(18.dp)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = titleText,
                             style = MaterialTheme.typography.labelLarge,
@@ -281,6 +294,28 @@ internal fun MainE2HeroCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.cjkTextOffset(titleText)
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        CompositionLocalProvider(
+                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        estimateInfoToastText,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                modifier = Modifier.size(24.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_info),
+                                    contentDescription = stringResource(R.string.main_e2_estimate_info),
+                                    tint = heroSupportingColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
 
                     ConstraintLayout(
