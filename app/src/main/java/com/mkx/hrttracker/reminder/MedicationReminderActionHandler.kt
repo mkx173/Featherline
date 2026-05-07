@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
@@ -20,6 +21,7 @@ import javax.inject.Singleton
 class MedicationReminderActionHandler @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val reminderNotificationManager: ReminderNotificationManager,
@@ -68,7 +70,14 @@ class MedicationReminderActionHandler @Inject constructor(
         notificationTag: String?,
         now: LocalDateTime = LocalDateTime.now(),
     ) {
-        val unfulfilledSlots = currentlyUnfulfilledSlots(slots.distinct())
+        val normalizedSlots = slots.distinct()
+        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
+            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
+            return
+        }
+
+        val unfulfilledSlots = currentlyUnfulfilledSlots(normalizedSlots)
         val scheduledSnoozes = medicationReminderSnoozeScheduler.snoozeSlots(
             slots = unfulfilledSlots,
             now = now,
@@ -84,7 +93,14 @@ class MedicationReminderActionHandler @Inject constructor(
         notificationTag: String?,
         now: LocalDateTime = LocalDateTime.now(),
     ) {
-        val unfulfilledSlots = currentlyUnfulfilledSlots(slots.distinct())
+        val normalizedSlots = slots.distinct()
+        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+            medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
+            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
+            return
+        }
+
+        val unfulfilledSlots = currentlyUnfulfilledSlots(normalizedSlots)
         if (unfulfilledSlots.isEmpty()) {
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return

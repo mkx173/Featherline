@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -14,6 +15,7 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -34,6 +36,7 @@ import java.util.UUID
 class MedicationReminderActionHandlerTest {
     private val groupRepository: MedicationGroupRepository = mockk()
     private val logRepository: MedicationLogRepository = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val reminderScheduler: MedicationReminderScheduler = mockk()
     private val snoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
     private val notificationManager: ReminderNotificationManager = mockk(relaxed = true)
@@ -44,10 +47,12 @@ class MedicationReminderActionHandlerTest {
     fun setUp() {
         coEvery { reminderScheduler.rescheduleGroup(any(), any()) } just Runs
         coEvery { snoozeScheduler.clearSnoozesForSlots(any()) } just Runs
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = true)
 
         actionHandler = MedicationReminderActionHandler(
             medicationGroupRepository = groupRepository,
             medicationLogRepository = logRepository,
+            settingsRepository = settingsRepository,
             medicationReminderScheduler = reminderScheduler,
             medicationReminderSnoozeScheduler = snoozeScheduler,
             reminderNotificationManager = notificationManager,
@@ -106,6 +111,52 @@ class MedicationReminderActionHandlerTest {
         coVerify { reminderScheduler.rescheduleGroup(firstGroup.uuid, any()) }
         coVerify { reminderScheduler.rescheduleGroup(secondGroup.uuid, any()) }
         verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+    }
+
+    @Test
+    fun remindLater_skips_snooze_and_clears_notification_when_master_switch_off() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("ec504d8c-c5cd-4d4e-af0b-8f9bb4f5e9bf"),
+            scheduledAt = scheduledAt,
+            scheduleTimeUuid = UUID.fromString("a012cd77-5a28-486b-bc91-5c1fa9052e57"),
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = false)
+
+        actionHandler.remindLater(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(1),
+        )
+
+        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
+        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
+    }
+
+    @Test
+    fun showSnoozedReminder_skips_notification_when_master_switch_off() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val slot = MedicationReminderSlot(
+            groupUuid = UUID.fromString("2f4484ea-b2de-4827-8900-2c4365b80346"),
+            scheduledAt = scheduledAt,
+            scheduleTimeUuid = UUID.fromString("dff5a6ad-3619-49d5-b2dd-6146f61920b2"),
+        )
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState(remindersEnabled = false)
+
+        actionHandler.showSnoozedReminder(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(15),
+        )
+
+        verify(exactly = 0) {
+            notificationManager.showDoseReminderNotification(any(), any())
+        }
+        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        coVerify(exactly = 0) { logRepository.getScheduledGroupEntriesSince(any()) }
     }
 
     private fun medicationGroup(

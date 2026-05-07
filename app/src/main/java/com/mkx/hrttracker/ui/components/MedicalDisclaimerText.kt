@@ -44,10 +44,11 @@ fun MedicalDisclaimerText(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         kinds.forEach { kind ->
+            val disclaimerText = stringResource(kind.textRes)
             Text(
-                text = stringResource(kind.textRes),
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.bodySmall,
+                text = disclaimerText,
+                modifier = Modifier.fillMaxWidth().cjkTextOffset(disclaimerText),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )

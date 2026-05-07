@@ -55,7 +55,7 @@ class MedicalDisclaimerTextTest {
     @Test
     fun english_reference_range_disclaimer_uses_concise_copy() {
         assertEquals(
-            "Reference ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.",
+            "Target ranges are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.",
             readStringResource(
                 relativePath = "src/main/res/values/strings.xml",
                 name = "medical_disclaimer_reference_ranges",
@@ -66,7 +66,7 @@ class MedicalDisclaimerTextTest {
     @Test
     fun english_wpath_reference_range_disclaimer_uses_soc8_copy() {
         assertEquals(
-            "Reference ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.",
+            "Target ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.",
             readStringResource(
                 relativePath = "src/main/res/values/strings.xml",
                 name = "medical_disclaimer_wpath_reference_ranges",
