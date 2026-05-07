@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -48,8 +49,9 @@ class ReminderNotificationManager @Inject constructor(
 
         val contentIntent = PendingIntent.getActivity(
             context,
-            groupUuid.hashCode(),
+            REMINDER_NOTIFICATION_REQUEST_CODE,
             Intent(context, MainActivity::class.java).apply {
+                data = reminderNotificationContentData(groupUuid)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -65,7 +67,11 @@ class ReminderNotificationManager @Inject constructor(
             .build()
 
         try {
-            NotificationManagerCompat.from(context).notify(groupUuid.hashCode(), notification)
+            NotificationManagerCompat.from(context).notify(
+                groupUuid,
+                DOSE_REMINDER_NOTIFICATION_ID,
+                notification
+            )
         } catch (_: SecurityException) {
             // Notification permission can be revoked after the preflight check.
         }
@@ -89,4 +95,12 @@ class ReminderNotificationManager @Inject constructor(
     }
 }
 
+private fun reminderNotificationContentData(groupUuid: String): Uri {
+    return Uri.parse("$REMINDER_NOTIFICATION_CONTENT_URI_PREFIX/$groupUuid")
+}
+
+private const val DOSE_REMINDER_NOTIFICATION_ID = 0
+private const val REMINDER_NOTIFICATION_REQUEST_CODE = 0
+private const val REMINDER_NOTIFICATION_CONTENT_URI_PREFIX =
+    "hrttracker://medication-reminder-notification"
 const val REMINDER_CHANNEL_ID = "dose_reminders"

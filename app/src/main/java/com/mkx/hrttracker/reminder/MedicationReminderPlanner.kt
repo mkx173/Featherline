@@ -28,7 +28,7 @@ internal fun buildNextMedicationReminderPlans(
             group
                 .nextOccurrencesInPlanWindowFrom(
                     start = now,
-                    limit = MAX_OCCURRENCES_TO_SCAN_PER_GROUP,
+                    limit = Int.MAX_VALUE,
                     lookaheadDays = lookaheadDays
                 )
                 .firstOrNull { occurrence ->
@@ -52,5 +52,3 @@ internal fun buildNextMedicationReminderPlans(
         .sortedBy { plan -> plan.scheduledAt }
         .toList()
 }
-
-private const val MAX_OCCURRENCES_TO_SCAN_PER_GROUP = 32

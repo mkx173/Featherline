@@ -248,7 +248,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             )
         )
         coEvery { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) } returns Unit
-        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -274,7 +274,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(true, viewModel.uiState.value.isDeleted)
 
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) }
-        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
     @Test
@@ -288,7 +288,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { medicationGroupRepository.deleteGroup(groupUuid) } returns Unit
-        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
 
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -316,7 +316,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(true, viewModel.uiState.value.isDeleted)
 
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
-        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
     @Test
@@ -357,7 +357,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         viewModel.consumeDeleteMedicationGroupResult()
         assertNull(viewModel.uiState.value.deleteMedicationGroupResult)
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroup(groupUuid) }
-        verify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
+        coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
     @Test
@@ -434,7 +434,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
-        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         coEvery {
             medicationGroupRepository.saveGroup(
@@ -503,7 +503,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertNull(savedMedications.captured.single().uuid)
         assertEquals(originalGroup.notificationsEnabled, savedNotificationsEnabled.captured)
         assertFalse(savedIncludePastScheduledSlots.captured)
-        verify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }
@@ -517,7 +517,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
-        every { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
         coEvery {
             medicationGroupRepository.saveGroup(

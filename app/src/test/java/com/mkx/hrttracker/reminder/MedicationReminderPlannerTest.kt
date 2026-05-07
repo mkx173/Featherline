@@ -100,6 +100,39 @@ class MedicationReminderPlannerTest {
     }
 
     @Test
+    fun buildNextMedicationReminderPlans_scans_entire_90_day_window_for_next_unfulfilled_occurrence() {
+        val group = medicationGroup(
+            uuid = UUID.fromString("c873b736-521a-4f35-b207-258fd697c5fd"),
+            name = "Daily estradiol",
+            time = LocalTime.of(9, 0),
+            notificationsEnabled = true
+        )
+        val now = LocalDateTime.of(2026, 4, 20, 8, 30)
+        val fulfilledEntries = (0 until 32).map { dayOffset ->
+            val scheduledFor = LocalDateTime.of(
+                LocalDate.of(2026, 4, 20).plusDays(dayOffset.toLong()),
+                LocalTime.of(9, 0)
+            )
+            scheduledEntry(
+                groupUuid = group.uuid,
+                appliedAt = scheduledFor.plusMinutes(5),
+                scheduledFor = scheduledFor
+            )
+        }
+
+        val plans = buildNextMedicationReminderPlans(
+            groups = listOf(group),
+            entries = fulfilledEntries,
+            now = now
+        )
+
+        assertEquals(
+            listOf(LocalDateTime.of(2026, 5, 22, 9, 0)),
+            plans.map { it.scheduledAt }
+        )
+    }
+
+    @Test
     fun buildNextMedicationReminderPlans_returns_empty_when_no_future_unfulfilled_occurrence_exists() {
         val group = medicationGroup(
             uuid = UUID.fromString("8d49d0f2-7daf-458f-9995-9a2b5db32ce0"),

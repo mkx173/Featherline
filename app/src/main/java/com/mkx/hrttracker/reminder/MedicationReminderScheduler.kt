@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
@@ -21,18 +22,20 @@ class MedicationReminderScheduler @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val reminderScheduleStore: ReminderScheduleStore,
 ) {
     private val alarmManager: AlarmManager
         get() = context.getSystemService(AlarmManager::class.java)
 
     suspend fun rescheduleAll(now: LocalDateTime = LocalDateTime.now()) {
         val groups = medicationGroupRepository.getGroups()
+        val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
+        val uuidsToCancel = reminderScheduleStore.getScheduledGroupUuids() + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
-            groups.forEach { group ->
-                cancelReminder(group.uuid)
-            }
+            uuidsToCancel.forEach(::cancelReminderAlarm)
+            reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
             return
         }
 
@@ -43,12 +46,13 @@ class MedicationReminderScheduler @Inject constructor(
             now = now
         )
 
-        groups.forEach { group ->
-            cancelReminder(group.uuid)
-        }
+        uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
+        reminderScheduleStore.replaceScheduledGroupUuids(
+            plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
+        )
     }
 
     suspend fun rescheduleFromHomeSnapshot(
@@ -56,11 +60,12 @@ class MedicationReminderScheduler @Inject constructor(
         now: LocalDateTime = LocalDateTime.now(),
     ) {
         val groups = snapshot.activeGroups
+        val groupUuids = groups.mapTo(mutableSetOf()) { group -> group.uuid }
+        val uuidsToCancel = reminderScheduleStore.getScheduledGroupUuids() + groupUuids
 
         if (!settingsRepository.getCurrentSettings().remindersEnabled) {
-            groups.forEach { group ->
-                cancelReminder(group.uuid)
-            }
+            uuidsToCancel.forEach(::cancelReminderAlarm)
+            reminderScheduleStore.replaceScheduledGroupUuids(emptySet())
             return
         }
 
@@ -76,12 +81,13 @@ class MedicationReminderScheduler @Inject constructor(
             now = now,
         )
 
-        groups.forEach { group ->
-            cancelReminder(group.uuid)
-        }
+        uuidsToCancel.forEach(::cancelReminderAlarm)
         plans.forEach { plan ->
             scheduleReminder(plan)
         }
+        reminderScheduleStore.replaceScheduledGroupUuids(
+            plans.mapTo(mutableSetOf(), MedicationReminderPlan::groupUuid)
+        )
     }
 
     suspend fun rescheduleGroup(
@@ -106,10 +112,12 @@ class MedicationReminderScheduler @Inject constructor(
         ).firstOrNull() ?: return
 
         scheduleReminder(plan)
+        reminderScheduleStore.addScheduledGroupUuid(plan.groupUuid)
     }
 
-    fun cancelReminder(groupUuid: UUID) {
-        alarmManager.cancel(buildReminderPendingIntent(groupUuid))
+    suspend fun cancelReminder(groupUuid: UUID) {
+        cancelReminderAlarm(groupUuid)
+        reminderScheduleStore.removeScheduledGroupUuid(groupUuid)
     }
 
     fun canScheduleExactReminders(): Boolean {
@@ -148,6 +156,7 @@ class MedicationReminderScheduler @Inject constructor(
     ): PendingIntent {
         val intent = Intent(context, MedicationReminderReceiver::class.java).apply {
             action = ACTION_MEDICATION_REMINDER
+            data = reminderIntentData(groupUuid)
             putExtra(EXTRA_GROUP_UUID, groupUuid.toString())
             scheduledAt?.let { value ->
                 putExtra(EXTRA_SCHEDULED_AT, value.toString())
@@ -156,17 +165,23 @@ class MedicationReminderScheduler @Inject constructor(
 
         return PendingIntent.getBroadcast(
             context,
-            reminderRequestCode(groupUuid),
+            REMINDER_REQUEST_CODE,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
+
+    private fun cancelReminderAlarm(groupUuid: UUID) {
+        alarmManager.cancel(buildReminderPendingIntent(groupUuid))
+    }
 }
 
-internal fun reminderRequestCode(groupUuid: UUID): Int {
-    return (groupUuid.mostSignificantBits xor groupUuid.leastSignificantBits).toInt()
+internal fun reminderIntentData(groupUuid: UUID): Uri {
+    return Uri.parse("$REMINDER_INTENT_URI_PREFIX/$groupUuid")
 }
 
+private const val REMINDER_REQUEST_CODE = 0
+private const val REMINDER_INTENT_URI_PREFIX = "hrttracker://medication-reminder"
 const val ACTION_MEDICATION_REMINDER = "com.mkx.hrttracker.action.MEDICATION_REMINDER"
 const val EXTRA_GROUP_UUID = "groupUuid"
 const val EXTRA_SCHEDULED_AT = "scheduledAt"
