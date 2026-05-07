@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -14,12 +15,18 @@ import androidx.navigation.NavBackStackEntry
 import kotlin.math.roundToInt
 
 private const val topLevelTransitionDurationMillis = 300
-private const val topLevelFadeThroughExitDurationMillis = 90
-private const val topLevelFadeThroughEnterDelayMillis = 90
-private const val topLevelFadeThroughEnterDurationMillis = 210
 private const val topLevelFadeThroughInitialScale = 0.92f
 private const val nestedTransitionDurationMillis = 300
 private const val nestedSlideDistanceFraction = 0.1f
+internal const val navigationFadeThroughProgressThreshold = 0.35f
+
+private val navigationFadeThroughEnterEasing = Easing { fraction ->
+    navigationFadeThroughAppearingAlphaProgress(fraction)
+}
+
+private val navigationFadeThroughExitEasing = Easing { fraction ->
+    navigationFadeThroughDisappearingAlphaProgress(fraction)
+}
 
 private data class NavigationRouteContext(
     val topLevelScreen: Screen,
@@ -119,6 +126,27 @@ internal fun normalizeNavigationRoute(route: String?): String? {
     return route?.substringBefore("?")
 }
 
+// Mirrors MaterialFadeThrough's alpha split: outgoing finishes before the
+// threshold, incoming starts after it, both using one shared motion progress.
+internal fun fadeThroughAppearingAlphaProgress(progress: Float): Float {
+    val coercedProgress = progress.coerceIn(0f, 1f)
+    return ((coercedProgress - navigationFadeThroughProgressThreshold) /
+        (1f - navigationFadeThroughProgressThreshold)).coerceIn(0f, 1f)
+}
+
+internal fun fadeThroughDisappearingAlphaProgress(progress: Float): Float {
+    val coercedProgress = progress.coerceIn(0f, 1f)
+    return (coercedProgress / navigationFadeThroughProgressThreshold).coerceIn(0f, 1f)
+}
+
+internal fun navigationFadeThroughAppearingAlphaProgress(fraction: Float): Float {
+    return fadeThroughAppearingAlphaProgress(FastOutSlowInEasing.transform(fraction))
+}
+
+internal fun navigationFadeThroughDisappearingAlphaProgress(fraction: Float): Float {
+    return fadeThroughDisappearingAlphaProgress(FastOutSlowInEasing.transform(fraction))
+}
+
 private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
     return when (route) {
         Screen.Main.route -> NavigationRouteContext(topLevelScreen = Screen.Main)
@@ -139,9 +167,8 @@ private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
 private fun topLevelEnterTransition(): EnterTransition {
     return fadeIn(
         animationSpec = tween(
-            durationMillis = topLevelFadeThroughEnterDurationMillis,
-            delayMillis = topLevelFadeThroughEnterDelayMillis,
-            easing = FastOutSlowInEasing,
+            durationMillis = topLevelTransitionDurationMillis,
+            easing = navigationFadeThroughEnterEasing,
         )
     ) + scaleIn(
         initialScale = topLevelFadeThroughInitialScale,
@@ -155,8 +182,8 @@ private fun topLevelEnterTransition(): EnterTransition {
 private fun topLevelExitTransition(): ExitTransition {
     return fadeOut(
         animationSpec = tween(
-            durationMillis = topLevelFadeThroughExitDurationMillis,
-            easing = FastOutSlowInEasing,
+            durationMillis = topLevelTransitionDurationMillis,
+            easing = navigationFadeThroughExitEasing,
         )
     )
 }
@@ -175,7 +202,7 @@ private fun nestedEnterTransition(forward: Boolean): EnterTransition {
     ) + fadeIn(
         animationSpec = tween(
             durationMillis = nestedTransitionDurationMillis,
-            easing = FastOutSlowInEasing,
+            easing = navigationFadeThroughEnterEasing,
         )
     )
 }
@@ -193,7 +220,7 @@ private fun nestedExitTransition(forward: Boolean): ExitTransition {
     ) + fadeOut(
         animationSpec = tween(
             durationMillis = nestedTransitionDurationMillis,
-            easing = FastOutSlowInEasing,
+            easing = navigationFadeThroughExitEasing,
         )
     )
 }

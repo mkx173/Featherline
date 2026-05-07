@@ -1,9 +1,65 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class NavigationTransitionsTest {
+    @Test
+    fun fadeThroughAlphaProgress_keepsIncomingTransparent_untilThreshold() {
+        assertEquals(0f, fadeThroughAppearingAlphaProgress(0f), 0.0001f)
+        assertEquals(
+            0f,
+            fadeThroughAppearingAlphaProgress(navigationFadeThroughProgressThreshold),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun fadeThroughAlphaProgress_fadesIncomingAfterThreshold() {
+        val halfwayThroughIncomingRange = navigationFadeThroughProgressThreshold +
+            (1f - navigationFadeThroughProgressThreshold) / 2f
+
+        assertEquals(
+            0.5f,
+            fadeThroughAppearingAlphaProgress(halfwayThroughIncomingRange),
+            0.0001f,
+        )
+        assertEquals(1f, fadeThroughAppearingAlphaProgress(1f), 0.0001f)
+    }
+
+    @Test
+    fun fadeThroughAlphaProgress_fadesOutgoingBeforeThreshold() {
+        assertEquals(0f, fadeThroughDisappearingAlphaProgress(0f), 0.0001f)
+        assertEquals(
+            0.5f,
+            fadeThroughDisappearingAlphaProgress(navigationFadeThroughProgressThreshold / 2f),
+            0.0001f,
+        )
+        assertEquals(
+            1f,
+            fadeThroughDisappearingAlphaProgress(navigationFadeThroughProgressThreshold),
+            0.0001f,
+        )
+        assertEquals(1f, fadeThroughDisappearingAlphaProgress(1f), 0.0001f)
+    }
+
+    @Test
+    fun navigationFadeThroughAlphaProgress_appliesMotionEasingBeforeFadeSplit() {
+        val fraction = 0.5f
+
+        assertEquals(
+            fadeThroughAppearingAlphaProgress(FastOutSlowInEasing.transform(fraction)),
+            navigationFadeThroughAppearingAlphaProgress(fraction),
+            0.0001f,
+        )
+        assertEquals(
+            fadeThroughDisappearingAlphaProgress(FastOutSlowInEasing.transform(fraction)),
+            navigationFadeThroughDisappearingAlphaProgress(fraction),
+            0.0001f,
+        )
+    }
+
     @Test
     fun resolveNavigationMotionPattern_returnsTopLevel_for_top_level_section_switch() {
         assertEquals(
