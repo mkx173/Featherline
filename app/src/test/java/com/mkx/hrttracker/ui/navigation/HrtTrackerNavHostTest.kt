@@ -75,4 +75,37 @@ class HrtTrackerNavHostTest {
             )
         )
     }
+
+    @Test
+    fun topLevelNavigationReplacementPopUpToRoute_usesSelectedTopLevelRoute() {
+        assertEquals(
+            Screen.Plan.route,
+            topLevelNavigationReplacementPopUpToRoute(
+                targetScreen = Screen.Main,
+                selectedBottomScreen = Screen.Plan,
+            )
+        )
+    }
+
+    @Test
+    fun topLevelRootBackAction_navigatesHomeFromNonHomeTopLevelRoot() {
+        assertEquals(
+            TopLevelRootBackAction.NAVIGATE_HOME,
+            topLevelRootBackAction(
+                selectedBottomScreen = Screen.Settings,
+                currentRoute = Screen.Settings.route,
+            )
+        )
+    }
+
+    @Test
+    fun topLevelRootBackAction_doesNotHandleBackFromChildRoute() {
+        assertEquals(
+            TopLevelRootBackAction.NONE,
+            topLevelRootBackAction(
+                selectedBottomScreen = Screen.Settings,
+                currentRoute = Screen.SettingsCalibration.baseRoute,
+            )
+        )
+    }
 }

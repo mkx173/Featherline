@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.navigation
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
@@ -24,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -179,6 +179,11 @@ internal enum class TopLevelNavigationTapAction {
     NONE,
 }
 
+internal enum class TopLevelRootBackAction {
+    NAVIGATE_HOME,
+    NONE,
+}
+
 internal fun topLevelNavigationTapAction(
     tappedScreen: Screen,
     selectedBottomScreen: Screen?,
@@ -194,6 +199,30 @@ internal fun topLevelNavigationTapAction(
         currentRoute == tappedScreen.route -> TopLevelNavigationTapAction.SCROLL_TO_TOP
         currentRoute != tappedScreen.route -> TopLevelNavigationTapAction.NAVIGATE
         else -> TopLevelNavigationTapAction.NONE
+    }
+}
+
+internal fun topLevelNavigationReplacementPopUpToRoute(
+    targetScreen: Screen,
+    selectedBottomScreen: Screen?,
+): String? {
+    return selectedBottomScreen
+        ?.takeIf { screen -> screen != targetScreen }
+        ?.route
+}
+
+internal fun topLevelRootBackAction(
+    selectedBottomScreen: Screen?,
+    currentRoute: String?,
+): TopLevelRootBackAction {
+    return if (
+        selectedBottomScreen != null &&
+        selectedBottomScreen != Screen.Main &&
+        currentRoute == selectedBottomScreen.route
+    ) {
+        TopLevelRootBackAction.NAVIGATE_HOME
+    } else {
+        TopLevelRootBackAction.NONE
     }
 }
 
@@ -216,6 +245,18 @@ fun HrtTrackerNavHost(
             ?: bottomNavItems.firstOrNull { navItem ->
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
+
+    BackHandler(
+        enabled = topLevelRootBackAction(
+            selectedBottomScreen = selectedBottomScreen,
+            currentRoute = currentRoute,
+        ) == TopLevelRootBackAction.NAVIGATE_HOME
+    ) {
+        navController.navigateToTopLevelScreen(
+            targetScreen = Screen.Main,
+            selectedBottomScreen = selectedBottomScreen,
+        )
+    }
 
     Scaffold(
         modifier = modifier,
@@ -246,13 +287,10 @@ fun HrtTrackerNavHost(
                                 }
 
                                 TopLevelNavigationTapAction.NAVIGATE -> {
-                                    navController.navigate(navItem.screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
+                                    navController.navigateToTopLevelScreen(
+                                        targetScreen = navItem.screen,
+                                        selectedBottomScreen = selectedBottomScreen,
+                                    )
                                 }
 
                                 TopLevelNavigationTapAction.NONE -> Unit
@@ -535,6 +573,25 @@ fun HrtTrackerNavHost(
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
         )
+    }
+}
+
+private fun NavHostController.navigateToTopLevelScreen(
+    targetScreen: Screen,
+    selectedBottomScreen: Screen?,
+) {
+    navigate(targetScreen.route) {
+        topLevelNavigationReplacementPopUpToRoute(
+            targetScreen = targetScreen,
+            selectedBottomScreen = selectedBottomScreen,
+        )?.let { popUpToRoute ->
+            popUpTo(popUpToRoute) {
+                inclusive = true
+                saveState = true
+            }
+        }
+        launchSingleTop = true
+        restoreState = true
     }
 }
 
