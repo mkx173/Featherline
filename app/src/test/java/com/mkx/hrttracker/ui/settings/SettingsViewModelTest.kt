@@ -13,8 +13,10 @@ import com.mkx.hrttracker.util.AppDiagnosticsExportService
 import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import io.mockk.Runs
+import io.mockk.clearMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -53,9 +55,12 @@ class SettingsViewModelTest {
         Dispatchers.setMain(dispatcher)
         every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
         every { userProfileRepository.observeProfile() } returns flowOf(null)
+        every { appLockSecurityManager.availabilityErrorMessageRes() } returns null
         coEvery { bloodTestRepository.getPanels() } returns emptyList()
         coEvery { bloodTestRepository.preloadActiveCustomAnalytes() } returns emptyList()
         coEvery { settingsRepository.setRemindersEnabled(any()) } just Runs
+        coEvery { settingsRepository.setScreenLockProtectionEnabled(any()) } just Runs
+        coEvery { settingsRepository.setHideScreenContentEnabled(any()) } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs
         coEvery { medicationReminderSnoozeScheduler.clearAllSnoozes() } just Runs
         every { diagnosticsExportService.buildExportFileName(any(), any()) } returns
@@ -159,6 +164,34 @@ class SettingsViewModelTest {
         coVerify(exactly = 1) { settingsRepository.setRemindersEnabled(true) }
         coVerify(exactly = 0) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun onScreenLockProtectionAuthenticated_enablesAppLock_andTurnsOnHideScreenContent() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(settingsRepository, answers = false, recordedCalls = true)
+
+        viewModel.onScreenLockProtectionToggle(true)
+        viewModel.onScreenLockProtectionAuthenticated()
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            settingsRepository.setScreenLockProtectionEnabled(true)
+            settingsRepository.setHideScreenContentEnabled(true)
+        }
+    }
+
+    @Test
+    fun setHideScreenContentEnabled_delegatesToRepository() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(settingsRepository, answers = false, recordedCalls = true)
+
+        viewModel.setHideScreenContentEnabled(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { settingsRepository.setHideScreenContentEnabled(false) }
     }
 
     @Test

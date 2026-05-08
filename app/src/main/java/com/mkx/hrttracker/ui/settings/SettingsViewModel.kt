@@ -183,6 +183,7 @@ class SettingsViewModel @Inject constructor(
         pendingPrompt.value = null
         viewModelScope.launch {
             settingsRepository.setScreenLockProtectionEnabled(true)
+            settingsRepository.setHideScreenContentEnabled(true)
             securityErrorMessageRes.value = null
         }
     }

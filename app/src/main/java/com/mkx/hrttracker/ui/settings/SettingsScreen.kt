@@ -16,6 +16,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -735,13 +740,11 @@ private fun SettingsScreenContent(
                 text = stringResource(R.string.settings_security)
             )
 
-            val securityItemCount = if (settingsState.screenLockProtectionEnabled) 3 else 2
+            val securitySectionLayout =
+                resolveSettingsSecuritySectionLayout(settingsState.screenLockProtectionEnabled)
+            val securitySectionGap = dimensionResource(R.dimen.list_segment_gap)
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.list_segment_gap)
-                )
-            ) {
+            Column {
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_screen_lock_protection),
                     supportingText = stringResource(R.string.settings_screen_lock_protection_summary),
@@ -751,7 +754,7 @@ private fun SettingsScreenContent(
                         )
                     },
                     index = 0,
-                    count = securityItemCount,
+                    count = securitySectionLayout.itemCount,
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_lock)
@@ -765,33 +768,44 @@ private fun SettingsScreenContent(
                     },
                 )
 
-                if (settingsState.screenLockProtectionEnabled) {
-                    Box {
-                        SettingsSegmentedListItem(
-                            title = stringResource(R.string.settings_app_lock_grace_period),
-                            supportingText = stringResource(settingsState.appLockGracePeriodOption.labelRes),
-                            index = 1,
-                            count = securityItemCount,
-                            onClick = { setAppLockGracePeriodMenuExpanded(true) },
-                            leadingContent = {
-                                SettingsLeadingIconSlot(
-                                    painter = painterResource(R.drawable.ic_lock_clock)
-                                )
-                            }
-                        )
-                        HrtDropdownMenu(
-                            expanded = isAppLockGracePeriodMenuExpanded,
-                            onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
-                            modifier = Modifier.width(IntrinsicSize.Min),
-                            items = AppLockGracePeriodOption.entries.map { option ->
-                                HrtDropdownMenuItem(
-                                    text = stringResource(option.labelRes),
-                                    onClick = { onAppLockGracePeriodOptionChange(option) },
-                                )
-                            },
-                        )
+                AnimatedVisibility(
+                    visible = settingsState.screenLockProtectionEnabled,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                    label = "settings-app-lock-grace-period",
+                ) {
+                    Column {
+                        Spacer(modifier = Modifier.height(securitySectionGap))
+
+                        Box {
+                            SettingsSegmentedListItem(
+                                title = stringResource(R.string.settings_app_lock_grace_period),
+                                supportingText = stringResource(settingsState.appLockGracePeriodOption.labelRes),
+                                index = 1,
+                                count = securitySectionLayout.itemCount,
+                                onClick = { setAppLockGracePeriodMenuExpanded(true) },
+                                leadingContent = {
+                                    SettingsLeadingIconSlot(
+                                        painter = painterResource(R.drawable.ic_lock_clock)
+                                    )
+                                }
+                            )
+                            HrtDropdownMenu(
+                                expanded = isAppLockGracePeriodMenuExpanded,
+                                onDismissRequest = { setAppLockGracePeriodMenuExpanded(false) },
+                                modifier = Modifier.width(IntrinsicSize.Min),
+                                items = AppLockGracePeriodOption.entries.map { option ->
+                                    HrtDropdownMenuItem(
+                                        text = stringResource(option.labelRes),
+                                        onClick = { onAppLockGracePeriodOptionChange(option) },
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(securitySectionGap))
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_screen_content),
@@ -801,8 +815,8 @@ private fun SettingsScreenContent(
                             !settingsState.hideScreenContentEnabled
                         )
                     },
-                    index = if (settingsState.screenLockProtectionEnabled) 2 else 1,
-                    count = securityItemCount,
+                    index = securitySectionLayout.hideScreenContentIndex,
+                    count = securitySectionLayout.itemCount,
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_visibility_off)
@@ -1194,6 +1208,27 @@ private fun SettingsScreenContent(
                 showWeightDialog = false
             },
             onDismiss = { showWeightDialog = false }
+        )
+    }
+}
+
+internal data class SettingsSecuritySectionLayout(
+    val itemCount: Int,
+    val hideScreenContentIndex: Int,
+)
+
+internal fun resolveSettingsSecuritySectionLayout(
+    screenLockProtectionEnabled: Boolean,
+): SettingsSecuritySectionLayout {
+    return if (screenLockProtectionEnabled) {
+        SettingsSecuritySectionLayout(
+            itemCount = 3,
+            hideScreenContentIndex = 2,
+        )
+    } else {
+        SettingsSecuritySectionLayout(
+            itemCount = 2,
+            hideScreenContentIndex = 1,
         )
     }
 }
