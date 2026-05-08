@@ -586,12 +586,10 @@ class MedicationGroupEditorLoadStateTest {
 
         assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
         assertTrue(selectorState.showGeneratePastRecordsOption)
-        assertFalse(selectorState.enabled)
-        assertFalse(selectorState.interactive)
     }
 
     @Test
-    fun saveCompletion_disablesPastScheduleOptionsUntilNavigation() {
+    fun saveCompletion_keepsPastScheduleOptionsEnabledWhileNavigationStarts() {
         val finishingExistingGroupState = MedicationGroupEditorUiState(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             includePastScheduledSlots = true,
@@ -607,19 +605,18 @@ class MedicationGroupEditorLoadStateTest {
 
         assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
         assertTrue(selectorState.showGeneratePastRecordsOption)
-        assertFalse(selectorState.enabled)
-        assertFalse(selectorState.interactive)
+        assertTrue(selectorState.enabled)
+        assertTrue(selectorState.interactive)
     }
 
     @Test
-    fun saveCompletion_disablesEditorActionsBeforeCompletionLatch() {
-        val savedExistingGroupState = MedicationGroupEditorUiState(
-            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+    fun saveCompletion_disablesSaveActionWhileNavigationStarts() {
+        val savedExistingGroupState = saveableMedicationGroupEditorState(
             isSaved = true,
         )
 
         assertTrue(
-            shouldDisableMedicationGroupEditorActions(
+            shouldDisableMedicationGroupEditorSaveAction(
                 uiState = savedExistingGroupState,
             )
         )
@@ -646,7 +643,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun deleteOrArchiveCompletionLatch_disablesPastScheduleOptionsAfterDeletedStateIsConsumed() {
+    fun deleteOrArchiveCompletionLatch_keepsPastScheduleOptionsEnabledAfterDeletedStateIsConsumed() {
         val consumedDeletedGroupState = MedicationGroupEditorUiState(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
             includePastScheduledSlots = true,
@@ -663,47 +660,29 @@ class MedicationGroupEditorLoadStateTest {
 
         assertEquals(PastScheduleOption.SHOW_AND_GENERATE_RECORDS, selectorState.selectedOption)
         assertTrue(selectorState.showGeneratePastRecordsOption)
-        assertFalse(selectorState.enabled)
-        assertFalse(selectorState.interactive)
+        assertTrue(selectorState.enabled)
+        assertTrue(selectorState.interactive)
     }
 
     @Test
-    fun deleteOrArchiveCompletion_disablesEditorActionsImmediately() {
-        val deletedGroupState = MedicationGroupEditorUiState(
-            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+    fun deleteOrArchiveCompletion_disablesSaveActionWhileNavigationStarts() {
+        val deletedGroupState = saveableMedicationGroupEditorState(
             isDeleted = true,
         )
 
         assertTrue(
-            shouldDisableMedicationGroupEditorActions(
+            shouldDisableMedicationGroupEditorSaveAction(
                 uiState = deletedGroupState,
             )
         )
     }
 
     @Test
-    fun deleteOrArchiveCompletionLatch_keepsEditorActionsDisabledAfterDeletedStateIsConsumed() {
-        val consumedDeletedGroupState = MedicationGroupEditorUiState(
-            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
-            isDeleted = false,
-            isFinishingAfterDeleteOrArchive = true,
-        )
-
-        assertTrue(
-            shouldDisableMedicationGroupEditorActions(
-                uiState = consumedDeletedGroupState,
-            )
-        )
-    }
-
-    @Test
-    fun editableExistingGroup_keepsEditorActionsEnabledOutsideActionProgress() {
-        val editingGroupState = MedicationGroupEditorUiState(
-            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
-        )
+    fun editableExistingGroup_keepsSaveActionEnabledOutsideActionProgress() {
+        val editingGroupState = saveableMedicationGroupEditorState()
 
         assertFalse(
-            shouldDisableMedicationGroupEditorActions(
+            shouldDisableMedicationGroupEditorSaveAction(
                 uiState = editingGroupState,
             )
         )
@@ -1333,5 +1312,22 @@ private fun testMedicationDetails(): MedicationDetails {
         applicationType = MedicationApplicationType.ORAL,
         selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
         dose = MedicationDose.MgAsMedicine(2.0),
+    )
+}
+
+private fun saveableMedicationGroupEditorState(
+    isSaved: Boolean = false,
+    isDeleted: Boolean = false,
+): MedicationGroupEditorUiState {
+    return MedicationGroupEditorUiState(
+        editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+        groupName = "Morning meds",
+        medications = listOf(
+            MedicationGroupMedicationItemUiState(
+                details = testMedicationDetails(),
+            )
+        ),
+        isSaved = isSaved,
+        isDeleted = isDeleted,
     )
 }

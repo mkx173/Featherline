@@ -370,7 +370,7 @@ internal fun NotificationsCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DeleteMedicationGroupRecordsCard(
-    enabled: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 2,
@@ -388,7 +388,7 @@ internal fun DeleteMedicationGroupRecordsCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ArchiveMedicationGroupCard(
-    enabled: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 1,
@@ -421,7 +421,7 @@ internal fun ArchiveMedicationGroupCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DuplicateMedicationGroupCard(
-    enabled: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 1,
@@ -453,7 +453,7 @@ internal fun DuplicateMedicationGroupCard(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun DeleteMedicationGroupCard(
-    enabled: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     index: Int = 1,
     count: Int = 2,

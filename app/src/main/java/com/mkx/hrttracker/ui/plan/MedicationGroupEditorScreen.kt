@@ -57,6 +57,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -140,6 +141,7 @@ fun MedicationGroupEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
+    val latestUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -268,25 +270,23 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(uiState.isSaved) {
-        if (uiState.isSaved) {
-            viewModel.consumeSavedState()
-            when (
-                resolveMedicationGroupEditorSaveNavigationTarget(
-                    uiState = uiState,
-                    openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                )
-            ) {
-                MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
-                MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
-            }
-        }
-    }
+    LaunchedEffect(viewModel, openedFromArchivedGroupsPage) {
+        viewModel.completionEvents.collect { event ->
+            when (event) {
+                MedicationGroupEditorCompletionEvent.SAVE_COMPLETED -> {
+                    when (
+                        resolveMedicationGroupEditorSaveNavigationTarget(
+                            uiState = latestUiState,
+                            openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                        )
+                    ) {
+                        MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
+                        MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
+                    }
+                }
 
-    LaunchedEffect(uiState.isDeleted) {
-        if (uiState.isDeleted) {
-            viewModel.consumeDeletedState()
-            onGroupSaved()
+                MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED -> onGroupSaved()
+            }
         }
     }
 
@@ -541,20 +541,15 @@ private fun MedicationGroupEditorScreenContent(
     var pendingMedicationRemoval by remember { mutableStateOf<MedicationRemovalRequest?>(null) }
     var isMasterReminderRecoveryDialogVisible by remember { mutableStateOf(false) }
     val groupNameFocusRequester = remember { FocusRequester() }
-    val shouldDisableActions = shouldDisableMedicationGroupEditorActions(
+    val canSave = !shouldDisableMedicationGroupEditorSaveAction(
         uiState = uiState,
     )
-    val canSave = hasSaveableMedicationGroupContent(uiState) &&
-        !shouldDisableActions &&
-        !uiState.isArchived &&
-        !uiState.scheduleTimeOrderError
     val shouldUseArchivedPresentation = shouldUseArchivedMedicationGroupEditorPresentation(
         uiState = uiState,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
     )
-    val dangerZoneActionEnabled = !shouldDisableActions
     val presentedNotificationsToggleEnabled =
-        notificationsToggleEnabled && !shouldDisableActions && !uiState.isArchived
+        notificationsToggleEnabled && !uiState.isArchived
     val shouldRenderAsEditing = shouldRenderMedicationGroupEditorAsEditing(
         uiState = uiState,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
@@ -1481,21 +1476,18 @@ private fun MedicationGroupEditorScreenContent(
                     ) {
                         if (!uiState.isArchived) {
                             ArchiveMedicationGroupCard(
-                                enabled = dangerZoneActionEnabled,
                                 onClick = onArchiveClick,
                                 index = 0,
                                 count = dangerZoneItemCount,
                             )
                         } else {
                             DuplicateMedicationGroupCard(
-                                enabled = dangerZoneActionEnabled,
                                 onClick = onDuplicateArchivedGroupClick,
                                 index = 0,
                                 count = dangerZoneItemCount,
                             )
                         }
                         DeleteMedicationGroupRecordsCard(
-                            enabled = dangerZoneActionEnabled,
                             onClick = {
                                 if (hasRelatedRecords) {
                                     onDeleteRelatedEntriesClick()
@@ -1511,7 +1503,6 @@ private fun MedicationGroupEditorScreenContent(
                             count = dangerZoneItemCount,
                         )
                         DeleteMedicationGroupCard(
-                            enabled = dangerZoneActionEnabled,
                             onClick = onDeleteClick,
                             index = 2,
                             count = dangerZoneItemCount,
@@ -1683,19 +1674,16 @@ private fun showCreatePastScheduledSlotRecordsToast(
     }
 }
 
-internal fun shouldDisableMedicationGroupEditorActions(
+internal fun shouldDisableMedicationGroupEditorSaveAction(
     uiState: MedicationGroupEditorUiState,
 ): Boolean {
-    return uiState.isLoadingGroupForEditing ||
-        uiState.isSaving ||
+    return !hasSaveableMedicationGroupContent(uiState) ||
+        uiState.isArchived ||
+        uiState.scheduleTimeOrderError ||
         uiState.isSaved ||
         uiState.isFinishingAfterSave ||
         uiState.isDeleted ||
-        uiState.isFinishingAfterDeleteOrArchive ||
-        uiState.isDeleting ||
-        uiState.isArchiving ||
-        uiState.isRecreatingAfterArchive ||
-        uiState.isDeletingRelatedEntries
+        uiState.isFinishingAfterDeleteOrArchive
 }
 
 internal fun shouldSuppressMedicationGroupEditorLockedStateDuringGeneratedHistorySave(
@@ -1750,10 +1738,7 @@ internal fun resolvePastScheduleSelectorState(
 ): PastScheduleSelectorUiState {
     val selectedPastScheduleOption = resolvePastScheduleOption(uiState)
     val pastScheduleOptionsEnabled = lockedMessage == null &&
-        uiState.canEditBackfillOption &&
-        !shouldDisableMedicationGroupEditorActions(
-            uiState = uiState,
-        )
+        uiState.canEditBackfillOption
     val showGeneratePastRecordsOption =
         shouldShowGeneratePastScheduledSlotRecordsOption(
             uiState = uiState,

@@ -33,6 +33,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -280,6 +281,55 @@ class MedicationGroupEditorDeleteRecordsTest {
         assertEquals(true, viewModel.uiState.value.isDeleted)
 
         coVerify(exactly = 1) { medicationGroupRepository.deleteGroupAndRelatedEntries(groupUuid) }
+        coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
+    }
+
+    @Test
+    fun deleteGroup_emitsCompletionEventBeforeReminderCleanupCompletes() = runTest {
+        val groupUuid = UUID.fromString("3db3d6ae-dc74-4dd5-beb1-b0d26189c2b3")
+        val group = testMedicationGroup(groupUuid)
+        val completionEvents = mutableListOf<MedicationGroupEditorCompletionEvent>()
+        var reminderCleanupStarted = false
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationGroupRepository.deleteGroup(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } coAnswers {
+            reminderCleanupStarted = true
+            delay(1)
+            Unit
+        }
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        backgroundScope.launch {
+            viewModel.completionEvents.collect { completionEvents += it }
+        }
+        advanceUntilIdle()
+
+        viewModel.deleteGroup()
+        runCurrent()
+
+        assertEquals(
+            listOf(MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED),
+            completionEvents,
+        )
+        assertTrue(reminderCleanupStarted)
+        assertFalse(viewModel.uiState.value.isDeleting)
+        assertTrue(viewModel.uiState.value.isDeleted)
+
+        advanceUntilIdle()
+
         coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
 
@@ -1010,7 +1060,7 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
-    fun saveNewGroup_withCreatePastRecordsEnabled_marksSavedBeforeRecordGenerationCompletes() = runTest {
+    fun saveNewGroup_withCreatePastRecordsEnabled_emitsCompletionEventBeforeRecordGenerationCompletes() = runTest {
         val savedGroupUuid = UUID.fromString("466d303d-4627-4a1e-bd53-4f24e6b63e49")
         val savedGroup = testMedicationGroup(savedGroupUuid).copy(
             schedule = MedicationGroupSchedule(
@@ -1023,6 +1073,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             createdAt = Instant.parse("2026-04-25T01:00:00Z"),
             updatedAt = Instant.parse("2026-04-25T01:00:00Z"),
         )
+        val completionEvents = mutableListOf<MedicationGroupEditorCompletionEvent>()
         var recordGenerationStarted = false
 
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
@@ -1060,6 +1111,9 @@ class MedicationGroupEditorDeleteRecordsTest {
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
         )
+        backgroundScope.launch {
+            viewModel.completionEvents.collect { completionEvents += it }
+        }
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
         viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
@@ -1074,6 +1128,10 @@ class MedicationGroupEditorDeleteRecordsTest {
         runCurrent()
 
         assertTrue(recordGenerationStarted)
+        assertEquals(
+            listOf(MedicationGroupEditorCompletionEvent.SAVE_COMPLETED),
+            completionEvents,
+        )
         assertFalse(viewModel.uiState.value.isSaving)
         assertTrue(viewModel.uiState.value.isSaved)
         assertNull(viewModel.uiState.value.createdPastScheduledSlotRecordCount)

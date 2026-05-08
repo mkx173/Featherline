@@ -35,7 +35,10 @@ import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -90,6 +93,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
+    private val _completionEvents =
+        MutableSharedFlow<MedicationGroupEditorCompletionEvent>(extraBufferCapacity = 1)
+    val completionEvents: SharedFlow<MedicationGroupEditorCompletionEvent> =
+        _completionEvents.asSharedFlow()
     val currentMinute: StateFlow<LocalDateTime> = appTimeSource.currentMinute
 
     init {
@@ -648,6 +655,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
             }
             if (isSaved && savedGroupUuid != null) {
+                _completionEvents.tryEmit(MedicationGroupEditorCompletionEvent.SAVE_COMPLETED)
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
                     val recordGenerationResult = if (shouldCreatePastRecords) {
@@ -794,11 +802,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val archived = archiveResult == null
 
-            if (archived) {
-                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-                runCatching { medicationReminderScheduler.rescheduleAll() }
-            }
-
             _uiState.update {
                 val nextState = it.copy(
                     isArchiving = false,
@@ -810,6 +813,15 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     previousState = it,
                     nextState = nextState,
                 )
+            }
+            if (archived) {
+                _completionEvents.tryEmit(
+                    MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED
+                )
+                withContext(NonCancellable) {
+                    runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                    runCatching { medicationReminderScheduler.rescheduleAll() }
+                }
             }
         }
     }
@@ -1038,32 +1050,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun consumeSavedState() {
-        _uiState.update {
-            val nextState = it.copy(
-                isSaved = false,
-                createPastScheduledSlotRecordsResult = null,
-                createdPastScheduledSlotRecordCount = null,
-            )
-            resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
-                previousState = it,
-                nextState = nextState,
-            )
-        }
-    }
-
     fun consumeSaveMedicationGroupResult() {
         _uiState.update { it.copy(saveMedicationGroupResult = null) }
-    }
-
-    fun consumeDeletedState() {
-        _uiState.update {
-            val nextState = it.copy(isDeleted = false)
-            resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
-                previousState = it,
-                nextState = nextState,
-            )
-        }
     }
 
     fun consumeDeleteRelatedEntriesResult() {
@@ -1168,10 +1156,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val isDeleted = deleteResult == null
 
-            if (isDeleted) {
-                runCatching { medicationReminderScheduler.cancelReminder(uuid) }
-            }
-
             _uiState.update {
                 val nextState = it.copy(
                     isDeleting = false,
@@ -1183,6 +1167,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     previousState = it,
                     nextState = nextState,
                 )
+            }
+            if (isDeleted) {
+                _completionEvents.tryEmit(
+                    MedicationGroupEditorCompletionEvent.DELETE_OR_ARCHIVE_COMPLETED
+                )
+                withContext(NonCancellable) {
+                    runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                }
             }
         }
     }
@@ -1586,6 +1578,11 @@ data class CreatePastScheduledSlotRecordsSaveState(
     val result: CreatePastScheduledSlotRecordsResult?,
     val savedRecordCount: Int?,
 )
+
+enum class MedicationGroupEditorCompletionEvent {
+    SAVE_COMPLETED,
+    DELETE_OR_ARCHIVE_COMPLETED,
+}
 
 data class MedicationGroupEditorUiState(
     val editingGroupId: String? = null,
