@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -310,6 +311,7 @@ internal fun LockedScheduleTimeNoteRow(
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ),
+        modifier = Modifier.padding(top = dimensionResource(R.dimen.list_segment_gap))
     ) {
         Text(
             text = text,
@@ -369,7 +371,6 @@ internal fun NotificationsCard(
 @Composable
 internal fun DeleteMedicationGroupRecordsCard(
     enabled: Boolean,
-    hasRelatedRecords: Boolean,
     onClick: () -> Unit,
     index: Int = 0,
     count: Int = 2,
@@ -381,11 +382,6 @@ internal fun DeleteMedicationGroupRecordsCard(
         iconPainter = painterResource(R.drawable.ic_delete_history),
         index = index,
         count = count,
-        supportText = if (!hasRelatedRecords) {
-            stringResource(R.string.delete_group_related_records_disabled)
-        } else {
-            null
-        }
     )
 }
 

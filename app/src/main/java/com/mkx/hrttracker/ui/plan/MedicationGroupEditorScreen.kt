@@ -516,6 +516,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.delete_group_related_records_success)
     val deleteRelatedEntriesFailureMessage =
         stringResource(R.string.delete_group_related_records_failure)
+    val deleteRelatedEntriesUnavailableMessage =
+        stringResource(R.string.delete_group_related_records_disabled)
     val saveMedicationGroupFailureMessage =
         stringResource(R.string.save_medication_group_failure)
     val archiveMedicationGroupFailureMessage =
@@ -1493,9 +1495,18 @@ private fun MedicationGroupEditorScreenContent(
                             )
                         }
                         DeleteMedicationGroupRecordsCard(
-                            enabled = dangerZoneActionEnabled && hasRelatedRecords,
-                            hasRelatedRecords = hasRelatedRecords,
-                            onClick = onDeleteRelatedEntriesClick,
+                            enabled = dangerZoneActionEnabled,
+                            onClick = {
+                                if (hasRelatedRecords) {
+                                    onDeleteRelatedEntriesClick()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        deleteRelatedEntriesUnavailableMessage,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
                             index = 1,
                             count = dangerZoneItemCount,
                         )

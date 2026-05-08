@@ -71,9 +71,7 @@ internal fun DailyScheduleEditor(
         (if (previewOccurrences.isNotEmpty()) 1 else 0) +
         (if (pastScheduleSelectorState != null) 1 else 0)
     var itemIndex = 0
-    Column(
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-    ) {
+    Column {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = dateFormatter(sinceDate),
@@ -85,6 +83,7 @@ internal fun DailyScheduleEditor(
             count = totalCount
         )
 
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalDays),
@@ -101,6 +100,7 @@ internal fun DailyScheduleEditor(
             count = totalCount
         )
 
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         DailyTimesCard(
             times = dailyTimes,
             timeFormatter = timeFormatter,
@@ -114,6 +114,7 @@ internal fun DailyScheduleEditor(
         )
 
         if (previewOccurrences.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
             ScheduleOccurrencesCard(
                 title = stringResource(R.string.group_schedule_preview),
                 occurrences = previewOccurrences,
@@ -125,14 +126,13 @@ internal fun DailyScheduleEditor(
             )
         }
 
-        pastScheduleSelectorState?.let { selectorState ->
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onOptionSelected = onPastScheduleOptionSelected,
-                index = itemIndex,
-                count = totalCount,
-            )
-        }
+        AnimatedPastScheduleSelectorCard(
+            state = pastScheduleSelectorState,
+            onOptionSelected = onPastScheduleOptionSelected,
+            index = itemIndex,
+            count = totalCount,
+            label = "daily-schedule-past-selector",
+        )
     }
 }
 
@@ -161,7 +161,7 @@ private fun DailyTimesCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -192,9 +192,6 @@ private fun DailyTimesCard(
                 }
             }
 
-            if (showLockedTimeNote) {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            }
             AnimatedVisibility(
                 visible = showLockedTimeNote,
                 enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),

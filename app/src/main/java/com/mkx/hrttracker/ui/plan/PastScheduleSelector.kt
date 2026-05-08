@@ -1,8 +1,15 @@
 package com.mkx.hrttracker.ui.plan
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -13,12 +20,16 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.constraintlayout.compose.MotionScene
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -32,9 +43,41 @@ internal data class PastScheduleSelectorUiState(
     val lockedMessage: String? = null,
 )
 
+@Composable
+internal fun AnimatedPastScheduleSelectorCard(
+    state: PastScheduleSelectorUiState?,
+    onOptionSelected: (PastScheduleOption) -> Unit,
+    index: Int = 0,
+    count: Int = 1,
+    label: String = "past-schedule-selector",
+) {
+    val displayedState = remember { mutableStateOf(state) }
+    if (state != null) {
+        displayedState.value = state
+    }
+
+    AnimatedVisibility(
+        visible = state != null,
+        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+        label = label,
+    ) {
+        displayedState.value?.let { selectorState ->
+            PastScheduleSelectorCard(
+                state = selectorState,
+                onOptionSelected = onOptionSelected,
+                index = index,
+                count = count,
+                modifier = Modifier.padding(top = dimensionResource(R.dimen.list_segment_gap))
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun PastScheduleSelectorCard(
+    modifier: Modifier = Modifier,
     state: PastScheduleSelectorUiState,
     onOptionSelected: (PastScheduleOption) -> Unit,
     index: Int = 0,
@@ -44,6 +87,7 @@ internal fun PastScheduleSelectorCard(
         index = index,
         count = count,
         onClick = {},
+        modifier = modifier
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),

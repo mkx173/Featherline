@@ -73,9 +73,7 @@ internal fun WeeklyScheduleEditor(
         (if (previewOccurrences.isNotEmpty()) 1 else 0) +
         (if (pastScheduleSelectorState != null) 1 else 0)
     var itemIndex = 0
-    Column(
-        verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
-    ) {
+    Column {
         EditorFieldRow(
             label = stringResource(R.string.group_schedule_since),
             value = dateFormatter(sinceDate),
@@ -87,6 +85,7 @@ internal fun WeeklyScheduleEditor(
             count = totalCount
         )
 
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         IntervalStepperCard(
             label = stringResource(R.string.group_schedule_repeat_every),
             value = parseScheduleInterval(intervalWeeks),
@@ -103,6 +102,7 @@ internal fun WeeklyScheduleEditor(
             count = totalCount
         )
 
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         EditorSegmentedListItem(
             index = itemIndex++,
             count = totalCount,
@@ -110,12 +110,12 @@ internal fun WeeklyScheduleEditor(
             enabled = true,
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = stringResource(R.string.group_schedule_days_of_week).uppercase(),
@@ -141,6 +141,7 @@ internal fun WeeklyScheduleEditor(
             }
         }
 
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
         WeeklyTimeCard(
             label = stringResource(R.string.group_schedule_time),
             formattedTime = time.format(timeFormatter),
@@ -153,6 +154,7 @@ internal fun WeeklyScheduleEditor(
         )
 
         if (previewOccurrences.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
             ScheduleOccurrencesCard(
                 title = stringResource(R.string.group_schedule_preview),
                 occurrences = previewOccurrences,
@@ -164,14 +166,13 @@ internal fun WeeklyScheduleEditor(
             )
         }
 
-        pastScheduleSelectorState?.let { selectorState ->
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onOptionSelected = onPastScheduleOptionSelected,
-                index = itemIndex,
-                count = totalCount,
-            )
-        }
+        AnimatedPastScheduleSelectorCard(
+            state = pastScheduleSelectorState,
+            onOptionSelected = onPastScheduleOptionSelected,
+            index = itemIndex,
+            count = totalCount,
+            label = "weekly-schedule-past-selector",
+        )
     }
 }
 
@@ -194,14 +195,13 @@ private fun WeeklyTimeCard(
         enabled = true,
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             modifier = Modifier.padding(bottom = 6.dp),
         ) {
             Text(
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 10.dp)
             )
             ScheduleTimeRow(
                 formattedTime = formattedTime,
@@ -209,9 +209,7 @@ private fun WeeklyTimeCard(
                 onClick = onClick,
                 enabled = enabled,
             )
-            if (showLockedTimeNote) {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-            }
+
             AnimatedVisibility(
                 visible = showLockedTimeNote,
                 enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
