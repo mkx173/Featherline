@@ -193,11 +193,11 @@ fun MedicationGroupEditorScreen(
             }
             if (shouldEnableGroupNotifications(pendingNotificationEnableRequest)) {
                 viewModel.updateNotificationsEnabled(true)
-                if (canScheduleExactAlarms(context)) {
-                    showInexactReminderWarning = false
-                } else {
-                    isExactAlarmDialogVisible = true
-                }
+                val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
+                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                )
+                showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
+                isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
             }
         } else {
             if (shouldEnableMasterReminders(pendingNotificationEnableRequest)) {
@@ -257,11 +257,11 @@ fun MedicationGroupEditorScreen(
         } else {
             viewModel.setMasterRemindersEnabled(true)
             viewModel.updateNotificationsEnabled(true)
-            if (canScheduleExactAlarms(context)) {
-                showInexactReminderWarning = false
-            } else {
-                isExactAlarmDialogVisible = true
-            }
+            val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
+                canScheduleExactAlarms = canScheduleExactAlarms(context)
+            )
+            showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
+            isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
         }
     }
 
@@ -361,11 +361,11 @@ fun MedicationGroupEditorScreen(
                 }
             } else {
                 viewModel.updateNotificationsEnabled(true)
-                if (canScheduleExactAlarms(context)) {
-                    showInexactReminderWarning = false
-                } else {
-                    isExactAlarmDialogVisible = true
-                }
+                val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
+                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                )
+                showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
+                isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
             }
         },
         onRequestExactAlarmAccess = {
@@ -1868,6 +1868,20 @@ internal fun resolveNotificationSupportState(
     !remindersEnabled -> NotificationSupportState.MASTER_OFF
     showInexactReminderWarning -> NotificationSupportState.INEXACT
     else -> NotificationSupportState.NONE
+}
+
+internal data class ExactAlarmReminderEnableUiState(
+    val showInexactReminderWarning: Boolean,
+    val showExactAlarmDialog: Boolean,
+)
+
+internal fun resolveExactAlarmUiStateAfterEnablingReminders(
+    canScheduleExactAlarms: Boolean,
+): ExactAlarmReminderEnableUiState {
+    return ExactAlarmReminderEnableUiState(
+        showInexactReminderWarning = !canScheduleExactAlarms,
+        showExactAlarmDialog = false,
+    )
 }
 
 internal const val GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST = "group_only"

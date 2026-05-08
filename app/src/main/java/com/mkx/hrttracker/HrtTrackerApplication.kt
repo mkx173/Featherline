@@ -3,6 +3,8 @@ package com.mkx.hrttracker
 import android.app.Application
 import android.app.UiModeManager
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.material3.ComposeMaterial3Flags
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
@@ -26,7 +28,10 @@ class HrtTrackerApplication : Application() {
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
+        ComposeMaterial3Flags.isCheckboxStylingFixEnabled = true
+
         super.onCreate()
         diagnosticsLogger.info(TAG, "application_on_create_start")
 

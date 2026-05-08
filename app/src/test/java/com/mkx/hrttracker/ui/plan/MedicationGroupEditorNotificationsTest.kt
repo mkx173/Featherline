@@ -117,6 +117,26 @@ class MedicationGroupEditorNotificationsTest {
     }
 
     @Test
+    fun resolveExactAlarmUiStateAfterEnablingReminders_warns_without_dialog_when_exact_alarm_access_missing() {
+        val state = resolveExactAlarmUiStateAfterEnablingReminders(
+            canScheduleExactAlarms = false
+        )
+
+        assertTrue(state.showInexactReminderWarning)
+        assertFalse(state.showExactAlarmDialog)
+    }
+
+    @Test
+    fun resolveExactAlarmUiStateAfterEnablingReminders_clears_warning_when_exact_alarm_access_available() {
+        val state = resolveExactAlarmUiStateAfterEnablingReminders(
+            canScheduleExactAlarms = true
+        )
+
+        assertFalse(state.showInexactReminderWarning)
+        assertFalse(state.showExactAlarmDialog)
+    }
+
+    @Test
     fun shouldEnableMasterReminders_returns_true_only_for_master_and_group_request() {
         assertTrue(shouldEnableMasterReminders(MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST))
         assertFalse(shouldEnableMasterReminders(GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST))
