@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -33,6 +37,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -397,6 +402,7 @@ private fun CalibrationCustomAnalyteItem(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CalibrationCustomAnalyteDialog(
     customAnalyte: CustomBloodAnalyte?,
@@ -469,135 +475,112 @@ private fun CalibrationCustomAnalyteDialog(
         }
     }
 
-    AlertDialog(
+    BasicAlertDialog(
         modifier = modifier,
         onDismissRequest = {
             if (!isBusy) {
                 onDismiss()
             }
         },
-        title = {
-            Text(
-                text = stringResource(
-                    if (customAnalyte == null) {
-                        R.string.settings_calibration_custom_analyte_add_title
-                    } else {
-                        R.string.settings_calibration_custom_analyte_edit_title
-                    }
-                )
-            )
-        },
-        text = {
+    ) {
+        Surface(
+            modifier = Modifier
+                .wrapContentWidth()
+                .wrapContentHeight(),
+            shape = AlertDialogDefaults.shape,
+            color = AlertDialogDefaults.containerColor,
+            tonalElevation = AlertDialogDefaults.TonalElevation,
+        ) {
             Column(
+                modifier = Modifier.padding(dimensionResource(R.dimen.padding_large)),
                 verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.padding_small)
-                )
+                    dimensionResource(R.dimen.padding_medium)
+                ),
             ) {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = nameText,
-                    onValueChange = { value ->
-                        nameText = value
-                        isNameErrorVisible = false
-                        actionErrorMessage = null
-                    },
-                    label = {
-                        Text(
-                            text = stringResource(
-                                R.string.settings_calibration_custom_analyte_name_label
-                            )
-                        )
-                    },
-                    singleLine = true,
-                    isError = isNameErrorVisible,
-                    supportingText = if (isNameErrorVisible) {
-                        {
-                            Text(
-                                text = stringResource(
-                                    R.string.settings_calibration_custom_analyte_error_required_name
-                                )
-                            )
+                Text(
+                    text = stringResource(
+                        if (customAnalyte == null) {
+                            R.string.settings_calibration_custom_analyte_add_title
+                        } else {
+                            R.string.settings_calibration_custom_analyte_edit_title
                         }
-                    } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(
-                        onNext = { abbreviationFocusRequester.requestFocus() },
                     ),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = AlertDialogDefaults.titleContentColor,
                 )
-                OutlinedTextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(abbreviationFocusRequester),
-                    value = abbreviationText,
-                    onValueChange = { value ->
-                        abbreviationText = value
-                        isAbbreviationErrorVisible = false
-                        actionErrorMessage = null
-                    },
-                    label = {
-                        Text(
-                            text = stringResource(
-                                R.string.settings_calibration_custom_analyte_abbreviation_label
-                            )
-                        )
-                    },
-                    singleLine = true,
-                    isError = isAbbreviationErrorVisible,
-                    supportingText = if (isAbbreviationErrorVisible) {
-                        {
-                            Text(
-                                text = stringResource(
-                                    R.string.settings_calibration_custom_analyte_error_required_abbreviation
-                                )
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = if (isUnitLocked) ImeAction.Done else ImeAction.Next,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { unitFocusRequester.requestFocus() },
-                        onDone = {
-                            if (!isBusy) {
-                                submit()
-                            }
-                        },
-                    ),
-                )
-                Box(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.padding_small)
+                    )
+                ) {
                     OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(unitFocusRequester),
-                        value = unitText,
+                        modifier = Modifier.fillMaxWidth(),
+                        value = nameText,
                         onValueChange = { value ->
-                            unitText = value
-                            isUnitErrorVisible = false
+                            nameText = value
+                            isNameErrorVisible = false
                             actionErrorMessage = null
                         },
-                        enabled = !isUnitLocked,
                         label = {
-                            Text(text = stringResource(R.string.settings_calibration_unit_label))
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_calibration_custom_analyte_name_label
+                                )
+                            )
                         },
                         singleLine = true,
-                        isError = isUnitErrorVisible,
-                        supportingText = if (isUnitErrorVisible) {
+                        isError = isNameErrorVisible,
+                        supportingText = if (isNameErrorVisible) {
                             {
                                 Text(
                                     text = stringResource(
-                                        R.string.settings_calibration_custom_analyte_error_required_unit
+                                        R.string.settings_calibration_custom_analyte_error_required_name
                                     )
                                 )
                             }
                         } else {
                             null
                         },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(
+                            onNext = { abbreviationFocusRequester.requestFocus() },
+                        ),
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(abbreviationFocusRequester),
+                        value = abbreviationText,
+                        onValueChange = { value ->
+                            abbreviationText = value
+                            isAbbreviationErrorVisible = false
+                            actionErrorMessage = null
+                        },
+                        label = {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_calibration_custom_analyte_abbreviation_label
+                                )
+                            )
+                        },
+                        singleLine = true,
+                        isError = isAbbreviationErrorVisible,
+                        supportingText = if (isAbbreviationErrorVisible) {
+                            {
+                                Text(
+                                    text = stringResource(
+                                        R.string.settings_calibration_custom_analyte_error_required_abbreviation
+                                    )
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (isUnitLocked) ImeAction.Done else ImeAction.Next,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { unitFocusRequester.requestFocus() },
                             onDone = {
                                 if (!isBusy) {
                                     submit()
@@ -605,64 +588,100 @@ private fun CalibrationCustomAnalyteDialog(
                             },
                         ),
                     )
-                    if (isUnitLocked) {
-                        Box(
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
                             modifier = Modifier
-                                .matchParentSize()
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) {
-                                    Toast.makeText(
-                                        context,
-                                        unitLockedToastMessage,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                .fillMaxWidth()
+                                .focusRequester(unitFocusRequester),
+                            value = unitText,
+                            onValueChange = { value ->
+                                unitText = value
+                                isUnitErrorVisible = false
+                                actionErrorMessage = null
+                            },
+                            enabled = !isUnitLocked,
+                            label = {
+                                Text(text = stringResource(R.string.settings_calibration_unit_label))
+                            },
+                            singleLine = true,
+                            isError = isUnitErrorVisible,
+                            supportingText = if (isUnitErrorVisible) {
+                                {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.settings_calibration_custom_analyte_error_required_unit
+                                        )
+                                    )
                                 }
+                            } else {
+                                null
+                            },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    if (!isBusy) {
+                                        submit()
+                                    }
+                                },
+                            ),
+                        )
+                        if (isUnitLocked) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) {
+                                        Toast.makeText(
+                                            context,
+                                            unitLockedToastMessage,
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                            )
+                        }
+                    }
+                    actionErrorMessage?.let { errorMessage ->
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
-                actionErrorMessage?.let { errorMessage ->
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                customAnalyte?.let { existingAnalyte ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    customAnalyte?.let { existingAnalyte ->
+                        TextButton(
+                            enabled = !isBusy,
+                            onClick = { isArchiveConfirmationVisible = true },
+                        ) {
+                            Text(
+                                text = stringResource(R.string.archive),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
                     TextButton(
                         enabled = !isBusy,
-                        onClick = { isArchiveConfirmationVisible = true },
+                        onClick = onDismiss,
                     ) {
-                        Text(
-                            text = stringResource(R.string.archive),
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = !isBusy,
+                        onClick = { submit() },
+                    ) {
+                        Text(text = stringResource(R.string.save))
                     }
                 }
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(
-                    enabled = !isBusy,
-                    onClick = onDismiss,
-                ) {
-                    Text(text = stringResource(R.string.cancel))
-                }
-                TextButton(
-                    enabled = !isBusy,
-                    onClick = { submit() },
-                ) {
-                    Text(text = stringResource(R.string.save))
-                }
             }
-        },
-    )
+        }
+    }
 
     if (isArchiveConfirmationVisible && customAnalyte != null) {
         AlertDialog(

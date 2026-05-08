@@ -3,8 +3,10 @@ package com.mkx.hrttracker.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,6 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,7 +201,7 @@ fun BackupPasswordDialog(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(
@@ -207,6 +210,7 @@ fun BackupPasswordDialog(
                     ) {
                         Text(text = stringResource(R.string.cancel))
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     TextButton(
                         enabled = !isInProgress,
                         onClick = { submit() },
