@@ -155,7 +155,6 @@ private fun DailyTimesCard(
         onClick = {},
     ) {
         Column(
-//            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             modifier = Modifier.padding(bottom = 6.dp)
         ) {
             Row(
