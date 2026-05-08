@@ -1,9 +1,17 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -11,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -57,6 +66,7 @@ internal fun WeeklyScheduleEditor(
     intervalEnabled: Boolean = true,
     daySelectionEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
+    showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
 ) {
     val totalCount = 4 +
@@ -131,14 +141,13 @@ internal fun WeeklyScheduleEditor(
             }
         }
 
-        EditorFieldRow(
+        WeeklyTimeCard(
             label = stringResource(R.string.group_schedule_time),
-            value = time.format(timeFormatter),
-            originalValue = originalTime?.format(timeFormatter),
-            icon = painterResource(R.drawable.ic_schedule),
+            formattedTime = time.format(timeFormatter),
+            formattedOriginalTime = originalTime?.format(timeFormatter),
             onClick = { onTimeChange(time) },
             enabled = timeEditEnabled,
-            locked = !timeEditEnabled,
+            showLockedTimeNote = showLockedTimeNote,
             index = itemIndex++,
             count = totalCount
         )
@@ -162,6 +171,55 @@ internal fun WeeklyScheduleEditor(
                 index = itemIndex,
                 count = totalCount,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun WeeklyTimeCard(
+    label: String,
+    formattedTime: String,
+    formattedOriginalTime: String?,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    showLockedTimeNote: Boolean,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        onClick = {},
+        enabled = true,
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+            modifier = Modifier.padding(bottom = 6.dp),
+        ) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            ScheduleTimeRow(
+                formattedTime = formattedTime,
+                formattedOriginalTime = formattedOriginalTime,
+                onClick = onClick,
+                enabled = enabled,
+            )
+            if (showLockedTimeNote) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            }
+            AnimatedVisibility(
+                visible = showLockedTimeNote,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                label = "weekly-schedule-locked-time-note",
+            ) {
+                LockedScheduleTimeNoteRow()
+            }
         }
     }
 }

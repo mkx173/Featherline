@@ -1,9 +1,16 @@
 package com.mkx.hrttracker.ui.plan
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -16,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -56,6 +64,7 @@ internal fun DailyScheduleEditor(
     intervalEnabled: Boolean = true,
     addRemoveTimeEnabled: Boolean = true,
     timeEditEnabled: Boolean = true,
+    showLockedTimeNote: Boolean = false,
     shapeLocked: Boolean = false,
 ) {
     val totalCount = 3 +
@@ -99,6 +108,7 @@ internal fun DailyScheduleEditor(
             onTimeClick = onTimeClick,
             addRemoveTimeEnabled = addRemoveTimeEnabled,
             timeEditEnabled = timeEditEnabled,
+            showLockedTimeNote = showLockedTimeNote,
             index = itemIndex++,
             count = totalCount
         )
@@ -135,6 +145,7 @@ private fun DailyTimesCard(
     onTimeClick: (String, LocalTime) -> Unit,
     addRemoveTimeEnabled: Boolean,
     timeEditEnabled: Boolean,
+    showLockedTimeNote: Boolean,
     index: Int = 0,
     count: Int = 1
 ) {
@@ -144,7 +155,7 @@ private fun DailyTimesCard(
         onClick = {},
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
+//            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
             modifier = Modifier.padding(bottom = 6.dp)
         ) {
             Row(
@@ -153,7 +164,7 @@ private fun DailyTimesCard(
                     .wrapContentHeight()
                     .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = stringResource(
@@ -177,6 +188,21 @@ private fun DailyTimesCard(
                     index = index,
                     count = sortedTimes.size
                 )
+                if (index != sortedTimes.size - 1) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+                }
+            }
+
+            if (showLockedTimeNote) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            }
+            AnimatedVisibility(
+                visible = showLockedTimeNote,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                label = "daily-schedule-locked-time-note",
+            ) {
+                LockedScheduleTimeNoteRow()
             }
         }
     }
@@ -192,47 +218,14 @@ private fun DailyTimeRow(
     index: Int = 0,
     count: Int = 1
 ) {
-    SegmentedListItem(
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_schedule),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-        },
-        trailingContent = if (enabled) {
-            {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        } else {
-            null
-        },
-        onClick = if (enabled) onClick else {
-            {}
-        },
-        enabled = true,
-        shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
-            cornerShape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        )
-    ) {
-        ChangedScheduleTimeText(
-            value = formattedTime,
-            originalValue = formattedOriginalTime,
-        )
-    }
+    ScheduleTimeRow(
+        formattedTime = formattedTime,
+        formattedOriginalTime = formattedOriginalTime,
+        onClick = onClick,
+        enabled = enabled,
+        index = index,
+        count = count,
+    )
 }
 
 internal fun canRemoveDailyTime(totalTimeCount: Int): Boolean = totalTimeCount > 1

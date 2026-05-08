@@ -14,7 +14,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,6 +32,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.DangerZoneListItem
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
+import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -224,6 +227,95 @@ internal fun ChangedScheduleTimeText(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun ScheduleTimeRow(
+    formattedTime: String,
+    formattedOriginalTime: String?,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    index: Int = 0,
+    count: Int = 1,
+) {
+    SegmentedListItem(
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_schedule),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingContent = if (enabled) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        } else {
+            null
+        },
+        onClick = if (enabled) onClick else {
+            {}
+        },
+        enabled = true,
+        shapes = segmentedListItemShapes(
+            index = index,
+            count = count,
+            cornerShape = MaterialTheme.shapes.medium,
+            pressedShape = MaterialTheme.shapes.medium
+        ),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
+    ) {
+        ChangedScheduleTimeText(
+            value = formattedTime,
+            originalValue = formattedOriginalTime,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun LockedScheduleTimeNoteRow(
+    index: Int = 0,
+    count: Int = 1,
+) {
+    val text = stringResource(R.string.group_locked_time_note)
+    SegmentedListItem(
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_edit_calendar),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        onClick = {},
+        enabled = true,
+        shapes = segmentedListItemShapes(
+            index = index,
+            count = count,
+            cornerShape = MaterialTheme.shapes.medium,
+            pressedShape = MaterialTheme.shapes.medium
+        ),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

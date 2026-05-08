@@ -1904,6 +1904,10 @@ internal fun lockedScheduleTimesChanged(uiState: MedicationGroupEditorUiState): 
     return scheduleTimesForSave(uiState) != originalTimes
 }
 
+internal fun shouldShowLockedScheduleTimeNote(uiState: MedicationGroupEditorUiState): Boolean {
+    return uiState.isLocked && lockedScheduleTimesChanged(uiState)
+}
+
 data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,

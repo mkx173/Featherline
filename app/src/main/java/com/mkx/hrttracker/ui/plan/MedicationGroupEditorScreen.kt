@@ -564,6 +564,7 @@ private fun MedicationGroupEditorScreenContent(
         )
     val shouldRenderLockedState =
         uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
+    val shouldShowLockedTimeChangeNote = shouldShowLockedScheduleTimeNote(uiState)
     val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
     val upcomingOccurrences = remember(
         uiState.isArchived,
@@ -1352,6 +1353,7 @@ private fun MedicationGroupEditorScreenContent(
                             intervalEnabled = !areFieldsRenderedLocked,
                             daySelectionEnabled = !areFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
+                            showLockedTimeNote = shouldShowLockedTimeChangeNote,
                             shapeLocked = areFieldsRenderedLocked,
                         )
                     } else {
@@ -1383,16 +1385,8 @@ private fun MedicationGroupEditorScreenContent(
                             intervalEnabled = !areFieldsRenderedLocked,
                             addRemoveTimeEnabled = !areFieldsRenderedLocked,
                             timeEditEnabled = !uiState.isArchived,
+                            showLockedTimeNote = shouldShowLockedTimeChangeNote,
                             shapeLocked = areFieldsRenderedLocked,
-                        )
-                    }
-                    if (shouldRenderLockedState) {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.group_locked_time_note),
-                            icon = Icons.Rounded.EditCalendar,
-                            leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            titleColor = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                 }
