@@ -27,6 +27,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +41,8 @@ fun DatePickerModal(
         object : SelectableDates {
             override fun isSelectableDate(utcTimeMillis: Long): Boolean {
                 return minimumDate == null ||
-                    !materialPickerDateMillisToLocalDate(utcTimeMillis).isBefore(minimumDate)
+                    !materialPickerDateMillisToLocalDate(utcTimeMillis, ZoneOffset.UTC)
+                        .isBefore(minimumDate)
             }
 
             override fun isSelectableYear(year: Int): Boolean {
