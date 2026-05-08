@@ -2,17 +2,24 @@ package com.mkx.hrttracker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +38,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.mkx.hrttracker.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupPasswordDialog(
     title: String,
@@ -91,63 +99,56 @@ fun BackupPasswordDialog(
         null
     }
 
-    AlertDialog(
+    BasicAlertDialog(
         modifier = modifier,
         onDismissRequest = onDismiss,
-        title = { Text(text = title) },
-        text = {
+    ) {
+        Surface(
+            modifier = Modifier
+                .wrapContentWidth()
+                .wrapContentHeight(),
+            shape = AlertDialogDefaults.shape,
+            color = AlertDialogDefaults.containerColor,
+            tonalElevation = AlertDialogDefaults.TonalElevation,
+        ) {
             Column(
+                modifier = Modifier.padding(dimensionResource(R.dimen.padding_large)),
                 verticalArrangement = Arrangement.spacedBy(
-                    dimensionResource(R.dimen.padding_small)
-                )
+                    dimensionResource(R.dimen.padding_medium)
+                ),
             ) {
-                Text(text = message)
-                warningMessage?.let { warningText ->
-                    Text(
-                        text = warningText,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                BackupPasswordField(
-                    value = password,
-                    onValueChange = {
-                        password = it
-                        showValidationErrors = false
-                    },
-                    label = passwordLabel,
-                    passwordVisible = passwordVisible,
-                    onToggleVisibility = { passwordVisible = !passwordVisible },
-                    supportingText = passwordValidationMessage?.let { message ->
-                        {
-                            Text(
-                                text = message,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    },
-                    isError = passwordValidationMessage != null,
-                    imeAction = if (requireConfirmation) ImeAction.Next else ImeAction.Done,
-                    onImeAction = {
-                        if (requireConfirmation) {
-                            confirmPasswordFocusRequester.requestFocus()
-                        } else if (!isInProgress) {
-                            submit()
-                        }
-                    },
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = AlertDialogDefaults.titleContentColor,
                 )
-                confirmPasswordLabel?.let { label ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.padding_small)
+                    )
+                ) {
+                    Text(
+                        text = message,
+                        color = AlertDialogDefaults.textContentColor,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    warningMessage?.let { warningText ->
+                        Text(
+                            text = warningText,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     BackupPasswordField(
-                        value = confirmPassword,
+                        value = password,
                         onValueChange = {
-                            confirmPassword = it
+                            password = it
                             showValidationErrors = false
                         },
-                        label = label,
-                        passwordVisible = confirmPasswordVisible,
-                        onToggleVisibility = {
-                            confirmPasswordVisible = !confirmPasswordVisible
-                        },
-                        supportingText = confirmPasswordValidationMessage?.let { message ->
+                        label = passwordLabel,
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = { passwordVisible = !passwordVisible },
+                        supportingText = passwordValidationMessage?.let { message ->
                             {
                                 Text(
                                     text = message,
@@ -155,35 +156,67 @@ fun BackupPasswordDialog(
                                 )
                             }
                         },
-                        isError = confirmPasswordValidationMessage != null,
-                        imeAction = ImeAction.Done,
+                        isError = passwordValidationMessage != null,
+                        imeAction = if (requireConfirmation) ImeAction.Next else ImeAction.Done,
                         onImeAction = {
-                            if (!isInProgress) {
+                            if (requireConfirmation) {
+                                confirmPasswordFocusRequester.requestFocus()
+                            } else if (!isInProgress) {
                                 submit()
                             }
                         },
-                        modifier = Modifier.focusRequester(confirmPasswordFocusRequester),
                     )
+                    confirmPasswordLabel?.let { label ->
+                        BackupPasswordField(
+                            value = confirmPassword,
+                            onValueChange = {
+                                confirmPassword = it
+                                showValidationErrors = false
+                            },
+                            label = label,
+                            passwordVisible = confirmPasswordVisible,
+                            onToggleVisibility = {
+                                confirmPasswordVisible = !confirmPasswordVisible
+                            },
+                            supportingText = confirmPasswordValidationMessage?.let { message ->
+                                {
+                                    Text(
+                                        text = message,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            },
+                            isError = confirmPasswordValidationMessage != null,
+                            imeAction = ImeAction.Done,
+                            onImeAction = {
+                                if (!isInProgress) {
+                                    submit()
+                                }
+                            },
+                            modifier = Modifier.focusRequester(confirmPasswordFocusRequester),
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        enabled = !isInProgress,
+                        onClick = onDismiss,
+                    ) {
+                        Text(text = stringResource(R.string.cancel))
+                    }
+                    TextButton(
+                        enabled = !isInProgress,
+                        onClick = { submit() },
+                    ) {
+                        Text(text = confirmLabel)
+                    }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !isInProgress,
-                onClick = { submit() },
-            ) {
-                Text(text = confirmLabel)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                enabled = !isInProgress,
-                onClick = onDismiss,
-            ) {
-                Text(text = stringResource(R.string.cancel))
-            }
         }
-    )
+    }
 }
 
 internal fun validateBackupPasswordInput(
