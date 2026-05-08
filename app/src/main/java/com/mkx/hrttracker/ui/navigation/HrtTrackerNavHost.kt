@@ -563,6 +563,13 @@ fun HrtTrackerNavHost(
                     modifier = modifier.padding(innerPadding),
                     onNavigateBack = { navController.popBackStack() },
                     onGroupSaved = { navController.popBackStack() },
+                    onGroupSavedToPlan = {
+                        if (!navController.popBackStack(Screen.Plan.route, inclusive = false)) {
+                            navController.navigate(Screen.Plan.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                     openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
                 )
             }

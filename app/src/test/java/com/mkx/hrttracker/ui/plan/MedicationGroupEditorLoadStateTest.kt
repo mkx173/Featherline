@@ -871,6 +871,70 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun archivedPagePresentation_clearsAfterDuplicateDraftIsCreated() {
+        val duplicatedDraftState = MedicationGroupEditorUiState(
+            editingGroupId = null,
+            isArchived = false,
+        )
+
+        assertFalse(
+            shouldUseArchivedMedicationGroupEditorPresentation(
+                uiState = duplicatedDraftState,
+                openedFromArchivedGroupsPage = true,
+            )
+        )
+    }
+
+    @Test
+    fun archivedPagePresentation_isKeptForArchivedGroup() {
+        val archivedGroupState = MedicationGroupEditorUiState(
+            editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",
+            isArchived = true,
+        )
+
+        assertTrue(
+            shouldUseArchivedMedicationGroupEditorPresentation(
+                uiState = archivedGroupState,
+                openedFromArchivedGroupsPage = true,
+            )
+        )
+    }
+
+    @Test
+    fun saveNavigationTarget_returnsPlanForDuplicatedDraftFromArchivedGroups() {
+        val duplicatedDraftState = MedicationGroupEditorUiState(
+            editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
+            isArchived = false,
+            isSaved = true,
+        )
+
+        assertEquals(
+            MedicationGroupEditorSaveNavigationTarget.PLAN,
+            resolveMedicationGroupEditorSaveNavigationTarget(
+                uiState = duplicatedDraftState,
+                openedFromArchivedGroupsPage = true,
+            )
+        )
+    }
+
+    @Test
+    fun saveNavigationTarget_returnsBackForRegularEditorSave() {
+        val savedRegularState = MedicationGroupEditorUiState(
+            editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
+            isArchived = false,
+            isSaved = true,
+        )
+
+        assertEquals(
+            MedicationGroupEditorSaveNavigationTarget.BACK,
+            resolveMedicationGroupEditorSaveNavigationTarget(
+                uiState = savedRegularState,
+                openedFromArchivedGroupsPage = false,
+            )
+        )
+    }
+
+    @Test
     fun existingGroupSaveCompletionBeforeLatch_withGeneratedHistorySelected_keepsEditPresentationStable() {
         val savedExistingGroupState = MedicationGroupEditorUiState(
             editingGroupId = "c53536d0-fc0a-4726-890f-e0904b0c9f95",

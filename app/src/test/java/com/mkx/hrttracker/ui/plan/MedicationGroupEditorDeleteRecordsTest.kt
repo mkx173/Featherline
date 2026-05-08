@@ -814,6 +814,85 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun saveNewGroup_withCreatePastRecordsEnabled_marksSavedBeforeRecordGenerationCompletes() = runTest {
+        val savedGroupUuid = UUID.fromString("466d303d-4627-4a1e-bd53-4f24e6b63e49")
+        val savedGroup = testMedicationGroup(savedGroupUuid).copy(
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 23),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            createdAt = Instant.parse("2026-04-25T01:00:00Z"),
+            updatedAt = Instant.parse("2026-04-25T01:00:00Z"),
+        )
+        var recordGenerationStarted = false
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.saveNewEntries(any()) } coAnswers {
+            recordGenerationStarted = true
+            delay(1)
+            Unit
+        }
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+        var callbackResult: CreatePastScheduledSlotRecordsResult? = null
+        var callbackSavedRecordCount: Int? = null
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+        viewModel.showAddMedicationEditor()
+        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.saveEditingMedication()
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
+        viewModel.updateCreatePastScheduledSlotRecords(true)
+
+        viewModel.saveGroup { saveState ->
+            callbackResult = saveState.result
+            callbackSavedRecordCount = saveState.savedRecordCount
+        }
+        runCurrent()
+
+        assertTrue(recordGenerationStarted)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.createdPastScheduledSlotRecordCount)
+        assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
+        assertNull(callbackSavedRecordCount)
+
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.uiState.value.createdPastScheduledSlotRecordCount)
+        assertNull(callbackResult)
+        assertEquals(3, callbackSavedRecordCount)
+        coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
+    }
+
+    @Test
     fun saveExistingRecordlessGroup_withCreatePastRecordsEnabled_addsPastScheduledRecords() = runTest {
         val groupUuid = UUID.fromString("cdd609a1-05bd-42f7-9ea5-8cc3e6c0c85c")
         val savedEntries = slot<Collection<MedicationLogEntryInput>>()
@@ -978,6 +1057,8 @@ class MedicationGroupEditorDeleteRecordsTest {
         coEvery { medicationLogRepository.getEntries() } returns emptyList()
         coEvery { medicationLogRepository.saveNewEntries(any()) } throws RuntimeException("record failed")
         coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+        var callbackResult: CreatePastScheduledSlotRecordsResult? = null
+        var callbackSavedRecordCount: Int? = null
 
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
@@ -995,7 +1076,10 @@ class MedicationGroupEditorDeleteRecordsTest {
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
-        viewModel.saveGroup()
+        viewModel.saveGroup { saveState ->
+            callbackResult = saveState.result
+            callbackSavedRecordCount = saveState.savedRecordCount
+        }
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isSaving)
@@ -1006,6 +1090,8 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         assertNull(viewModel.uiState.value.createdPastScheduledSlotRecordCount)
         assertEquals(savedGroupUuid.toString(), viewModel.uiState.value.editingGroupId)
+        assertEquals(CreatePastScheduledSlotRecordsResult.FAILURE, callbackResult)
+        assertNull(callbackSavedRecordCount)
         coVerify(exactly = 1) { medicationLogRepository.saveNewEntries(any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) }
     }

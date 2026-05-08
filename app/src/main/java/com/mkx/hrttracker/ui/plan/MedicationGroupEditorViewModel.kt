@@ -34,6 +34,7 @@ import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -499,7 +501,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun saveGroup() {
+    fun saveGroup(
+        onCreatePastScheduledSlotRecordsCompleted:
+            ((CreatePastScheduledSlotRecordsSaveState) -> Unit)? = null,
+    ) {
         val currentState = _uiState.value
         if (
             currentState.isSaving ||
@@ -600,17 +605,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
             )
             val isSaved = saveResult == null
             val savedGroupUuid = savedGroupUuidResult.getOrNull()
-            val recordGenerationResult = if (isSaved && shouldCreatePastRecords && savedGroupUuid != null) {
-                savePastScheduledSlotRecords(
-                    groupUuid = savedGroupUuid,
-                    now = recordGenerationNow,
-                )
-            } else {
-                null
-            }
-            if (savedGroupUuid != null) {
-                runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
-            }
 
             _uiState.update {
                 val nextState = it.copy(
@@ -629,13 +623,36 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     isSaved = isSaved,
                     isFinishingAfterSave = isSaved,
                     saveMedicationGroupResult = saveResult,
-                    createPastScheduledSlotRecordsResult = recordGenerationResult?.result,
-                    createdPastScheduledSlotRecordCount = recordGenerationResult?.savedRecordCount,
+                    createPastScheduledSlotRecordsResult = null,
+                    createdPastScheduledSlotRecordCount = null,
                 )
                 resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
                     previousState = it,
                     nextState = nextState,
                 )
+            }
+            if (isSaved && savedGroupUuid != null) {
+                withContext(NonCancellable) {
+                    runCatching { medicationReminderScheduler.rescheduleGroup(savedGroupUuid) }
+                    val recordGenerationResult = if (shouldCreatePastRecords) {
+                        savePastScheduledSlotRecords(
+                            groupUuid = savedGroupUuid,
+                            now = recordGenerationNow,
+                        )
+                    } else {
+                        null
+                    }
+                    if (recordGenerationResult != null) {
+                        _uiState.update {
+                            it.copy(
+                                createPastScheduledSlotRecordsResult = recordGenerationResult.result,
+                                createdPastScheduledSlotRecordCount =
+                                    recordGenerationResult.savedRecordCount,
+                            )
+                        }
+                        onCreatePastScheduledSlotRecordsCompleted?.invoke(recordGenerationResult)
+                    }
+                }
             }
         }
     }
@@ -1529,7 +1546,7 @@ internal fun upsertMedication(
     )
 }
 
-private data class CreatePastScheduledSlotRecordsSaveState(
+data class CreatePastScheduledSlotRecordsSaveState(
     val result: CreatePastScheduledSlotRecordsResult?,
     val savedRecordCount: Int?,
 )

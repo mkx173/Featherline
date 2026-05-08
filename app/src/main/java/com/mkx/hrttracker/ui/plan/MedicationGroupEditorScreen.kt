@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.plan
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -132,6 +133,7 @@ import java.util.UUID
 fun MedicationGroupEditorScreen(
     onNavigateBack: () -> Unit,
     onGroupSaved: () -> Unit,
+    onGroupSavedToPlan: () -> Unit = onGroupSaved,
     modifier: Modifier = Modifier,
     openedFromArchivedGroupsPage: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
@@ -149,16 +151,16 @@ fun MedicationGroupEditorScreen(
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val isNewGroupCreationFlow = remember { !uiState.isEditing }
-    val createdPastScheduledSlotRecordCount = uiState.createdPastScheduledSlotRecordCount ?: 0
-    val createPastScheduledSlotRecordsSuccessMessage = pluralStringResource(
-        R.plurals.plan_batch_add_success,
-        createdPastScheduledSlotRecordCount,
-        createdPastScheduledSlotRecordCount,
-    )
-    val createPastScheduledSlotRecordsNoRecordsMessage =
-        stringResource(R.string.group_schedule_backfill_records_empty)
-    val createPastScheduledSlotRecordsFailureMessage =
-        stringResource(R.string.group_schedule_backfill_records_failure)
+    val applicationContext = context.applicationContext
+    val onCreatePastScheduledSlotRecordsCompleted =
+        remember(applicationContext) {
+            { saveState: CreatePastScheduledSlotRecordsSaveState ->
+                showCreatePastScheduledSlotRecordsToast(
+                    context = applicationContext,
+                    saveState = saveState,
+                )
+            }
+        }
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -258,35 +260,18 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(
-        uiState.isSaved,
-        uiState.createPastScheduledSlotRecordsResult,
-        uiState.createdPastScheduledSlotRecordCount,
-    ) {
+    LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
-            when (uiState.createPastScheduledSlotRecordsResult) {
-                CreatePastScheduledSlotRecordsResult.FAILURE -> Toast.makeText(
-                    context,
-                    createPastScheduledSlotRecordsFailureMessage,
-                    Toast.LENGTH_SHORT,
-                ).show()
-
-                null -> {
-                    if (uiState.createdPastScheduledSlotRecordCount != null) {
-                        Toast.makeText(
-                            context,
-                            if (createdPastScheduledSlotRecordCount == 0) {
-                                createPastScheduledSlotRecordsNoRecordsMessage
-                            } else {
-                                createPastScheduledSlotRecordsSuccessMessage
-                            },
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            }
             viewModel.consumeSavedState()
-            onGroupSaved()
+            when (
+                resolveMedicationGroupEditorSaveNavigationTarget(
+                    uiState = uiState,
+                    openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                )
+            ) {
+                MedicationGroupEditorSaveNavigationTarget.BACK -> onGroupSaved()
+                MedicationGroupEditorSaveNavigationTarget.PLAN -> onGroupSavedToPlan()
+            }
         }
     }
 
@@ -403,7 +388,12 @@ fun MedicationGroupEditorScreen(
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
         onSaveMedicationClick = viewModel::saveEditingMedication,
-        onSaveClick = viewModel::saveGroup,
+        onSaveClick = {
+            viewModel.saveGroup(
+                onCreatePastScheduledSlotRecordsCompleted =
+                    onCreatePastScheduledSlotRecordsCompleted,
+            )
+        },
         onSaveMedicationGroupResultConsumed = viewModel::consumeSaveMedicationGroupResult,
         onDeleteRelatedEntriesClick = viewModel::showDeleteRelatedEntriesConfirmation,
         onDeleteRelatedEntriesDismiss = viewModel::dismissDeleteRelatedEntriesConfirmation,
@@ -544,6 +534,10 @@ private fun MedicationGroupEditorScreenContent(
         !shouldDisableActions &&
         !uiState.isArchived &&
         !uiState.scheduleTimeOrderError
+    val shouldUseArchivedPresentation = shouldUseArchivedMedicationGroupEditorPresentation(
+        uiState = uiState,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
     val dangerZoneActionEnabled = !shouldDisableActions
     val presentedNotificationsToggleEnabled =
         notificationsToggleEnabled && !shouldDisableActions && !uiState.isArchived
@@ -1047,7 +1041,7 @@ private fun MedicationGroupEditorScreenContent(
                 },
                 title = {
                     val title = stringResource(
-                        if (openedFromArchivedGroupsPage) {
+                        if (shouldUseArchivedPresentation) {
                             R.string.archived_medication_group
                         } else if (shouldRenderAsEditing) {
                             R.string.edit_medication_group
@@ -1072,7 +1066,7 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 },
                 actions = {
-                    if (!openedFromArchivedGroupsPage) {
+                    if (!shouldUseArchivedPresentation) {
                         HrtButton(
                             text = stringResource(R.string.save),
                             onClick = onSaveClick,
@@ -1597,6 +1591,54 @@ internal fun shouldRenderMedicationGroupEditorAsEditing(
 ): Boolean {
     return uiState.isEditing &&
         !(isNewGroupCreationFlow && (uiState.isSaved || uiState.isFinishingAfterSave))
+}
+
+internal fun shouldUseArchivedMedicationGroupEditorPresentation(
+    uiState: MedicationGroupEditorUiState,
+    openedFromArchivedGroupsPage: Boolean,
+): Boolean {
+    return openedFromArchivedGroupsPage && uiState.isArchived
+}
+
+internal enum class MedicationGroupEditorSaveNavigationTarget {
+    BACK,
+    PLAN,
+}
+
+internal fun resolveMedicationGroupEditorSaveNavigationTarget(
+    uiState: MedicationGroupEditorUiState,
+    openedFromArchivedGroupsPage: Boolean,
+): MedicationGroupEditorSaveNavigationTarget {
+    return if (openedFromArchivedGroupsPage && !uiState.isArchived) {
+        MedicationGroupEditorSaveNavigationTarget.PLAN
+    } else {
+        MedicationGroupEditorSaveNavigationTarget.BACK
+    }
+}
+
+private fun showCreatePastScheduledSlotRecordsToast(
+    context: Context,
+    saveState: CreatePastScheduledSlotRecordsSaveState,
+) {
+    val message = when (saveState.result) {
+        CreatePastScheduledSlotRecordsResult.FAILURE ->
+            context.getString(R.string.group_schedule_backfill_records_failure)
+
+        null -> saveState.savedRecordCount?.let { savedRecordCount ->
+            if (savedRecordCount == 0) {
+                context.getString(R.string.group_schedule_backfill_records_empty)
+            } else {
+                context.resources.getQuantityString(
+                    R.plurals.plan_batch_add_success,
+                    savedRecordCount,
+                    savedRecordCount,
+                )
+            }
+        }
+    }
+    if (message != null) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
 }
 
 internal fun shouldDisableMedicationGroupEditorActions(
