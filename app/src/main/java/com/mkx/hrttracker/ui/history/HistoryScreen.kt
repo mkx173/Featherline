@@ -380,9 +380,9 @@ private fun HistoryScreenContent(
             .distinctUntilChanged()
             .collect { (index, offset) ->
                 val isScrollingDown = index > previousIndex ||
-                    (index == previousIndex && offset > previousOffset)
+                        (index == previousIndex && offset > previousOffset)
                 val isScrollingUp = index < previousIndex ||
-                    (index == previousIndex && offset < previousOffset)
+                        (index == previousIndex && offset < previousOffset)
 
                 when {
                     isScrollingDown -> isSelectionFabVisible = false
@@ -739,7 +739,7 @@ private fun HistoryScreenContent(
                         appLocale = appLocale,
                         selectedDate = calendarSelectedDate,
                         hasResettableSelection = uiState.selectedDate != null &&
-                            pendingSelectionResetTargetMonth.value == null,
+                                pendingSelectionResetTargetMonth.value == null,
                         onDayClick = { date ->
                             pendingSelectionResetTargetMonth.value = null
                             val selectedMonth = YearMonth.from(date)
@@ -816,7 +816,7 @@ private fun HistoryScreenContent(
                                     groupName = entry.sourceGroupUuid?.let(groupNamesById::get),
                                     groupColorKey = entry.sourceGroupUuid?.let(groupColorsById::get),
                                     isFromArchivedGroup = entry.sourceGroupUuid != null &&
-                                        entry.sourceGroupUuid in archivedGroupUuids,
+                                            entry.sourceGroupUuid in archivedGroupUuids,
                                     isSelected = entry.uuid in uiState.selectedEntryIds,
                                     isSelectionMode = uiState.isSelectionMode,
                                     index = index,
@@ -1214,7 +1214,7 @@ private fun HistoryMonthCalendar(
                         date = day.date
                     )
                     val isSettledMonthDate = day.position != DayPosition.MonthDate ||
-                        YearMonth.from(day.date) == settledDisplayedMonth
+                            YearMonth.from(day.date) == settledDisplayedMonth
                     HistoryCalendarDay(
                         day = day,
                         today = today,
@@ -1474,59 +1474,80 @@ private fun HistoryMonthPickerDialog(
             Text(text = stringResource(R.string.history_month_picker_title))
         },
         text = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                key(wheelState.monthOptions) {
-                    val monthWheelState = rememberWheelPickerState(
-                        itemCount = wheelState.monthOptions.size,
-                        initialIndex = wheelState.selectedMonthIndex
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.history_month_picker_month),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
                     )
+                    Text(
+                        text = stringResource(R.string.history_month_picker_year),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    key(wheelState.monthOptions) {
+                        val monthWheelState = rememberWheelPickerState(
+                            itemCount = wheelState.monthOptions.size,
+                            initialIndex = wheelState.selectedMonthIndex
+                        )
 
-                    LaunchedEffect(wheelState.selectedMonthIndex) {
-                        if (monthWheelState.index != wheelState.selectedMonthIndex) {
-                            monthWheelState.scrollTo(wheelState.selectedMonthIndex)
-                        }
-                    }
-
-                    LaunchedEffect(
-                        monthWheelState,
-                        wheelState.selectedMonth.year,
-                        calendarStartMonth,
-                        calendarEndMonth
-                    ) {
-                        snapshotFlow { monthWheelState.index }
-                            .distinctUntilChanged()
-                            .collect { selectedMonthIndex ->
-                                val updatedMonth = historyMonthPickerSelectionForMonthIndex(
-                                    selectedYear = wheelState.selectedMonth.year,
-                                    selectedMonthIndex = selectedMonthIndex,
-                                    calendarStartMonth = calendarStartMonth,
-                                    calendarEndMonth = calendarEndMonth
-                                )
-                                if (updatedMonth != pickerMonth) {
-                                    pickerMonth = updatedMonth
-                                }
+                        LaunchedEffect(wheelState.selectedMonthIndex) {
+                            if (monthWheelState.index != wheelState.selectedMonthIndex) {
+                                monthWheelState.scrollTo(wheelState.selectedMonthIndex)
                             }
-                    }
+                        }
 
+                        LaunchedEffect(
+                            monthWheelState,
+                            wheelState.selectedMonth.year,
+                            calendarStartMonth,
+                            calendarEndMonth
+                        ) {
+                            snapshotFlow { monthWheelState.index }
+                                .distinctUntilChanged()
+                                .collect { selectedMonthIndex ->
+                                    val updatedMonth = historyMonthPickerSelectionForMonthIndex(
+                                        selectedYear = wheelState.selectedMonth.year,
+                                        selectedMonthIndex = selectedMonthIndex,
+                                        calendarStartMonth = calendarStartMonth,
+                                        calendarEndMonth = calendarEndMonth
+                                    )
+                                    if (updatedMonth != pickerMonth) {
+                                        pickerMonth = updatedMonth
+                                    }
+                                }
+                        }
+
+                        HistoryMonthPickerWheel(
+                            options = wheelState.monthOptions.map { monthValue ->
+                                historyMonthPickerMonthLabel(monthValue, appLocale)
+                            },
+                            state = monthWheelState,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     HistoryMonthPickerWheel(
-                        label = stringResource(R.string.history_month_picker_month),
-                        options = wheelState.monthOptions.map { monthValue ->
-                            historyMonthPickerMonthLabel(monthValue, appLocale)
-                        },
-                        state = monthWheelState,
+                        options = wheelState.yearOptions.map(Int::toString),
+                        state = yearWheelState,
                         modifier = Modifier.weight(1f)
                     )
                 }
-                HistoryMonthPickerWheel(
-                    label = stringResource(R.string.history_month_picker_year),
-                    options = wheelState.yearOptions.map(Int::toString),
-                    state = yearWheelState,
-                    modifier = Modifier.weight(1f)
-                )
             }
+
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(pickerMonth) }) {
@@ -1543,62 +1564,51 @@ private fun HistoryMonthPickerDialog(
 
 @Composable
 private fun HistoryMonthPickerWheel(
-    label: String,
     options: List<String>,
     state: WheelPickerState,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh
-        ) {
-            WheelPicker(
-                state = state,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                bufferSize = 1,
-                window = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                    )
-                },
-                animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow)
-            ) { index ->
-                val isSelected = state.index == index
+        WheelPicker(
+            state = state,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            bufferSize = 1,
+            window = {
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = options[index],
-                        style = if (isSelected) {
-                            MaterialTheme.typography.titleMedium
-                        } else {
-                            MaterialTheme.typography.bodyLarge
-                        },
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.alpha(if (isSelected) 1f else 0.72f).padding(vertical = 8.dp)
-                    )
-                }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                )
+            },
+            animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow)
+        ) { index ->
+            val isSelected = state.index == index
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = options[index],
+                    style = if (isSelected) {
+                        MaterialTheme.typography.titleMedium
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(if (isSelected) 1f else 0.72f).padding(vertical = 8.dp)
+                )
             }
         }
     }
