@@ -1489,14 +1489,16 @@ private fun MedicationGroupEditorScreenContent(
                         }
                         DeleteMedicationGroupRecordsCard(
                             onClick = {
-                                if (hasRelatedRecords) {
-                                    onDeleteRelatedEntriesClick()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        deleteRelatedEntriesUnavailableMessage,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                if (!isMedicationGroupEditorBusy(uiState)) {
+                                    if (hasRelatedRecords) {
+                                        onDeleteRelatedEntriesClick()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            deleteRelatedEntriesUnavailableMessage,
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
                                 }
                             },
                             index = 1,
@@ -1680,6 +1682,21 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
     return !hasSaveableMedicationGroupContent(uiState) ||
         uiState.isArchived ||
         uiState.scheduleTimeOrderError ||
+        uiState.isSaved ||
+        uiState.isFinishingAfterSave ||
+        uiState.isDeleted ||
+        uiState.isFinishingAfterDeleteOrArchive
+}
+
+internal fun isMedicationGroupEditorBusy(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return uiState.isLoadingGroupForEditing ||
+        uiState.isSaving ||
+        uiState.isDeleting ||
+        uiState.isArchiving ||
+        uiState.isRecreatingAfterArchive ||
+        uiState.isDeletingRelatedEntries ||
         uiState.isSaved ||
         uiState.isFinishingAfterSave ||
         uiState.isDeleted ||

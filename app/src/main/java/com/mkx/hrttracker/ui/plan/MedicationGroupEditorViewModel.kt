@@ -682,7 +682,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     fun showDeleteConfirmation() {
-        if (_uiState.value.isEditing) {
+        val currentState = _uiState.value
+        if (
+            currentState.isEditing &&
+            !isMedicationGroupEditorBusy(currentState)
+        ) {
             _uiState.update {
                 it.copy(isDeleteConfirmationVisible = true)
             }
@@ -700,11 +704,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         if (
             currentState.isEditing &&
             !currentState.isArchived &&
-            !currentState.isSaving &&
-            !currentState.isDeleting &&
-            !currentState.isArchiving &&
-            !currentState.isRecreatingAfterArchive &&
-            !currentState.isDeletingRelatedEntries
+            !isMedicationGroupEditorBusy(currentState)
         ) {
             _uiState.update {
                 it.copy(
@@ -728,11 +728,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         if (
             !currentState.isEditing ||
             !currentState.isArchived ||
-            currentState.isSaving ||
-            currentState.isDeleting ||
-            currentState.isArchiving ||
-            currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries
+            isMedicationGroupEditorBusy(currentState)
         ) {
             return
         }
@@ -772,12 +768,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val currentState = _uiState.value
         if (
             currentState.isArchived ||
-            currentState.isSaving ||
-            currentState.isDeleting ||
-            currentState.isArchiving ||
-            currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries ||
-            currentState.currentOrFuturePlannedSlotCount > 0
+            currentState.currentOrFuturePlannedSlotCount > 0 ||
+            isMedicationGroupEditorBusy(currentState)
         ) {
             return
         }
@@ -831,12 +823,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val groupId = currentState.editingGroupId ?: return
         if (
             currentState.isArchived ||
-            currentState.isSaving ||
-            currentState.isDeleting ||
-            currentState.isArchiving ||
-            currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries ||
-            currentState.currentOrFuturePlannedSlotCount > 0
+            currentState.currentOrFuturePlannedSlotCount > 0 ||
+            isMedicationGroupEditorBusy(currentState)
         ) {
             return
         }
@@ -973,7 +961,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun showDeleteRelatedEntriesConfirmation() {
         val currentState = _uiState.value
-        if (currentState.isEditing && currentState.relatedEntryCount > 0) {
+        if (
+            currentState.isEditing &&
+            currentState.relatedEntryCount > 0 &&
+            !isMedicationGroupEditorBusy(currentState)
+        ) {
             _uiState.update {
                 it.copy(isDeleteRelatedEntriesConfirmationVisible = true)
             }
@@ -997,7 +989,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
     fun deleteRelatedEntries() {
         val currentState = _uiState.value
         val groupId = currentState.editingGroupId ?: return
-        if (currentState.relatedEntryCount <= 0) {
+        if (
+            currentState.relatedEntryCount <= 0 ||
+            isMedicationGroupEditorBusy(currentState)
+        ) {
             return
         }
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
@@ -1132,7 +1127,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
     }
 
     private fun deleteGroup(deleteRelatedEntries: Boolean) {
-        val groupId = _uiState.value.editingGroupId ?: return
+        val currentState = _uiState.value
+        if (isMedicationGroupEditorBusy(currentState)) {
+            return
+        }
+        val groupId = currentState.editingGroupId ?: return
         val uuid = runCatching { UUID.fromString(groupId) }.getOrNull() ?: return
 
         viewModelScope.launch {
