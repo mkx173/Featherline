@@ -256,22 +256,32 @@ class HomeSnapshotRepository @Inject constructor(
         force: Boolean = false,
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
-        refreshMutex.withLock {
-            val refreshGeneration = homeSnapshotGenerationStore.readGeneration()
-            val zoneId = ZoneId.systemDefault()
-            val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId)
-            val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
+        val zoneId = ZoneId.systemDefault()
+        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId)
+        val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
+
+        // refreshMutex is held only across the skip-check so concurrent refresh
+        // requests briefly coalesce here. The simulation and write phases run
+        // outside the lock; correctness relies on the generation recheck inside
+        // snapshotMutationMutex below — any racing mutation bumps the durable
+        // generation and our writeSnapshot call is dropped. Trade-off: under
+        // unusual contention, two refresh requests may both run their
+        // simulations in parallel and the loser's work is wasted. We accept
+        // that to keep mutation latency low (writes don't stall behind a PK
+        // simulation + JSON encode + encrypted DataStore write).
+        val refreshGeneration = refreshMutex.withLock {
+            val gen = homeSnapshotGenerationStore.readGeneration()
             val existingSnapshot = homeSnapshotStore.readSnapshot()
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_refresh_verify_existing force=$force " +
-                    "generation=$refreshGeneration " +
+                    "generation=$gen " +
                     "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
             )
             if (
                 !force &&
                 existingSnapshot != null &&
-                existingSnapshot.generation >= refreshGeneration &&
+                existingSnapshot.generation >= gen &&
                 isSnapshotUsable(existingSnapshot, now, zoneId)
             ) {
                 diagnosticsLogger.info(
@@ -279,107 +289,108 @@ class HomeSnapshotRepository @Inject constructor(
                     "home_snapshot_refresh_skipped reason=existing_usable " +
                         "${existingSnapshot.diagnosticSummary()} now=$now"
                 )
-                return@withLock
+                return
             }
+            gen
+        }
 
-            val inputs = withContext(Dispatchers.IO) {
-                val database = databaseHolder.get()
-                val homeDao = database.homeDao()
-                val activeGroups = homeDao.getActiveGroups()
-                    .map { group -> group.toMedicationGroupModel() }
-                val scheduleEntries = homeDao.getScheduleEntries(
-                    scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
-                    scheduledEndIso = snapshotWindow.bufferedScheduledEnd.toString(),
-                    manualStartEpochMillis = snapshotWindow.bufferedManualStartEpochMillis,
-                    manualEndEpochMillis = snapshotWindow.bufferedManualEndEpochMillis,
-                ).map { entry -> entry.toMedicationLogEntryModel() }
-                val antiandrogenHistoryEntries = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
-                    onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
-                ).map { entry -> entry.toMedicationLogEntryModel() }
-                val pkEntries = homeDao.getEstradiolPkEntries(
-                    startEpochMillis = cacheWindow.inputStartEpochMillis,
-                    endEpochMillis = cacheWindow.generatedAtEpochMillis,
-                ).map { entry -> entry.toMedicationLogEntryModel() }
-                val latestEstradiolEntry = homeDao.getLatestEstradiolEntryOnOrBefore(
-                    onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
-                )?.toMedicationLogEntryModel()
-                HomeSnapshotBuildInputs(
-                    activeGroups = activeGroups,
-                    scheduleEntries = scheduleEntries,
-                    antiandrogenHistoryEntries = antiandrogenHistoryEntries,
-                    pkEntries = pkEntries,
-                    latestEstradiolEntry = latestEstradiolEntry,
-                    profile = database.userProfileDao()
-                        .getProfile()
-                        ?.toUserProfileModel()
-                        ?: UserProfile(),
-                )
-            }
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
-                    "activeGroups=${inputs.activeGroups.size} " +
-                    "scheduleEntries=${inputs.scheduleEntries.size} " +
-                    "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
-                    "pkEntries=${inputs.pkEntries.size} " +
-                    "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
+        val inputs = withContext(Dispatchers.IO) {
+            val database = databaseHolder.get()
+            val homeDao = database.homeDao()
+            val activeGroups = homeDao.getActiveGroups()
+                .map { group -> group.toMedicationGroupModel() }
+            val scheduleEntries = homeDao.getScheduleEntries(
+                scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
+                scheduledEndIso = snapshotWindow.bufferedScheduledEnd.toString(),
+                manualStartEpochMillis = snapshotWindow.bufferedManualStartEpochMillis,
+                manualEndEpochMillis = snapshotWindow.bufferedManualEndEpochMillis,
+            ).map { entry -> entry.toMedicationLogEntryModel() }
+            val antiandrogenHistoryEntries = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
+                onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
+            ).map { entry -> entry.toMedicationLogEntryModel() }
+            val pkEntries = homeDao.getEstradiolPkEntries(
+                startEpochMillis = cacheWindow.inputStartEpochMillis,
+                endEpochMillis = cacheWindow.generatedAtEpochMillis,
+            ).map { entry -> entry.toMedicationLogEntryModel() }
+            val latestEstradiolEntry = homeDao.getLatestEstradiolEntryOnOrBefore(
+                onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
+            )?.toMedicationLogEntryModel()
+            HomeSnapshotBuildInputs(
+                activeGroups = activeGroups,
+                scheduleEntries = scheduleEntries,
+                antiandrogenHistoryEntries = antiandrogenHistoryEntries,
+                pkEntries = pkEntries,
+                latestEstradiolEntry = latestEstradiolEntry,
+                profile = database.userProfileDao()
+                    .getProfile()
+                    ?.toUserProfileModel()
+                    ?: UserProfile(),
             )
+        }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_refresh_inputs_loaded generation=$refreshGeneration " +
+                "activeGroups=${inputs.activeGroups.size} " +
+                "scheduleEntries=${inputs.scheduleEntries.size} " +
+                "antiandrogenEntries=${inputs.antiandrogenHistoryEntries.size} " +
+                "pkEntries=${inputs.pkEntries.size} " +
+                "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
+        )
 
-            val projection = withContext(defaultDispatcher) {
-                PkMedicationSimulation.simulateMainEstradiolProjection(
-                    entries = inputs.pkEntries,
-                    bodyWeightKg = inputs.profile.weightKg,
-                    generatedAt = now,
-                    zoneId = zoneId,
-                    futureDays = HOME_PK_PROJECTION_FUTURE_DAYS,
-                )
-            }
-            diagnosticsLogger.info(
-                TAG,
-                "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
-                    "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd}"
+        val projection = withContext(defaultDispatcher) {
+            PkMedicationSimulation.simulateMainEstradiolProjection(
+                entries = inputs.pkEntries,
+                bodyWeightKg = inputs.profile.weightKg,
+                generatedAt = now,
+                zoneId = zoneId,
+                futureDays = HOME_PK_PROJECTION_FUTURE_DAYS,
             )
-            val pkProjectionRecord = HomePkProjectionRecord(
-                generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
-                windowStartEpochMillis = projection.windowStart.toEpochMilli(),
-                windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
-                payloadJson = HomePkProjectionJsonCodec.encode(projection),
-                latestEstradiolEntry = inputs.latestEstradiolEntry,
-            )
-            val snapshotRecord = HomeSnapshotRecord(
-                schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
-                generation = refreshGeneration,
-                generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
-                anchorDateEpochDay = now.toLocalDate().toEpochDay(),
-                zoneId = zoneId.id,
-                pkProjection = pkProjectionRecord,
-                activeGroups = inputs.activeGroups,
-                scheduleEntries = inputs.scheduleEntries,
-                antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
-            )
+        }
+        diagnosticsLogger.info(
+            TAG,
+            "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
+                "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd}"
+        )
+        val pkProjectionRecord = HomePkProjectionRecord(
+            generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
+            windowStartEpochMillis = projection.windowStart.toEpochMilli(),
+            windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
+            payloadJson = HomePkProjectionJsonCodec.encode(projection),
+            latestEstradiolEntry = inputs.latestEstradiolEntry,
+        )
+        val snapshotRecord = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = refreshGeneration,
+            generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
+            anchorDateEpochDay = now.toLocalDate().toEpochDay(),
+            zoneId = zoneId.id,
+            pkProjection = pkProjectionRecord,
+            activeGroups = inputs.activeGroups,
+            scheduleEntries = inputs.scheduleEntries,
+            antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
+        )
 
-            withContext(Dispatchers.IO) {
-                // Avoid restoring stale snapshot data from a refresh that raced with a write.
-                snapshotMutationMutex.withLock {
-                    if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
-                        diagnosticsLogger.info(
-                            TAG,
-                            "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
-                        )
-                        homeSnapshotStore.writeSnapshot(snapshotRecord)
-                        StartupTiming.mark("home_snapshot_rebuilt")
-                        diagnosticsLogger.info(
-                            TAG,
-                            "home_snapshot_refreshed ${snapshotRecord.diagnosticSummary()}"
-                        )
-                    } else {
-                        diagnosticsLogger.info(
-                            TAG,
-                            "home_snapshot_write_skipped reason=generation_changed " +
-                                "refreshGeneration=$refreshGeneration " +
-                                "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
-                        )
-                    }
+        withContext(Dispatchers.IO) {
+            // Avoid restoring stale snapshot data from a refresh that raced with a write.
+            snapshotMutationMutex.withLock {
+                if (homeSnapshotGenerationStore.readGeneration() == refreshGeneration) {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
+                    )
+                    homeSnapshotStore.writeSnapshot(snapshotRecord)
+                    StartupTiming.mark("home_snapshot_rebuilt")
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_refreshed ${snapshotRecord.diagnosticSummary()}"
+                    )
+                } else {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_write_skipped reason=generation_changed " +
+                            "refreshGeneration=$refreshGeneration " +
+                            "currentGeneration=${homeSnapshotGenerationStore.readGeneration()}"
+                    )
                 }
             }
         }
