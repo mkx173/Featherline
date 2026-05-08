@@ -576,7 +576,8 @@
     <string name="onboarding_useful_title">Recommended setup</string>
     <string name="onboarding_useful_subtitle">These steps are optional, but can help Plume provide more complete tracking, reminders, and estimates.</string>
     <string name="onboarding_useful_plan_title">Create your first plan</string>
-    <string name="onboarding_useful_plan_desc">Add a medication group in Plan to enable predictions and reminders.</string>
+    <string name="onboarding_useful_plan_desc">Add a medication group to enable predictions and reminders.</string>
+    <string name="onboarding_useful_plan_added">Group added</string>
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
     <string name="onboarding_open_app">Open Plume</string>

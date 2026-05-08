@@ -567,7 +567,8 @@
     <string name="onboarding_useful_title">建议完成的设置</string>
     <string name="onboarding_useful_subtitle">以下步骤为可选项，可帮助 Plume 提供更完整的记录、提醒和估算</string>
     <string name="onboarding_useful_plan_title">创建用药计划</string>
-    <string name="onboarding_useful_plan_desc">在「计划」中添加用药分组，以启用预测和提醒功能</string>
+    <string name="onboarding_useful_plan_desc">添加用药分组以启用预测和提醒功能</string>
+    <string name="onboarding_useful_plan_added">已添加分组</string>
     <string name="onboarding_useful_weight_title">设置体重</string>
     <string name="onboarding_useful_weight_desc">填写体重以改进血药浓度估算</string>
     <string name="onboarding_open_app">打开 Plume</string>

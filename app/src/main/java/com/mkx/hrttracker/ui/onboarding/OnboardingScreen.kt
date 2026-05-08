@@ -112,12 +112,16 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.rounded.Add
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
+import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
+import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 internal enum class OnboardingNotificationPermissionAction {
@@ -175,6 +179,8 @@ fun OnboardingScreen(
     var step by rememberSaveable { mutableIntStateOf(0) }
     var accepted by rememberSaveable { mutableStateOf(false) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var showGroupEditor by rememberSaveable { mutableStateOf(false) }
+    var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -231,7 +237,8 @@ fun OnboardingScreen(
         if (step > 0) step -= 1
     }
 
-    BackHandler(enabled = step > 0) { goPrev() }
+    BackHandler(enabled = step > 0 && !showGroupEditor) { goPrev() }
+    BackHandler(enabled = showGroupEditor) { showGroupEditor = false }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -333,7 +340,12 @@ fun OnboardingScreen(
                         )
                         3 -> UsefulInfoStep(
                             profile = uiState.userProfile,
+                            activeGroupCount = uiState.activeGroupCount,
                             onSetWeightClick = { showWeightDialog = true },
+                            onAddGroupClick = {
+                                groupEditorOpenCount += 1
+                                showGroupEditor = true
+                            },
                         )
                     }
                 }
@@ -379,6 +391,35 @@ fun OnboardingScreen(
             },
             onDismiss = { showWeightDialog = false },
         )
+    }
+
+    AnimatedVisibility(
+        visible = showGroupEditor,
+        modifier = Modifier.fillMaxSize(),
+        enter = sharedAxisXEnterTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = true,
+        ),
+        exit = sharedAxisXExitTransition(
+            density = density,
+            layoutDirection = layoutDirection,
+            forward = false,
+        ),
+        label = "onboarding-group-editor",
+    ) {
+        val editorViewModel: MedicationGroupEditorViewModel =
+            hiltViewModel(key = "onboarding-group-editor-$groupEditorOpenCount")
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            MedicationGroupEditorScreen(
+                onNavigateBack = { showGroupEditor = false },
+                onGroupSaved = { showGroupEditor = false },
+                viewModel = editorViewModel,
+            )
+        }
     }
 }
 
@@ -889,7 +930,9 @@ private fun AllowButton(
 @Composable
 private fun UsefulInfoStep(
     profile: UserProfile,
+    activeGroupCount: Int,
     onSetWeightClick: () -> Unit,
+    onAddGroupClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -904,14 +947,6 @@ private fun UsefulInfoStep(
         )
 
         InfoCard(
-            iconPainter = painterResource(R.drawable.ic_medication),
-            title = stringResource(R.string.onboarding_useful_plan_title),
-            desc = stringResource(R.string.onboarding_useful_plan_desc),
-            index = 0,
-            count = 2,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-        InfoCard(
             iconPainter = painterResource(R.drawable.ic_monitor_weight),
             title = stringResource(R.string.onboarding_useful_weight_title),
             desc = if (profile.weightOriginalValue == null) {
@@ -919,20 +954,29 @@ private fun UsefulInfoStep(
             } else {
                 formatWeightSummary(profile)
             },
-            index = 1,
+            index = 0,
             count = 2,
             actionGranted = profile.weightOriginalValue != null,
             onActionClick = onSetWeightClick,
             actionIcon = Icons.Rounded.Edit
         )
-//        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
-//        InfoCard(
-//            iconPainter = painterResource(R.drawable.ic_lab_panel),
-//            title = stringResource(R.string.settings_personalization_calibration),
-//            desc = stringResource(R.string.settings_calibration_info_message),
-//            index = 2,
-//            count = 3,
-//        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+        val hasGroup = activeGroupCount > 0
+        InfoCard(
+            iconPainter = painterResource(R.drawable.ic_medication),
+            title = stringResource(R.string.onboarding_useful_plan_title),
+            desc = if (hasGroup) {
+                stringResource(R.string.onboarding_useful_plan_added)
+            } else {
+                stringResource(R.string.onboarding_useful_plan_desc)
+            },
+            index = 1,
+            count = 2,
+            actionGranted = hasGroup,
+            onActionClick = if (hasGroup) null else onAddGroupClick,
+            showActionWhenGranted = true,
+            actionIcon = Icons.Rounded.Add
+        )
     }
 }
 
@@ -947,8 +991,10 @@ private fun InfoCard(
     count: Int,
     actionGranted: Boolean = false,
     onActionClick: (() -> Unit)? = null,
-    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward
+    actionIcon: ImageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+    showActionWhenGranted: Boolean = false,
 ) {
+    val showAction = onActionClick != null || (actionGranted && showActionWhenGranted)
     EditorSegmentedListItem(
         index = index,
         count = count,
@@ -989,11 +1035,11 @@ private fun InfoCard(
                     modifier = Modifier.cjkTextOffset(desc)
                 )
             }
-            if (onActionClick != null) {
+            if (showAction) {
                 Spacer(modifier = Modifier.width(12.dp))
                 AllowButton(
                     granted = actionGranted,
-                    onClick = onActionClick,
+                    onClick = onActionClick ?: {},
                     actionIcon = actionIcon
                 )
             }
@@ -1145,7 +1191,9 @@ private fun OnboardingUsefulInfoPreview() {
     ) {
         UsefulInfoStep(
             profile = UserProfile(),
+            activeGroupCount = 0,
             onSetWeightClick = {},
+            onAddGroupClick = {},
         )
     }
 }

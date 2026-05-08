@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
 import com.mkx.hrttracker.model.personalization.UserProfile
@@ -21,16 +22,19 @@ class OnboardingViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val userProfileRepository: UserProfileRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    medicationGroupRepository: MedicationGroupRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<OnboardingUiState> = combine(
         settingsRepository.onboardingCompleted,
         userProfileRepository.observeProfile(),
-    ) { completed, profile ->
+        medicationGroupRepository.observeGroups(),
+    ) { completed, profile, groups ->
         OnboardingUiState(
             isLoaded = true,
             isCompleted = completed,
             userProfile = profile ?: UserProfile(),
+            activeGroupCount = groups.orEmpty().count { it.archivedAt == null },
         )
     }
         .stateIn(
@@ -71,6 +75,7 @@ data class OnboardingUiState(
     val isLoaded: Boolean = false,
     val isCompleted: Boolean = false,
     val userProfile: UserProfile = UserProfile(),
+    val activeGroupCount: Int = 0,
 ) {
     val shouldShowOnboarding: Boolean
         get() = isLoaded && !isCompleted
