@@ -470,7 +470,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun saveEditingMedication() {
         val currentState = _uiState.value
-        if (currentState.areMedicationsLocked) {
+        if (currentState.areMedicationsLocked || currentState.isMedicationEditorSaved) {
             return
         }
         val editingMedication = currentState.editingMedication ?: return

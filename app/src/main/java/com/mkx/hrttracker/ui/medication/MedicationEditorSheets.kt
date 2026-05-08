@@ -1282,8 +1282,8 @@ private fun MedicationCountTextField(
                 modifier = Modifier.padding(end = 4.dp)
             ) {
                 IconButton(
-                    onClick = onDecreaseClick,
-                    enabled = enabled && stepBaseCount > 1,
+                    onClick = { if (enabled) onDecreaseClick() },
+                    enabled = stepBaseCount > 1,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Remove,
@@ -1291,8 +1291,7 @@ private fun MedicationCountTextField(
                     )
                 }
                 IconButton(
-                    onClick = onIncreaseClick,
-                    enabled = enabled,
+                    onClick = { if (enabled) onIncreaseClick() },
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
@@ -1319,7 +1318,6 @@ private fun MedicationCountTextField(
                 }
             },
         singleLine = true,
-        enabled = enabled,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Number,
             imeAction = ImeAction.Done

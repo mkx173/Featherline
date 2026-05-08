@@ -26,11 +26,13 @@ import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -208,7 +210,7 @@ class AddEntryViewModel @Inject constructor(
 
     private fun saveEntry(skipFulfillmentWarning: Boolean) {
         val currentState = _uiState.value
-        if (currentState.isLoading || currentState.isSaving || currentState.isDeleting) {
+        if (isAddEntryBusy(currentState)) {
             return
         }
         val appliedAtLocal = LocalDateTime.of(
@@ -287,9 +289,6 @@ class AddEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
-            if (isSaved) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
-            }
 
             _uiState.update {
                 it.copy(
@@ -300,12 +299,18 @@ class AddEntryViewModel @Inject constructor(
                     isScheduleFulfillmentWarningVisible = false,
                 )
             }
+
+            if (isSaved) {
+                withContext(NonCancellable) {
+                    runCatching { medicationReminderScheduler.rescheduleAll() }
+                }
+            }
         }
     }
 
     fun deleteEntry() {
         val currentState = _uiState.value
-        if (currentState.isLoading || currentState.isSaving || currentState.isDeleting) {
+        if (isAddEntryBusy(currentState)) {
             return
         }
         val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
@@ -329,9 +334,6 @@ class AddEntryViewModel @Inject constructor(
                 onFailure = { DeleteEntryResult.FAILURE },
             )
             val isDeleted = result == null
-            if (isDeleted) {
-                runCatching { medicationReminderScheduler.rescheduleAll() }
-            }
 
             _uiState.update {
                 it.copy(
@@ -340,6 +342,12 @@ class AddEntryViewModel @Inject constructor(
                     errorMessageRes = null,
                     deleteEntryResult = result,
                 )
+            }
+
+            if (isDeleted) {
+                withContext(NonCancellable) {
+                    runCatching { medicationReminderScheduler.rescheduleAll() }
+                }
             }
         }
     }
@@ -433,6 +441,13 @@ enum class SaveEntryResult {
 
 enum class DeleteEntryResult {
     FAILURE,
+}
+
+internal fun isAddEntryBusy(uiState: AddEntryUiState): Boolean {
+    return uiState.isLoading ||
+        uiState.isSaving ||
+        uiState.isDeleting ||
+        uiState.isSaved
 }
 
 internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String> {

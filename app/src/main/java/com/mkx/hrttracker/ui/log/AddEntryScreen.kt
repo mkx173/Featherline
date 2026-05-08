@@ -205,7 +205,7 @@ private fun AddEntryScreenContent(
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
         errorMessageRes = uiState.errorMessageRes,
-        isSaving = uiState.isLoading || uiState.isSaving || uiState.isDeleting,
+        isSaving = isAddEntryBusy(uiState),
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
         } else {
