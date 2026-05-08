@@ -154,7 +154,6 @@ class HomeRepositoryTest {
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
-            sourceFingerprint = "fingerprint",
             payloadJson = "{}",
             latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(),
         )
@@ -163,7 +162,6 @@ class HomeRepositoryTest {
             generatedAtEpochMillis = 10L,
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = ZoneId.systemDefault().id,
-            sourceFingerprint = "home-fingerprint",
             pkProjection = pkSnapshot,
             activeGroups = listOf(groupWithItems().toMedicationGroupModel()),
             scheduleEntries = listOf(scheduleEntry.toMedicationLogEntryModel()),
@@ -265,7 +263,6 @@ class HomeRepositoryTest {
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
-            sourceFingerprint = "fingerprint",
             pkProjection = null,
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),

@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.Flow
@@ -31,6 +32,7 @@ class HomeRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val settingsRepository: SettingsRepository,
     private val homeSnapshotRepository: HomeSnapshotRepository,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun observeHomeInputs(now: LocalDateTime): Flow<HomeInputs> {
         return channelFlow {
@@ -95,7 +97,9 @@ class HomeRepository @Inject constructor(
                 now = now,
             )
         }
-            .catch { }
+            .catch { throwable ->
+                diagnosticsLogger.warning(TAG, "home_snapshot_inputs_failed", throwable)
+            }
             .flowOn(Dispatchers.IO)
     }
 
@@ -132,7 +136,8 @@ class HomeRepository @Inject constructor(
                 now = now,
             )
         }
-            .catch {
+            .catch { throwable ->
+                diagnosticsLogger.warning(TAG, "home_room_inputs_failed", throwable)
                 emit(
                     HomeInputs(
                         activeGroups = emptyList(),
@@ -230,7 +235,8 @@ class HomeRepository @Inject constructor(
                 }
             )
         }
-            .catch {
+            .catch { throwable ->
+                diagnosticsLogger.warning(TAG, "home_startup_inputs_failed", throwable)
                 emit(
                     HomeStartupInputs(
                         activeGroups = emptyList(),
@@ -254,6 +260,7 @@ class HomeRepository @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "HomeRepository"
         const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
         const val HOME_PK_FALLBACK_LOOKBACK_DAYS = 180L
     }

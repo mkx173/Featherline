@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.security.MessageDigest
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -40,7 +39,6 @@ class HomeSnapshotRepository @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val refreshMutex = Mutex()
-    private val homeDataMutationMutex = Mutex()
     private val snapshotMutationMutex = Mutex()
 
     fun observeHomeSnapshot(): Flow<HomeSnapshotRecord?> {
@@ -89,24 +87,22 @@ class HomeSnapshotRepository @Inject constructor(
     // All medication group, medication log, and profile writes that affect Home data
     // must go through this gate so stale snapshots are rejected before the DB changes.
     suspend fun <T> runHomeDataMutation(block: suspend () -> T): T {
-        return homeDataMutationMutex.withLock {
-            refreshMutex.withLock {
-                diagnosticsLogger.info(TAG, "home_data_mutation_start")
-                val generation = homeSnapshotGenerationStore.incrementGeneration()
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_data_mutation_generation_incremented generation=$generation"
-                )
-                val result = block()
-                diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
-                clearSnapshotBestEffort()
-                refreshHomeSnapshotAsync(force = true)
-                diagnosticsLogger.info(
-                    TAG,
-                    "home_data_mutation_snapshot_refresh_requested generation=$generation"
-                )
-                result
-            }
+        return refreshMutex.withLock {
+            diagnosticsLogger.info(TAG, "home_data_mutation_start")
+            val generation = homeSnapshotGenerationStore.incrementGeneration()
+            diagnosticsLogger.info(
+                TAG,
+                "home_data_mutation_generation_incremented generation=$generation"
+            )
+            val result = block()
+            diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+            clearSnapshotBestEffort()
+            refreshHomeSnapshotAsync(force = true)
+            diagnosticsLogger.info(
+                TAG,
+                "home_data_mutation_snapshot_refresh_requested generation=$generation"
+            )
+            result
         }
     }
 
@@ -328,11 +324,6 @@ class HomeSnapshotRepository @Inject constructor(
                     "pkEntries=${inputs.pkEntries.size} " +
                     "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
             )
-            val fingerprint = sourceFingerprint(
-                zoneId = zoneId,
-                anchorDate = now.toLocalDate(),
-                inputs = inputs,
-            )
 
             val projection = withContext(defaultDispatcher) {
                 PkMedicationSimulation.simulateMainEstradiolProjection(
@@ -346,14 +337,12 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.info(
                 TAG,
                 "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
-                    "fingerprint=${fingerprint.shortDiagnosticFingerprint()} " +
                     "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd}"
             )
             val pkProjectionRecord = HomePkProjectionRecord(
                 generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
                 windowStartEpochMillis = projection.windowStart.toEpochMilli(),
                 windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
-                sourceFingerprint = fingerprint,
                 payloadJson = HomePkProjectionJsonCodec.encode(projection),
                 latestEstradiolEntry = inputs.latestEstradiolEntry,
             )
@@ -363,7 +352,6 @@ class HomeSnapshotRepository @Inject constructor(
                 generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
                 anchorDateEpochDay = now.toLocalDate().toEpochDay(),
                 zoneId = zoneId.id,
-                sourceFingerprint = fingerprint,
                 pkProjection = pkProjectionRecord,
                 activeGroups = inputs.activeGroups,
                 scheduleEntries = inputs.scheduleEntries,
@@ -395,39 +383,6 @@ class HomeSnapshotRepository @Inject constructor(
                 }
             }
         }
-    }
-
-    private fun sourceFingerprint(
-        zoneId: ZoneId,
-        anchorDate: LocalDate,
-        inputs: HomeSnapshotBuildInputs,
-    ): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.updateUtf8(HOME_SNAPSHOT_SOURCE_VERSION)
-        digest.updateUtf8(zoneId.id)
-        digest.updateUtf8(anchorDate.toString())
-        digest.updateUtf8(inputs.profile.toString())
-        inputs.activeGroups
-            .sortedBy(MedicationGroup::uuid)
-            .forEach { group -> digest.updateUtf8(group.toString()) }
-        inputs.scheduleEntries
-            .sortedWith(compareBy<MedicationLogEntry> { entry -> entry.appliedAt }.thenBy { entry -> entry.uuid })
-            .forEach { entry -> digest.updateUtf8(entry.toString()) }
-        inputs.antiandrogenHistoryEntries
-            .sortedWith(compareBy<MedicationLogEntry> { entry -> entry.appliedAt }.thenBy { entry -> entry.uuid })
-            .forEach { entry -> digest.updateUtf8(entry.toString()) }
-        inputs.pkEntries
-            .sortedWith(compareBy<MedicationLogEntry> { entry -> entry.appliedAt }.thenBy { entry -> entry.uuid })
-            .forEach { entry -> digest.updateUtf8(entry.toString()) }
-        digest.updateUtf8(inputs.latestEstradiolEntry?.toString() ?: "null")
-        return digest.digest().joinToString(separator = "") { byte ->
-            (byte.toInt() and 0xff).toString(radix = 16).padStart(2, '0')
-        }
-    }
-
-    private fun MessageDigest.updateUtf8(value: String) {
-        update(value.toByteArray(Charsets.UTF_8))
-        update(0.toByte())
     }
 
     private data class HomeSnapshotBuildInputs(
@@ -572,18 +527,14 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "generation=$generation " +
         "anchorDate=${LocalDate.ofEpochDay(anchorDateEpochDay)} " +
         "zone=$zoneId " +
-        "fingerprint=${sourceFingerprint.shortDiagnosticFingerprint()} " +
         "groups=${activeGroups.size} " +
         "scheduleEntries=${scheduleEntries.size} " +
         "antiandrogenEntries=${antiandrogenHistoryEntries.size} " +
         "hasPkProjection=${pkProjection != null}"
 }
 
-private fun String.shortDiagnosticFingerprint(): String = take(12)
-
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 3
 private const val TAG = "HomeSnapshotRepository"
-private const val HOME_SNAPSHOT_SOURCE_VERSION = "home-snapshot-v2"
 private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
 private const val HOME_PK_PROJECTION_FUTURE_DAYS = 14L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L

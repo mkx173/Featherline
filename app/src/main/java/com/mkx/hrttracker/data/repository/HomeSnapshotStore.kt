@@ -26,6 +26,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -120,7 +121,6 @@ data class HomeSnapshotRecord(
     val generatedAtEpochMillis: Long,
     val anchorDateEpochDay: Long,
     val zoneId: String,
-    val sourceFingerprint: String,
     val pkProjection: HomePkProjectionRecord?,
     val activeGroups: List<MedicationGroup>,
     val scheduleEntries: List<MedicationLogEntry>,
@@ -131,7 +131,6 @@ data class HomePkProjectionRecord(
     val generatedAtEpochMillis: Long,
     val windowStartEpochMillis: Long,
     val windowEndEpochMillis: Long,
-    val sourceFingerprint: String,
     val payloadJson: String,
     val latestEstradiolEntry: MedicationLogEntry?,
 )
@@ -146,6 +145,7 @@ internal data class HomeSnapshotState(
 
 internal class HomeSnapshotSerializer(
     private val crypto: HomeSnapshotCrypto,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) : Serializer<HomeSnapshotState> {
     override val defaultValue: HomeSnapshotState = HomeSnapshotState.Empty
 
@@ -160,7 +160,14 @@ internal class HomeSnapshotSerializer(
                     crypto.decrypt(encryptedBytes)
                 )
             )
-        }.getOrDefault(HomeSnapshotState.Empty)
+        }.getOrElse { throwable ->
+            diagnosticsLogger.warning(
+                TAG,
+                "home_snapshot_read_failed bytes=${encryptedBytes.size}",
+                throwable,
+            )
+            HomeSnapshotState.Empty
+        }
     }
 
     override suspend fun writeTo(
@@ -186,7 +193,6 @@ internal object HomeSnapshotCodec {
             stream.writeLong(record.generatedAtEpochMillis)
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeString(record.zoneId)
-            stream.writeString(record.sourceFingerprint)
             stream.writeHomePkProjectionRecord(record.pkProjection)
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
@@ -198,17 +204,15 @@ internal object HomeSnapshotCodec {
     fun decode(bytes: ByteArray): HomeSnapshotRecord {
         return DataInputStream(ByteArrayInputStream(bytes)).use { stream ->
             val version = stream.readInt()
-            require(version in 2..SNAPSHOT_CODEC_VERSION) {
+            require(version == SNAPSHOT_CODEC_VERSION) {
                 "Unsupported Home snapshot version: $version."
             }
-            val schemaVersion = stream.readInt()
             HomeSnapshotRecord(
-                schemaVersion = schemaVersion,
-                generation = if (version >= 3) stream.readLong() else 0L,
+                schemaVersion = stream.readInt(),
+                generation = stream.readLong(),
                 generatedAtEpochMillis = stream.readLong(),
                 anchorDateEpochDay = stream.readLong(),
                 zoneId = stream.readString(),
-                sourceFingerprint = stream.readString(),
                 pkProjection = stream.readHomePkProjectionRecord(),
                 activeGroups = stream.readList { readMedicationGroup() },
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
@@ -223,7 +227,6 @@ internal object HomeSnapshotCodec {
         writeLong(record.generatedAtEpochMillis)
         writeLong(record.windowStartEpochMillis)
         writeLong(record.windowEndEpochMillis)
-        writeString(record.sourceFingerprint)
         writeString(record.payloadJson)
         writeMedicationLogEntry(record.latestEstradiolEntry)
     }
@@ -236,7 +239,6 @@ internal object HomeSnapshotCodec {
             generatedAtEpochMillis = readLong(),
             windowStartEpochMillis = readLong(),
             windowEndEpochMillis = readLong(),
-            sourceFingerprint = readString(),
             payloadJson = readString(),
             latestEstradiolEntry = readMedicationLogEntry(),
         )
@@ -572,7 +574,8 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
     }
 }
 
-private const val SNAPSHOT_CODEC_VERSION = 3
+private const val TAG = "HomeSnapshotStore"
+private const val SNAPSHOT_CODEC_VERSION = 4
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

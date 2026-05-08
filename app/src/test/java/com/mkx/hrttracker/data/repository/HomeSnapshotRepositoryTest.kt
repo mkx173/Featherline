@@ -261,7 +261,6 @@ class HomeSnapshotRepositoryTest {
                 .toEpochMilli(),
             anchorDateEpochDay = anchorDate.toEpochDay(),
             zoneId = zoneId.id,
-            sourceFingerprint = "fingerprint",
             pkProjection = HomePkProjectionRecord(
                 generatedAtEpochMillis = anchorDate.atTime(10, 15)
                     .atZone(zoneId)
@@ -275,7 +274,6 @@ class HomeSnapshotRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
-                sourceFingerprint = "fingerprint",
                 payloadJson = "{}",
                 latestEstradiolEntry = null,
             ),
@@ -422,7 +420,6 @@ class HomeSnapshotRepositoryTest {
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
-            sourceFingerprint = "fingerprint",
             pkProjection = HomePkProjectionRecord(
                 generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
                 windowStartEpochMillis = now.toLocalDate()
@@ -435,7 +432,6 @@ class HomeSnapshotRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
-                sourceFingerprint = "fingerprint",
                 payloadJson = "{}",
                 latestEstradiolEntry = null,
             ),

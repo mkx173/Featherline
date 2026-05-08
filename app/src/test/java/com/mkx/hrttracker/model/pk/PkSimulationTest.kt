@@ -235,4 +235,30 @@ class PkSimulationTest {
         assertEquals(directTrend.chartWindowHours, cachedTrend.chartWindowHours)
         assertEquals(directTrend.predictionStartTimeH, cachedTrend.predictionStartTimeH, 1e-9)
     }
+
+    @Test
+    fun simulateMainEstradiolProjection_windowMatchesHomeSnapshotChartBounds() {
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val generatedAt = LocalDateTime.of(2026, 5, 8, 14, 27)
+        val futureDays = 14L
+
+        val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+            entries = emptyList(),
+            bodyWeightKg = 70.0,
+            generatedAt = generatedAt,
+            zoneId = zoneId,
+            futureDays = futureDays,
+        )
+
+        val expectedWindowStart = generatedAt.toLocalDate().atStartOfDay()
+            .minusDays(PkMedicationSimulation.mainChartPastDays)
+            .atZone(zoneId)
+            .toInstant()
+        val expectedWindowEnd = generatedAt.toLocalDate().plusDays(futureDays)
+            .atStartOfDay()
+            .atZone(zoneId)
+            .toInstant()
+        assertEquals(expectedWindowStart, projection.windowStart)
+        assertEquals(expectedWindowEnd, projection.windowEnd)
+    }
 }

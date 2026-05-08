@@ -87,7 +87,6 @@ class HomeSnapshotCodecTest {
             generatedAtEpochMillis = 10L,
             windowStartEpochMillis = 20L,
             windowEndEpochMillis = 30L,
-            sourceFingerprint = "fingerprint",
             payloadJson = """{"payload":true}""",
             latestEstradiolEntry = latestEntry,
         )
@@ -97,7 +96,6 @@ class HomeSnapshotCodecTest {
             generatedAtEpochMillis = 100L,
             anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
             zoneId = "Asia/Tokyo",
-            sourceFingerprint = "home-fingerprint",
             pkProjection = pkRecord,
             activeGroups = listOf(group),
             scheduleEntries = listOf(latestEntry),
