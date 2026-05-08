@@ -19,11 +19,11 @@ import androidx.navigation.NavBackStackEntry
 
 // Bottom-tab Fade Through duration. Matches Material's motionDurationLong1 default;
 // raise/lower to tune section-swap speed.
-private const val topLevelTransitionDurationMillis = 300
+internal const val topLevelTransitionDurationMillis = 300
 
 // Bottom-tab Fade Through secondary scale. Lower values make incoming sections feel
 // farther away before settling.
-private const val topLevelFadeThroughInitialScale = 0.92f
+internal const val topLevelFadeThroughInitialScale = 0.92f
 
 // Nested Shared Axis duration. Matches MaterialSharedAxis motionDurationLong1; tune
 // together with slide distance.
@@ -45,6 +45,9 @@ internal val sharedAxisXExitFadeEasing = Easing { fraction ->
 }
 
 internal val sharedAxisXSlideEasing: Easing = FastOutSlowInEasing
+internal val topLevelFadeThroughEnterEasing: Easing = sharedAxisXEnterFadeEasing
+internal val topLevelFadeThroughExitEasing: Easing = sharedAxisXExitFadeEasing
+internal val topLevelFadeThroughScaleEasing: Easing = FastOutSlowInEasing
 
 private data class NavigationRouteContext(
     val topLevelScreen: Screen,
@@ -267,26 +270,26 @@ private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
 }
 
 // Switching sections should not imply a spatial relationship, so use a fade through.
-private fun topLevelEnterTransition(): EnterTransition {
+internal fun topLevelEnterTransition(): EnterTransition {
     return fadeIn(
         animationSpec = tween(
             durationMillis = topLevelTransitionDurationMillis,
-            easing = sharedAxisXEnterFadeEasing,
+            easing = topLevelFadeThroughEnterEasing,
         )
     ) + scaleIn(
         initialScale = topLevelFadeThroughInitialScale,
         animationSpec = tween(
             durationMillis = topLevelTransitionDurationMillis,
-            easing = FastOutSlowInEasing,
+            easing = topLevelFadeThroughScaleEasing,
         )
     )
 }
 
-private fun topLevelExitTransition(): ExitTransition {
+internal fun topLevelExitTransition(): ExitTransition {
     return fadeOut(
         animationSpec = tween(
             durationMillis = topLevelTransitionDurationMillis,
-            easing = sharedAxisXExitFadeEasing,
+            easing = topLevelFadeThroughExitEasing,
         )
     )
 }

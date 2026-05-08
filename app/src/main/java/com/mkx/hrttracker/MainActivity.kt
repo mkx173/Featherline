@@ -14,6 +14,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -34,6 +35,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material3.MaterialTheme
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.startup.StartupPreloader
@@ -41,6 +43,7 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.navigation.Screen
+import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterOffset
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXExitFadeEasing
@@ -48,7 +51,6 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideDistancePx
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
-import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -238,7 +240,11 @@ class MainActivity : AppCompatActivity() {
                             label = "home-alpha",
                         )
 
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface)
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
