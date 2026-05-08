@@ -457,7 +457,50 @@ class MedicationGroupEditorDeleteRecordsTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isArchiveConfirmationVisible)
-        assertEquals(1, viewModel.uiState.value.futurePlannedSlotCount)
+        assertEquals(1, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
+        coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
+        coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
+    }
+
+    @Test
+    fun archiveGroup_whenCurrentMinutePlannedSlotExists_doesNotArchive() = runTest {
+        val groupUuid = UUID.fromString("ef7ca208-5fa6-4d39-9d06-d728715d2f5a")
+        val group = testMedicationGroup(groupUuid)
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns group
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T01:00:00Z"),
+                    scheduledFor = LocalDateTime.of(2026, 4, 25, 10, 0),
+                )
+            )
+        )
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.showArchiveConfirmation()
+        viewModel.archiveGroup()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isArchiveConfirmationVisible)
+        assertEquals(1, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
         coVerify(exactly = 0) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
         coVerify(exactly = 0) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }
@@ -530,7 +573,7 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
-    fun archiveGroup_whenPlannedSlotsAreCurrentOrPast_archivesGroup() = runTest {
+    fun archiveGroup_whenPlannedSlotsArePast_archivesGroup() = runTest {
         val groupUuid = UUID.fromString("9cf46787-85fa-40c2-b21a-35d95df8534c")
         val group = testMedicationGroup(groupUuid)
 
@@ -543,12 +586,6 @@ class MedicationGroupEditorDeleteRecordsTest {
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
-                ),
-                testMedicationLogEntry(
-                    details = testMedicationDetails(),
-                    sourceGroupUuid = groupUuid,
-                    appliedAt = Instant.parse("2026-04-25T01:00:00Z"),
-                    scheduledFor = LocalDateTime.of(2026, 4, 25, 10, 0),
                 ),
             )
         )
@@ -573,7 +610,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.isArchiveConfirmationVisible)
-        assertEquals(0, viewModel.uiState.value.futurePlannedSlotCount)
+        assertEquals(0, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
         coVerify(exactly = 1) { medicationGroupRepository.archiveGroup(groupUuid, any()) }
         coVerify(exactly = 1) { medicationReminderScheduler.cancelReminder(groupUuid) }
     }

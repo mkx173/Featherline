@@ -158,7 +158,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
-                            futurePlannedSlotCount = counts.futurePlannedSlotCount,
+                            currentOrFuturePlannedSlotCount =
+                                counts.currentOrFuturePlannedSlotCount,
                             isScheduleStartDateLocked = if (it.recreatedFromGroupId != null) {
                                 shouldLockRecreatedStartDate
                             } else {
@@ -768,7 +769,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isArchiving ||
             currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries ||
-            currentState.futurePlannedSlotCount > 0
+            currentState.currentOrFuturePlannedSlotCount > 0
         ) {
             return
         }
@@ -823,7 +824,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isArchiving ||
             currentState.isRecreatingAfterArchive ||
             currentState.isDeletingRelatedEntries ||
-            currentState.futurePlannedSlotCount > 0
+            currentState.currentOrFuturePlannedSlotCount > 0
         ) {
             return
         }
@@ -1021,11 +1022,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         it.plannedEntryCount
                     },
-                    futurePlannedSlotCount = if (result == DeleteRelatedEntriesResult.SUCCESS) {
-                        0
-                    } else {
-                        it.futurePlannedSlotCount
-                    },
+                    currentOrFuturePlannedSlotCount =
+                        if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                            0
+                        } else {
+                            it.currentOrFuturePlannedSlotCount
+                        },
                     scheduleTimeOrderError = if (result == DeleteRelatedEntriesResult.SUCCESS) {
                         false
                     } else {
@@ -1094,7 +1096,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     remindersEnabled = remindersEnabled,
                     relatedEntryCount = currentState.relatedEntryCount,
                     plannedEntryCount = currentState.plannedEntryCount,
-                    futurePlannedSlotCount = currentState.futurePlannedSlotCount,
+                    currentOrFuturePlannedSlotCount =
+                        currentState.currentOrFuturePlannedSlotCount,
                 )
             }
         }
@@ -1193,7 +1196,7 @@ private fun MedicationGroup.toEditorState(
     remindersEnabled: Boolean,
     relatedEntryCount: Int,
     plannedEntryCount: Int,
-    futurePlannedSlotCount: Int = 0,
+    currentOrFuturePlannedSlotCount: Int = 0,
 ): MedicationGroupEditorUiState {
     val normalizedScheduleTimeSlots = schedule.timeSlots
         .ifEmpty {
@@ -1268,7 +1271,7 @@ private fun MedicationGroup.toEditorState(
         medications = editorMedications,
         relatedEntryCount = relatedEntryCount,
         plannedEntryCount = plannedEntryCount,
-        futurePlannedSlotCount = futurePlannedSlotCount,
+        currentOrFuturePlannedSlotCount = currentOrFuturePlannedSlotCount,
         isArchived = archivedAt != null,
         originalScheduleType = schedule.type,
         originalSinceDate = schedule.since,
@@ -1380,7 +1383,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         saveMedicationGroupResult = null,
         relatedEntryCount = 0,
         plannedEntryCount = 0,
-        futurePlannedSlotCount = 0,
+        currentOrFuturePlannedSlotCount = 0,
         scheduleTimeOrderError = false,
         originalScheduleType = null,
         originalSinceDate = null,
@@ -1628,7 +1631,7 @@ data class MedicationGroupEditorUiState(
     val createdPastScheduledSlotRecordCount: Int? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
-    val futurePlannedSlotCount: Int = 0,
+    val currentOrFuturePlannedSlotCount: Int = 0,
     val scheduleTimeOrderError: Boolean = false,
     val originalScheduleType: MedicationGroupScheduleType? = null,
     val originalSinceDate: LocalDate? = null,
@@ -1686,7 +1689,7 @@ internal fun resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
         nextState.copy(
             relatedEntryCount = previousState.relatedEntryCount,
             plannedEntryCount = previousState.plannedEntryCount,
-            futurePlannedSlotCount = previousState.futurePlannedSlotCount,
+            currentOrFuturePlannedSlotCount = previousState.currentOrFuturePlannedSlotCount,
             isArchived = previousState.isArchived,
             scheduleTimeOrderError = previousState.scheduleTimeOrderError,
         )
@@ -1815,7 +1818,7 @@ internal fun resolveMedicationGroupColorKey(
 internal data class MedicationGroupEntryCounts(
     val relatedEntryCount: Int,
     val plannedEntryCount: Int,
-    val futurePlannedSlotCount: Int,
+    val currentOrFuturePlannedSlotCount: Int,
 )
 
 internal fun entryCountsForGroup(
@@ -1827,7 +1830,7 @@ internal fun entryCountsForGroup(
         return MedicationGroupEntryCounts(
             relatedEntryCount = 0,
             plannedEntryCount = 0,
-            futurePlannedSlotCount = 0,
+            currentOrFuturePlannedSlotCount = 0,
         )
     }
 
@@ -1835,16 +1838,16 @@ internal fun entryCountsForGroup(
         ?: return MedicationGroupEntryCounts(
             relatedEntryCount = 0,
             plannedEntryCount = 0,
-            futurePlannedSlotCount = 0,
+            currentOrFuturePlannedSlotCount = 0,
         )
     val relatedEntries = entries.filter { entry -> entry.sourceGroupUuid == groupUuid }
     val referenceMinute = currentMinute.withSecond(0).withNano(0)
     return MedicationGroupEntryCounts(
         relatedEntryCount = relatedEntries.size,
         plannedEntryCount = relatedEntries.count { entry -> entry.scheduledFor != null },
-        futurePlannedSlotCount = relatedEntries
+        currentOrFuturePlannedSlotCount = relatedEntries
             .mapNotNull(MedicationLogEntry::scheduledFor)
-            .filter { scheduledFor -> scheduledFor.isAfter(referenceMinute) }
+            .filter { scheduledFor -> !scheduledFor.isBefore(referenceMinute) }
             .toSet()
             .size,
     )

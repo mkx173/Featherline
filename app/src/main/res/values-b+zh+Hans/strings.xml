@@ -277,9 +277,9 @@
     <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_irreversible_acknowledgement">我理解归档后无法恢复</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
-    <plurals name="archive_medication_group_future_planned_slots_block">
-        <item quantity="one">已有 1 个未来计划时段有记录，因此无法归档</item>
-        <item quantity="other">已有 %1$d 个未来计划时段有记录，因此无法归档</item>
+    <plurals name="archive_medication_group_current_or_future_planned_slots_block">
+        <item quantity="one">已有 1 个当前或未来计划时段有记录，因此无法归档</item>
+        <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
     </plurals>
     <string name="archive_and_recreate">归档并重建</string>
     <string name="archive_create_active_copy">归档后创建副本</string>

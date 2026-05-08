@@ -356,10 +356,11 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun editingGroup_countsFuturePlannedSlotsOncePerScheduledTime() = runTest {
+    fun editingGroup_countsCurrentAndFuturePlannedSlotsOncePerScheduledTime() = runTest {
         val groupUuid = UUID.fromString("7b6ddd41-0b53-460c-a83f-780715304478")
         val group = testMedicationGroup(groupUuid = groupUuid)
         val futureSlot = LocalDateTime.of(2026, 4, 25, 11, 0)
+        val currentSlot = LocalDateTime.of(2026, 4, 25, 10, 0)
         every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
         every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
         every { medicationLogRepository.observeEntries() } returns flowOf(
@@ -383,7 +384,7 @@ class MedicationGroupEditorLoadStateTest {
                     details = testMedicationDetails(),
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
-                    scheduledFor = LocalDateTime.of(2026, 4, 25, 10, 0),
+                    scheduledFor = currentSlot,
                 ),
             )
         )
@@ -402,7 +403,7 @@ class MedicationGroupEditorLoadStateTest {
         advanceUntilIdle()
 
         assertEquals(3, viewModel.uiState.value.plannedEntryCount)
-        assertEquals(1, viewModel.uiState.value.futurePlannedSlotCount)
+        assertEquals(2, viewModel.uiState.value.currentOrFuturePlannedSlotCount)
     }
 
     @Test

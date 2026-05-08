@@ -844,7 +844,8 @@ private fun MedicationGroupEditorScreenContent(
             uiState.isFinishingAfterSave ||
             uiState.isArchiving ||
             uiState.isRecreatingAfterArchive
-        val isArchiveBlockedByFuturePlannedSlots = uiState.futurePlannedSlotCount > 0
+        val isArchiveBlockedByCurrentOrFuturePlannedSlots =
+            uiState.currentOrFuturePlannedSlotCount > 0
         AlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
@@ -855,12 +856,12 @@ private fun MedicationGroupEditorScreenContent(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))) {
                     Text(text = stringResource(R.string.archive_medication_group_confirmation))
-                    if (isArchiveBlockedByFuturePlannedSlots) {
+                    if (isArchiveBlockedByCurrentOrFuturePlannedSlots) {
                         Text(
                             text = pluralStringResource(
-                                R.plurals.archive_medication_group_future_planned_slots_block,
-                                uiState.futurePlannedSlotCount,
-                                uiState.futurePlannedSlotCount,
+                                R.plurals.archive_medication_group_current_or_future_planned_slots_block,
+                                uiState.currentOrFuturePlannedSlotCount,
+                                uiState.currentOrFuturePlannedSlotCount,
                             ),
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -912,7 +913,7 @@ private fun MedicationGroupEditorScreenContent(
                 TextButton(
                     enabled = !isArchiveActionInProgress &&
                         hasAcknowledgedArchiveIsPermanent &&
-                        !isArchiveBlockedByFuturePlannedSlots,
+                        !isArchiveBlockedByCurrentOrFuturePlannedSlots,
                     onClick = {
                         if (shouldCreateActiveCopyAfterArchive) {
                             onArchiveAndRecreateConfirm()

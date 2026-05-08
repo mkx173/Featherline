@@ -99,13 +99,13 @@ class MedicationGroupRepository @Inject constructor(
         val nowLocal = now.toLocalDateTime()
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
-                val futurePlannedSlotCount = database.medicationLogDao()
-                    .getFuturePlannedSlotCountForGroup(
+                val currentOrFuturePlannedSlotCount = database.medicationLogDao()
+                    .getCurrentOrFuturePlannedSlotCountForGroup(
                         groupUuid = uuid.toString(),
-                        afterScheduledForIso = nowLocal.toString(),
+                        onOrAfterScheduledForIso = nowLocal.toString(),
                     )
-                if (futurePlannedSlotCount > 0) {
-                    throw FuturePlannedSlotsBlockArchiveException(uuid)
+                if (currentOrFuturePlannedSlotCount > 0) {
+                    throw CurrentOrFuturePlannedSlotsBlockArchiveException(uuid)
                 }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),
@@ -483,9 +483,11 @@ class MedicationGroupNotFoundException(
     uuid: UUID,
 ) : NoSuchElementException("Medication group $uuid was not found.")
 
-class FuturePlannedSlotsBlockArchiveException(
+class CurrentOrFuturePlannedSlotsBlockArchiveException(
     uuid: UUID,
-) : IllegalStateException("Medication group $uuid has future planned records and cannot be archived.")
+) : IllegalStateException(
+    "Medication group $uuid has current or future planned records and cannot be archived."
+)
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(
     "Schedule time count cannot change in locked mode."

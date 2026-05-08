@@ -170,7 +170,7 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun archiveGroup_blocksFuturePlannedSlots() = runTest {
+    fun archiveGroup_blocksCurrentOrFuturePlannedSlots() = runTest {
         val groupUuid = UUID.fromString("81811bc8-ee30-439f-817b-2297bbeac486")
         val now = Instant.parse("2026-04-30T08:00:45Z")
         val expectedArchiveAttemptLocal = now.atZone(ZoneId.systemDefault())
@@ -183,16 +183,16 @@ class MedicationGroupRepositoryTest {
             firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
         }
         coEvery {
-            medicationLogDao.getFuturePlannedSlotCountForGroup(
+            medicationLogDao.getCurrentOrFuturePlannedSlotCountForGroup(
                 groupUuid = groupUuid.toString(),
-                afterScheduledForIso = expectedArchiveAttemptLocal,
+                onOrAfterScheduledForIso = expectedArchiveAttemptLocal,
             )
         } returns 1
 
         try {
             repository.archiveGroup(groupUuid, now)
-            fail("Expected future planned slots to block archiving")
-        } catch (_: FuturePlannedSlotsBlockArchiveException) {
+            fail("Expected current or future planned slots to block archiving")
+        } catch (_: CurrentOrFuturePlannedSlotsBlockArchiveException) {
         }
 
         coVerify(exactly = 0) {
