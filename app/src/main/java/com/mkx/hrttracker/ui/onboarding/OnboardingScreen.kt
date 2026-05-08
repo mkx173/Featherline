@@ -600,7 +600,7 @@ private fun DisclaimerStep(
             .padding(horizontal = 24.dp, vertical = 8.dp),
     ) {
         StepHeader(
-            iconPainter = painterResource(R.drawable.ic_lock),
+            iconPainter = painterResource(R.drawable.ic_privacy_tip),
             title = stringResource(R.string.onboarding_disclaimer_title),
             desc = stringResource(R.string.onboarding_disclaimer_subtitle),
         )

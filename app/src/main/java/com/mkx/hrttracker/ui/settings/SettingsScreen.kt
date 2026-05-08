@@ -1022,7 +1022,7 @@ private fun SettingsScreenContent(
                         )
                     },
                     trailingContent = {
-                        SettingsChevronTrailingIcon()
+                        SettingsLinkTrailingIcon()
                     }
                 )
 

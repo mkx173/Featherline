@@ -537,7 +537,7 @@
     <string name="screen_lock_auth_unavailable_generic">此设备无法使用安全认证</string>
     <string name="screen_lock_auth_locked_out">失败次数过多，请稍后再试</string>
     <string name="screen_lock_auth_failed">认证失败</string>
-    <string name="onboarding_start_tagline">记录用药、查看血药浓度、掌握用药节奏</string>
+    <string name="onboarding_start_tagline">记录HRT用药、查看血药浓度、掌握用药节奏</string>
     <string name="onboarding_start_cta">开始使用</string>
     <string name="onboarding_disclaimer_title">重要说明</string>
     <string name="onboarding_disclaimer_subtitle">Plume 是一个记录工具，不提供医疗建议。血药浓度数值是根据您的用药计划计算出的模型估算值，并非实际测量值。这些数值不应替代实验室检测或临床医生的指导</string>

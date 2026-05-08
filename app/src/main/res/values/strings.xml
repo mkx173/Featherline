@@ -546,7 +546,7 @@
     <string name="screen_lock_auth_unavailable_generic">Secure authentication is not available on this device.</string>
     <string name="screen_lock_auth_locked_out">Too many failed attempts. Try again later.</string>
     <string name="screen_lock_auth_failed">Authentication failed.</string>
-    <string name="onboarding_start_tagline">Log doses, view plasma levels, and stay on top of your routine.</string>
+    <string name="onboarding_start_tagline">Log HRT doses, view plasma levels, and stay on top of your routine.</string>
     <string name="onboarding_start_cta">Get started</string>
     <string name="onboarding_disclaimer_title">Important information</string>
     <string name="onboarding_disclaimer_subtitle">Plume does not provide medical advice. Plasma concentration values are model estimates calculated from your dosing schedule, not measured values, and should not replace lab tests or guidance from your clinician.</string>
