@@ -276,9 +276,7 @@ private fun CalibrationEditorScreenContent(
         calibrationAddAnalyteOptions(uiState)
     }
     val canSave = canSaveCalibrationEditorState(uiState) &&
-        !uiState.isLoading &&
-        !uiState.isSaving &&
-        !uiState.isDeleting
+        !isCalibrationEditorBusy(uiState)
     val remainingAnalyteCount = addAnalyteOptions.size
     var notesDraft by rememberSaveable { mutableStateOf(uiState.notes) }
     val analyteFocusRequesters = remember(uiState.drafts.map { it.draftKey }) {
@@ -488,7 +486,7 @@ private fun CalibrationEditorScreenContent(
                         HrtButton(
                             text = stringResource(R.string.delete_entries_confirm),
                             onClick = onDeleteClick,
-                            enabled = !uiState.isSaving && !uiState.isDeleting,
+                            enabled = !isCalibrationEditorBusy(uiState),
                             modifier = Modifier.fillMaxWidth(),
                             icon = Icons.Rounded.Delete,
                             iconModifier = Modifier.size(

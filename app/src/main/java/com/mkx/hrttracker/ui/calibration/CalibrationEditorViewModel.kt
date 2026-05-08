@@ -234,7 +234,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     fun save() {
         val currentState = uiState.value
-        if (currentState.isSaving || currentState.isDeleting || !canSaveCalibrationEditorState(currentState)) {
+        if (isCalibrationEditorBusy(currentState) || !canSaveCalibrationEditorState(currentState)) {
             return
         }
         val invalidDraftKeys = invalidCalibrationDraftKeys(currentState)
@@ -293,7 +293,7 @@ class CalibrationEditorViewModel @Inject constructor(
     fun delete() {
         val panelUuid = editingPanelUuid ?: return
         val currentState = uiState.value
-        if (currentState.isSaving || currentState.isDeleting) {
+        if (isCalibrationEditorBusy(currentState)) {
             return
         }
 
@@ -598,6 +598,14 @@ internal fun canSaveCalibrationEditorState(state: CalibrationEditorUiState): Boo
     return state.drafts.all { draft ->
         draft.valueText.trim().isNotEmpty()
     }
+}
+
+internal fun isCalibrationEditorBusy(state: CalibrationEditorUiState): Boolean {
+    return state.isLoading ||
+        state.isSaving ||
+        state.isDeleting ||
+        state.isSaved ||
+        state.isDeleted
 }
 
 internal fun invalidCalibrationDraftKeys(state: CalibrationEditorUiState): Set<String> {
