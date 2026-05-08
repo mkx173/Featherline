@@ -723,7 +723,7 @@ private fun CalibrationPanelResultAdditionalSummaryRow(
 ) {
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = modifier.padding(vertical = 6.dp)
     ) {
         Row(

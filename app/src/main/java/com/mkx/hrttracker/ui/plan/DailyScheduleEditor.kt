@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
@@ -222,6 +223,10 @@ private fun DailyTimeRow(
             cornerShape = MaterialTheme.shapes.medium,
             pressedShape = MaterialTheme.shapes.medium
         ),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
     ) {
         ChangedScheduleTimeText(
             value = formattedTime,
@@ -324,6 +329,10 @@ private fun ScheduleOccurrenceRow(
             cornerShape = MaterialTheme.shapes.medium,
             pressedShape = MaterialTheme.shapes.medium
         ),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
     ) {
         Text(
             text = formattedTime,
