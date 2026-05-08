@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.0"
+agp = "9.2.1"
 appcompat = "1.7.1"
 biometric = "1.1.0"
 coreSplashscreen = "1.2.0"

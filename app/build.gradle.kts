@@ -20,9 +20,9 @@ android {
     defaultConfig {
         applicationId = "com.mkx.hrttracker"
         minSdk = 31
-        targetSdk = 36
+        targetSdk = 37
         versionCode = gitCommitCount
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
