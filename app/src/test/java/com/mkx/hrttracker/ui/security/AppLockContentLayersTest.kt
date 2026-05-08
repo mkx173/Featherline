@@ -36,7 +36,6 @@ class AppLockContentLayersTest {
             AppLockContentLayers(
                 showHomeShell = true,
                 showInWindowLockScreen = true,
-                showLockDialog = true,
             ),
             appLockContentLayers(
                 appLockReady = true,

@@ -3,7 +3,6 @@ package com.mkx.hrttracker.ui.security
 internal data class AppLockContentLayers(
     val showHomeShell: Boolean = false,
     val showInWindowLockScreen: Boolean = false,
-    val showLockDialog: Boolean = false,
 )
 
 internal fun appLockContentLayers(
@@ -24,6 +23,5 @@ internal fun appLockContentLayers(
     return AppLockContentLayers(
         showHomeShell = true,
         showInWindowLockScreen = shouldShowLockScreen,
-        showLockDialog = shouldShowLockScreen,
     )
 }

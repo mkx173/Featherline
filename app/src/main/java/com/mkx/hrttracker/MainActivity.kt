@@ -12,9 +12,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,9 +33,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
@@ -54,6 +53,8 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideDistancePx
 import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
+import com.mkx.hrttracker.ui.navigation.topLevelFadeThroughExitEasing
+import com.mkx.hrttracker.ui.navigation.topLevelTransitionDurationMillis
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -291,30 +292,23 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
 
-                            if (contentLayers.showInWindowLockScreen) {
-                                BackHandler(enabled = true) { }
-                                AppLockScreen(
-                                    errorMessageRes = appLockUiState.errorMessageRes,
-                                    onUnlockClick = appLockViewModel::requestUnlock,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                        }
-
-                        if (contentLayers.showLockDialog) {
-                            Dialog(
-                                onDismissRequest = {},
-                                properties = DialogProperties(
-                                    dismissOnBackPress = false,
-                                    dismissOnClickOutside = false,
-                                    usePlatformDefaultWidth = false,
-                                    decorFitsSystemWindows = false,
-                                    securePolicy = SecureFlagPolicy.Inherit,
+                            BackHandler(enabled = contentLayers.showInWindowLockScreen) { }
+                            AnimatedVisibility(
+                                visible = contentLayers.showInWindowLockScreen,
+                                modifier = Modifier.fillMaxSize(),
+                                enter = EnterTransition.None,
+                                exit = fadeOut(
+                                    animationSpec = tween(
+                                        durationMillis = topLevelTransitionDurationMillis,
+                                        easing = topLevelFadeThroughExitEasing,
+                                    )
                                 ),
+                                label = "lock-overlay",
                             ) {
                                 AppLockScreen(
                                     errorMessageRes = appLockUiState.errorMessageRes,
                                     onUnlockClick = appLockViewModel::requestUnlock,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
                             }
                         }
