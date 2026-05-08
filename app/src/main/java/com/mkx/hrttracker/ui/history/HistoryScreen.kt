@@ -5,18 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
@@ -55,7 +52,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -85,10 +81,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -99,7 +92,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.CalendarLayoutInfo
@@ -140,6 +132,9 @@ import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import com.swmansion.kmpwheelpicker.WheelPicker
+import com.swmansion.kmpwheelpicker.WheelPickerState
+import com.swmansion.kmpwheelpicker.rememberWheelPickerState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -1439,20 +1434,39 @@ private fun HistoryMonthPickerDialog(
     var pickerMonth by remember(selectedMonth, calendarStartMonth, calendarEndMonth) {
         mutableStateOf(selectedMonth.coerceIn(calendarStartMonth, calendarEndMonth))
     }
-    val yearOptions = remember(calendarStartMonth, calendarEndMonth) {
-        historyMonthPickerYearOptions(
+    val wheelState = remember(pickerMonth, calendarStartMonth, calendarEndMonth) {
+        historyMonthPickerWheelState(
+            selectedMonth = pickerMonth,
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth
         )
     }
-    val monthOptions = remember(pickerMonth.year, calendarStartMonth, calendarEndMonth) {
-        historyMonthPickerMonthOptions(
-            selectedYear = pickerMonth.year,
-            calendarStartMonth = calendarStartMonth,
-            calendarEndMonth = calendarEndMonth
-        )
+    val yearWheelState = rememberWheelPickerState(
+        itemCount = wheelState.yearOptions.size,
+        initialIndex = wheelState.selectedYearIndex
+    )
+
+    LaunchedEffect(wheelState.selectedYearIndex) {
+        if (yearWheelState.index != wheelState.selectedYearIndex) {
+            yearWheelState.scrollTo(wheelState.selectedYearIndex)
+        }
     }
-    var expandedDropdown by remember { mutableStateOf<HistoryMonthPickerDropdownKind?>(null) }
+
+    LaunchedEffect(yearWheelState, pickerMonth, calendarStartMonth, calendarEndMonth) {
+        snapshotFlow { yearWheelState.index }
+            .distinctUntilChanged()
+            .collect { selectedYearIndex ->
+                val updatedMonth = historyMonthPickerSelectionForYearIndex(
+                    selectedYearIndex = selectedYearIndex,
+                    currentMonthValue = pickerMonth.monthValue,
+                    calendarStartMonth = calendarStartMonth,
+                    calendarEndMonth = calendarEndMonth
+                )
+                if (updatedMonth != pickerMonth) {
+                    pickerMonth = updatedMonth
+                }
+            }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1464,56 +1478,52 @@ private fun HistoryMonthPickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                HistoryMonthPickerDropdown(
-                    label = stringResource(R.string.history_month_picker_month),
-                    value = historyMonthPickerMonthLabel(pickerMonth.monthValue, appLocale),
-                    expanded = expandedDropdown == HistoryMonthPickerDropdownKind.MONTH,
-                    onFieldClick = { expanded ->
-                        expandedDropdown = historyMonthPickerDropdownStateAfterFieldClick(
-                            dropdown = HistoryMonthPickerDropdownKind.MONTH,
-                            expanded = expanded,
-                        )
-                    },
-                    onDismissRequest = { expandedDropdown = null },
-                    items = monthOptions.map { monthValue ->
-                        HrtDropdownMenuItem(
-                            text = historyMonthPickerMonthLabel(monthValue, appLocale),
-                            onClick = {
-                                pickerMonth = coerceHistoryMonthPickerSelection(
-                                    selectedYear = pickerMonth.year,
-                                    selectedMonthValue = monthValue,
+                key(wheelState.monthOptions) {
+                    val monthWheelState = rememberWheelPickerState(
+                        itemCount = wheelState.monthOptions.size,
+                        initialIndex = wheelState.selectedMonthIndex
+                    )
+
+                    LaunchedEffect(wheelState.selectedMonthIndex) {
+                        if (monthWheelState.index != wheelState.selectedMonthIndex) {
+                            monthWheelState.scrollTo(wheelState.selectedMonthIndex)
+                        }
+                    }
+
+                    LaunchedEffect(
+                        monthWheelState,
+                        wheelState.selectedMonth.year,
+                        calendarStartMonth,
+                        calendarEndMonth
+                    ) {
+                        snapshotFlow { monthWheelState.index }
+                            .distinctUntilChanged()
+                            .collect { selectedMonthIndex ->
+                                val updatedMonth = historyMonthPickerSelectionForMonthIndex(
+                                    selectedYear = wheelState.selectedMonth.year,
+                                    selectedMonthIndex = selectedMonthIndex,
                                     calendarStartMonth = calendarStartMonth,
                                     calendarEndMonth = calendarEndMonth
                                 )
+                                if (updatedMonth != pickerMonth) {
+                                    pickerMonth = updatedMonth
+                                }
                             }
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                HistoryMonthPickerDropdown(
+                    }
+
+                    HistoryMonthPickerWheel(
+                        label = stringResource(R.string.history_month_picker_month),
+                        options = wheelState.monthOptions.map { monthValue ->
+                            historyMonthPickerMonthLabel(monthValue, appLocale)
+                        },
+                        state = monthWheelState,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                HistoryMonthPickerWheel(
                     label = stringResource(R.string.history_month_picker_year),
-                    value = pickerMonth.year.toString(),
-                    expanded = expandedDropdown == HistoryMonthPickerDropdownKind.YEAR,
-                    onFieldClick = { expanded ->
-                        expandedDropdown = historyMonthPickerDropdownStateAfterFieldClick(
-                            dropdown = HistoryMonthPickerDropdownKind.YEAR,
-                            expanded = expanded,
-                        )
-                    },
-                    onDismissRequest = { expandedDropdown = null },
-                    items = yearOptions.map { year ->
-                        HrtDropdownMenuItem(
-                            text = year.toString(),
-                            onClick = {
-                                pickerMonth = coerceHistoryMonthPickerSelection(
-                                    selectedYear = year,
-                                    selectedMonthValue = pickerMonth.monthValue,
-                                    calendarStartMonth = calendarStartMonth,
-                                    calendarEndMonth = calendarEndMonth
-                                )
-                            }
-                        )
-                    },
+                    options = wheelState.yearOptions.map(Int::toString),
+                    state = yearWheelState,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1532,57 +1542,65 @@ private fun HistoryMonthPickerDialog(
 }
 
 @Composable
-private fun HistoryMonthPickerDropdown(
+private fun HistoryMonthPickerWheel(
     label: String,
-    value: String,
-    expanded: Boolean,
-    onFieldClick: (expanded: Boolean) -> Unit,
-    onDismissRequest: () -> Unit,
-    items: List<HrtDropdownMenuItem>,
+    options: List<String>,
+    state: WheelPickerState,
     modifier: Modifier = Modifier,
 ) {
-    val focusManager = LocalFocusManager.current
-
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val menuWidth = maxWidth
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(text = label) },
-            trailingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.ArrowDropDown,
-                    contentDescription = null,
-                )
-            },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(value, expanded) {
-                    awaitEachGesture {
-                        // Modifier.clickable doesn't work for text fields, so observe pointer
-                        // events before the text field consumes them in the Main pass.
-                        awaitFirstDown(pass = PointerEventPass.Initial)
-                        val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                        if (upEvent != null) {
-                            onFieldClick(expanded)
-                        }
-                    }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            WheelPicker(
+                state = state,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                bufferSize = 1,
+                window = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    )
                 },
-        )
-        HrtDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = {
-                focusManager.clearFocus()
-                onDismissRequest()
-            },
-            items = items,
-            modifier = Modifier
-                .width(menuWidth)
-                .heightIn(max = 320.dp),
-            properties = PopupProperties(focusable = false),
-        )
+                animationSpec = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow)
+            ) { index ->
+                val isSelected = state.index == index
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = options[index],
+                        style = if (isSelected) {
+                            MaterialTheme.typography.titleMedium
+                        } else {
+                            MaterialTheme.typography.bodyLarge
+                        },
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.alpha(if (isSelected) 1f else 0.72f).padding(vertical = 8.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1590,7 +1608,7 @@ private fun historyMonthPickerMonthLabel(
     monthValue: Int,
     locale: Locale,
 ): String {
-    return Month.of(monthValue).getDisplayName(TextStyle.FULL_STANDALONE, locale)
+    return Month.of(monthValue).getDisplayName(TextStyle.SHORT_STANDALONE, locale)
 }
 
 @Composable

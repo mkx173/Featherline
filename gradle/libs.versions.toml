@@ -29,6 +29,7 @@ material-kolor = "4.1.1"
 argon2kt = "1.6.0"
 benchmark = "1.4.1"
 uiautomator = "2.4.0-beta02"
+kmp-wheel-picker = "0.3.0"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -71,6 +72,7 @@ kizitonwose-calendar = { module = "com.kizitonwose.calendar:compose", version.re
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "material-kolor" }
 argon2kt = { module = "com.lambdapioneer.argon2kt:argon2kt", version.ref = "argon2kt" }
+swmansion-kmp-wheel-picker = { module = "com.swmansion.kmpwheelpicker:kmp-wheel-picker", version.ref = "kmp-wheel-picker" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

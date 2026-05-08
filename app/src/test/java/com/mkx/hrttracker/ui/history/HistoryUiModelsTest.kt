@@ -584,19 +584,42 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyMonthPickerDropdownStateAfterFieldClick_closesExpandedDropdown() {
+    fun historyMonthPickerWheelState_uses_filtered_options_and_indexes() {
+        val state = historyMonthPickerWheelState(
+            selectedMonth = YearMonth.of(2024, 11),
+            calendarStartMonth = YearMonth.of(2024, 11),
+            calendarEndMonth = YearMonth.of(2026, 2)
+        )
+
+        assertEquals(YearMonth.of(2024, 11), state.selectedMonth)
+        assertEquals(listOf(2024, 2025, 2026), state.yearOptions)
+        assertEquals(0, state.selectedYearIndex)
+        assertEquals(listOf(11, 12), state.monthOptions)
+        assertEquals(0, state.selectedMonthIndex)
+    }
+
+    @Test
+    fun historyMonthPickerSelectionForYearIndex_coerces_month_into_range() {
         assertEquals(
-            null,
-            historyMonthPickerDropdownStateAfterFieldClick(
-                dropdown = HistoryMonthPickerDropdownKind.MONTH,
-                expanded = true,
+            YearMonth.of(2026, 2),
+            historyMonthPickerSelectionForYearIndex(
+                selectedYearIndex = 2,
+                currentMonthValue = 12,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
             )
         )
+    }
+
+    @Test
+    fun historyMonthPickerSelectionForMonthIndex_maps_index_within_filtered_months() {
         assertEquals(
-            null,
-            historyMonthPickerDropdownStateAfterFieldClick(
-                dropdown = HistoryMonthPickerDropdownKind.YEAR,
-                expanded = true,
+            YearMonth.of(2024, 12),
+            historyMonthPickerSelectionForMonthIndex(
+                selectedYear = 2024,
+                selectedMonthIndex = 1,
+                calendarStartMonth = YearMonth.of(2024, 11),
+                calendarEndMonth = YearMonth.of(2026, 2)
             )
         )
     }

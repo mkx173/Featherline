@@ -28,6 +28,14 @@ data class HistoryMonthSummary(
     val offPlan: Int = 0,
 )
 
+internal data class HistoryMonthPickerWheelState(
+    val selectedMonth: YearMonth,
+    val yearOptions: List<Int>,
+    val selectedYearIndex: Int,
+    val monthOptions: List<Int>,
+    val selectedMonthIndex: Int,
+)
+
 internal enum class HistoryEntryTapAction {
     OPEN_EDITOR,
     TOGGLE_SELECTION,
@@ -200,20 +208,68 @@ internal fun coerceHistoryMonthPickerSelection(
     ).coerceIn(calendarStartMonth, calendarEndMonth)
 }
 
-internal enum class HistoryMonthPickerDropdownKind {
-    MONTH,
-    YEAR,
+internal fun historyMonthPickerWheelState(
+    selectedMonth: YearMonth,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): HistoryMonthPickerWheelState {
+    val coercedMonth = selectedMonth.coerceIn(calendarStartMonth, calendarEndMonth)
+    val yearOptions = historyMonthPickerYearOptions(
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
+    val monthOptions = historyMonthPickerMonthOptions(
+        selectedYear = coercedMonth.year,
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
+
+    return HistoryMonthPickerWheelState(
+        selectedMonth = coercedMonth,
+        yearOptions = yearOptions,
+        selectedYearIndex = yearOptions.indexOf(coercedMonth.year).coerceAtLeast(0),
+        monthOptions = monthOptions,
+        selectedMonthIndex = monthOptions.indexOf(coercedMonth.monthValue).coerceAtLeast(0),
+    )
 }
 
-internal fun historyMonthPickerDropdownStateAfterFieldClick(
-    dropdown: HistoryMonthPickerDropdownKind,
-    expanded: Boolean,
-): HistoryMonthPickerDropdownKind? {
-    return if (expanded) {
-        null
-    } else {
-        dropdown
-    }
+internal fun historyMonthPickerSelectionForYearIndex(
+    selectedYearIndex: Int,
+    currentMonthValue: Int,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): YearMonth {
+    val yearOptions = historyMonthPickerYearOptions(
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
+    val selectedYear = yearOptions.getOrElse(selectedYearIndex) { yearOptions.first() }
+    return coerceHistoryMonthPickerSelection(
+        selectedYear = selectedYear,
+        selectedMonthValue = currentMonthValue,
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
+}
+
+internal fun historyMonthPickerSelectionForMonthIndex(
+    selectedYear: Int,
+    selectedMonthIndex: Int,
+    calendarStartMonth: YearMonth,
+    calendarEndMonth: YearMonth,
+): YearMonth {
+    val monthOptions = historyMonthPickerMonthOptions(
+        selectedYear = selectedYear,
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
+    val selectedMonthValue = monthOptions.getOrElse(selectedMonthIndex) { monthOptions.first() }
+    return coerceHistoryMonthPickerSelection(
+        selectedYear = selectedYear,
+        selectedMonthValue = selectedMonthValue,
+        calendarStartMonth = calendarStartMonth,
+        calendarEndMonth = calendarEndMonth
+    )
 }
 
 private const val historyCalendarResetAnimationThresholdMonths = 6L

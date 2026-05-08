@@ -103,6 +103,7 @@ dependencies {
     implementation(libs.kizitonwose.calendar)
     implementation(libs.vico.compose.m3)
     implementation(libs.material.kolor)
+    implementation(libs.swmansion.kmp.wheel.picker)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
