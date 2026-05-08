@@ -89,10 +89,10 @@ class HomeRepositoryTest {
         } returns flowOf(listOf(scheduleEntry))
         every {
             homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                onOrBeforeEpochMillis = now
-                    .atZone(zoneId)
+                onOrBeforeEpochMillis = LocalDate.of(2026, 5, 7)
+                    .atStartOfDay(zoneId)
                     .toInstant()
-                    .toEpochMilli(),
+                    .toEpochMilli() - 1L,
             )
         } returns flowOf(listOf(antiandrogenHistoryEntry))
         every { homeDao.observeEstradiolPkEntries(any(), any()) } returns flowOf(emptyList())
@@ -226,13 +226,7 @@ class HomeRepositoryTest {
         )
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
-        every {
-            homeSnapshotRepository.trendResultFromProjection(
-                projectionRecord = null,
-                now = any(),
-                zoneId = any(),
-            )
-        } returns null
+        every { homeSnapshotRepository.decodeProjection(null) } returns null
         every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
 
         val inputs = HomeRepository(
@@ -305,13 +299,7 @@ class HomeRepositoryTest {
                 zoneId = any(),
             )
         } returns emptyList()
-        every {
-            homeSnapshotRepository.trendResultFromProjection(
-                projectionRecord = null,
-                now = any(),
-                zoneId = any(),
-            )
-        } returns null
+        every { homeSnapshotRepository.decodeProjection(null) } returns null
 
         val emittedSources = mutableListOf<HomeInputSource>()
         val firstRoomObserved = CompletableDeferred<Unit>()

@@ -116,27 +116,27 @@ class MainActivity : AppCompatActivity() {
                     appLockUiState.isReady,
                     mainUiState.homeDataReady,
                     mainUiState.homeSource,
-                    mainUiState.now,
                 ) {
                     if (!appLockUiState.isReady || !mainUiState.homeDataReady) {
                         return@LaunchedEffect
                     }
+                    val nowAtTrigger = mainUiState.now
                     when (mainUiState.homeSource) {
                         HomeInputSource.SNAPSHOT -> {
                             diagnosticsLogger.info(
                                 TAG,
-                                "main_activity_home_data_ready source=snapshot now=${mainUiState.now}"
+                                "main_activity_home_data_ready source=snapshot now=$nowAtTrigger"
                             )
                             startupPreloaderProvider.get()
-                                .startReminderRescheduleFromSnapshot(mainUiState.now)
+                                .startReminderRescheduleFromSnapshot(nowAtTrigger)
                         }
                         HomeInputSource.ROOM -> {
                             diagnosticsLogger.info(
                                 TAG,
-                                "main_activity_home_data_ready source=room now=${mainUiState.now}"
+                                "main_activity_home_data_ready source=room now=$nowAtTrigger"
                             )
                             startupPreloaderProvider.get()
-                                .startReminderRescheduleFromWarmDatabase(mainUiState.now)
+                                .startReminderRescheduleFromWarmDatabase(nowAtTrigger)
                         }
                         null -> Unit
                     }

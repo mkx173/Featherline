@@ -61,7 +61,12 @@ fun DatePickerModal(
             TextButton(
                 onClick = {
                     datePickerState.selectedDateMillis?.let { selectedDateMillis ->
-                        onDateSelected(materialPickerDateMillisToLocalDate(selectedDateMillis))
+                        // Material 3 returns selectedDateMillis as UTC-midnight. Decoding it
+                        // with the system zone in non-UTC offsets would shift to the previous
+                        // (or next) calendar day on confirm.
+                        onDateSelected(
+                            materialPickerDateMillisToLocalDate(selectedDateMillis, ZoneOffset.UTC)
+                        )
                     }
                     onDismiss()
                 }

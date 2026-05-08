@@ -17,6 +17,8 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -44,6 +46,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,6 +64,73 @@ class MainViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun clockTickWithinSameDay_doesNotResubscribeOrRefreshSnapshot() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any()) } answers {
+            flowOf(homeInputs(now = firstArg()))
+        }
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { homeRepository.observeHomeInputs(firstMinute) }
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(firstMinute, force = false) }
+
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(1))
+        advanceUntilIdle()
+        appTimeSource.setCurrentMinute(firstMinute.plusMinutes(2))
+        advanceUntilIdle()
+
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any()) }
+        verify(exactly = 1) { homeRepository.refreshHomeSnapshotAsync(any(), any()) }
+        assertEquals(firstMinute.plusMinutes(2), viewModel.uiState.value.now)
+    }
+
+    @Test
+    fun clockTickWithinSameDay_recomputesProjectionTrendWithLatestMinute() = runTest {
+        val firstMinute = LocalDateTime.of(2026, 4, 30, 9, 0)
+        val nextMinute = firstMinute.plusMinutes(1)
+        val zoneId = ZoneId.systemDefault()
+        val appTimeSource = FakeAppTimeSource(firstMinute)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = firstMinute,
+                pkProjection = linearProjectionFor(firstMinute.toLocalDate(), zoneId),
+                trendResult = null,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+        val firstValue = viewModel.uiState.value.e2Hero.currentValue
+        val firstPredictionStart = viewModel.uiState.value.e2Chart.predictionStartXHours
+
+        appTimeSource.setCurrentMinute(nextMinute)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { homeRepository.observeHomeInputs(any()) }
+        assertEquals(
+            firstPredictionStart + (1.0 / 60.0),
+            viewModel.uiState.value.e2Chart.predictionStartXHours,
+            1e-4,
+        )
+        assertTrue(viewModel.uiState.value.e2Hero.currentValue > firstValue)
     }
 
     @Test
@@ -263,6 +333,7 @@ class MainViewModelTest {
             dailyConcentrations = listOf(70.0, 80.0, 90.0, 100.0),
             concentrationUnit = PkConcentrationUnit.PG_PER_ML,
         ),
+        pkProjection: PkProjectionResult? = null,
         latestEstradiolEntry: MedicationLogEntry? = null,
         estradiolPkEntries: List<MedicationLogEntry> = emptyList(),
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
@@ -273,11 +344,67 @@ class MainViewModelTest {
             antiandrogenHistoryEntries = emptyList(),
             profile = UserProfile(weightKg = 60.0),
             settings = settings,
-            trendResult = trendResult,
+            pkProjection = pkProjection ?: trendResult?.toProjection(now),
             latestEstradiolEntry = latestEstradiolEntry,
             estradiolPkEntries = estradiolPkEntries,
             source = source,
             now = now,
+        )
+    }
+
+    private fun PkTrendResult.toProjection(now: LocalDateTime): PkProjectionResult {
+        val zoneId = ZoneId.systemDefault()
+        val windowStart = now
+            .toLocalDate()
+            .atStartOfDay()
+            .minusDays(PkMedicationSimulation.mainChartPastDays)
+            .atZone(zoneId)
+            .toInstant()
+        val windowEnd = windowStart.plusSeconds(
+            PkMedicationSimulation.mainChartWindowHours * 60 * 60
+        )
+        val currentTimeH = java.time.Duration.between(windowStart, now.atZone(zoneId).toInstant())
+            .toMillis() / 3_600_000.0
+        val previousDayTimeH = currentTimeH - PkMedicationSimulation.hoursPerDay
+        val points = buildMap<Double, Double> {
+            dailyConcentrations.forEachIndexed { index, concentration ->
+                put(index * PkMedicationSimulation.hoursPerDay, concentration)
+            }
+            put(previousDayTimeH, previousDayConcentration)
+            put(currentTimeH, currentConcentration)
+        }.toSortedMap()
+        return PkProjectionResult(
+            generatedAt = now.atZone(zoneId).toInstant(),
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            concentrationUnit = concentrationUnit,
+            timeH = points.keys.toList(),
+            concentrations = points.values.toList(),
+            doseMarkers = doseMarkers,
+        )
+    }
+
+    private fun linearProjectionFor(
+        date: LocalDate,
+        zoneId: ZoneId,
+    ): PkProjectionResult {
+        val windowStart = date
+            .atStartOfDay()
+            .minusDays(PkMedicationSimulation.mainChartPastDays)
+            .atZone(zoneId)
+            .toInstant()
+        val windowEnd = windowStart.plusSeconds(
+            PkMedicationSimulation.mainChartWindowHours * 60 * 60
+        )
+        val windowHours = PkMedicationSimulation.mainChartWindowHours.toDouble()
+        return PkProjectionResult(
+            generatedAt = date.atTime(9, 0).atZone(zoneId).toInstant(),
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+            timeH = listOf(0.0, windowHours),
+            concentrations = listOf(0.0, windowHours),
+            doseMarkers = emptyList(),
         )
     }
 

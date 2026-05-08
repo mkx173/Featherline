@@ -4,7 +4,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.PkTrendResult
+import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
@@ -75,7 +75,7 @@ class HomeRepository @Inject constructor(
                 },
             settingsRepository.settingsState,
         ) { snapshot, settingsState ->
-            val pkProjection = snapshot.pkProjection
+            val pkProjectionRecord = snapshot.pkProjection
             HomeInputs(
                 activeGroups = snapshot.activeGroups,
                 scheduleEntries = homeSnapshotRepository.scheduleEntriesForHome(
@@ -86,12 +86,8 @@ class HomeRepository @Inject constructor(
                 antiandrogenHistoryEntries = snapshot.antiandrogenHistoryEntries,
                 profile = UserProfile(),
                 settings = settingsState,
-                trendResult = homeSnapshotRepository.trendResultFromProjection(
-                    projectionRecord = pkProjection,
-                    now = now,
-                    zoneId = zoneId,
-                ),
-                latestEstradiolEntry = pkProjection?.latestEstradiolEntry,
+                pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord),
+                latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
                 estradiolPkEntries = emptyList(),
                 source = HomeInputSource.SNAPSHOT,
                 now = now,
@@ -110,7 +106,7 @@ class HomeRepository @Inject constructor(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
         ) { inputs, snapshot ->
-            val pkProjection = snapshot
+            val pkProjectionRecord = snapshot
                 ?.takeIf {
                     homeSnapshotRepository.isSnapshotUsable(
                         snapshot = it,
@@ -125,12 +121,8 @@ class HomeRepository @Inject constructor(
                 antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
                 profile = inputs.profile,
                 settings = inputs.settings,
-                trendResult = homeSnapshotRepository.trendResultFromProjection(
-                    projectionRecord = pkProjection,
-                    now = now,
-                    zoneId = zoneId,
-                ),
-                latestEstradiolEntry = pkProjection?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
+                pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord),
+                latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
                 estradiolPkEntries = inputs.estradiolPkEntries,
                 source = HomeInputSource.ROOM,
                 now = now,
@@ -145,7 +137,7 @@ class HomeRepository @Inject constructor(
                         antiandrogenHistoryEntries = emptyList(),
                         profile = UserProfile(),
                         settings = settingsRepository.settingsState.value,
-                        trendResult = null,
+                        pkProjection = null,
                         latestEstradiolEntry = null,
                         estradiolPkEntries = emptyList(),
                         source = HomeInputSource.ROOM,
@@ -165,14 +157,27 @@ class HomeRepository @Inject constructor(
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
+        // Stable end bounds for the day so this flow doesn't re-subscribe per minute.
+        // MainViewModel re-subscribes only on date change; a per-minute `now` upper
+        // bound would otherwise hide entries the user logs later in the day.
+        //
+        // Two values, because the DAO predicates differ:
+        //   - `manualEndEpochMillis`        : start of tomorrow, used with `<` (exclusive)
+        //                                     by `observeScheduleEntries`.
+        //   - `endOfTodayInclusiveEpochMillis`: last ms of today, used with `<=`
+        //                                     (inclusive) by the `OnOrBefore` /
+        //                                     `<=`-bounded queries so an entry stamped
+        //                                     exactly at tomorrow 00:00 is NOT counted
+        //                                     as "today's latest".
+        //
+        // The PK simulator filters future-applied entries internally; the single-row
+        // "latest" queries (antiandrogen / estradiol) may surface a future-applied
+        // entry if the user pre-logs one earlier today — accepted as a rare edge.
         val manualEndEpochMillis = today.plusDays(1)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val onOrBeforeEpochMillis = now
-            .atZone(zoneId)
-            .toInstant()
-            .toEpochMilli()
+        val endOfTodayInclusiveEpochMillis = manualEndEpochMillis - 1L
         val pkStartEpochMillis = today
             .atStartOfDay()
             .minusDays(PkMedicationSimulation.mainChartPastDays + HOME_PK_FALLBACK_LOOKBACK_DAYS)
@@ -194,7 +199,7 @@ class HomeRepository @Inject constructor(
                     entries.map { it.toMedicationLogEntryModel() }
                 },
                 homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                    onOrBeforeEpochMillis = onOrBeforeEpochMillis,
+                    onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
                 ).map { entries ->
                     entries.map { it.toMedicationLogEntryModel() }
                 },
@@ -218,12 +223,12 @@ class HomeRepository @Inject constructor(
                     basicsFlow,
                     homeDao.observeEstradiolPkEntries(
                         startEpochMillis = pkStartEpochMillis,
-                        endEpochMillis = onOrBeforeEpochMillis,
+                        endEpochMillis = endOfTodayInclusiveEpochMillis,
                     ).map { entries ->
                         entries.map { it.toMedicationLogEntryModel() }
                     },
                     homeDao.observeLatestEstradiolEntryOnOrBefore(
-                        onOrBeforeEpochMillis = onOrBeforeEpochMillis,
+                        onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
                     ).map { entry ->
                         entry?.toMedicationLogEntryModel()
                     },
@@ -282,7 +287,7 @@ data class HomeInputs(
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
     val profile: UserProfile,
     val settings: SettingsState,
-    val trendResult: PkTrendResult?,
+    val pkProjection: PkProjectionResult?,
     val latestEstradiolEntry: MedicationLogEntry?,
     val estradiolPkEntries: List<MedicationLogEntry>,
     val source: HomeInputSource,

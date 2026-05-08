@@ -7,7 +7,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
-import com.mkx.hrttracker.model.pk.PkTrendResult
+import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CoroutineDispatcher
@@ -175,11 +175,7 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
-    fun trendResultFromProjection(
-        projectionRecord: HomePkProjectionRecord?,
-        now: LocalDateTime,
-        zoneId: ZoneId = ZoneId.systemDefault(),
-    ): PkTrendResult? {
+    fun decodeProjection(projectionRecord: HomePkProjectionRecord?): PkProjectionResult? {
         projectionRecord ?: return null
         return runCatching {
             HomePkProjectionJsonCodec.decode(projectionRecord.payloadJson)
@@ -188,7 +184,6 @@ class HomeSnapshotRepository @Inject constructor(
                     windowStartEpochMillis = projectionRecord.windowStartEpochMillis,
                     windowEndEpochMillis = projectionRecord.windowEndEpochMillis,
                 )
-                ?.toMainEstradiolTrend(now = now, zoneId = zoneId)
         }.getOrNull()
     }
 
