@@ -693,6 +693,11 @@ private fun MedicationGroupEditorScreenContent(
             onDateSelected = onSinceDateChange,
             onDismiss = { pendingSinceDate = null },
             initialSelectedDate = initialSinceDate,
+            minimumDate = if (uiState.recreatedFromGroupId != null) {
+                currentDate
+            } else {
+                null
+            },
         )
     }
 
@@ -839,6 +844,7 @@ private fun MedicationGroupEditorScreenContent(
             uiState.isFinishingAfterSave ||
             uiState.isArchiving ||
             uiState.isRecreatingAfterArchive
+        val isArchiveBlockedByFuturePlannedSlots = uiState.futurePlannedSlotCount > 0
         AlertDialog(
             onDismissRequest = {
                 if (!isArchiveActionInProgress) {
@@ -849,6 +855,16 @@ private fun MedicationGroupEditorScreenContent(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))) {
                     Text(text = stringResource(R.string.archive_medication_group_confirmation))
+                    if (isArchiveBlockedByFuturePlannedSlots) {
+                        Text(
+                            text = pluralStringResource(
+                                R.plurals.archive_medication_group_future_planned_slots_block,
+                                uiState.futurePlannedSlotCount,
+                                uiState.futurePlannedSlotCount,
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     PreferenceSegmentedListItem(
                         title = stringResource(R.string.archive_create_active_copy),
@@ -894,7 +910,9 @@ private fun MedicationGroupEditorScreenContent(
             },
             confirmButton = {
                 TextButton(
-                    enabled = !isArchiveActionInProgress && hasAcknowledgedArchiveIsPermanent,
+                    enabled = !isArchiveActionInProgress &&
+                        hasAcknowledgedArchiveIsPermanent &&
+                        !isArchiveBlockedByFuturePlannedSlots,
                     onClick = {
                         if (shouldCreateActiveCopyAfterArchive) {
                             onArchiveAndRecreateConfirm()
@@ -1236,12 +1254,9 @@ private fun MedicationGroupEditorScreenContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (
-                        uiState.isScheduleStartDateLocked &&
-                        !uiState.isArchived
-                    ) {
+                    if (shouldShowRecreatedStartDatePastLimitMessage(uiState)) {
                         SupportMessageListItem(
-                            text = stringResource(R.string.group_schedule_start_date_locked_note),
+                            text = stringResource(R.string.group_schedule_recreated_start_date_past_note),
                             painter = painterResource(R.drawable.ic_calendar_lock),
                             leadingIconTint = MaterialTheme.colorScheme.onTertiaryContainer,
                             containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1687,6 +1702,14 @@ internal fun shouldShowMedicationGroupDeleteRelatedRecordsAsAvailable(
             uiState = uiState,
             isNewGroupCreationFlow = isNewGroupCreationFlow,
         )
+}
+
+internal fun shouldShowRecreatedStartDatePastLimitMessage(
+    uiState: MedicationGroupEditorUiState,
+): Boolean {
+    return !uiState.isArchived &&
+        uiState.recreatedFromGroupId != null &&
+        uiState.relatedEntryCount == 0
 }
 
 internal enum class PastScheduleOption {

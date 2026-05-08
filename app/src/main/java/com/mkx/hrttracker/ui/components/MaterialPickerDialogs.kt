@@ -9,6 +9,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -18,6 +19,7 @@ import androidx.compose.material3.TimePickerDisplayMode
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
@@ -32,9 +34,23 @@ fun DatePickerModal(
     onDateSelected: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     initialSelectedDate: LocalDate,
+    minimumDate: LocalDate? = null,
 ) {
+    val selectableDates = remember(minimumDate) {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return minimumDate == null ||
+                    !materialPickerDateMillisToLocalDate(utcTimeMillis).isBefore(minimumDate)
+            }
+
+            override fun isSelectableYear(year: Int): Boolean {
+                return minimumDate == null || year >= minimumDate.year
+            }
+        }
+    }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDate = initialSelectedDate
+        initialSelectedDate = initialSelectedDate,
+        selectableDates = selectableDates,
     )
 
     DatePickerDialog(

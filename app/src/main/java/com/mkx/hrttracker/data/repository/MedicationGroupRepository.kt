@@ -99,6 +99,14 @@ class MedicationGroupRepository @Inject constructor(
         val nowLocal = now.toLocalDateTime()
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.withTransaction { database ->
+                val futurePlannedSlotCount = database.medicationLogDao()
+                    .getFuturePlannedSlotCountForGroup(
+                        groupUuid = uuid.toString(),
+                        afterScheduledForIso = nowLocal.toString(),
+                    )
+                if (futurePlannedSlotCount > 0) {
+                    throw FuturePlannedSlotsBlockArchiveException(uuid)
+                }
                 database.medicationGroupDao().updateGroupArchiveState(
                     uuid = uuid.toString(),
                     archivedAtEpochMillis = nowEpochMillis,
@@ -209,6 +217,8 @@ class MedicationGroupRepository @Inject constructor(
                 val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
                 val hasExistingRecords = existingGroupRow != null &&
                     database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
+                val isExistingRecordlessRecreatedGroup =
+                    isExistingRecreatedGroup && !hasExistingRecords
                 val resolvedIncludePastScheduledSlots = when {
                     existingGroupRow == null -> replacesGroupUuid == null && includePastScheduledSlots
                     isExistingRecreatedGroup || hasExistingRecords -> existingGroupRow.includePastScheduledSlots
@@ -223,6 +233,14 @@ class MedicationGroupRepository @Inject constructor(
                     !hasExistingRecords &&
                     resolvedIncludePastScheduledSlots &&
                     existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+                val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
+                    isExistingRecordlessRecreatedGroup &&
+                    existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
+                val recordlessRecreatedEffectiveFromLocal = if (schedule.since.isAfter(nowLocal.toLocalDate())) {
+                    schedule.since.atStartOfDay().toString()
+                } else {
+                    nowLocal.toString()
+                }
                 val shouldMoveCurrentRowsToSinceStart =
                     (didBackfillModeChange && resolvedIncludePastScheduledSlots) ||
                         didBackfilledStartDateChange
@@ -310,8 +328,15 @@ class MedicationGroupRepository @Inject constructor(
                             didBackfillModeChange ->
                                 nowLocal.toString()
 
+                            didRecordlessRecreatedStartDateChange ->
+                                recordlessRecreatedEffectiveFromLocal
+
                             existingScheduleTime != null && existingTime == time ->
                                 existingScheduleTime.effectiveFromLocalIso
+
+                            isExistingRecordlessRecreatedGroup &&
+                                schedule.since.isAfter(nowLocal.toLocalDate()) ->
+                                schedule.since.atStartOfDay().toString()
 
                             existingGroup == null && resolvedIncludePastScheduledSlots ->
                                 schedule.since.atStartOfDay().toString()
@@ -457,6 +482,10 @@ class MedicationGroupRepository @Inject constructor(
 class MedicationGroupNotFoundException(
     uuid: UUID,
 ) : NoSuchElementException("Medication group $uuid was not found.")
+
+class FuturePlannedSlotsBlockArchiveException(
+    uuid: UUID,
+) : IllegalStateException("Medication group $uuid has future planned records and cannot be archived.")
 
 class ScheduleTimeCountMismatchException : IllegalArgumentException(
     "Schedule time count cannot change in locked mode."

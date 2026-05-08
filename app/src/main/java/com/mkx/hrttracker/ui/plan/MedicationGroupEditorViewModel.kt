@@ -142,17 +142,28 @@ class MedicationGroupEditorViewModel @Inject constructor(
             combine(
                 medicationLogRepository.observeEntries(),
                 _uiState.map { it.editingGroupId }.distinctUntilChanged(),
-            ) { entriesOrNull, currentEditingGroupId ->
+                currentMinute,
+            ) { entriesOrNull, currentEditingGroupId, referenceMinute ->
                 entryCountsForGroup(
                     entries = entriesOrNull.orEmpty(),
                     groupId = currentEditingGroupId,
+                    currentMinute = referenceMinute,
                 )
             }
                 .collect { counts ->
                     _uiState.update {
+                        val shouldLockRecreatedStartDate =
+                            it.recreatedFromGroupId != null &&
+                                (it.isArchived || counts.relatedEntryCount > 0)
                         val nextState = it.copy(
                             relatedEntryCount = counts.relatedEntryCount,
                             plannedEntryCount = counts.plannedEntryCount,
+                            futurePlannedSlotCount = counts.futurePlannedSlotCount,
+                            isScheduleStartDateLocked = if (it.recreatedFromGroupId != null) {
+                                shouldLockRecreatedStartDate
+                            } else {
+                                it.isScheduleStartDateLocked
+                            },
                             scheduleTimeOrderError = if (counts.plannedEntryCount == 0) {
                                 false
                             } else {
@@ -226,7 +237,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     fun updateSinceDate(date: LocalDate) {
         _uiState.update {
-            editorStateWithUpdatedSinceDate(it, date)
+            editorStateWithUpdatedSinceDate(
+                uiState = it,
+                date = date,
+                minimumRecreatedStartDate = currentMinute.value.toLocalDate(),
+            )
         }
     }
 
@@ -752,7 +767,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isDeleting ||
             currentState.isArchiving ||
             currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries
+            currentState.isDeletingRelatedEntries ||
+            currentState.futurePlannedSlotCount > 0
         ) {
             return
         }
@@ -806,7 +822,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             currentState.isDeleting ||
             currentState.isArchiving ||
             currentState.isRecreatingAfterArchive ||
-            currentState.isDeletingRelatedEntries
+            currentState.isDeletingRelatedEntries ||
+            currentState.futurePlannedSlotCount > 0
         ) {
             return
         }
@@ -1004,6 +1021,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     } else {
                         it.plannedEntryCount
                     },
+                    futurePlannedSlotCount = if (result == DeleteRelatedEntriesResult.SUCCESS) {
+                        0
+                    } else {
+                        it.futurePlannedSlotCount
+                    },
                     scheduleTimeOrderError = if (result == DeleteRelatedEntriesResult.SUCCESS) {
                         false
                     } else {
@@ -1072,6 +1094,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     remindersEnabled = remindersEnabled,
                     relatedEntryCount = currentState.relatedEntryCount,
                     plannedEntryCount = currentState.plannedEntryCount,
+                    futurePlannedSlotCount = currentState.futurePlannedSlotCount,
                 )
             }
         }
@@ -1170,6 +1193,7 @@ private fun MedicationGroup.toEditorState(
     remindersEnabled: Boolean,
     relatedEntryCount: Int,
     plannedEntryCount: Int,
+    futurePlannedSlotCount: Int = 0,
 ): MedicationGroupEditorUiState {
     val normalizedScheduleTimeSlots = schedule.timeSlots
         .ifEmpty {
@@ -1235,7 +1259,8 @@ private fun MedicationGroup.toEditorState(
         notificationsEnabled = notificationsEnabled,
         hasResolvedNotificationDefault = true,
         includePastScheduledSlots = includePastScheduledSlots,
-        isScheduleStartDateLocked = recreatedFromGroupUuid != null,
+        isScheduleStartDateLocked = recreatedFromGroupUuid != null &&
+            (archivedAt != null || relatedEntryCount > 0),
         recreatedFromGroupId = recreatedFromGroupUuid?.toString(),
         groupColorKey = colorKey,
         hasAssignedGroupColor = true,
@@ -1243,6 +1268,7 @@ private fun MedicationGroup.toEditorState(
         medications = editorMedications,
         relatedEntryCount = relatedEntryCount,
         plannedEntryCount = plannedEntryCount,
+        futurePlannedSlotCount = futurePlannedSlotCount,
         isArchived = archivedAt != null,
         originalScheduleType = schedule.type,
         originalSinceDate = schedule.since,
@@ -1354,6 +1380,7 @@ private fun MedicationGroupEditorUiState.toUnsavedCopiedGroupState(
         saveMedicationGroupResult = null,
         relatedEntryCount = 0,
         plannedEntryCount = 0,
+        futurePlannedSlotCount = 0,
         scheduleTimeOrderError = false,
         originalScheduleType = null,
         originalSinceDate = null,
@@ -1389,11 +1416,17 @@ internal fun toggleWeeklyDaySelection(
 internal fun editorStateWithUpdatedSinceDate(
     uiState: MedicationGroupEditorUiState,
     date: LocalDate,
+    minimumRecreatedStartDate: LocalDate? = null,
 ): MedicationGroupEditorUiState {
     if (
         uiState.areScheduleShapeFieldsLocked ||
         uiState.isScheduleStartDateLocked ||
-        uiState.sinceDate == date
+        uiState.sinceDate == date ||
+        (
+            uiState.recreatedFromGroupId != null &&
+                minimumRecreatedStartDate != null &&
+                date.isBefore(minimumRecreatedStartDate)
+        )
     ) {
         return uiState
     }
@@ -1595,6 +1628,7 @@ data class MedicationGroupEditorUiState(
     val createdPastScheduledSlotRecordCount: Int? = null,
     val relatedEntryCount: Int = 0,
     val plannedEntryCount: Int = 0,
+    val futurePlannedSlotCount: Int = 0,
     val scheduleTimeOrderError: Boolean = false,
     val originalScheduleType: MedicationGroupScheduleType? = null,
     val originalSinceDate: LocalDate? = null,
@@ -1652,6 +1686,7 @@ internal fun resolveMedicationGroupEditorUiStateWithStableRecordPresentation(
         nextState.copy(
             relatedEntryCount = previousState.relatedEntryCount,
             plannedEntryCount = previousState.plannedEntryCount,
+            futurePlannedSlotCount = previousState.futurePlannedSlotCount,
             isArchived = previousState.isArchived,
             scheduleTimeOrderError = previousState.scheduleTimeOrderError,
         )
@@ -1780,16 +1815,19 @@ internal fun resolveMedicationGroupColorKey(
 internal data class MedicationGroupEntryCounts(
     val relatedEntryCount: Int,
     val plannedEntryCount: Int,
+    val futurePlannedSlotCount: Int,
 )
 
 internal fun entryCountsForGroup(
     entries: List<MedicationLogEntry>,
     groupId: String?,
+    currentMinute: LocalDateTime = LocalDateTime.now().withSecond(0).withNano(0),
 ): MedicationGroupEntryCounts {
     if (groupId == null) {
         return MedicationGroupEntryCounts(
             relatedEntryCount = 0,
             plannedEntryCount = 0,
+            futurePlannedSlotCount = 0,
         )
     }
 
@@ -1797,11 +1835,18 @@ internal fun entryCountsForGroup(
         ?: return MedicationGroupEntryCounts(
             relatedEntryCount = 0,
             plannedEntryCount = 0,
+            futurePlannedSlotCount = 0,
         )
     val relatedEntries = entries.filter { entry -> entry.sourceGroupUuid == groupUuid }
+    val referenceMinute = currentMinute.withSecond(0).withNano(0)
     return MedicationGroupEntryCounts(
         relatedEntryCount = relatedEntries.size,
         plannedEntryCount = relatedEntries.count { entry -> entry.scheduledFor != null },
+        futurePlannedSlotCount = relatedEntries
+            .mapNotNull(MedicationLogEntry::scheduledFor)
+            .filter { scheduledFor -> scheduledFor.isAfter(referenceMinute) }
+            .toSet()
+            .size,
     )
 }
 

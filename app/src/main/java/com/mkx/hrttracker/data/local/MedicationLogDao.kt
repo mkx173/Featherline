@@ -76,6 +76,19 @@ interface MedicationLogDao {
 
     @Query(
         """
+        SELECT COUNT(DISTINCT scheduledForIso) FROM medication_log_entries
+        WHERE sourceGroupUuid = :groupUuid
+          AND scheduledForIso IS NOT NULL
+          AND scheduledForIso > :afterScheduledForIso
+        """
+    )
+    suspend fun getFuturePlannedSlotCountForGroup(
+        groupUuid: String,
+        afterScheduledForIso: String,
+    ): Int
+
+    @Query(
+        """
         DELETE FROM medication_log_entries
         WHERE uuid IN (:uuids)
         """

@@ -231,7 +231,7 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
-    fun editingRecreatedGroup_withDeletedParentLineage_locksStartDate() = runTest {
+    fun editingRecreatedGroup_withoutOwnRecords_allowsTodayAndFutureStartDates() = runTest {
         val parentGroupUuid = UUID.fromString("11e03ed2-5569-44ea-98e0-f810dedcddde")
         val groupUuid = UUID.fromString("ad94244c-34cf-4ce2-85f2-769d63787208")
         val group = testMedicationGroup(
@@ -256,7 +256,7 @@ class MedicationGroupEditorLoadStateTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.areScheduleShapeFieldsLocked)
-        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+        assertFalse(viewModel.uiState.value.isScheduleStartDateLocked)
         assertEquals(parentGroupUuid.toString(), viewModel.uiState.value.recreatedFromGroupId)
         assertFalse(viewModel.uiState.value.canEditBackfillOption)
         assertFalse(viewModel.uiState.value.canCreatePastScheduledSlotRecords)
@@ -268,6 +268,141 @@ class MedicationGroupEditorLoadStateTest {
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 20))
 
         assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 25))
+
+        assertEquals(LocalDate.of(2026, 4, 25), viewModel.uiState.value.sinceDate)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
+
+        assertEquals(LocalDate.of(2026, 4, 26), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingRecreatedGroup_withOwnRecord_locksStartDate() = runTest {
+        val parentGroupUuid = UUID.fromString("b19caa39-e89b-4129-aadf-98f68a57098a")
+        val groupUuid = UUID.fromString("4af5e17b-19a5-4b0a-842c-533f0260b871")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+            recreatedFromGroupUuid = parentGroupUuid,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
+                )
+            )
+        )
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.relatedEntryCount)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
+
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingArchivedRecreatedGroup_locksStartDate() = runTest {
+        val parentGroupUuid = UUID.fromString("2216b694-fdbd-446c-8174-5b9edce24eec")
+        val groupUuid = UUID.fromString("ef91bda3-eccd-4928-a670-c476be327046")
+        val group = testMedicationGroup(
+            groupUuid = groupUuid,
+            includePastScheduledSlots = false,
+            recreatedFromGroupUuid = parentGroupUuid,
+        ).copy(
+            archivedAt = Instant.parse("2026-04-24T00:00:00Z"),
+        )
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isArchived)
+        assertTrue(viewModel.uiState.value.isScheduleStartDateLocked)
+
+        viewModel.updateSinceDate(LocalDate.of(2026, 4, 26))
+
+        assertEquals(LocalDate.of(2026, 4, 1), viewModel.uiState.value.sinceDate)
+    }
+
+    @Test
+    fun editingGroup_countsFuturePlannedSlotsOncePerScheduledTime() = runTest {
+        val groupUuid = UUID.fromString("7b6ddd41-0b53-460c-a83f-780715304478")
+        val group = testMedicationGroup(groupUuid = groupUuid)
+        val futureSlot = LocalDateTime.of(2026, 4, 25, 11, 0)
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        every { medicationLogRepository.observeEntries() } returns flowOf(
+            listOf(
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("8aebd8c3-9431-4b93-86c7-444ac75759ab"),
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T01:30:00Z"),
+                    scheduledFor = futureSlot,
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("0a374d56-982b-44d5-8569-0cd824d34210"),
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T01:31:00Z"),
+                    scheduledFor = futureSlot,
+                ),
+                testMedicationLogEntry(
+                    uuid = UUID.fromString("dcd1f6c7-b47b-41a2-9343-c7bb8a530802"),
+                    details = testMedicationDetails(),
+                    sourceGroupUuid = groupUuid,
+                    appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
+                    scheduledFor = LocalDateTime.of(2026, 4, 25, 10, 0),
+                ),
+            )
+        )
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.uiState.value.plannedEntryCount)
+        assertEquals(1, viewModel.uiState.value.futurePlannedSlotCount)
     }
 
     @Test
@@ -1114,6 +1249,46 @@ class MedicationGroupEditorLoadStateTest {
                     isArchived = true,
                 ),
                 referenceTime = now,
+            )
+        )
+    }
+
+    @Test
+    fun recreatedStartDatePastLimitMessage_requiresActiveRecreatedGroupWithoutLinkedEntries() {
+        assertTrue(
+            shouldShowRecreatedStartDatePastLimitMessage(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    relatedEntryCount = 0,
+                )
+            )
+        )
+        assertFalse(
+            shouldShowRecreatedStartDatePastLimitMessage(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    relatedEntryCount = 1,
+                )
+            )
+        )
+        assertFalse(
+            shouldShowRecreatedStartDatePastLimitMessage(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    relatedEntryCount = 0,
+                )
+            )
+        )
+        assertFalse(
+            shouldShowRecreatedStartDatePastLimitMessage(
+                MedicationGroupEditorUiState(
+                    editingGroupId = "5f34363b-6f89-4527-91b1-b99faf4bd8fd",
+                    recreatedFromGroupId = "8d36ba04-4240-4427-972a-1ca05b7bcc69",
+                    relatedEntryCount = 0,
+                    isArchived = true,
+                )
             )
         )
     }
