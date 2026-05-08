@@ -99,6 +99,7 @@ import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
+import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.launch
 
@@ -108,12 +109,17 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
     onCalibrationClick: () -> Unit = {},
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     val activity = LocalActivity.current
+    val appLockViewModel: AppLockViewModel = hiltViewModel(
+        viewModelStoreOwner = activity as ComponentActivity,
+    )
+    val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
+    val isAppLocked = appLockUiState.shouldShowLockScreen
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
@@ -424,7 +430,7 @@ fun SettingsScreen(
         modifier = modifier
     )
 
-    if (showBackupPasswordDialog) {
+    if (showBackupPasswordDialog && !isAppLocked) {
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_password_title),
             message = stringResource(R.string.settings_backup_password_message),
@@ -472,7 +478,7 @@ fun SettingsScreen(
         )
     }
 
-    pendingRestoreRequest?.let { restoreRequest ->
+    pendingRestoreRequest?.takeUnless { isAppLocked }?.let { restoreRequest ->
         val restorePasswordMessage = if (restoreRequest.displayName != null) {
             stringResource(
                 R.string.settings_backup_restore_password_message_with_name,

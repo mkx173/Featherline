@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -30,6 +31,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
@@ -42,7 +46,6 @@ import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.main.MainViewModel
-import com.mkx.hrttracker.ui.navigation.Screen
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterOffset
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
@@ -56,6 +59,7 @@ import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
+import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -199,16 +203,21 @@ class MainActivity : AppCompatActivity() {
                     onError = appLockViewModel::onAuthenticationError
                 )
 
+                val homeShellReady = mainUiState.splashReady && onboardingUiState.isLoaded
+                val contentLayers = appLockContentLayers(
+                    appLockReady = appLockUiState.isReady,
+                    shouldShowLockScreen = appLockUiState.shouldShowLockScreen,
+                    homeShellReady = homeShellReady,
+                )
                 when {
-                    !appLockUiState.isReady -> Unit
-                    appLockUiState.shouldShowLockScreen -> {
+                    contentLayers.showInWindowLockScreen && !contentLayers.showHomeShell -> {
+                        BackHandler(enabled = true) { }
                         AppLockScreen(
                             errorMessageRes = appLockUiState.errorMessageRes,
                             onUnlockClick = appLockViewModel::requestUnlock
                         )
                     }
-                    !mainUiState.splashReady -> Unit
-                    !onboardingUiState.isLoaded -> Unit
+                    !contentLayers.showHomeShell -> Unit
                     else -> {
                         val hiddenHomeOffsetPx = sharedAxisXEnterOffset(
                             slideDistancePx = sharedAxisXSlideDistancePx(density),
@@ -279,6 +288,33 @@ class MainActivity : AppCompatActivity() {
                                     },
                                     onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
                                     onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
+                                )
+                            }
+
+                            if (contentLayers.showInWindowLockScreen) {
+                                BackHandler(enabled = true) { }
+                                AppLockScreen(
+                                    errorMessageRes = appLockUiState.errorMessageRes,
+                                    onUnlockClick = appLockViewModel::requestUnlock,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                        }
+
+                        if (contentLayers.showLockDialog) {
+                            Dialog(
+                                onDismissRequest = {},
+                                properties = DialogProperties(
+                                    dismissOnBackPress = false,
+                                    dismissOnClickOutside = false,
+                                    usePlatformDefaultWidth = false,
+                                    decorFitsSystemWindows = false,
+                                    securePolicy = SecureFlagPolicy.Inherit,
+                                ),
+                            ) {
+                                AppLockScreen(
+                                    errorMessageRes = appLockUiState.errorMessageRes,
+                                    onUnlockClick = appLockViewModel::requestUnlock,
                                 )
                             }
                         }
