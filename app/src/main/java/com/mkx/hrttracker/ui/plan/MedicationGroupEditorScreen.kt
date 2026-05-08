@@ -181,7 +181,10 @@ fun MedicationGroupEditorScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         isExactAlarmDialogVisible = false
-        showInexactReminderWarning = !canScheduleExactAlarms(context)
+        showInexactReminderWarning = resolveInexactReminderWarningVisibility(
+            hasNotificationAccess = hasNotificationAccess,
+            canScheduleExactAlarms = canScheduleExactAlarms(context)
+        )
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -287,7 +290,7 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled) {
+    LaunchedEffect(hasNotificationAccess) {
         if (!hasNotificationAccess) {
             pendingNotificationEnableRequest = null
             isExactAlarmDialogVisible = false
@@ -295,11 +298,12 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(hasNotificationAccess, uiState.notificationsEnabled, isExactAlarmDialogVisible) {
-        if (!hasNotificationAccess || !uiState.notificationsEnabled) {
-            showInexactReminderWarning = false
-        } else if (!isExactAlarmDialogVisible) {
-            showInexactReminderWarning = !canScheduleExactAlarms(context)
+    LaunchedEffect(hasNotificationAccess, isExactAlarmDialogVisible) {
+        if (!isExactAlarmDialogVisible) {
+            showInexactReminderWarning = resolveInexactReminderWarningVisibility(
+                hasNotificationAccess = hasNotificationAccess,
+                canScheduleExactAlarms = canScheduleExactAlarms(context)
+            )
         }
     }
 
@@ -329,7 +333,10 @@ fun MedicationGroupEditorScreen(
                 viewModel.updateNotificationsEnabled(false)
                 pendingNotificationEnableRequest = null
                 isExactAlarmDialogVisible = false
-                showInexactReminderWarning = false
+                showInexactReminderWarning = resolveInexactReminderWarningVisibility(
+                    hasNotificationAccess = hasNotificationAccess,
+                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                )
             } else if (
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 ContextCompat.checkSelfPermission(
@@ -1869,6 +1876,11 @@ internal fun resolveNotificationSupportState(
     showInexactReminderWarning -> NotificationSupportState.INEXACT
     else -> NotificationSupportState.NONE
 }
+
+internal fun resolveInexactReminderWarningVisibility(
+    hasNotificationAccess: Boolean,
+    canScheduleExactAlarms: Boolean,
+): Boolean = hasNotificationAccess && !canScheduleExactAlarms
 
 internal data class ExactAlarmReminderEnableUiState(
     val showInexactReminderWarning: Boolean,

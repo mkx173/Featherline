@@ -117,6 +117,28 @@ class MedicationGroupEditorNotificationsTest {
     }
 
     @Test
+    fun resolveNotificationSupportState_prioritizes_master_off_over_inexact() {
+        assertEquals(
+            NotificationSupportState.MASTER_OFF,
+            resolveNotificationSupportState(
+                hasNotificationAccess = true,
+                remindersEnabled = false,
+                showInexactReminderWarning = true
+            )
+        )
+    }
+
+    @Test
+    fun resolveInexactReminderWarningVisibility_returns_true_when_exact_alarm_access_is_missing() {
+        assertTrue(
+            resolveInexactReminderWarningVisibility(
+                hasNotificationAccess = true,
+                canScheduleExactAlarms = false
+            )
+        )
+    }
+
+    @Test
     fun resolveExactAlarmUiStateAfterEnablingReminders_warns_without_dialog_when_exact_alarm_access_missing() {
         val state = resolveExactAlarmUiStateAfterEnablingReminders(
             canScheduleExactAlarms = false
