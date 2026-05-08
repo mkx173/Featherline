@@ -43,37 +43,6 @@ internal data class PastScheduleSelectorUiState(
     val lockedMessage: String? = null,
 )
 
-@Composable
-internal fun AnimatedPastScheduleSelectorCard(
-    state: PastScheduleSelectorUiState?,
-    onOptionSelected: (PastScheduleOption) -> Unit,
-    index: Int = 0,
-    count: Int = 1,
-    label: String = "past-schedule-selector",
-) {
-    val displayedState = remember { mutableStateOf(state) }
-    if (state != null) {
-        displayedState.value = state
-    }
-
-    AnimatedVisibility(
-        visible = state != null,
-        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
-        label = label,
-    ) {
-        displayedState.value?.let { selectorState ->
-            PastScheduleSelectorCard(
-                state = selectorState,
-                onOptionSelected = onOptionSelected,
-                index = index,
-                count = count,
-                modifier = Modifier.padding(top = dimensionResource(R.dimen.list_segment_gap))
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun PastScheduleSelectorCard(

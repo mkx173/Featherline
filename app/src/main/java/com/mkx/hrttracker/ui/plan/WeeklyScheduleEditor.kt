@@ -166,13 +166,15 @@ internal fun WeeklyScheduleEditor(
             )
         }
 
-        AnimatedPastScheduleSelectorCard(
-            state = pastScheduleSelectorState,
-            onOptionSelected = onPastScheduleOptionSelected,
-            index = itemIndex,
-            count = totalCount,
-            label = "weekly-schedule-past-selector",
-        )
+        pastScheduleSelectorState?.let { selectorState ->
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
+            PastScheduleSelectorCard(
+                state = selectorState,
+                onOptionSelected = onPastScheduleOptionSelected,
+                index = itemIndex,
+                count = totalCount,
+            )
+        }
     }
 }
 
