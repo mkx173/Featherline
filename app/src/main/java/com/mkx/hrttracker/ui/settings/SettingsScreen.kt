@@ -553,9 +553,9 @@ private fun SettingsScreenContent(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
-    var showPrivacyPolicyDialog by rememberSaveable { mutableStateOf(false) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
         remember { mutableStateOf(false) }
@@ -1015,7 +1015,7 @@ private fun SettingsScreenContent(
                     title = stringResource(R.string.settings_about_privacy_policy),
                     index = 0,
                     count = 5,
-                    onClick = { showPrivacyPolicyDialog = true },
+                    onClick = { pendingExternalUrl = privacyPolicyUrl },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_privacy_tip)
@@ -1117,19 +1117,6 @@ private fun SettingsScreenContent(
                 )
             }
         }
-    }
-
-    if (showPrivacyPolicyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyPolicyDialog = false },
-            title = { Text(text = stringResource(R.string.settings_about_privacy_policy)) },
-            text = { Text(text = stringResource(R.string.onboarding_privacy_message)) },
-            confirmButton = {
-                TextButton(onClick = { showPrivacyPolicyDialog = false }) {
-                    Text(text = stringResource(R.string.confirm))
-                }
-            }
-        )
     }
 
     if (showExactAlarmRecoveryDialog) {

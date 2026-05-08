@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
@@ -16,6 +17,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,7 +30,9 @@ import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.main.MainViewModel
-import com.mkx.hrttracker.ui.onboarding.OnboardingDialogs
+import com.mkx.hrttracker.ui.navigation.Screen
+import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
+import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockScreen
 import com.mkx.hrttracker.ui.security.AppLockViewModel
@@ -40,6 +46,7 @@ import javax.inject.Provider
 class MainActivity : AppCompatActivity() {
     private val appLockViewModel: AppLockViewModel by viewModels()
     private val mainViewModel: MainViewModel by viewModels()
+    private val onboardingViewModel: OnboardingViewModel by viewModels()
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
@@ -66,8 +73,11 @@ class MainActivity : AppCompatActivity() {
         )
         splashScreen.setKeepOnScreenCondition {
             val appLockState = appLockViewModel.uiState.value
+            val onboardingState = onboardingViewModel.uiState.value
             val shouldWaitForHomeShell = appLockState.isReady && !appLockState.shouldShowLockScreen
-            !appLockState.isReady || (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
+            !appLockState.isReady ||
+                !onboardingState.isLoaded ||
+                (shouldWaitForHomeShell && !mainViewModel.uiState.value.splashReady)
         }
         diagnosticsLogger.info(TAG, "main_activity_splash_condition_installed")
         settingsRepository.refreshAppLanguageOption(this)
@@ -111,6 +121,9 @@ class MainActivity : AppCompatActivity() {
                 val navController = rememberNavController()
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
                 val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+                val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
+                val context = LocalContext.current
+                val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
                 LaunchedEffect(
                     appLockUiState.isReady,
@@ -173,9 +186,20 @@ class MainActivity : AppCompatActivity() {
                         )
                     }
                     !mainUiState.splashReady -> Unit
+                    !onboardingUiState.isLoaded -> Unit
                     else -> {
                         HrtTrackerApp(navController = navController)
-                        OnboardingDialogs()
+                        if (onboardingUiState.shouldShowOnboarding) {
+                            OnboardingScreen(
+                                onOpenPrivacyPolicy = {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+                                    )
+                                },
+                                onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
+                                onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
+                            )
+                        }
                     }
                 }
             }
