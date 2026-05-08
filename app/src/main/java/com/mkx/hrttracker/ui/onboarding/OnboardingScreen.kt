@@ -12,8 +12,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -84,6 +82,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -116,6 +116,8 @@ import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
+import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 
 internal enum class OnboardingNotificationPermissionAction {
@@ -175,6 +177,8 @@ fun OnboardingScreen(
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     val activity = LocalActivity.current
     var notificationsGranted by remember { mutableStateOf(canPostNotifications(context)) }
     var exactAlarmGranted by remember { mutableStateOf(canScheduleExactAlarms(context)) }
@@ -233,30 +237,43 @@ fun OnboardingScreen(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding(),
+        AnimatedContent(
+            targetState = step,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                val forward = targetState > initialState
+                sharedAxisXEnterTransition(
+                    density = density,
+                    layoutDirection = layoutDirection,
+                    forward = forward,
+                ) togetherWith sharedAxisXExitTransition(
+                    density = density,
+                    layoutDirection = layoutDirection,
+                    forward = forward,
+                )
+            },
+            label = "onboarding-step",
         ) {
-            val showProgress = step >= 1
+            val currentStep = it
+            val showProgress = currentStep >= 1
 
-            OnboardingTopChrome(
-                showProgress = showProgress,
-                progressTotal = progressSteps,
-                progressCurrent = step,
-            )
-
-            Box(
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxSize()
+                    .systemBarsPadding(),
             ) {
-                AnimatedContent(
-                    targetState = step,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "onboarding-step",
-                ) { current ->
-                    when (current) {
+                OnboardingTopChrome(
+                    showProgress = showProgress,
+                    progressTotal = progressSteps,
+                    progressCurrent = currentStep,
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                ) {
+                    when (currentStep) {
                         0 -> StartStep()
                         1 -> DisclaimerStep(
                             accepted = accepted,
@@ -320,32 +337,32 @@ fun OnboardingScreen(
                         )
                     }
                 }
-            }
 
-            OnboardingBottomChrome(
-                ctaLabel = when (step) {
-                    0 -> stringResource(R.string.onboarding_start_cta)
-                    totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
-                    else -> stringResource(R.string.onboarding_continue)
-                },
-                ctaEnabled = when (step) {
-                    1 -> accepted
-                    2 -> notificationsGranted
-                    else -> true
-                },
-                secondaryButtonLabel = if (step == 2) {
-                    stringResource(R.string.onboarding_skip_notifications)
-                } else {
-                    null
-                },
-                onSecondaryButtonClick = if (step == 2) {
-                    { goNext() }
-                } else {
-                    null
-                },
-                secondaryButtonEnabled = step != 2 || !notificationsGranted,
-                onCta = goNext,
-            )
+                OnboardingBottomChrome(
+                    ctaLabel = when (currentStep) {
+                        0 -> stringResource(R.string.onboarding_start_cta)
+                        totalSteps - 1 -> stringResource(R.string.onboarding_open_app)
+                        else -> stringResource(R.string.onboarding_continue)
+                    },
+                    ctaEnabled = when (currentStep) {
+                        1 -> accepted
+                        2 -> notificationsGranted
+                        else -> true
+                    },
+                    secondaryButtonLabel = if (currentStep == 2) {
+                        stringResource(R.string.onboarding_skip_notifications)
+                    } else {
+                        null
+                    },
+                    onSecondaryButtonClick = if (currentStep == 2) {
+                        { goNext() }
+                    } else {
+                        null
+                    },
+                    secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
+                    onCta = goNext,
+                )
+            }
         }
     }
 
@@ -594,7 +611,7 @@ private fun DisclaimerStep(
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(16.dp),
+                .padding(24.dp),
         ) {
             Column(
                 modifier = Modifier

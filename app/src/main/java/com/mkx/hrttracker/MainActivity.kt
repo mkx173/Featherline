@@ -1,6 +1,7 @@
 package com.mkx.hrttracker
 
 import android.content.pm.ApplicationInfo
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -8,8 +9,13 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +24,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
@@ -31,6 +41,14 @@ import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.navigation.Screen
+import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterOffset
+import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
+import com.mkx.hrttracker.ui.navigation.sharedAxisXExitFadeEasing
+import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
+import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideDistancePx
+import com.mkx.hrttracker.ui.navigation.sharedAxisXSlideEasing
+import com.mkx.hrttracker.ui.navigation.sharedAxisXTransitionDurationMillis
+import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
 import com.mkx.hrttracker.ui.onboarding.OnboardingScreen
 import com.mkx.hrttracker.ui.onboarding.OnboardingViewModel
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -123,6 +141,8 @@ class MainActivity : AppCompatActivity() {
                 val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
                 val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
                 val context = LocalContext.current
+                val density = LocalDensity.current
+                val layoutDirection = LocalLayoutDirection.current
                 val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
 
                 LaunchedEffect(
@@ -188,17 +208,73 @@ class MainActivity : AppCompatActivity() {
                     !mainUiState.splashReady -> Unit
                     !onboardingUiState.isLoaded -> Unit
                     else -> {
-                        HrtTrackerApp(navController = navController)
-                        if (onboardingUiState.shouldShowOnboarding) {
-                            OnboardingScreen(
-                                onOpenPrivacyPolicy = {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
-                                    )
+                        val hiddenHomeOffsetPx = sharedAxisXEnterOffset(
+                            slideDistancePx = sharedAxisXSlideDistancePx(density),
+                            forward = true,
+                            layoutDirection = layoutDirection,
+                        )
+                        val homeOffsetX by animateIntAsState(
+                            targetValue = if (onboardingUiState.shouldShowOnboarding) {
+                                hiddenHomeOffsetPx
+                            } else {
+                                0
+                            },
+                            animationSpec = tween(
+                                durationMillis = sharedAxisXTransitionDurationMillis,
+                                easing = sharedAxisXSlideEasing,
+                            ),
+                            label = "home-offset-x",
+                        )
+                        val homeAlpha by animateFloatAsState(
+                            targetValue = if (onboardingUiState.shouldShowOnboarding) 0f else 1f,
+                            animationSpec = tween(
+                                durationMillis = sharedAxisXTransitionDurationMillis,
+                                easing = if (onboardingUiState.shouldShowOnboarding) {
+                                    sharedAxisXExitFadeEasing
+                                } else {
+                                    sharedAxisXEnterFadeEasing
                                 },
-                                onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
-                                onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
-                            )
+                            ),
+                            label = "home-alpha",
+                        )
+
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        translationX = homeOffsetX.toFloat()
+                                        alpha = homeAlpha
+                                    }
+                            ) {
+                                HrtTrackerApp(navController = navController)
+                            }
+
+                            AnimatedVisibility(
+                                visible = onboardingUiState.shouldShowOnboarding,
+                                modifier = Modifier.fillMaxSize(),
+                                enter = sharedAxisXEnterTransition(
+                                    density = density,
+                                    layoutDirection = layoutDirection,
+                                    forward = false,
+                                ),
+                                exit = sharedAxisXExitTransition(
+                                    density = density,
+                                    layoutDirection = layoutDirection,
+                                    forward = true,
+                                ),
+                                label = "onboarding-overlay",
+                            ) {
+                                OnboardingScreen(
+                                    onOpenPrivacyPolicy = {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, privacyPolicyUrl.toUri())
+                                        )
+                                    },
+                                    onCompleteEnabled = onboardingViewModel::completeWithRemindersEnabled,
+                                    onCompleteDeclined = onboardingViewModel::completeWithRemindersDeclined,
+                                )
+                            }
                         }
                     }
                 }

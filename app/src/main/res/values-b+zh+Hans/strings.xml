@@ -550,7 +550,7 @@
     <string name="onboarding_disclaimer_reminders_heading">提醒</string>
     <string name="onboarding_disclaimer_reminders_body">用药提醒依赖于设备的通知和闹钟权限。电池优化、勿扰模式或系统限制可能会导致提醒延迟或无法送达。</string>
     <string name="onboarding_disclaimer_view_full_policy">查看完整隐私政策</string>
-    <string name="onboarding_disclaimer_acknowledge">我已了解</string>
+    <string name="onboarding_disclaimer_acknowledge">我同意</string>
     <string name="onboarding_continue">继续</string>
     <string name="onboarding_skip">跳过</string>
     <string name="onboarding_back">返回</string>
