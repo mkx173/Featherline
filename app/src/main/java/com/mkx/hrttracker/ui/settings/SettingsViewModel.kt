@@ -46,7 +46,10 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
+    private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
+    private val isBackupExportInProgress = MutableStateFlow(false)
+    private val isBackupRestoreInProgress = MutableStateFlow(false)
     private var nextPromptId = 0L
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -54,14 +57,28 @@ class SettingsViewModel @Inject constructor(
         userProfileRepository.observeProfile(),
         pendingPrompt,
         securityErrorMessageRes,
-        pendingRestoreRequest
-    ) { settingsState, profile, prompt, errorRes, restoreRequest ->
+        pendingPreparedBackupExport,
+        pendingRestoreRequest,
+        isBackupExportInProgress,
+        isBackupRestoreInProgress,
+    ) { values ->
+        val settingsState = values[0] as SettingsState
+        val profile = values[1] as UserProfile?
+        val prompt = values[2] as AuthenticationPromptRequest?
+        val errorRes = values[3] as Int?
+        val preparedBackupExport = values[4] as PendingPreparedBackupExport?
+        val restoreRequest = values[5] as PendingBackupRestoreRequest?
+        val exportInProgress = values[6] as Boolean
+        val restoreInProgress = values[7] as Boolean
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
             pendingPrompt = prompt,
             securityErrorMessageRes = errorRes,
-            pendingRestoreRequest = restoreRequest
+            pendingPreparedBackupExport = preparedBackupExport,
+            pendingRestoreRequest = restoreRequest,
+            isBackupExportInProgress = exportInProgress,
+            isBackupRestoreInProgress = restoreInProgress,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -219,6 +236,12 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    suspend fun validateBackupFile(
+        fileUri: Uri,
+    ) {
+        backupRestoreService.validateBackupFile(fileUri)
+    }
+
     fun diagnosticsExportFileName(): String {
         return diagnosticsExportService.buildExportFileName()
     }
@@ -243,6 +266,32 @@ class SettingsViewModel @Inject constructor(
         pendingRestoreRequest.value = null
     }
 
+    fun setPendingPreparedBackupExport(
+        displayName: String,
+        tempFilePath: String,
+    ) {
+        pendingPreparedBackupExport.value = PendingPreparedBackupExport(
+            displayName = displayName,
+            tempFilePath = tempFilePath,
+        )
+    }
+
+    fun clearPendingPreparedBackupExport() {
+        pendingPreparedBackupExport.value = null
+    }
+
+    fun setBackupExportInProgress(
+        inProgress: Boolean,
+    ) {
+        isBackupExportInProgress.value = inProgress
+    }
+
+    fun setBackupRestoreInProgress(
+        inProgress: Boolean,
+    ) {
+        isBackupRestoreInProgress.value = inProgress
+    }
+
     private fun preloadCalibrationData() {
         viewModelScope.launch {
             runCatching {
@@ -258,7 +307,15 @@ data class SettingsUiState(
     val userProfile: UserProfile = UserProfile(),
     val pendingPrompt: AuthenticationPromptRequest? = null,
     val securityErrorMessageRes: Int? = null,
+    val pendingPreparedBackupExport: PendingPreparedBackupExport? = null,
     val pendingRestoreRequest: PendingBackupRestoreRequest? = null,
+    val isBackupExportInProgress: Boolean = false,
+    val isBackupRestoreInProgress: Boolean = false,
+)
+
+data class PendingPreparedBackupExport(
+    val displayName: String,
+    val tempFilePath: String,
 )
 
 data class PendingBackupRestoreRequest(

@@ -481,7 +481,8 @@
     <string name="settings_backup_password_min_length">Use at least %1$d characters</string>
     <string name="settings_backup_password_mismatch">Passwords must match</string>
     <string name="settings_backup_restore_success">Backup restored</string>
-    <string name="settings_backup_restore_failed">Unable to restore backup</string>
+    <string name="settings_backup_restore_failed">Incompatible backup file</string>
+    <string name="settings_backup_restore_incompatible_file">Selected file is not a compatible backup</string>
     <string name="settings_backup_restore_confirm_title">Restore backup?</string>
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
     <string name="settings_backup_restore_password_message_with_name">This will replace current local data with %1$s. Enter the backup password to continue.</string>

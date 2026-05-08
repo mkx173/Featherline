@@ -21,9 +21,13 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.IOException
+import org.junit.Assert.fail
 
 class BackupRestoreServiceTest {
     private val context: Context = mockk(relaxed = true)
@@ -99,6 +103,41 @@ class BackupRestoreServiceTest {
 
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
         coVerify(exactly = 1) { medicationReminderSnoozeScheduler.clearAllSnoozes() }
+    }
+
+    @Test
+    fun validateBackupFile_accepts_supported_backup_container() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
+            backupCrypto.encryptSnapshotJson(
+                json = BackupSnapshotJsonCodec.encode(emptySnapshot()),
+                password = "password".toCharArray(),
+            )
+        )
+
+        service.validateBackupFile(fileUri)
+    }
+
+    @Test
+    fun validateBackupFile_rejects_non_backup_input_before_password_prompt() = runTest {
+        val fileUri: Uri = mockk(relaxed = true)
+        every { contentResolver.openInputStream(fileUri) } returns ByteArrayInputStream(
+            "not a backup".encodeToByteArray()
+        )
+
+        val error = try {
+            service.validateBackupFile(fileUri)
+            fail("Expected validateBackupFile to reject non-backup input.")
+            null
+        } catch (error: IOException) {
+            error
+        }
+
+        assertNotNull(error)
+        assertTrue(
+            "Expected incompatible backup validation to use a dedicated exception type.",
+            error is IncompatibleBackupFileException,
+        )
     }
 
     private fun emptySnapshot(): BackupSnapshot {

@@ -473,6 +473,7 @@
     <string name="settings_backup_password_mismatch">密码不一致</string>
     <string name="settings_backup_restore_success">备份已恢复</string>
     <string name="settings_backup_restore_failed">无法恢复备份</string>
+    <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
     <string name="settings_backup_restore_password_message_with_name">这会用 %1$s 替换当前本地数据，输入备份密码以继续</string>

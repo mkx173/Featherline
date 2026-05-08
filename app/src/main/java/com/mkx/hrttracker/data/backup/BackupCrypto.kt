@@ -51,6 +51,16 @@ class BackupCrypto internal constructor(
         }
     }
 
+    fun validateEncryptedBackupContainer(
+        encryptedBytes: ByteArray,
+    ) {
+        val parsedContainer = parseContainer(encryptedBytes)
+        parsedContainer.header.fill(0)
+        parsedContainer.salt.fill(0)
+        parsedContainer.nonce.fill(0)
+        parsedContainer.ciphertext.fill(0)
+    }
+
     internal fun encrypt(
         plaintext: ByteArray,
         password: CharArray,

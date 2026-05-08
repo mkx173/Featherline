@@ -101,6 +101,41 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun pendingPreparedBackupExport_staysInViewModelUntilCleared() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setPendingPreparedBackupExport(
+            displayName = "plume-backup.hrtbackup",
+            tempFilePath = "C:\\temp\\backup.tmp",
+        )
+        advanceUntilIdle()
+
+        val pendingPreparedBackupExport = viewModel.uiState.value.pendingPreparedBackupExport
+        assertNotNull(pendingPreparedBackupExport)
+        checkNotNull(pendingPreparedBackupExport)
+        assertEquals("plume-backup.hrtbackup", pendingPreparedBackupExport.displayName)
+        assertEquals("C:\\temp\\backup.tmp", pendingPreparedBackupExport.tempFilePath)
+
+        viewModel.clearPendingPreparedBackupExport()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.pendingPreparedBackupExport)
+    }
+
+    @Test
+    fun validateBackupFile_delegatesToBackupRestoreService() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val uri: Uri = mockk()
+        coEvery { backupRestoreService.validateBackupFile(uri) } just Runs
+
+        viewModel.validateBackupFile(uri)
+
+        coVerify(exactly = 1) { backupRestoreService.validateBackupFile(uri) }
+    }
+
+    @Test
     fun setRemindersEnabled_clearsSnoozesWhenDisablingMasterSwitch() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()

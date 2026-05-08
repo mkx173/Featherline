@@ -12,6 +12,7 @@ import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -76,8 +77,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -114,23 +117,23 @@ fun SettingsScreen(
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+    val pickerResultScope = remember(activity, coroutineScope) {
+        (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
+    }
     var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
     var showInexactReminderWarning by remember { mutableStateOf(false) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
-    var isBackupExportInProgress by rememberSaveable { mutableStateOf(false) }
-    var isBackupRestoreInProgress by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingPreparedBackupDisplayName by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingPreparedBackupTempFilePath by rememberSaveable { mutableStateOf<String?>(null) }
+    val isBackupExportInProgress = uiState.isBackupExportInProgress
+    val isBackupRestoreInProgress = uiState.isBackupRestoreInProgress
     val pendingRestoreRequest = uiState.pendingRestoreRequest
-    val pendingPreparedBackupExport = pendingPreparedBackupDisplayName?.let { displayName ->
-        pendingPreparedBackupTempFilePath?.let { tempFilePath ->
+    val pendingPreparedBackupExportState = uiState.pendingPreparedBackupExport
+    val pendingPreparedBackupExport = pendingPreparedBackupExportState?.let { preparedBackupExport ->
             viewModel.restorePreparedBackupExport(
-                displayName = displayName,
-                tempFilePath = tempFilePath,
+                displayName = preparedBackupExport.displayName,
+                tempFilePath = preparedBackupExport.tempFilePath,
             )
-        }
     }
     val isBackupFlowPending = pendingPreparedBackupExport != null
     val reminderNotificationsUnavailableMessage =
@@ -142,6 +145,8 @@ fun SettingsScreen(
             preparedBackupExport.displayName,
         )
     }
+    val backupRestoreIncompatibleFileMessage =
+        stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
     val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
@@ -176,12 +181,11 @@ fun SettingsScreen(
         val preparedBackupExport = pendingPreparedBackupExport
         if (directoryUri == null) {
             if (preparedBackupExport != null) {
-                coroutineScope.launch {
+                pickerResultScope.launch {
                     viewModel.discardPreparedBackup(preparedBackupExport)
+                    viewModel.clearPendingPreparedBackupExport()
                 }
             }
-            pendingPreparedBackupDisplayName = null
-            pendingPreparedBackupTempFilePath = null
             return@rememberLauncherForActivityResult
         }
         if (
@@ -189,8 +193,7 @@ fun SettingsScreen(
             isBackupExportInProgress ||
             isBackupRestoreInProgress
         ) {
-            pendingPreparedBackupDisplayName = null
-            pendingPreparedBackupTempFilePath = null
+            viewModel.clearPendingPreparedBackupExport()
             Toast.makeText(
                 context,
                 backupExportFailedMessage,
@@ -199,8 +202,8 @@ fun SettingsScreen(
             return@rememberLauncherForActivityResult
         }
 
-        coroutineScope.launch {
-            isBackupExportInProgress = true
+        pickerResultScope.launch {
+            viewModel.setBackupExportInProgress(true)
             try {
                 viewModel.exportPreparedBackup(
                     directoryUri = directoryUri,
@@ -218,9 +221,8 @@ fun SettingsScreen(
                     Toast.LENGTH_SHORT
                 ).show()
             } finally {
-                isBackupExportInProgress = false
-                pendingPreparedBackupDisplayName = null
-                pendingPreparedBackupTempFilePath = null
+                viewModel.setBackupExportInProgress(false)
+                viewModel.clearPendingPreparedBackupExport()
             }
         }
     }
@@ -230,11 +232,30 @@ fun SettingsScreen(
         if (fileUri == null || isBackupExportInProgress || isBackupRestoreInProgress) {
             return@rememberLauncherForActivityResult
         }
-        persistBackupRestoreReadPermission(context, fileUri)
-        viewModel.setPendingRestoreRequest(
-            fileUri = fileUri,
-            displayName = resolveDocumentDisplayName(context, fileUri),
-        )
+        pickerResultScope.launch {
+            viewModel.setBackupRestoreInProgress(true)
+            try {
+                viewModel.validateBackupFile(fileUri)
+                persistBackupRestoreReadPermission(context, fileUri)
+                viewModel.setPendingRestoreRequest(
+                    fileUri = fileUri,
+                    displayName = resolveDocumentDisplayName(context, fileUri),
+                )
+            } catch (error: Exception) {
+                releaseBackupRestoreReadPermission(context, fileUri)
+                Toast.makeText(
+                    context,
+                    if (error is IncompatibleBackupFileException) {
+                        backupRestoreIncompatibleFileMessage
+                    } else {
+                        backupRestoreFailedMessage
+                    },
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                viewModel.setBackupRestoreInProgress(false)
+            }
+        }
     }
     val diagnosticsExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(DIAGNOSTICS_EXPORT_MIME_TYPE)
@@ -416,7 +437,7 @@ fun SettingsScreen(
             onDismiss = { showBackupPasswordDialog = false },
             onConfirm = { password ->
                 coroutineScope.launch {
-                    isBackupExportInProgress = true
+                    viewModel.setBackupExportInProgress(true)
                     val preparedBackupExport = try {
                         viewModel.prepareBackupExport(password)
                     } catch (_: Exception) {
@@ -427,18 +448,19 @@ fun SettingsScreen(
                         ).show()
                         return@launch
                     } finally {
-                        isBackupExportInProgress = false
+                        viewModel.setBackupExportInProgress(false)
                     }
 
-                    pendingPreparedBackupDisplayName = preparedBackupExport.displayName
-                    pendingPreparedBackupTempFilePath = preparedBackupExport.tempFilePath
+                    viewModel.setPendingPreparedBackupExport(
+                        displayName = preparedBackupExport.displayName,
+                        tempFilePath = preparedBackupExport.tempFilePath,
+                    )
                     showBackupPasswordDialog = false
                     try {
                         backupDirectoryLauncher.launch(null)
                     } catch (_: Exception) {
                         viewModel.discardPreparedBackup(preparedBackupExport)
-                        pendingPreparedBackupDisplayName = null
-                        pendingPreparedBackupTempFilePath = null
+                        viewModel.clearPendingPreparedBackupExport()
                         Toast.makeText(
                             context,
                             backupExportFailedMessage,
@@ -472,7 +494,7 @@ fun SettingsScreen(
             },
             onConfirm = { password ->
                 coroutineScope.launch {
-                    isBackupRestoreInProgress = true
+                    viewModel.setBackupRestoreInProgress(true)
                     try {
                         viewModel.restoreBackup(
                             fileUri = restoreRequest.uri,
@@ -490,7 +512,7 @@ fun SettingsScreen(
                             Toast.LENGTH_SHORT,
                         ).show()
                     } finally {
-                        isBackupRestoreInProgress = false
+                        viewModel.setBackupRestoreInProgress(false)
                         releaseBackupRestoreReadPermission(context, restoreRequest.uri)
                         viewModel.clearPendingRestoreRequest()
                     }

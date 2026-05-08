@@ -48,6 +48,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
+class IncompatibleBackupFileException(
+    message: String,
+    cause: Throwable? = null,
+) : IOException(message, cause)
+
 @Singleton
 class BackupRestoreService @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -58,14 +63,27 @@ class BackupRestoreService @Inject constructor(
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val backupCrypto: BackupCrypto,
 ) {
+    suspend fun validateBackupFile(
+        fileUri: Uri,
+    ) = withContext(Dispatchers.IO) {
+        val encryptedBytes = readEncryptedBackupBytes(fileUri)
+        try {
+            backupCrypto.validateEncryptedBackupContainer(encryptedBytes)
+        } catch (error: IllegalArgumentException) {
+            throw IncompatibleBackupFileException(
+                message = error.message ?: "Selected file is not a compatible backup.",
+                cause = error,
+            )
+        } finally {
+            encryptedBytes.fill(0)
+        }
+    }
+
     suspend fun restoreBackup(
         fileUri: Uri,
         password: String,
     ) = withContext(Dispatchers.IO) {
-        persistReadAccess(fileUri)
-        val encryptedBytes = context.contentResolver.openInputStream(fileUri)
-            ?.use { inputStream -> inputStream.readBytes() }
-            ?: throw IOException("Unable to open the selected backup file.")
+        val encryptedBytes = readEncryptedBackupBytes(fileUri)
         val passwordChars = password.toCharArray()
         val json = try {
             backupCrypto.decryptSnapshotJson(
@@ -144,6 +162,15 @@ class BackupRestoreService @Inject constructor(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
         }
+    }
+
+    private fun readEncryptedBackupBytes(
+        fileUri: Uri,
+    ): ByteArray {
+        persistReadAccess(fileUri)
+        return context.contentResolver.openInputStream(fileUri)
+            ?.use { inputStream -> inputStream.readBytes() }
+            ?: throw IOException("Unable to open the selected backup file.")
     }
 }
 
