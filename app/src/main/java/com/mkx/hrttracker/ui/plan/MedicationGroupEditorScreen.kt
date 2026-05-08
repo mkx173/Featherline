@@ -150,7 +150,12 @@ fun MedicationGroupEditorScreen(
     var showInexactReminderWarning by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationEnableRequest by rememberSaveable { mutableStateOf<String?>(null) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
-    val isNewGroupCreationFlow = remember { !uiState.isEditing }
+    val startedAsNewGroupCreationFlow = remember { !uiState.isEditing }
+    val isNewGroupCreationFlow = resolveMedicationGroupEditorIsNewGroupCreationFlow(
+        uiState = uiState,
+        startedAsNewGroupCreationFlow = startedAsNewGroupCreationFlow,
+        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+    )
     val applicationContext = context.applicationContext
     val onCreatePastScheduledSlotRecordsCompleted =
         remember(applicationContext) {
@@ -1583,6 +1588,15 @@ internal fun medicationGroupEditorUpcomingOccurrenceLimit(
         MedicationGroupScheduleType.DAILY -> uiState.dailyTimes.size + 1
         MedicationGroupScheduleType.WEEKLY -> uiState.weeklyDaysOfWeek.size + 1
     }
+}
+
+internal fun resolveMedicationGroupEditorIsNewGroupCreationFlow(
+    uiState: MedicationGroupEditorUiState,
+    startedAsNewGroupCreationFlow: Boolean,
+    openedFromArchivedGroupsPage: Boolean,
+): Boolean {
+    return startedAsNewGroupCreationFlow ||
+        (openedFromArchivedGroupsPage && !uiState.isArchived)
 }
 
 internal fun shouldRenderMedicationGroupEditorAsEditing(

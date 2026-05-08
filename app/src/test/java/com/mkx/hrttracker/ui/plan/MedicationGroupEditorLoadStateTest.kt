@@ -901,6 +901,28 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun duplicatedArchivedGroupSaveCompletion_keepsAddPresentationUntilNavigation() {
+        val savedDuplicatedDraftState = MedicationGroupEditorUiState(
+            editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",
+            isArchived = false,
+            isSaved = true,
+        )
+        val isNewGroupCreationFlow = resolveMedicationGroupEditorIsNewGroupCreationFlow(
+            uiState = savedDuplicatedDraftState,
+            startedAsNewGroupCreationFlow = false,
+            openedFromArchivedGroupsPage = true,
+        )
+
+        assertTrue(isNewGroupCreationFlow)
+        assertFalse(
+            shouldRenderMedicationGroupEditorAsEditing(
+                uiState = savedDuplicatedDraftState,
+                isNewGroupCreationFlow = isNewGroupCreationFlow,
+            )
+        )
+    }
+
+    @Test
     fun saveNavigationTarget_returnsPlanForDuplicatedDraftFromArchivedGroups() {
         val duplicatedDraftState = MedicationGroupEditorUiState(
             editingGroupId = "7ab632ac-e447-4d6d-bce0-38460d9cb826",

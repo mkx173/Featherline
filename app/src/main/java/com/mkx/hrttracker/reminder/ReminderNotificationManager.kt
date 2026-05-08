@@ -82,7 +82,7 @@ class ReminderNotificationManager @Inject constructor(
         )
 
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_notification_icon)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -95,19 +95,10 @@ class ReminderNotificationManager @Inject constructor(
                     }
                 }
             )
-            .addAction(
-                R.drawable.ic_launcher_monochrome,
-                logActionTitle,
-                buildReminderActionPendingIntent(
-                    action = ACTION_MEDICATION_REMINDER_LOG_NOW,
-                    bundle = bundle,
-                    notificationTag = notificationTag,
-                )
-            )
             .apply {
                 if (canSnooze) {
                     addAction(
-                        R.drawable.ic_launcher_monochrome,
+                        R.drawable.ic_snooze,
                         context.getString(R.string.reminder_notification_action_remind_later),
                         buildReminderActionPendingIntent(
                             action = ACTION_MEDICATION_REMINDER_REMIND_LATER,
@@ -117,6 +108,15 @@ class ReminderNotificationManager @Inject constructor(
                     )
                 }
             }
+            .addAction(
+                R.drawable.ic_edit_square,
+                logActionTitle,
+                buildReminderActionPendingIntent(
+                    action = ACTION_MEDICATION_REMINDER_LOG_NOW,
+                    bundle = bundle,
+                    notificationTag = notificationTag,
+                )
+            )
             .build()
 
         try {
