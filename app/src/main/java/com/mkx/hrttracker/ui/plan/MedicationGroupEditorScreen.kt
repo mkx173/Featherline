@@ -70,6 +70,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -110,6 +111,7 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
@@ -482,6 +484,8 @@ private fun MedicationGroupEditorScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val duplicateDailyTimeMessage =
         stringResource(R.string.group_schedule_duplicate_time)
     val medicationEditorInfoMessage = uiState.medicationEditorInfoMessageRes?.let { messageRes ->
@@ -555,6 +559,34 @@ private fun MedicationGroupEditorScreenContent(
         uiState.isLocked && !shouldSuppressLockedStateDuringGeneratedHistorySave
     val shouldShowLockedTimeChangeNote = shouldShowLockedScheduleTimeNote(uiState)
     val areFieldsRenderedLocked = shouldRenderLockedState || uiState.isArchived
+    val openMedicationEditor = remember(
+        focusManager,
+        keyboardController,
+        onMedicationClick,
+    ) {
+        { medicationLocalId: String ->
+            dismissInputAndRun(
+                focusManager = focusManager,
+                keyboardController = keyboardController,
+            ) {
+                onMedicationClick(medicationLocalId)
+            }
+        }
+    }
+    val openAddMedicationEditor = remember(
+        focusManager,
+        keyboardController,
+        onAddMedication,
+    ) {
+        {
+            dismissInputAndRun(
+                focusManager = focusManager,
+                keyboardController = keyboardController,
+            ) {
+                onAddMedication()
+            }
+        }
+    }
     val upcomingOccurrences = remember(
         uiState.isArchived,
         uiState.scheduleType,
@@ -1222,7 +1254,7 @@ private fun MedicationGroupEditorScreenContent(
                                     groupColorKey = uiState.groupColorKey,
                                     onClick = {
                                         if (medicationEditable) {
-                                            onMedicationClick(medication.localId)
+                                            openMedicationEditor(medication.localId)
                                         }
                                     },
                                     onDeleteClick = if (medicationEditable) {
@@ -1245,7 +1277,7 @@ private fun MedicationGroupEditorScreenContent(
                     if (!areFieldsRenderedLocked) {
                         HrtFilledTonalButton(
                             text = stringResource(R.string.add),
-                            onClick = onAddMedication,
+                            onClick = openAddMedicationEditor,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 8.dp),

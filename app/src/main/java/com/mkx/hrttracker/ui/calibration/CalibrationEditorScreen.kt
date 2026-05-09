@@ -54,6 +54,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -73,6 +75,7 @@ import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
@@ -97,6 +100,8 @@ fun CalibrationEditorScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
     val dateFormatter = remember(appLocale, today) {
@@ -224,7 +229,12 @@ fun CalibrationEditorScreen(
         onRemoveBuiltinAnalyteClick = viewModel::removeAnalyte,
         onRemoveCustomAnalyteClick = viewModel::removeCustomAnalyte,
         onAddAnalyteClick = {
-            addAnalyteSheetOptions = calibrationAddAnalyteOptions(uiState)
+            dismissInputAndRun(
+                focusManager = focusManager,
+                keyboardController = keyboardController,
+            ) {
+                addAnalyteSheetOptions = calibrationAddAnalyteOptions(uiState)
+            }
         },
         onDeleteClick = { isDeleteDialogVisible = true },
         onSaveClick = { notes ->
