@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.google.ksp)
@@ -13,9 +15,39 @@ val gitCommitHash = providers.exec {
     commandLine("git", "rev-parse", "--short=6", "HEAD")
 }.standardOutput.asText.get().trim()
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
+fun signingValue(name: String): String? {
+    return keystoreProperties.getProperty(name)
+        ?: System.getenv(name)
+}
+
 android {
     namespace = "com.mkx.hrttracker"
     compileSdk = 37
+    flavorDimensions += "distribution"
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = signingValue("RELEASE_KEYSTORE_PATH")
+                ?: signingValue("storeFile")
+
+            if (storeFilePath != null) {
+                storeFile = File(storeFilePath)
+                storePassword = signingValue("RELEASE_KEYSTORE_PASSWORD")
+                    ?: signingValue("storePassword")
+                keyAlias = signingValue("RELEASE_KEY_ALIAS")
+                    ?: signingValue("keyAlias")
+                keyPassword = signingValue("RELEASE_KEY_PASSWORD")
+                    ?: signingValue("keyPassword")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.mkx.hrttracker"
@@ -27,14 +59,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+            // No ABI filter: App Bundle contains all ABIs
+        }
+
+        create("arm64") {
+            dimension = "distribution"
+
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             versionNameSuffix = "-$gitCommitHash"
+            signingConfig = signingConfigs.getByName("release")
         }
 
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -50,19 +99,44 @@ android {
             matchingFallbacks += listOf("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     buildFeatures {
         buildConfig = true
         compose = true
     }
+
     androidResources{
         generateLocaleConfig = true
     }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            val flavor = variant.productFlavors
+                .find { it.first == "distribution" }
+                ?.second ?: "universal"
+
+            val abiName = when (flavor) {
+                "arm64" -> "arm64-v8a"
+                "play" -> "all-abis"
+                else -> flavor
+            }
+
+            output.outputFileName.set(
+                "${rootProject.name.lowercase()}-${abiName}-${output.versionName.get()}.apk"
+            )
+        }
     }
 }
 

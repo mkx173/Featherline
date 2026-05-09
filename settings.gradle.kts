@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HRT Tracker"
+rootProject.name = "Plume"
 include(":app")
 include(":macrobenchmark")
