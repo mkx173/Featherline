@@ -109,6 +109,26 @@ class AppLockViewModelTest {
     }
 
     @Test
+    fun foregroundedWithoutBackgrounding_keepsUnlockedAndDoesNotPrompt() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onAuthenticationSucceeded()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+
+        // Simulates Activity recreation from a configuration change (language /
+        // dark mode toggle): onBackgrounded was skipped because
+        // isChangingConfigurations was true.
+        viewModel.onForegrounded()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isUnlocked)
+        assertNull(viewModel.uiState.value.pendingPrompt)
+    }
+
+    @Test
     fun delayedGracePeriod_relocksWhenReturningAtTimeout() = runTest {
         settingsStateFlow.value = SettingsState(
             screenLockProtectionEnabled = true,
