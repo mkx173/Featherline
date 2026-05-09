@@ -1448,14 +1448,10 @@ internal fun editorStateWithUpdatedSinceDate(
 internal fun hasSaveableMedicationGroupContent(
     uiState: MedicationGroupEditorUiState
 ): Boolean {
-    val resolvedGroupName = resolveMedicationGroupName(
-        groupName = uiState.groupName,
-        defaultGroupName = uiState.defaultGroupName,
-        isEditing = uiState.isEditing
-    )
+    val hasGroupName = uiState.groupName.trim().isNotEmpty()
     val hasWeeklyDays = uiState.scheduleType != MedicationGroupScheduleType.WEEKLY ||
         uiState.weeklyDaysOfWeek.isNotEmpty()
-    return resolvedGroupName.isNotEmpty() &&
+    return hasGroupName &&
         uiState.medications.isNotEmpty() &&
         hasWeeklyDays
 }

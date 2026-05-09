@@ -1,5 +1,9 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -68,6 +72,27 @@ class MedicationGroupEditorNameTest {
 
         assertEquals("", updated.groupName)
         assertEquals("Group 3", updated.defaultGroupName)
+    }
+
+    @Test
+    fun hasSaveableMedicationGroupContent_rejects_blank_group_name_even_with_default_name() {
+        assertFalse(
+            hasSaveableMedicationGroupContent(
+                MedicationGroupEditorUiState(
+                    groupName = "   ",
+                    defaultGroupName = "Group 1",
+                    medications = listOf(
+                        MedicationGroupMedicationItemUiState(
+                            details = testCatalogMedicationDetails(
+                                key = MedicationKey.ESTRADIOL,
+                                applicationType = MedicationApplicationType.ORAL,
+                                dose = MedicationDose.MgAsMedicine(2.0)
+                            )
+                        )
+                    )
+                )
+            )
+        )
     }
 
     @Test
