@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +45,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -65,6 +68,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -133,6 +137,7 @@ fun MedicationGroupEditorScreen(
     onGroupSavedToPlan: () -> Unit = onGroupSaved,
     modifier: Modifier = Modifier,
     openedFromArchivedGroupsPage: Boolean = false,
+    drawBehindNavigationBar: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -411,6 +416,7 @@ fun MedicationGroupEditorScreen(
         occurrenceReferenceTime = currentMinute,
         isNewGroupCreationFlow = isNewGroupCreationFlow,
         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+        drawBehindNavigationBar = drawBehindNavigationBar,
         modifier = modifier
     )
 }
@@ -471,6 +477,7 @@ private fun MedicationGroupEditorScreenContent(
     occurrenceReferenceTime: LocalDateTime? = null,
     isNewGroupCreationFlow: Boolean = !uiState.isEditing,
     openedFromArchivedGroupsPage: Boolean = false,
+    drawBehindNavigationBar: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
@@ -1046,8 +1053,20 @@ private fun MedicationGroupEditorScreenContent(
             topAppBarState.contentOffset = 0f
         }
     }
+    val contentPadding = dimensionResource(R.dimen.padding_medium)
+    val navigationBarBottomPadding = if (drawBehindNavigationBar) {
+        val density = LocalDensity.current
+        with(density) { WindowInsets.navigationBars.getBottom(this).toDp() }
+    } else {
+        0.dp
+    }
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = if (drawBehindNavigationBar) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets
+        },
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
@@ -1110,7 +1129,12 @@ private fun MedicationGroupEditorScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            contentPadding = PaddingValues(
+                start = contentPadding,
+                top = contentPadding,
+                end = contentPadding,
+                bottom = contentPadding + navigationBarBottomPadding,
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (shouldRenderLockedState) {

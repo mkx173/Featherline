@@ -15,13 +15,18 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +68,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -315,10 +321,16 @@ private fun MedicationEditorSheetScaffold(
     onConfirm: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val density = LocalDensity.current
+    val navigationBarBottomPadding = with(density) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
-        sheetState = sheetState
+        modifier = modifier.consumeWindowInsets(WindowInsets.navigationBars),
+        sheetState = sheetState,
+        contentWindowInsets = { WindowInsets.systemBars.only(WindowInsetsSides.Top) },
     ) {
         Column(
             modifier = Modifier
@@ -327,12 +339,11 @@ private fun MedicationEditorSheetScaffold(
                     else Modifier
                 )
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(
                     start = dimensionResource(R.dimen.padding_large),
                     end = dimensionResource(R.dimen.padding_large),
-                    bottom = dimensionResource(R.dimen.padding_medium),
+                    bottom = dimensionResource(R.dimen.padding_large) + navigationBarBottomPadding,
                 ),
         ) {
             Row(

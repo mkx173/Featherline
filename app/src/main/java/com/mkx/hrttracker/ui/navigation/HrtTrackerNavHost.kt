@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Icon
@@ -578,7 +577,6 @@ fun HrtTrackerNavHost(
 
     addEntrySheetRequest?.let { request ->
         AddEntryScreen(
-            modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
             entryIds = request.entryIds,
             quickLogRequest = request.quickLogRequest,
             onDismissRequest = { addEntrySheetRequest = null },

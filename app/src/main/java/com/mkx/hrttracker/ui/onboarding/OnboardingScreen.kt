@@ -402,6 +402,7 @@ fun OnboardingScreen(
             MedicationGroupEditorScreen(
                 onNavigateBack = { showGroupEditor = false },
                 onGroupSaved = { showGroupEditor = false },
+                drawBehindNavigationBar = true,
                 viewModel = editorViewModel,
             )
         }
