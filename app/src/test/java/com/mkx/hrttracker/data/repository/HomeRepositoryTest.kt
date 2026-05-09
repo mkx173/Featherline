@@ -333,7 +333,7 @@ class HomeRepositoryTest {
             group = MedicationGroupEntity(
                 uuid = groupUuid,
                 name = "Home estradiol",
-                colorKey = MedicationGroupColorKey.ORCHID.name,
+                colorKey = MedicationGroupColorKey.PLUM.name,
                 scheduleType = MedicationGroupScheduleType.DAILY.name,
                 scheduleInterval = 1,
                 scheduleSinceEpochDay = LocalDate.of(2026, 5, 1).toEpochDay(),

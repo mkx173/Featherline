@@ -58,7 +58,6 @@ internal fun MedicationCard(
     onDeleteClick: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     extraSupportingText: String? = null,
-    colorScheme: ColorScheme? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
@@ -67,8 +66,7 @@ internal fun MedicationCard(
     index: Int = 0,
     itemCount: Int = 1
 ) {
-    val fallbackColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
-    val groupColorScheme = colorScheme ?: fallbackColorScheme
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
     val applicationTypeLabel = stringResource(details.applicationType.labelRes)
     val medicationName = medicationDisplayName(details)
     val supportingText = medicationSupportingText(
@@ -79,12 +77,12 @@ internal fun MedicationCard(
     val leadingSurfaceColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
     } else {
-        groupColorScheme.secondaryContainer
+        groupColorScheme.primaryContainer
     }
     val leadingContentColor = if (isSelected) {
         MaterialTheme.colorScheme.onPrimary
     } else {
-        groupColorScheme.onSecondaryContainer
+        groupColorScheme.onPrimaryContainer
     }
     val leadingIconModifier = Modifier
         .size(36.dp)

@@ -2,24 +2,30 @@ package com.mkx.hrttracker.model.medication
 
 enum class MedicationGroupColorKey {
     ROSE,
-    ORCHID,
-    INDIGO,
-    TEAL,
-    EMERALD,
-    AMBER,
     CORAL,
-    SLATE;
+    AMBER,
+    CITRON,
+    SAGE,
+    TEAL,
+    SKY,
+    INDIGO,
+    VIOLET,
+    PLUM,
+    MAUVE;
 
     companion object {
         val assignmentOrder: List<MedicationGroupColorKey> = listOf(
             ROSE,
-            ORCHID,
-            INDIGO,
-            TEAL,
-            EMERALD,
-            AMBER,
             CORAL,
-            SLATE,
+            AMBER,
+            CITRON,
+            SAGE,
+            TEAL,
+            SKY,
+            INDIGO,
+            VIOLET,
+            PLUM,
+            MAUVE
         )
 
         fun fromStorageValue(value: String?): MedicationGroupColorKey {

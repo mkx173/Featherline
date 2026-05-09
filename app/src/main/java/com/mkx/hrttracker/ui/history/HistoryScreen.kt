@@ -125,7 +125,6 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
@@ -2057,18 +2056,11 @@ private fun HistoryEntryCard(
     } else {
         MaterialTheme.colorScheme.surfaceContainerLow
     }
-    val manualColorScheme = rememberManualMedicationColorScheme()
-    val colorSchemeOverride = if (entry.sourceGroupUuid == null) {
-        manualColorScheme
-    } else {
-        null
-    }
 
     MedicationCard(
         details = entry.details,
         medicationCount = entry.count,
         groupColorKey = groupColorKey,
-        colorScheme = colorSchemeOverride,
         extraSupportingText = groupName,
         onClick = onClick,
         onLongClick = onLongClick,

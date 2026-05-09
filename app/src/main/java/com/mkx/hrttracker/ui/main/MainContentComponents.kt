@@ -108,7 +108,6 @@ import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -1962,7 +1961,7 @@ private fun MainAntiandrogenMedicationSubCard(
     modifier: Modifier = Modifier
 ) {
     val displayedDetails = card.lastDoseDetails ?: card.medication.details
-    val groupColorScheme = rememberMedicationGroupColorScheme(card.groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
     val medicationName = medicationDisplayName(displayedDetails)
     val routeLabel = stringResource(displayedDetails.applicationType.labelRes)
     val summaryText = medicationDoseSupportingText(
@@ -2301,9 +2300,7 @@ private fun MainTodayDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
-    val groupColorScheme = row.groupColorKey
-        ?.let { groupColorKey -> rememberMedicationGroupColorScheme(groupColorKey) }
-        ?: rememberManualMedicationColorScheme()
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationDisplayName(details)
     val routeLabel = stringResource(details.applicationType.labelRes)
     val doseText = medicationDoseText(details)
@@ -2411,7 +2408,7 @@ private fun MainUpcomingDoseRow(
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
-    val groupColorScheme = rememberMedicationGroupColorScheme(row.groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationDisplayName(details)
     val routeLabel = stringResource(details.applicationType.labelRes)
     val doseText = medicationDoseText(details)
@@ -2708,8 +2705,8 @@ private fun MainRouteIconSurface(
         Surface(
             modifier = Modifier.fillMaxSize(),
             shape = MaterialTheme.shapes.small,
-            color = groupColorScheme.secondaryContainer,
-            contentColor = groupColorScheme.onSecondaryContainer
+            color = groupColorScheme.primaryContainer,
+            contentColor = groupColorScheme.onPrimaryContainer
         ) {
             Box(
                 modifier = Modifier.size(surfaceSize),
@@ -3172,15 +3169,15 @@ private fun MainRouteIconSurfacePreview() {
         ) {
             MainRouteIconSurface(
                 applicationType = MedicationApplicationType.ORAL,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.ROSE),
+                groupColorScheme = rememberMedicationGroupColorScheme(colorKey = MedicationGroupColorKey.ROSE),
             )
             MainRouteIconSurface(
                 applicationType = MedicationApplicationType.PATCH_ON,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.TEAL),
+                groupColorScheme = rememberMedicationGroupColorScheme(colorKey = MedicationGroupColorKey.TEAL),
             )
             MainRouteIconSurface(
                 applicationType = MedicationApplicationType.INJECTION,
-                groupColorScheme = rememberMedicationGroupColorScheme(MedicationGroupColorKey.INDIGO),
+                groupColorScheme = rememberMedicationGroupColorScheme(colorKey = MedicationGroupColorKey.INDIGO),
                 iconSize = 18.dp,
                 surfaceSize = 30.dp,
                 outlinedIcon = true

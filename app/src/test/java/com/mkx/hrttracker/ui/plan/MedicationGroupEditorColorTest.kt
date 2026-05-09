@@ -11,14 +11,14 @@ class MedicationGroupEditorColorTest {
             currentColorKey = MedicationGroupColorKey.ROSE,
             usedColors = listOf(
                 MedicationGroupColorKey.ROSE,
-                MedicationGroupColorKey.ORCHID
+                MedicationGroupColorKey.PLUM
             ),
             seed = 42,
             isEditing = false,
             hasAssignedColor = false
         )
 
-        assertEquals(MedicationGroupColorKey.INDIGO, colorKey)
+        assertEquals(MedicationGroupColorKey.CORAL, colorKey)
     }
 
     @Test

@@ -61,7 +61,6 @@ import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
 import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import com.mkx.hrttracker.ui.theme.rememberManualMedicationColorScheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -184,10 +183,7 @@ private fun SelectedDayRow(
     isFromArchivedGroup: Boolean,
     onClick: () -> Unit
 ) {
-    val rowColorScheme = when (row.groupColorKey) {
-        null -> rememberManualMedicationColorScheme()
-        else -> rememberMedicationGroupColorScheme(row.groupColorKey)
-    }
+    val rowColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val rowState = when (row) {
         is SelectedDayRowModel.Scheduled -> when {
             row.entry.isFulfilled -> SelectedDayRowState.LOGGED
@@ -442,7 +438,7 @@ internal fun RegimenGroupCard(
     showStartDate: Boolean = true,
     metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
 ) {
-    val groupColorScheme = rememberMedicationGroupColorScheme(group.colorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
         dateFormatter(group.schedule.since)
     }
@@ -743,8 +739,8 @@ private fun SelectedDayMedicationIconSurface(
         Surface(
             modifier = Modifier.fillMaxSize(),
             shape = MaterialTheme.shapes.small,
-            color = colorScheme.secondaryContainer,
-            contentColor = colorScheme.onSecondaryContainer
+            color = colorScheme.primaryContainer,
+            contentColor = colorScheme.onPrimaryContainer
         ) {
             Box(
                 modifier = Modifier.size(36.dp),

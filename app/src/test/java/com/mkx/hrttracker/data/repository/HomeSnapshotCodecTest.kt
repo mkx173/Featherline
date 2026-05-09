@@ -54,7 +54,7 @@ class HomeSnapshotCodecTest {
         val group = MedicationGroup(
             uuid = UUID.fromString("4510ad0b-b565-43c7-b52f-3d8ab73873c1"),
             name = "Home estradiol",
-            colorKey = MedicationGroupColorKey.ORCHID,
+            colorKey = MedicationGroupColorKey.PLUM,
             schedule = MedicationGroupSchedule(
                 type = MedicationGroupScheduleType.WEEKLY,
                 interval = 2,

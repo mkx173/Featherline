@@ -1021,7 +1021,7 @@ private fun MedicationEditorGroupInfoCard(
     showScheduleOffsetWarning: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val groupColorScheme = rememberMedicationGroupColorScheme(groupColorKey)
+    val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
 
     Column {
         EditorSegmentedListItem(

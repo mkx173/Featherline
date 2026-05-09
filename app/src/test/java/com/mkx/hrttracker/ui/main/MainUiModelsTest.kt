@@ -536,10 +536,10 @@ class MainUiModelsTest {
         )
         assertEquals(
             listOf(
-                MedicationGroupColorKey.ORCHID,
-                MedicationGroupColorKey.ORCHID,
-                MedicationGroupColorKey.ORCHID,
-                MedicationGroupColorKey.ORCHID,
+                MedicationGroupColorKey.PLUM,
+                MedicationGroupColorKey.PLUM,
+                MedicationGroupColorKey.PLUM,
+                MedicationGroupColorKey.PLUM,
             ),
             todaySection.rows.map { it.groupColorKey }
         )
@@ -872,7 +872,7 @@ class MainUiModelsTest {
             upcomingSection.rows.map { it.scheduledAt }
         )
         assertEquals(
-            listOf(MedicationGroupColorKey.ORCHID, MedicationGroupColorKey.ORCHID),
+            listOf(MedicationGroupColorKey.PLUM, MedicationGroupColorKey.PLUM),
             upcomingSection.rows.map { it.groupColorKey }
         )
     }
@@ -1092,7 +1092,7 @@ class MainUiModelsTest {
         return MedicationGroup(
             uuid = uuid,
             name = name,
-            colorKey = MedicationGroupColorKey.ORCHID,
+            colorKey = MedicationGroupColorKey.PLUM,
             schedule = schedule,
             medications = medications,
             createdAt = createdAt,

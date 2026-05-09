@@ -15,13 +15,13 @@ class MedicationGroupColorKeyTest {
         val colorKey = nextAvailableMedicationGroupColor(
             usedColors = setOf(
                 MedicationGroupColorKey.ROSE,
-                MedicationGroupColorKey.ORCHID,
+                MedicationGroupColorKey.PLUM,
                 MedicationGroupColorKey.INDIGO
             ),
             seed = 42
         )
 
-        assertEquals(MedicationGroupColorKey.TEAL, colorKey)
+        assertEquals(MedicationGroupColorKey.CORAL, colorKey)
     }
 
     @Test
@@ -31,6 +31,6 @@ class MedicationGroupColorKeyTest {
             seed = 10
         )
 
-        assertEquals(MedicationGroupColorKey.INDIGO, colorKey)
+        assertEquals(MedicationGroupColorKey.MAUVE, colorKey)
     }
 }
