@@ -805,33 +805,23 @@ private fun SelectedDayMedicationIconSurface(
     }
 }
 
-private fun selectedDayHeaderCountLabel(
+internal fun selectedDayHeaderCountLabel(
     date: LocalDate,
     today: LocalDate,
     completedScheduledCount: Int,
     scheduledCount: Int,
     offPlanCount: Int
-): String {
-    return if (date.isAfter(today)) {
-        scheduledCount.toString()
-    } else {
-        buildString {
-            if (scheduledCount > 0) {
-                append(completedScheduledCount)
-                append("/")
-                append(scheduledCount)
-            } else {
-                append("0")
-            }
-            if (offPlanCount > 0) {
-                if (isNotEmpty()) {
-                    append(" ")
-                }
-                append("(")
-                append(offPlanCount)
-                append(")")
-            }
+): String? {
+    return if (scheduledCount > 0) {
+        if (offPlanCount > 0) {
+            "$completedScheduledCount/$scheduledCount ($offPlanCount)"
+        } else {
+            "$completedScheduledCount/$scheduledCount"
         }
+    } else if (offPlanCount > 0) {
+        "($offPlanCount)"
+    } else {
+        null
     }
 }
 

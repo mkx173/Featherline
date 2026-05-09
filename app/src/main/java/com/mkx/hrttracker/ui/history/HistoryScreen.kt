@@ -1880,7 +1880,7 @@ internal fun HistoryEntryGroupHeader(
     today: LocalDate,
     dayStatus: PlanCalendarDayStatus,
     hasOffPlanRecord: Boolean,
-    countLabel: String,
+    countLabel: String?,
     appLocale: Locale,
     modifier: Modifier = Modifier
 ) {
@@ -1968,15 +1968,17 @@ internal fun HistoryEntryGroupHeader(
                 )
             }
         }
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-        )
-        Text(
-            text = countLabel,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (!countLabel.isNullOrBlank()) {
+            HorizontalDivider(
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            )
+            Text(
+                text = countLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

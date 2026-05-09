@@ -71,6 +71,61 @@ class PlanScreenComponentsTest {
     }
 
     @Test
+    fun selectedDayHeaderCountLabel_omits_empty_count() {
+        assertNull(
+            selectedDayHeaderCountLabel(
+                date = LocalDate.of(2026, 4, 18),
+                today = LocalDate.of(2026, 4, 18),
+                completedScheduledCount = 0,
+                scheduledCount = 0,
+                offPlanCount = 0
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayHeaderCountLabel_formats_planned_count() {
+        assertEquals(
+            "1/4",
+            selectedDayHeaderCountLabel(
+                date = LocalDate.of(2026, 4, 18),
+                today = LocalDate.of(2026, 4, 18),
+                completedScheduledCount = 1,
+                scheduledCount = 4,
+                offPlanCount = 0
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayHeaderCountLabel_formats_manual_only_count() {
+        assertEquals(
+            "(2)",
+            selectedDayHeaderCountLabel(
+                date = LocalDate.of(2026, 4, 18),
+                today = LocalDate.of(2026, 4, 18),
+                completedScheduledCount = 0,
+                scheduledCount = 0,
+                offPlanCount = 2
+            )
+        )
+    }
+
+    @Test
+    fun selectedDayHeaderCountLabel_formats_planned_and_manual_count() {
+        assertEquals(
+            "1/4 (2)",
+            selectedDayHeaderCountLabel(
+                date = LocalDate.of(2026, 4, 18),
+                today = LocalDate.of(2026, 4, 18),
+                completedScheduledCount = 1,
+                scheduledCount = 4,
+                offPlanCount = 2
+            )
+        )
+    }
+
+    @Test
     fun selectedDayScheduleOffset_omitsSubHourDelta() {
         val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
 

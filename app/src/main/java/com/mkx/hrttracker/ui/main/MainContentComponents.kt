@@ -2129,16 +2129,16 @@ internal fun MainTodaySection(
             .entries
             .sortedBy { (timeRange, _) -> timeRange.ordinal }
     }
-    val sectionSummary = listOf(
+    val countLabel = mainTodayCountLabel(
+        doneCount = section.doneCount,
+        totalCount = section.totalCount,
+        manualCount = section.manualCount,
+        doneLabel = stringResource(R.string.main_today_summary_done_label),
+        manualLabel = stringResource(R.string.main_today_summary_manual_label)
+    )
+    val sectionSummary = listOfNotNull(
         dateFormatter(section.date),
-        stringResource(
-            R.string.main_today_progress_count_label,
-            mainTodayCountLabel(
-                doneCount = section.doneCount,
-                totalCount = section.totalCount,
-                manualCount = section.manualCount
-            )
-        )
+        countLabel
     ).joinToString(separator = " · ")
 
     Column(
@@ -2207,16 +2207,16 @@ internal fun MainLastNightSection(
 ) {
     if (section.rows.isEmpty()) return
 
+    val countLabel = mainTodayCountLabel(
+        doneCount = section.doneCount,
+        totalCount = section.totalCount,
+        manualCount = section.manualCount,
+        doneLabel = stringResource(R.string.main_today_summary_done_label),
+        manualLabel = stringResource(R.string.main_today_summary_manual_label)
+    )
     val sectionSummary = listOfNotNull(
         section.date?.let(dateFormatter),
-        stringResource(
-            R.string.main_today_progress_count_label,
-            mainTodayCountLabel(
-                doneCount = section.doneCount,
-                totalCount = section.totalCount,
-                manualCount = section.manualCount
-            )
-        )
+        countLabel
     ).joinToString(separator = " · ")
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -2788,7 +2788,7 @@ private fun MainTodayTimeRangeHeader(
         timeFormatter = timeFormatter
     )
     val iconDrawableRes = R.drawable.ic_schedule
-    val countLabel = mainTodayCountLabel(
+    val countLabel = mainTodayCompactCountLabel(
         doneCount = doneCount,
         totalCount = totalCount,
         manualCount = manualCount
@@ -2851,11 +2851,13 @@ private fun MainTodayTimeRangeHeader(
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         )
-        Text(
-            text = countLabel,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (countLabel != null) {
+            Text(
+                text = countLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -2863,15 +2865,44 @@ internal fun mainTodayCountLabel(
     doneCount: Int,
     totalCount: Int,
     manualCount: Int,
-): String = buildString {
-    append(doneCount)
-    append("/")
-    append(totalCount)
-    if (manualCount > 0) {
-        append(" (")
-        append(manualCount)
-        append(")")
+    doneLabel: String,
+    manualLabel: String,
+): String? {
+    val planLabel = if (totalCount > 0) {
+        "$doneCount/$totalCount $doneLabel"
+    } else {
+        null
     }
+    val manualPart = if (manualCount > 0) {
+        "$manualCount $manualLabel"
+    } else {
+        null
+    }
+
+    return listOfNotNull(planLabel, manualPart)
+        .joinToString(separator = " · ")
+        .takeIf { it.isNotEmpty() }
+}
+
+internal fun mainTodayCompactCountLabel(
+    doneCount: Int,
+    totalCount: Int,
+    manualCount: Int,
+): String? {
+    val planLabel = if (totalCount > 0) {
+        "$doneCount/$totalCount"
+    } else {
+        null
+    }
+    val manualPart = if (manualCount > 0) {
+        "($manualCount)"
+    } else {
+        null
+    }
+
+    return listOfNotNull(planLabel, manualPart)
+        .joinToString(separator = " ")
+        .takeIf { it.isNotEmpty() }
 }
 
 private fun mainTodayTimeRange(time: LocalTime): MainTodayTimeRange {

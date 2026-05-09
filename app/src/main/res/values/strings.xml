@@ -17,6 +17,8 @@
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_progress">%1$d/%2$d done</string>
     <string name="main_today_progress_count_label">%1$s done</string>
+    <string name="main_today_summary_done_label">DONE</string>
+    <string name="main_today_summary_manual_label">MANUAL</string>
     <string name="main_today_empty_state">Nothing scheduled for today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_status_done">Done</string>
