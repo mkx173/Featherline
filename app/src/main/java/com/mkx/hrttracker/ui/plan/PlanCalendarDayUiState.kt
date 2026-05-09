@@ -420,12 +420,13 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     val scheduledFor = entry.scheduledFor ?: return false
-    val appliedAt = entry.appliedAt.atZone(zoneId).toLocalDateTime()
+    val appliedAtZoneId = ZoneId.of(entry.appliedAtTimeZoneId)
+    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId).toLocalDateTime()
     return isWithinScheduleFulfillmentWindow(
         scheduledFor = scheduledFor,
         appliedAt = appliedAt,
-        previousScheduledFor = group.previousScheduledForBefore(scheduledFor, zoneId = zoneId),
-        nextScheduledFor = group.nextScheduledForAfter(scheduledFor, zoneId = zoneId)
+        previousScheduledFor = group.previousScheduledForBefore(scheduledFor, zoneId = appliedAtZoneId),
+        nextScheduledFor = group.nextScheduledForAfter(scheduledFor, zoneId = appliedAtZoneId)
     )
 }
 

@@ -16,6 +16,8 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
@@ -905,6 +907,202 @@ class PlanCalendarDayUiStateTest {
         assertEquals(false, dayState.hasMatchingScheduledRecord)
         assertEquals(false, dayState.hasOffPlanRecord)
         assertEquals(PlanCalendarDayStatus.MISSED, dayState.status)
+    }
+
+    @Test
+    fun isEntryWithinScheduleFulfillmentWindow_uses_entry_timezone_instead_of_system_default() {
+        val tokyoZone = ZoneId.of("Asia/Tokyo")
+        val laZone = ZoneId.of("America/Los_Angeles")
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 8, 0)
+
+        // Record logged in Tokyo at 8:00 AM = 2026-04-15T23:00:00Z
+        val appliedAtTokyo = scheduledFor.atZone(tokyoZone).toInstant()
+        // The same instant in LA is 2026-04-15 4:00 PM — a different wall-clock day
+        assertEquals(
+            LocalDateTime.of(2026, 4, 15, 16, 0),
+            appliedAtTokyo.atZone(laZone).toLocalDateTime()
+        )
+
+        val group = medicationGroup(
+            uuid = UUID.fromString("90e36a1c-2e40-4ead-9f02-4f7ca0aab74b"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("fb4e7d45-92b3-4a33-bdd7-8acf24352fac"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = appliedAtTokyo,
+            appliedAtTimeZoneId = tokyoZone.id,
+            scheduledFor = scheduledFor
+        )
+
+        assertTrue(
+            isEntryWithinScheduleFulfillmentWindow(
+                group = group,
+                entry = entry,
+            )
+        )
+    }
+
+    @Test
+    fun isEntryWithinScheduleFulfillmentWindow_rejects_entry_outside_window_in_own_timezone() {
+        val tokyoZone = ZoneId.of("Asia/Tokyo")
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 8, 0)
+
+        // Applied 2 hours late — outside the 1-hour fulfillment window for a 2-hour spaced schedule
+        val appliedAtLate = LocalDateTime.of(2026, 4, 16, 10, 1)
+            .atZone(tokyoZone).toInstant()
+
+        val group = medicationGroup(
+            uuid = UUID.fromString("a7e1e0d1-3fc1-47a2-bc13-0ce4bb1f7d22"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(10, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("c333be72-87c9-463f-9f19-106fe2a2c1cf"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = appliedAtLate,
+            appliedAtTimeZoneId = tokyoZone.id,
+            scheduledFor = scheduledFor
+        )
+
+        assertFalse(
+            isEntryWithinScheduleFulfillmentWindow(
+                group = group,
+                entry = entry,
+            )
+        )
+    }
+
+    @Test
+    fun isSlotFulfilled_recognizes_cross_timezone_entry() {
+        val tokyoZone = ZoneId.of("Asia/Tokyo")
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 8, 0)
+
+        // Record logged in Tokyo at 8:00 AM
+        val appliedAtTokyo = scheduledFor.atZone(tokyoZone).toInstant()
+
+        val group = medicationGroup(
+            uuid = UUID.fromString("6e4a4fb6-f4db-4bc4-8ce5-74232e216ea4"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("cfdee6a7-89a6-4592-b581-19677f58e5e4"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = appliedAtTokyo,
+            appliedAtTimeZoneId = tokyoZone.id,
+            scheduledFor = scheduledFor
+        )
+
+        assertTrue(
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(entry),
+            )
+        )
+    }
+
+    @Test
+    fun isSlotFulfilled_rejects_cross_timezone_entry_outside_fulfillment_window() {
+        val tokyoZone = ZoneId.of("Asia/Tokyo")
+        val scheduledFor = LocalDateTime.of(2026, 4, 16, 8, 0)
+
+        // Applied 2 hours late in Tokyo — outside window for 8:00/10:00 schedule
+        val appliedAtLate = LocalDateTime.of(2026, 4, 16, 10, 1)
+            .atZone(tokyoZone).toInstant()
+
+        val group = medicationGroup(
+            uuid = UUID.fromString("2d2205a1-27ae-409c-a1ce-bbc99454ccaa"),
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0), LocalTime.of(10, 0))
+            ),
+            medications = listOf(
+                medication(
+                    uuid = UUID.fromString("22ff3796-065b-4d46-973a-3b4ea9da6b90"),
+                    details = estradiolDetails(
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = 2.0
+                    )
+                )
+            )
+        )
+
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = appliedAtLate,
+            appliedAtTimeZoneId = tokyoZone.id,
+            scheduledFor = scheduledFor
+        )
+
+        assertFalse(
+            isSlotFulfilled(
+                group = group,
+                date = scheduledFor.toLocalDate(),
+                time = scheduledFor.toLocalTime(),
+                entries = listOf(entry),
+            )
+        )
     }
 
     private fun medicationGroup(
