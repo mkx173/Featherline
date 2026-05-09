@@ -69,6 +69,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -118,6 +119,7 @@ import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import kotlinx.coroutines.launch
 
 internal enum class OnboardingNotificationPermissionAction {
     REQUEST_PERMISSION,
@@ -176,11 +178,13 @@ fun OnboardingScreen(
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var showGroupEditor by rememberSaveable { mutableStateOf(false) }
     var groupEditorOpenCount by rememberSaveable { mutableIntStateOf(0) }
+    var remindersAcceptedDuringOnboarding by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val activity = LocalActivity.current
+    val coroutineScope = rememberCoroutineScope()
     val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val notificationsGranted = reminderCapabilityState.hasNotificationAccess
@@ -208,7 +212,7 @@ fun OnboardingScreen(
     }
 
     val finishOnboarding = {
-        if (notificationsGranted) onCompleteEnabled() else onCompleteDeclined()
+        if (remindersAcceptedDuringOnboarding) onCompleteEnabled() else onCompleteDeclined()
     }
 
     val goNext = {
@@ -220,6 +224,20 @@ fun OnboardingScreen(
     }
     val goPrev = {
         if (step > 0) step -= 1
+    }
+    val acceptRemindersAndGoNext: () -> Unit = {
+        remindersAcceptedDuringOnboarding = true
+        coroutineScope.launch {
+            viewModel.setRemindersEnabledDuringOnboarding(true)
+            goNext()
+        }
+    }
+    val declineRemindersAndGoNext: () -> Unit = {
+        remindersAcceptedDuringOnboarding = false
+        coroutineScope.launch {
+            viewModel.setRemindersEnabledDuringOnboarding(false)
+            goNext()
+        }
     }
 
     BackHandler(enabled = step > 0 && !showGroupEditor) { goPrev() }
@@ -352,12 +370,16 @@ fun OnboardingScreen(
                         null
                     },
                     onSecondaryButtonClick = if (currentStep == 2) {
-                        { goNext() }
+                        declineRemindersAndGoNext
                     } else {
                         null
                     },
                     secondaryButtonEnabled = currentStep != 2 || !notificationsGranted,
-                    onCta = goNext,
+                    onCta = if (currentStep == 2) {
+                        acceptRemindersAndGoNext
+                    } else {
+                        goNext
+                    },
                 )
             }
         }
