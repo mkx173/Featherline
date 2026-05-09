@@ -842,16 +842,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
         val recreateNow = currentMinute.value
         val recreateNowInstant = appTimeSource.now()
         val recreateScheduleStartDate = recreateNow.toLocalDate()
-        val resolvedGroupName = resolveMedicationGroupName(
-            groupName = currentState.groupName,
-            defaultGroupName = currentState.defaultGroupName,
-            isEditing = currentState.isEditing,
-        )
-        val draftState = currentState.toUnsavedRecreatedGroupState(
-            archivedGroupId = groupId,
-            scheduleStartDate = recreateScheduleStartDate,
-            resolvedGroupName = resolvedGroupName,
-        )
 
         viewModelScope.launch {
             _uiState.update {
@@ -861,6 +851,33 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     archiveAndRecreateMedicationGroupResult = null,
                 )
             }
+
+            val persistedGroup = loadPersistedGroupSnapshot(uuid)
+            if (persistedGroup == null) {
+                _uiState.update {
+                    it.copy(
+                        isRecreatingAfterArchive = false,
+                        archiveAndRecreateMedicationGroupResult =
+                            ArchiveAndRecreateMedicationGroupResult.FAILURE,
+                    )
+                }
+                return@launch
+            }
+            val persistedState = persistedGroup.toEditorState(
+                remindersEnabled = currentState.remindersEnabled,
+                relatedEntryCount = currentState.relatedEntryCount,
+                plannedEntryCount = currentState.plannedEntryCount,
+            )
+            val resolvedGroupName = resolveMedicationGroupName(
+                groupName = persistedState.groupName,
+                defaultGroupName = persistedState.defaultGroupName,
+                isEditing = persistedState.isEditing,
+            )
+            val draftState = persistedState.toUnsavedRecreatedGroupState(
+                archivedGroupId = groupId,
+                scheduleStartDate = recreateScheduleStartDate,
+                resolvedGroupName = resolvedGroupName,
+            )
 
             val archiveSucceeded = runCatching {
                 medicationGroupRepository.archiveGroup(uuid, now = recreateNowInstant)
@@ -913,6 +930,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun loadPersistedGroupSnapshot(groupUuid: UUID): MedicationGroup? {
+        return latestGroups.firstOrNull { group -> group.uuid == groupUuid }
+            ?: medicationGroupRepository.getCachedGroup(groupUuid)
+            ?: runCatching { medicationGroupRepository.getGroup(groupUuid) }.getOrNull()
     }
 
     private suspend fun saveRecreatedDraftGroup(

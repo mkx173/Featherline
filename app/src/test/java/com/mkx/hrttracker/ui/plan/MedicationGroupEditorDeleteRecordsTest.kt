@@ -761,6 +761,67 @@ class MedicationGroupEditorDeleteRecordsTest {
     }
 
     @Test
+    fun archiveAndRecreateGroup_discardsUnsavedEditorChangesFromArchivedGroup() = runTest {
+        val groupUuid = UUID.fromString("da9fe950-f945-4ddd-8382-73dd860a5a74")
+        val savedGroupUuid = UUID.fromString("d3a466a7-f3b6-4b3f-a611-5224f72d2fc9")
+        val originalGroup = testMedicationGroup(groupUuid)
+        val savedName = slot<String>()
+        val savedSchedule = slot<com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput>()
+        val savedGroup = originalGroup.copy(
+            uuid = savedGroupUuid,
+            recreatedFromGroupUuid = groupUuid,
+            includePastScheduledSlots = false,
+            createdAt = Instant.parse("2026-04-25T10:00:00Z"),
+            updatedAt = Instant.parse("2026-04-25T10:00:00Z"),
+        )
+
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(originalGroup))
+        coEvery { medicationGroupRepository.getGroup(groupUuid) } returns originalGroup
+        coEvery { medicationGroupRepository.getGroup(savedGroupUuid) } returns savedGroup
+        every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
+        coEvery { medicationGroupRepository.archiveGroup(groupUuid, any()) } returns Unit
+        coEvery { medicationReminderScheduler.cancelReminder(groupUuid) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = null,
+                name = capture(savedName),
+                colorKey = any(),
+                schedule = capture(savedSchedule),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = groupUuid,
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        val dailyTimeLocalId = viewModel.uiState.value.dailyTimes.single().localId
+        viewModel.updateGroupName("Unsaved changed name")
+        viewModel.updateDailyTime(dailyTimeLocalId, LocalTime.of(13, 0))
+
+        viewModel.archiveAndRecreateGroup()
+        advanceUntilIdle()
+
+        assertEquals(originalGroup.name, savedName.captured)
+        assertEquals(originalGroup.schedule.times, savedSchedule.captured.times)
+    }
+
+    @Test
     fun archiveAndRecreateGroup_whenSaveFails_reportsFailureAfterArchive() = runTest {
         val groupUuid = UUID.fromString("0e093bec-554e-46c3-91df-cb90e0e09cdb")
         val group = testMedicationGroup(groupUuid)
