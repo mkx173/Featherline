@@ -129,7 +129,13 @@ fun SettingsScreen(
     val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
     val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
     val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
-    var showInexactReminderWarning by remember { mutableStateOf(false) }
+    var isReminderEnablePending by rememberSaveable { mutableStateOf(false) }
+    val reminderSupportState = resolveSettingsReminderSupportState(
+        hasNotificationAccess = reminderCapabilityState.hasNotificationAccess,
+        hasExactAlarmAccess = reminderCapabilityState.hasExactAlarmAccess,
+        remindersEnabled = settingsState.remindersEnabled,
+        isReminderEnablePending = isReminderEnablePending,
+    )
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
     var showBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
@@ -162,6 +168,7 @@ fun SettingsScreen(
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        isReminderEnablePending = isGranted
         reminderCapabilityReconciler.requestReconcile("settings_notification_permission_result")
         if (isGranted) {
             viewModel.setRemindersEnabled(true)
@@ -296,11 +303,10 @@ fun SettingsScreen(
         viewModel.refreshAppLanguageOption()
     }
 
-    LaunchedEffect(reminderCapabilityState, settingsState.remindersEnabled) {
-        showInexactReminderWarning =
-            reminderCapabilityState.hasNotificationAccess &&
-                settingsState.remindersEnabled &&
-                !reminderCapabilityState.hasExactAlarmAccess
+    LaunchedEffect(settingsState.remindersEnabled, hasNotificationAccess) {
+        if (settingsState.remindersEnabled || !hasNotificationAccess) {
+            isReminderEnablePending = false
+        }
     }
 
     AppAuthenticationPromptEffect(
@@ -311,6 +317,7 @@ fun SettingsScreen(
 
     val onRemindersEnabledChange = { enabled: Boolean ->
         if (!enabled) {
+            isReminderEnablePending = false
             viewModel.setRemindersEnabled(false)
         } else if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -341,12 +348,14 @@ fun SettingsScreen(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            isReminderEnablePending = false
             Toast.makeText(
                 context,
                 reminderNotificationsUnavailableMessage,
                 Toast.LENGTH_SHORT
             ).show()
         } else {
+            isReminderEnablePending = true
             viewModel.setRemindersEnabled(true)
         }
     }
@@ -356,7 +365,7 @@ fun SettingsScreen(
     SettingsScreenContent(
         uiState = uiState,
         hasNotificationAccess = hasNotificationAccess,
-        showInexactReminderWarning = showInexactReminderWarning,
+        reminderSupportState = reminderSupportState,
         onWeightSave = viewModel::setWeight,
         onWeightClear = viewModel::clearWeight,
         onRemindersEnabledChange = onRemindersEnabledChange,
@@ -513,7 +522,7 @@ fun SettingsScreen(
 private fun SettingsScreenContent(
     uiState: SettingsUiState,
     hasNotificationAccess: Boolean,
-    showInexactReminderWarning: Boolean,
+    reminderSupportState: SettingsReminderSupportState,
     onWeightSave: (Double, WeightUnit) -> Unit,
     onWeightClear: () -> Unit,
     onRemindersEnabledChange: (Boolean) -> Unit,
@@ -576,6 +585,7 @@ private fun SettingsScreenContent(
         scrollState = scrollState,
         state = topAppBarState
     )
+    val hasReminderSupportMessage = reminderSupportState != SettingsReminderSupportState.NONE
 
     val initialScrollToTopSignal = remember { scrollToTopSignal }
     LaunchedEffect(scrollToTopSignal) {
@@ -668,7 +678,7 @@ private fun SettingsScreenContent(
                     supportingText = stringResource(R.string.settings_reminders_summary),
                     enabled = hasNotificationAccess,
                     index = 0,
-                    count = if (!hasNotificationAccess || showInexactReminderWarning) 2 else 1,
+                    count = if (hasReminderSupportMessage) 2 else 1,
                     onClick = {
                         if (hasNotificationAccess) {
                             onRemindersEnabledChange(!settingsState.remindersEnabled)
@@ -688,7 +698,7 @@ private fun SettingsScreenContent(
                     }
                 )
 
-                if (!hasNotificationAccess) {
+                if (reminderSupportState == SettingsReminderSupportState.NOTIFICATION_OFF) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.settings_reminders_permission_off_summary),
                         painter = painterResource(R.drawable.ic_error_outline),
@@ -697,7 +707,7 @@ private fun SettingsScreenContent(
                         index = 1,
                         count = 2
                     )
-                } else if (showInexactReminderWarning) {
+                } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
                     SettingsSupportMessage(
                         text = stringResource(R.string.group_notifications_inexact_warning),
                         painter = painterResource(R.drawable.ic_error_outline),
@@ -1192,6 +1202,29 @@ internal data class SettingsSecuritySectionLayout(
     val hideScreenContentIndex: Int,
 )
 
+internal enum class SettingsReminderSupportState {
+    NONE,
+    NOTIFICATION_OFF,
+    EXACT_ALARM_OFF,
+}
+
+internal fun resolveSettingsReminderSupportState(
+    hasNotificationAccess: Boolean,
+    hasExactAlarmAccess: Boolean,
+    remindersEnabled: Boolean,
+    isReminderEnablePending: Boolean = false,
+): SettingsReminderSupportState {
+    if (!hasNotificationAccess) {
+        return SettingsReminderSupportState.NOTIFICATION_OFF
+    }
+
+    return if ((remindersEnabled || isReminderEnablePending) && !hasExactAlarmAccess) {
+        SettingsReminderSupportState.EXACT_ALARM_OFF
+    } else {
+        SettingsReminderSupportState.NONE
+    }
+}
+
 internal fun resolveSettingsSecuritySectionLayout(
     screenLockProtectionEnabled: Boolean,
 ): SettingsSecuritySectionLayout {
@@ -1462,7 +1495,7 @@ private fun SettingsScreenPreview() {
                 )
             ),
             hasNotificationAccess = true,
-            showInexactReminderWarning = true,
+            reminderSupportState = SettingsReminderSupportState.EXACT_ALARM_OFF,
             onWeightSave = { _, _ -> },
             onWeightClear = { },
             onRemindersEnabledChange = { },
