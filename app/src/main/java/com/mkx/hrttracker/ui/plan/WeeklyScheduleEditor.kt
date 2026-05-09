@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
@@ -59,6 +61,7 @@ internal fun WeeklyScheduleEditor(
     onSinceDateChange: (LocalDate) -> Unit,
     onIntervalChange: (String) -> Unit,
     onDayChange: (DayOfWeek) -> Unit,
+    onResetDaysOfWeek: () -> Unit,
     onTimeChange: (LocalTime) -> Unit,
     pastScheduleSelectorState: PastScheduleSelectorUiState? = null,
     onPastScheduleOptionSelected: (PastScheduleOption) -> Unit = {},
@@ -112,6 +115,8 @@ internal fun WeeklyScheduleEditor(
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                val isDaySelectionAtDefault =
+                    selectedDaysOfWeek == setOf(sinceDate.dayOfWeek)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,6 +126,12 @@ internal fun WeeklyScheduleEditor(
                         text = stringResource(R.string.group_schedule_days_of_week).uppercase(),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    AddChip(
+                        onClick = onResetDaysOfWeek,
+                        label = stringResource(R.string.group_schedule_reset_days_to_start),
+                        icon = Icons.Rounded.RestartAlt,
+                        enabled = daySelectionEnabled && !isDaySelectionAtDefault,
                     )
                 }
                 ConnectedButtonGroup(
@@ -258,6 +269,7 @@ private fun WeeklyScheduleEditorPreview() {
             onSinceDateChange = {},
             onIntervalChange = {},
             onDayChange = {},
+            onResetDaysOfWeek = {},
             onTimeChange = {}
         )
     }

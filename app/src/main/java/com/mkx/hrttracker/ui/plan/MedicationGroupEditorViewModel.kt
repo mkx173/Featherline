@@ -230,6 +230,16 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun resetWeeklyDaysOfWeekToDefault() {
+        _uiState.update {
+            if (it.areScheduleShapeFieldsLocked) {
+                it
+            } else {
+                it.copy(weeklyDaysOfWeek = setOf(it.sinceDate.dayOfWeek))
+            }
+        }
+    }
+
     fun updateWeeklyTime(time: LocalTime) {
         _uiState.update {
             if (it.isArchived) {

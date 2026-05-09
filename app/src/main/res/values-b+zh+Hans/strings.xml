@@ -290,6 +290,7 @@
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
     <string name="group_field_locked">已锁定</string>
     <string name="add">添加</string>
+    <string name="group_schedule_reset_days_to_start">重置</string>
     <string name="add_medication_to_group">添加药物</string>
     <string name="edit_time">编辑</string>
     <string name="edit_medication">编辑药物</string>
