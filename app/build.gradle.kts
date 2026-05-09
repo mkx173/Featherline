@@ -134,7 +134,7 @@ androidComponents {
             }
 
             output.outputFileName.set(
-                "${rootProject.name.lowercase()}-${abiName}-${output.versionName.get()}.apk"
+                "${rootProject.name.lowercase()}-${abiName}-${output.versionName.get()}-${output.versionCode.get()}.apk"
             )
         }
     }
