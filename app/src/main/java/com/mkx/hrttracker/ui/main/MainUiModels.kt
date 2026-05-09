@@ -41,6 +41,14 @@ data class MainTodaySectionUiState(
     val rows: List<MainTodayDoseRowUiState> = emptyList(),
 )
 
+data class MainLastNightSectionUiState(
+    val date: LocalDate? = null,
+    val doneCount: Int = 0,
+    val totalCount: Int = 0,
+    val manualCount: Int = 0,
+    val rows: List<MainTodayDoseRowUiState> = emptyList(),
+)
+
 data class MainE2HeroUiState(
     val currentValue: Double = 0.0,
     val changeSinceYesterday: Double = 0.0,
@@ -103,7 +111,6 @@ data class MainTodayDoseRowUiState(
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedCount: Int = 0,
     val isManualRecord: Boolean = false,
-    val isLastNight: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
 )
@@ -393,28 +400,46 @@ internal fun buildMainTodaySection(
         now = now,
         zoneId = zoneId,
     )
-    val lastNightRows = if (mainIsOvernightTime(now.toLocalTime())) {
-        buildMainTodayRowsForDate(
-            date = today.minusDays(1),
-            groups = groups,
-            entries = entries,
-            entriesByUuid = entriesByUuid,
-            now = now,
-            zoneId = zoneId,
-            isLastNight = true,
-        ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
-    } else {
-        MainTodayRowsForDate()
-    }
-    val scheduledRows = todayRows.scheduledRows + lastNightRows.scheduledRows
-    val manualRows = todayRows.manualRows + lastNightRows.manualRows
-    val rows = (scheduledRows + manualRows).sortedWith(mainTodayDoseRowComparator)
+    val rows = (todayRows.scheduledRows + todayRows.manualRows)
+        .sortedWith(mainTodayDoseRowComparator)
 
     return MainTodaySectionUiState(
         date = today,
-        doneCount = scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
-        totalCount = scheduledRows.size,
-        manualCount = manualRows.size,
+        doneCount = todayRows.scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
+        totalCount = todayRows.scheduledRows.size,
+        manualCount = todayRows.manualRows.size,
+        rows = rows
+    )
+}
+
+internal fun buildMainLastNightSection(
+    groups: List<MedicationGroup>,
+    entries: List<MedicationLogEntry>,
+    now: LocalDateTime,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): MainLastNightSectionUiState {
+    if (!mainIsOvernightTime(now.toLocalTime())) {
+        return MainLastNightSectionUiState()
+    }
+    val today = now.toLocalDate()
+    val previousDate = today.minusDays(1)
+    val entriesByUuid = entries.associateBy { it.uuid }
+    val lastNightRows = buildMainTodayRowsForDate(
+        date = previousDate,
+        groups = groups,
+        entries = entries,
+        entriesByUuid = entriesByUuid,
+        now = now,
+        zoneId = zoneId,
+    ).filter { row -> mainIsLastNightTime(row.scheduledAt.toLocalTime()) }
+    val rows = (lastNightRows.scheduledRows + lastNightRows.manualRows)
+        .sortedWith(mainTodayDoseRowComparator)
+
+    return MainLastNightSectionUiState(
+        date = previousDate,
+        doneCount = lastNightRows.scheduledRows.count { it.status == MainTodayDoseStatus.DONE },
+        totalCount = lastNightRows.scheduledRows.size,
+        manualCount = lastNightRows.manualRows.size,
         rows = rows
     )
 }
@@ -524,7 +549,6 @@ private fun buildMainTodayRowsForDate(
     entriesByUuid: Map<UUID, MedicationLogEntry>,
     now: LocalDateTime,
     zoneId: ZoneId,
-    isLastNight: Boolean = false,
 ): MainTodayRowsForDate {
     val daySchedule = buildPlanDaySchedule(
         date = date,
@@ -561,7 +585,6 @@ private fun buildMainTodayRowsForDate(
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
-            isLastNight = isLastNight,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
             medicationSortOrder = scheduledEntry.medicationSortOrder
         )
@@ -586,8 +609,7 @@ private fun buildMainTodayRowsForDate(
             loggedAt = appliedAt,
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
-            isManualRecord = true,
-            isLastNight = isLastNight
+            isManualRecord = true
         )
     }
 

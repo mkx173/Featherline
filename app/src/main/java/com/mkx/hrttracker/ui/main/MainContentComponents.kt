@@ -209,10 +209,6 @@ private enum class MainTodayTimeRange(
     );
 }
 
-private data class MainTodayTimeRangeGroup(
-    val timeRange: MainTodayTimeRange,
-    val isLastNight: Boolean,
-)
 
 @Composable
 internal fun MainE2HeroCard(
@@ -2129,14 +2125,9 @@ internal fun MainTodaySection(
 ) {
     val groupedRows = remember(section.rows) {
         section.rows
-            .groupBy { row ->
-                MainTodayTimeRangeGroup(
-                    timeRange = mainTodayTimeRange(row.scheduledAt.toLocalTime()),
-                    isLastNight = row.isLastNight
-                )
-            }
+            .groupBy { row -> mainTodayTimeRange(row.scheduledAt.toLocalTime()) }
             .entries
-            .sortedBy { (timeRangeGroup, _) -> mainTodayTimeRangeGroupSortIndex(timeRangeGroup) }
+            .sortedBy { (timeRange, _) -> timeRange.ordinal }
     }
     val sectionSummary = listOf(
         dateFormatter(section.date),
@@ -2168,13 +2159,11 @@ internal fun MainTodaySection(
             Column(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_xsmall))
             ) {
-                groupedRows.forEachIndexed { groupIndex, (timeRangeGroup, rows) ->
+                groupedRows.forEachIndexed { groupIndex, (timeRange, rows) ->
                     val scheduledRows = rows.filterNot { row -> row.isManualRecord }
                     MainTodayTimeRangeHeader(
-                        timeRange = timeRangeGroup.timeRange,
-                        isLastNight = timeRangeGroup.isLastNight,
-                        isCurrent = !timeRangeGroup.isLastNight &&
-                            timeRangeGroup.timeRange == mainTodayTimeRange(now.toLocalTime()),
+                        timeRange = timeRange,
+                        isCurrent = timeRange == mainTodayTimeRange(now.toLocalTime()),
                         doneCount = scheduledRows.count { row -> row.status == MainTodayDoseStatus.DONE },
                         totalCount = scheduledRows.size,
                         manualCount = rows.count { row -> row.isManualRecord },
@@ -2201,6 +2190,55 @@ internal fun MainTodaySection(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MainLastNightSection(
+    section: MainLastNightSectionUiState,
+    now: LocalDateTime,
+    dateFormatter: LocalDateFormatter,
+    timeFormatter: DateTimeFormatter,
+    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onEntryClick: (Set<UUID>) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (section.rows.isEmpty()) return
+
+    val sectionSummary = listOfNotNull(
+        section.date?.let(dateFormatter),
+        stringResource(
+            R.string.main_today_progress_count_label,
+            mainTodayCountLabel(
+                doneCount = section.doneCount,
+                totalCount = section.totalCount,
+                manualCount = section.manualCount
+            )
+        )
+    ).joinToString(separator = " · ")
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        MainSectionHeader(
+            title = stringResource(R.string.main_last_night_title),
+            summary = sectionSummary
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
+        ) {
+            section.rows.forEachIndexed { index, row ->
+                MainTodayDoseRow(
+                    row = row,
+                    index = index,
+                    itemCount = section.rows.size,
+                    now = now,
+                    timeFormatter = timeFormatter,
+                    onQuickLogDoseClick = onQuickLogDoseClick,
+                    onEntryClick = onEntryClick
+                )
             }
         }
     }
@@ -2736,7 +2774,6 @@ private fun MainSectionHeader(
 @Composable
 private fun MainTodayTimeRangeHeader(
     timeRange: MainTodayTimeRange,
-    isLastNight: Boolean,
     isCurrent: Boolean,
     doneCount: Int,
     totalCount: Int,
@@ -2745,20 +2782,12 @@ private fun MainTodayTimeRangeHeader(
     modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
-    val timeRangeLabel = if (isLastNight) {
-        stringResource(R.string.main_today_range_last_night)
-    } else {
-        stringResource(timeRange.labelRes)
-    }
+    val timeRangeLabel = stringResource(timeRange.labelRes)
     val timeRangeTimeLabel = mainTodayTimeRangeTimeLabel(
         timeRange = timeRange,
         timeFormatter = timeFormatter
     )
-    val iconDrawableRes = if (isLastNight) {
-        R.drawable.ic_replay
-    } else {
-        R.drawable.ic_schedule
-    }
+    val iconDrawableRes = R.drawable.ic_schedule
     val countLabel = mainTodayCountLabel(
         doneCount = doneCount,
         totalCount = totalCount,
@@ -2842,14 +2871,6 @@ internal fun mainTodayCountLabel(
         append(" (")
         append(manualCount)
         append(")")
-    }
-}
-
-private fun mainTodayTimeRangeGroupSortIndex(group: MainTodayTimeRangeGroup): Int {
-    return if (group.isLastNight) {
-        -1
-    } else {
-        group.timeRange.ordinal
     }
 }
 
@@ -3016,6 +3037,25 @@ private fun MainTodaySectionPreview() {
     }
 }
 
+@Preview(name = "Main Last Night Section", showBackground = true, widthDp = 420)
+@Composable
+private fun MainLastNightSectionPreview() {
+    val uiState = buildMainContentPreviewUiState()
+    val dateFormatter = medicationGroupScheduleDateFormatter(Locale.US, uiState.now.toLocalDate())
+    val timeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
+
+    MainContentComponentPreviewContainer {
+        MainLastNightSection(
+            section = uiState.lastNightSection,
+            now = uiState.now,
+            dateFormatter = dateFormatter,
+            timeFormatter = timeFormatter,
+            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onEntryClick = { }
+        )
+    }
+}
+
 @Preview(name = "Main Upcoming Section", showBackground = true, widthDp = 420)
 @Composable
 private fun MainUpcomingSectionPreview() {
@@ -3138,7 +3178,6 @@ private fun MainTodayTimeRangeHeaderPreview() {
     MainContentComponentPreviewContainer {
         MainTodayTimeRangeHeader(
             timeRange = MainTodayTimeRange.MORNING,
-            isLastNight = false,
             isCurrent = true,
             doneCount = 1,
             totalCount = 2,
@@ -3274,6 +3313,31 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                     medication = estradiolSublingual,
                     status = MainTodayDoseStatus.UPCOMING
                 ),
+            )
+        ),
+        lastNightSection = MainLastNightSectionUiState(
+            date = now.toLocalDate().minusDays(1),
+            doneCount = 1,
+            totalCount = 1,
+            manualCount = 0,
+            rows = listOf(
+                MainTodayDoseRowUiState(
+                    groupUuid = PreviewEstradiolGroupUuid,
+                    groupName = "Evening estradiol",
+                    groupColorKey = MedicationGroupColorKey.ROSE,
+                    scheduleTimeUuid = PreviewMorningScheduleUuid,
+                    scheduledAt = LocalDateTime.of(
+                        now.toLocalDate().minusDays(1),
+                        LocalTime.of(21, 0)
+                    ),
+                    medication = estradiolTablet,
+                    status = MainTodayDoseStatus.DONE,
+                    loggedAt = LocalDateTime.of(
+                        now.toLocalDate().minusDays(1),
+                        LocalTime.of(21, 4)
+                    ),
+                    loggedCount = 1
+                )
             )
         ),
         upcomingSection = MainUpcomingSectionUiState(

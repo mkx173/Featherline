@@ -725,7 +725,7 @@ class MainUiModelsTest {
     }
 
     @Test
-    fun buildMainTodaySection_includes_lastNightRows_duringOvernight() {
+    fun buildMainTodaySection_excludesLastNightRows_duringOvernight() {
         val previousDate = LocalDate.of(2026, 4, 18)
         val today = previousDate.plusDays(1)
         val group = medicationGroup(
@@ -743,49 +743,63 @@ class MainUiModelsTest {
         val lastNightManualUuid = UUID.fromString("54c3d987-a5bf-48d3-835d-ddd7578c9994")
         val todayManualUuid = UUID.fromString("52dd87f9-f07d-40e1-b87e-82dcd5da1280")
 
+        val entries = listOf(
+            manualEntry(
+                uuid = beforeLastNightManualUuid,
+                appliedAt = LocalDateTime.of(previousDate, LocalTime.of(17, 59))
+            ),
+            manualEntry(
+                uuid = lastNightManualUuid,
+                appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
+            ),
+            manualEntry(
+                uuid = todayManualUuid,
+                appliedAt = LocalDateTime.of(today, LocalTime.of(1, 15))
+            )
+        )
+        val now = LocalDateTime.of(today, LocalTime.of(2, 30))
+
         val todaySection = buildMainTodaySection(
             groups = listOf(group),
-            entries = listOf(
-                manualEntry(
-                    uuid = beforeLastNightManualUuid,
-                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(17, 59))
-                ),
-                manualEntry(
-                    uuid = lastNightManualUuid,
-                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
-                ),
-                manualEntry(
-                    uuid = todayManualUuid,
-                    appliedAt = LocalDateTime.of(today, LocalTime.of(1, 15))
-                )
-            ),
-            now = LocalDateTime.of(today, LocalTime.of(2, 30)),
+            entries = entries,
+            now = now,
             zoneId = testZoneId
         )
 
         assertEquals(0, todaySection.doneCount)
-        assertEquals(1, todaySection.totalCount)
-        assertEquals(2, todaySection.manualCount)
+        assertEquals(0, todaySection.totalCount)
+        assertEquals(1, todaySection.manualCount)
+        assertEquals(
+            listOf(LocalDateTime.of(today, LocalTime.of(1, 15))),
+            todaySection.rows.map { row -> row.scheduledAt }
+        )
+
+        val lastNightSection = buildMainLastNightSection(
+            groups = listOf(group),
+            entries = entries,
+            now = now,
+            zoneId = testZoneId
+        )
+
+        assertEquals(previousDate, lastNightSection.date)
+        assertEquals(0, lastNightSection.doneCount)
+        assertEquals(1, lastNightSection.totalCount)
+        assertEquals(1, lastNightSection.manualCount)
         assertEquals(
             listOf(
                 LocalDateTime.of(previousDate, LocalTime.of(20, 0)),
-                LocalDateTime.of(previousDate, LocalTime.of(21, 15)),
-                LocalDateTime.of(today, LocalTime.of(1, 15))
+                LocalDateTime.of(previousDate, LocalTime.of(21, 15))
             ),
-            todaySection.rows.map { row -> row.scheduledAt }
+            lastNightSection.rows.map { row -> row.scheduledAt }
         )
         assertEquals(
-            listOf(true, true, false),
-            todaySection.rows.map { row -> row.isLastNight }
-        )
-        assertEquals(
-            listOf(false, true, true),
-            todaySection.rows.map { row -> row.isManualRecord }
+            listOf(false, true),
+            lastNightSection.rows.map { row -> row.isManualRecord }
         )
     }
 
     @Test
-    fun buildMainTodaySection_stopsShowingLastNightRows_atSix() {
+    fun buildMainLastNightSection_isEmpty_atSix() {
         val previousDate = LocalDate.of(2026, 4, 18)
         val today = previousDate.plusDays(1)
         val group = medicationGroup(
@@ -799,21 +813,33 @@ class MainUiModelsTest {
                 times = listOf(LocalTime.of(20, 0))
             )
         )
+        val entries = listOf(
+            manualEntry(
+                appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
+            )
+        )
+        val now = LocalDateTime.of(today, LocalTime.of(6, 0))
 
         val todaySection = buildMainTodaySection(
             groups = listOf(group),
-            entries = listOf(
-                manualEntry(
-                    appliedAt = LocalDateTime.of(previousDate, LocalTime.of(21, 15))
-                )
-            ),
-            now = LocalDateTime.of(today, LocalTime.of(6, 0)),
+            entries = entries,
+            now = now,
             zoneId = testZoneId
         )
-
         assertEquals(emptyList<MainTodayDoseRowUiState>(), todaySection.rows)
         assertEquals(0, todaySection.totalCount)
         assertEquals(0, todaySection.manualCount)
+
+        val lastNightSection = buildMainLastNightSection(
+            groups = listOf(group),
+            entries = entries,
+            now = now,
+            zoneId = testZoneId
+        )
+        assertEquals(emptyList<MainTodayDoseRowUiState>(), lastNightSection.rows)
+        assertEquals(0, lastNightSection.totalCount)
+        assertEquals(0, lastNightSection.manualCount)
+        assertNull(lastNightSection.date)
     }
 
     @Test

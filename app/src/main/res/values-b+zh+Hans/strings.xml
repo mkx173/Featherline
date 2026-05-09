@@ -12,6 +12,7 @@
     <string name="archived_medication_group">已归档的分组</string>
     <string name="main_empty_state">在这里记录下一次用药</string>
     <string name="main_today_title">今天</string>
+    <string name="main_last_night_title">昨晚</string>
     <string name="main_tomorrow_title">明天</string>
     <string name="main_upcoming_title">即将到来</string>
     <string name="main_today_progress">已完成 %1$d/%2$d</string>
@@ -28,7 +29,6 @@
     <string name="main_today_range_morning">上午</string>
     <string name="main_today_range_afternoon">下午</string>
     <string name="main_today_range_evening">晚上</string>
-    <string name="main_today_range_last_night">昨晚</string>
     <plurals name="main_today_schedule_offset_hours_later">
         <item quantity="other">+%1$d小时</item>
     </plurals>

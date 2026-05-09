@@ -81,6 +81,20 @@ fun MainContent(
             }
         }
 
+        if (uiState.lastNightSection.rows.isNotEmpty()) {
+            item(key = "last-night") {
+                Spacer(modifier = Modifier.height(16.dp))
+                MainLastNightSection(
+                    section = uiState.lastNightSection,
+                    now = uiState.now,
+                    dateFormatter = dayHeaderDateFormatter,
+                    timeFormatter = timeFormatter,
+                    onQuickLogDoseClick = onQuickLogDoseClick,
+                    onEntryClick = onEntryClick
+                )
+            }
+        }
+
         item(key = "today") {
             Spacer(modifier = Modifier.height(16.dp))
             MainTodaySection(

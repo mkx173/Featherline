@@ -133,6 +133,12 @@ class MainViewModel @Inject constructor(
                 now = now,
                 zoneId = zoneId,
             ),
+            lastNightSection = buildMainLastNightSection(
+                groups = inputs.activeGroups,
+                entries = homeEntries,
+                now = now,
+                zoneId = zoneId,
+            ),
             upcomingSection = buildMainUpcomingSection(
                 groups = inputs.activeGroups,
                 entries = homeEntries,
@@ -154,6 +160,7 @@ data class MainUiState(
     val todaySection: MainTodaySectionUiState = MainTodaySectionUiState(
         date = now.toLocalDate()
     ),
+    val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
     val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState()
 ) {
     val splashReady: Boolean

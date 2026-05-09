@@ -12,6 +12,7 @@
     <string name="archived_medication_group">Archived Group</string>
     <string name="main_empty_state">Log your next dose from here.</string>
     <string name="main_today_title">Today</string>
+    <string name="main_last_night_title">Last night</string>
     <string name="main_tomorrow_title">Tomorrow</string>
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_progress">%1$d/%2$d done</string>
@@ -28,7 +29,6 @@
     <string name="main_today_range_morning">Morning</string>
     <string name="main_today_range_afternoon">Afternoon</string>
     <string name="main_today_range_evening">Evening</string>
-    <string name="main_today_range_last_night">Last evening</string>
     <plurals name="main_today_schedule_offset_hours_later">
         <item quantity="one">+%1$d hour</item>
         <item quantity="other">+%1$d hours</item>
