@@ -35,7 +35,6 @@ import androidx.compose.material3.getSelectedStartDate
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,12 +51,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -109,10 +105,9 @@ private fun PlanBatchAddScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var hasNotificationAccess by remember(context) {
-        mutableStateOf(canPostNotifications(context))
-    }
+    val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
+    val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
+    val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
@@ -159,18 +154,6 @@ private fun PlanBatchAddScreenContent(
 
     BackHandler(enabled = shouldDeselectOnBack) {
         clearSelectionAndDismissDialogs()
-    }
-
-    DisposableEffect(lifecycleOwner, context) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotificationAccess = canPostNotifications(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
     }
 
     LaunchedEffect(uiState.selectedGroupUuid, uiState.groups.size) {

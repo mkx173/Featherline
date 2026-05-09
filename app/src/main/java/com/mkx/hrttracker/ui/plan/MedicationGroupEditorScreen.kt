@@ -51,7 +51,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,9 +79,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -95,8 +91,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
-import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
@@ -144,8 +140,10 @@ fun MedicationGroupEditorScreen(
     val latestUiState by rememberUpdatedState(uiState)
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
+    val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
+    val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
+    val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
+    val hasExactAlarmAccess = reminderCapabilityState.hasExactAlarmAccess
     val reminderNotificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
     var isExactAlarmDialogVisible by rememberSaveable { mutableStateOf(false) }
@@ -168,38 +166,24 @@ fun MedicationGroupEditorScreen(
                 )
             }
         }
-    DisposableEffect(lifecycleOwner, context) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotificationAccess = canPostNotifications(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
+        reminderCapabilityReconciler.requestReconcile("medication_group_editor_exact_alarm_result")
         isExactAlarmDialogVisible = false
-        showInexactReminderWarning = resolveInexactReminderWarningVisibility(
-            hasNotificationAccess = hasNotificationAccess,
-            canScheduleExactAlarms = canScheduleExactAlarms(context)
-        )
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        reminderCapabilityReconciler.requestReconcile("medication_group_editor_notification_permission_result")
         if (isGranted) {
-            hasNotificationAccess = canPostNotifications(context)
             if (shouldEnableMasterReminders(pendingNotificationEnableRequest)) {
                 viewModel.setMasterRemindersEnabled(true)
             }
             if (shouldEnableGroupNotifications(pendingNotificationEnableRequest)) {
                 viewModel.updateNotificationsEnabled(true)
                 val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
-                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                    canScheduleExactAlarms = hasExactAlarmAccess
                 )
                 showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
                 isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
@@ -213,7 +197,6 @@ fun MedicationGroupEditorScreen(
                 ).show()
             } else {
                 viewModel.updateNotificationsEnabled(false)
-                hasNotificationAccess = false
                 Toast.makeText(
                     context,
                     reminderNotificationsUnavailableMessage,
@@ -263,7 +246,7 @@ fun MedicationGroupEditorScreen(
             viewModel.setMasterRemindersEnabled(true)
             viewModel.updateNotificationsEnabled(true)
             val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
-                canScheduleExactAlarms = canScheduleExactAlarms(context)
+                canScheduleExactAlarms = hasExactAlarmAccess
             )
             showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
             isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog
@@ -298,11 +281,11 @@ fun MedicationGroupEditorScreen(
         }
     }
 
-    LaunchedEffect(hasNotificationAccess, isExactAlarmDialogVisible) {
+    LaunchedEffect(hasNotificationAccess, hasExactAlarmAccess, isExactAlarmDialogVisible) {
         if (!isExactAlarmDialogVisible) {
             showInexactReminderWarning = resolveInexactReminderWarningVisibility(
                 hasNotificationAccess = hasNotificationAccess,
-                canScheduleExactAlarms = canScheduleExactAlarms(context)
+                canScheduleExactAlarms = hasExactAlarmAccess
             )
         }
     }
@@ -335,7 +318,7 @@ fun MedicationGroupEditorScreen(
                 isExactAlarmDialogVisible = false
                 showInexactReminderWarning = resolveInexactReminderWarningVisibility(
                     hasNotificationAccess = hasNotificationAccess,
-                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                    canScheduleExactAlarms = hasExactAlarmAccess
                 )
             } else if (
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -369,7 +352,7 @@ fun MedicationGroupEditorScreen(
             } else {
                 viewModel.updateNotificationsEnabled(true)
                 val exactAlarmUiState = resolveExactAlarmUiStateAfterEnablingReminders(
-                    canScheduleExactAlarms = canScheduleExactAlarms(context)
+                    canScheduleExactAlarms = hasExactAlarmAccess
                 )
                 showInexactReminderWarning = exactAlarmUiState.showInexactReminderWarning
                 isExactAlarmDialogVisible = exactAlarmUiState.showExactAlarmDialog

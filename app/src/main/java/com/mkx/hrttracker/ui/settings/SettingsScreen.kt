@@ -50,7 +50,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,9 +77,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.mkx.hrttracker.BuildConfig
@@ -92,8 +88,8 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
-import com.mkx.hrttracker.reminder.canPostNotifications
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
@@ -126,12 +122,13 @@ fun SettingsScreen(
     val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
     val isAppLocked = appLockUiState.shouldShowLockScreen
     val configuration = LocalConfiguration.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     val pickerResultScope = remember(activity, coroutineScope) {
         (activity as? ComponentActivity)?.lifecycleScope ?: coroutineScope
     }
-    var hasNotificationAccess by remember { mutableStateOf(canPostNotifications(context)) }
+    val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
+    val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
+    val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     var showInexactReminderWarning by remember { mutableStateOf(false) }
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     var isDiagnosticsExportInProgress by rememberSaveable { mutableStateOf(false) }
@@ -165,12 +162,11 @@ fun SettingsScreen(
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        reminderCapabilityReconciler.requestReconcile("settings_notification_permission_result")
         if (isGranted) {
             viewModel.setRemindersEnabled(true)
-            hasNotificationAccess = canPostNotifications(context)
         } else {
             viewModel.setRemindersEnabled(false)
-            hasNotificationAccess = false
             Toast.makeText(
                 context,
                 reminderNotificationsUnavailableMessage,
@@ -181,10 +177,7 @@ fun SettingsScreen(
     val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        showInexactReminderWarning =
-            hasNotificationAccess &&
-                settingsState.remindersEnabled &&
-                !canScheduleExactAlarms(context)
+        reminderCapabilityReconciler.requestReconcile("settings_exact_alarm_result")
     }
     val backupDirectoryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -303,29 +296,11 @@ fun SettingsScreen(
         viewModel.refreshAppLanguageOption()
     }
 
-    DisposableEffect(lifecycleOwner, context) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotificationAccess = canPostNotifications(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(hasNotificationAccess, settingsState.remindersEnabled) {
-        if (!hasNotificationAccess && settingsState.remindersEnabled) {
-            viewModel.setRemindersEnabled(false)
-        }
-    }
-
-    LaunchedEffect(hasNotificationAccess, settingsState.remindersEnabled) {
+    LaunchedEffect(reminderCapabilityState, settingsState.remindersEnabled) {
         showInexactReminderWarning =
-            hasNotificationAccess &&
+            reminderCapabilityState.hasNotificationAccess &&
                 settingsState.remindersEnabled &&
-                !canScheduleExactAlarms(context)
+                !reminderCapabilityState.hasExactAlarmAccess
     }
 
     AppAuthenticationPromptEffect(

@@ -38,7 +38,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -67,9 +66,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kizitonwose.calendar.compose.WeekCalendar
 import com.kizitonwose.calendar.compose.weekcalendar.WeekCalendarLayoutInfo
@@ -88,7 +84,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.isArchived
-import com.mkx.hrttracker.reminder.canPostNotifications
+import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -167,10 +163,9 @@ private fun PlanScreenContent(
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var hasNotificationAccess by remember(context) {
-        mutableStateOf(canPostNotifications(context))
-    }
+    val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
+    val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
+    val hasNotificationAccess = reminderCapabilityState.hasNotificationAccess
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val dateFormatter = remember(appLocale, uiState.today) {
         planUpcomingDateFormatter(
@@ -193,18 +188,6 @@ private fun PlanScreenContent(
         lazyListState = listState,
         state = topAppBarState
     )
-
-    DisposableEffect(lifecycleOwner, context) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotificationAccess = canPostNotifications(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
 
     val state = key(
         uiState.calendarStartDate,

@@ -65,7 +65,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -101,16 +100,12 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
-import com.mkx.hrttracker.reminder.canPostNotifications
-import com.mkx.hrttracker.reminder.canScheduleExactAlarms
+import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Add
@@ -186,8 +181,10 @@ fun OnboardingScreen(
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val activity = LocalActivity.current
-    var notificationsGranted by remember { mutableStateOf(canPostNotifications(context)) }
-    var exactAlarmGranted by remember { mutableStateOf(canScheduleExactAlarms(context)) }
+    val reminderCapabilityReconciler = rememberReminderCapabilityReconciler()
+    val reminderCapabilityState by reminderCapabilityReconciler.state.collectAsStateWithLifecycle()
+    val notificationsGranted = reminderCapabilityState.hasNotificationAccess
+    val exactAlarmGranted = reminderCapabilityState.hasExactAlarmAccess
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val notificationsUnavailableMessage =
         stringResource(R.string.settings_reminders_notifications_unavailable)
@@ -195,7 +192,7 @@ fun OnboardingScreen(
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        notificationsGranted = canPostNotifications(context)
+        reminderCapabilityReconciler.requestReconcile("onboarding_notification_permission_result")
         if (!isGranted) {
             Toast.makeText(
                 context,
@@ -207,23 +204,11 @@ fun OnboardingScreen(
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        exactAlarmGranted = canScheduleExactAlarms(context)
-    }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) {
-                notificationsGranted = canPostNotifications(context)
-                exactAlarmGranted = canScheduleExactAlarms(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        reminderCapabilityReconciler.requestReconcile("onboarding_exact_alarm_result")
     }
 
     val finishOnboarding = {
-        if (canPostNotifications(context)) onCompleteEnabled() else onCompleteDeclined()
+        if (notificationsGranted) onCompleteEnabled() else onCompleteDeclined()
     }
 
     val goNext = {

@@ -41,6 +41,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.material3.MaterialTheme
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
@@ -81,6 +82,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
+
+    @Inject
+    lateinit var reminderCapabilityReconciler: ReminderCapabilityReconciler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val startupTimingEnabled =
@@ -322,6 +326,7 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         diagnosticsLogger.info(TAG, "main_activity_on_start")
         appLockViewModel.onForegrounded()
+        reminderCapabilityReconciler.requestReconcile("main_activity_on_start")
     }
 
     override fun onStop() {

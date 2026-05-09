@@ -18,47 +18,67 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
     lateinit var appScope: CoroutineScope
 
     @Inject
-    lateinit var medicationReminderScheduler: MedicationReminderScheduler
-
-    @Inject
-    lateinit var medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler
+    lateinit var reminderCapabilityReconciler: ReminderCapabilityReconciler
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
     override fun onReceive(context: Context, intent: Intent) {
-        when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            Intent.ACTION_TIME_CHANGED,
-            Intent.ACTION_TIMEZONE_CHANGED,
-            AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> Unit
-            else -> return diagnosticsLogger.info(
-                TAG,
-                "reminder_reschedule_receiver_ignored action=${intent.action}"
-            )
-        }
-
-        val pendingResult = goAsync()
-        diagnosticsLogger.info(TAG, "reminder_reschedule_receiver_received action=${intent.action}")
-        appScope.launch {
-            runCatching {
-                medicationReminderScheduler.rescheduleAll()
-                medicationReminderSnoozeScheduler.rescheduleAll()
-                diagnosticsLogger.info(TAG, "reminder_reschedule_receiver_complete action=${intent.action}")
-            }.onFailure { throwable ->
-                diagnosticsLogger.warning(
-                    TAG,
-                    "reminder_reschedule_receiver_failed action=${intent.action}",
-                    throwable,
-                )
-            }.also {
-                pendingResult.finish()
-            }
-        }
-    }
-
-    private companion object {
-        const val TAG = "MedicationReminderRescheduleReceiver"
+        handleReminderRescheduleBroadcast(
+            action = intent.action,
+            appScope = appScope,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
+            diagnosticsLogger = diagnosticsLogger,
+            goAsync = ::goAsync,
+        )
     }
 }
+
+internal fun isReminderRescheduleReceiverAction(action: String?): Boolean {
+    return action == Intent.ACTION_BOOT_COMPLETED ||
+        action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+        action == Intent.ACTION_TIME_CHANGED ||
+        action == Intent.ACTION_TIMEZONE_CHANGED ||
+        action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED
+}
+
+internal fun handleReminderRescheduleBroadcast(
+    action: String?,
+    appScope: CoroutineScope,
+    reminderCapabilityReconciler: ReminderCapabilityReconciler,
+    diagnosticsLogger: AppDiagnosticsLogger,
+    goAsync: () -> BroadcastReceiver.PendingResult?,
+) {
+    if (!isReminderRescheduleReceiverAction(action)) {
+        diagnosticsLogger.info(
+            REMINDER_RESCHEDULE_RECEIVER_TAG,
+            "reminder_reschedule_receiver_ignored action=$action",
+        )
+        return
+    }
+
+    val pendingResult = goAsync()
+    diagnosticsLogger.info(
+        REMINDER_RESCHEDULE_RECEIVER_TAG,
+        "reminder_reschedule_receiver_received action=$action",
+    )
+    appScope.launch {
+        runCatching {
+            reminderCapabilityReconciler.reconcile(reason = "receiver_$action")
+            diagnosticsLogger.info(
+                REMINDER_RESCHEDULE_RECEIVER_TAG,
+                "reminder_reschedule_receiver_complete action=$action",
+            )
+        }.onFailure { throwable ->
+            diagnosticsLogger.warning(
+                REMINDER_RESCHEDULE_RECEIVER_TAG,
+                "reminder_reschedule_receiver_failed action=$action",
+                throwable,
+            )
+        }.also {
+            pendingResult?.finish()
+        }
+    }
+}
+
+private const val REMINDER_RESCHEDULE_RECEIVER_TAG = "MedicationReminderRescheduleReceiver"
