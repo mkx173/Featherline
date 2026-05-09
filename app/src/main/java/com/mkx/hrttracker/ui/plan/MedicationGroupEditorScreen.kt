@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,6 +65,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -71,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -944,11 +947,14 @@ private fun MedicationGroupEditorScreenContent(
                         hasAcknowledgedArchiveIsPermanent &&
                         !isArchiveBlockedByCurrentOrFuturePlannedSlots,
                     onClick = {
-                        if (shouldCreateActiveCopyAfterArchive) {
-                            onArchiveAndRecreateConfirm()
-                        } else {
-                            onArchiveConfirm()
-                        }
+                        runArchiveConfirmationAction(
+                            shouldCreateActiveCopyAfterArchive =
+                                shouldCreateActiveCopyAfterArchive,
+                            focusManager = focusManager,
+                            keyboardController = keyboardController,
+                            onArchiveConfirm = onArchiveConfirm,
+                            onArchiveAndRecreateConfirm = onArchiveAndRecreateConfirm,
+                        )
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -1160,7 +1166,8 @@ private fun MedicationGroupEditorScreenContent(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .imePadding(),
             contentPadding = PaddingValues(
                 start = contentPadding,
                 top = contentPadding,
@@ -1728,6 +1735,25 @@ internal fun shouldDisableMedicationGroupEditorSaveAction(
         uiState.isFinishingAfterSave ||
         uiState.isDeleted ||
         uiState.isFinishingAfterDeleteOrArchive
+}
+
+internal fun runArchiveConfirmationAction(
+    shouldCreateActiveCopyAfterArchive: Boolean,
+    focusManager: FocusManager,
+    keyboardController: SoftwareKeyboardController?,
+    onArchiveConfirm: () -> Unit,
+    onArchiveAndRecreateConfirm: () -> Unit,
+) {
+    dismissInputAndRun(
+        focusManager = focusManager,
+        keyboardController = keyboardController,
+    ) {
+        if (shouldCreateActiveCopyAfterArchive) {
+            onArchiveAndRecreateConfirm()
+        } else {
+            onArchiveConfirm()
+        }
+    }
 }
 
 internal fun isMedicationGroupEditorBusy(
