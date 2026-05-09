@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.ui.calibration
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,14 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.relocation.BringIntoViewResponder
-import androidx.compose.foundation.relocation.bringIntoViewResponder
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
@@ -38,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -47,7 +41,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.dimensionResource
@@ -59,10 +53,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.node.LayoutAwareModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.requireLayoutCoordinates
+import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.relocation.BringIntoViewModifierNode
+import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -562,6 +560,72 @@ internal fun calibrationEditorAnalyteImeAction(index: Int, count: Int): ImeActio
     }
 }
 
+private fun Modifier.bringWholeFieldIntoView(): Modifier =
+    this.then(WholeFieldBringIntoViewElement)
+
+private object WholeFieldBringIntoViewElement :
+    ModifierNodeElement<WholeFieldBringIntoViewNode>() {
+    override fun create(): WholeFieldBringIntoViewNode = WholeFieldBringIntoViewNode()
+
+    override fun update(node: WholeFieldBringIntoViewNode) = Unit
+
+    override fun equals(other: Any?): Boolean = other === this
+
+    override fun hashCode(): Int = javaClass.hashCode()
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "bringWholeFieldIntoView"
+    }
+}
+
+private class WholeFieldBringIntoViewNode :
+    Modifier.Node(),
+    BringIntoViewModifierNode,
+    LayoutAwareModifierNode {
+    override val shouldAutoInvalidate: Boolean = false
+
+    private var hasBeenPlaced = false
+
+    override fun onPlaced(coordinates: LayoutCoordinates) {
+        hasBeenPlaced = true
+    }
+
+    override suspend fun bringIntoView(
+        childCoordinates: LayoutCoordinates,
+        boundsProvider: () -> Rect?,
+    ) {
+        fun localRect(): Rect? {
+            if (!isAttached || !hasBeenPlaced) return null
+
+            val layoutCoordinates = requireLayoutCoordinates()
+            val attachedChildCoordinates = childCoordinates.takeIf(LayoutCoordinates::isAttached)
+                ?: return null
+            val childRect = boundsProvider() ?: return null
+            return layoutCoordinates.localRectOf(attachedChildCoordinates, childRect)
+        }
+
+        bringIntoView {
+            localRect()?.let {
+                val layoutCoordinates = requireLayoutCoordinates()
+                Rect(
+                    0f,
+                    0f,
+                    layoutCoordinates.size.width.toFloat(),
+                    layoutCoordinates.size.height.toFloat(),
+                )
+            }
+        }
+    }
+}
+
+private fun LayoutCoordinates.localRectOf(
+    sourceCoordinates: LayoutCoordinates,
+    rect: Rect,
+): Rect {
+    val localRect = localBoundingBoxOf(sourceCoordinates, clipBounds = false)
+    return rect.translate(localRect.topLeft)
+}
+
 @Composable
 private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
     val icon = when (status) {
@@ -654,25 +718,6 @@ private fun CalibrationMetadataChip(
             }
         }
     }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-private fun Modifier.bringWholeFieldIntoView(): Modifier = composed {
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    val responder = remember {
-        object : BringIntoViewResponder {
-            override fun calculateRectForParent(localRect: Rect): Rect =
-                Rect(Offset.Zero, size.toSize())
-
-            override suspend fun bringChildIntoView(localRect: () -> Rect?) {
-                // Let the ancestor scrollable handle the actual scroll using
-                // the rect produced by calculateRectForParent (i.e. the whole
-                // field), so the cursor's smaller request doesn't nudge the
-                // parent past where the focus request already brought us.
-            }
-        }
-    }
-    onSizeChanged { size = it }.bringIntoViewResponder(responder)
 }
 
 @Preview(showBackground = true, widthDp = 420)
