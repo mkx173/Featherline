@@ -13,8 +13,12 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -87,7 +91,15 @@ class HomeSnapshotCodecTest {
             generatedAtEpochMillis = 10L,
             windowStartEpochMillis = 20L,
             windowEndEpochMillis = 30L,
-            payloadJson = """{"payload":true}""",
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = listOf(0.0, 1.0, 2.0),
+            concentrations = listOf(10.0, 20.0, 30.0),
+            doseMarkers = listOf(
+                HomePkProjectionDoseMarkerRecord(
+                    timeH = 1.0,
+                    concentration = 20.0,
+                )
+            ),
             latestEstradiolEntry = latestEntry,
         )
         val record = HomeSnapshotRecord(
@@ -105,5 +117,46 @@ class HomeSnapshotCodecTest {
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
 
         assertEquals(record, decoded)
+    }
+
+    @Test
+    fun decode_rejectsLegacyVersionFourPayloadLayout() {
+        val bytes = legacyVersionFourBytes()
+
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            HomeSnapshotCodec.decode(bytes)
+        }
+
+        assertEquals("Unsupported Home snapshot version: 4.", exception.message)
+    }
+
+    private fun legacyVersionFourBytes(): ByteArray {
+        val output = ByteArrayOutputStream()
+        DataOutputStream(output).use { stream ->
+            stream.writeInt(4)
+            stream.writeInt(HOME_SNAPSHOT_SCHEMA_VERSION)
+            stream.writeLong(7L)
+            stream.writeLong(100L)
+            stream.writeLong(LocalDate.of(2026, 5, 6).toEpochDay())
+            stream.writeTestString("Asia/Tokyo")
+            stream.writeBoolean(true)
+            stream.writeLong(10L)
+            stream.writeLong(20L)
+            stream.writeLong(30L)
+            stream.writeTestString(
+                """{"concentrationUnit":"PG_PER_ML","timeH":[],"concentrations":[],"doseMarkers":[]}"""
+            )
+            stream.writeBoolean(false)
+            stream.writeInt(0)
+            stream.writeInt(0)
+            stream.writeInt(0)
+        }
+        return output.toByteArray()
+    }
+
+    private fun DataOutputStream.writeTestString(value: String) {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        writeInt(bytes.size)
+        write(bytes)
     }
 }

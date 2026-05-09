@@ -154,7 +154,10 @@ class HomeRepositoryTest {
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
-            payloadJson = "{}",
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
             latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(),
         )
         val snapshot = HomeSnapshotRecord(
@@ -195,6 +198,7 @@ class HomeRepositoryTest {
             inputs.antiandrogenHistoryEntries.map { it.uuid.toString() },
         )
         assertEquals(pkEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
+        assertEquals(PkConcentrationUnit.PG_PER_ML, inputs.pkProjection?.concentrationUnit)
         assertEquals(BloodUnitKey.NG_DL, inputs.settings.homeE2DisplayUnit)
 
         verify(exactly = 0) { databaseHolder.get() }

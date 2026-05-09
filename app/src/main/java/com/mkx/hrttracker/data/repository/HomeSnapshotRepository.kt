@@ -178,12 +178,24 @@ class HomeSnapshotRepository @Inject constructor(
     fun decodeProjection(projectionRecord: HomePkProjectionRecord?): PkProjectionResult? {
         projectionRecord ?: return null
         return runCatching {
-            HomePkProjectionJsonCodec.decode(projectionRecord.payloadJson)
-                ?.toProjection(
-                    generatedAtEpochMillis = projectionRecord.generatedAtEpochMillis,
-                    windowStartEpochMillis = projectionRecord.windowStartEpochMillis,
-                    windowEndEpochMillis = projectionRecord.windowEndEpochMillis,
-                )
+            val unit = runCatching {
+                com.mkx.hrttracker.model.pk.PkConcentrationUnit.valueOf(projectionRecord.concentrationUnit)
+            }.getOrNull() ?: return null
+
+            PkProjectionResult(
+                generatedAt = java.time.Instant.ofEpochMilli(projectionRecord.generatedAtEpochMillis),
+                windowStart = java.time.Instant.ofEpochMilli(projectionRecord.windowStartEpochMillis),
+                windowEnd = java.time.Instant.ofEpochMilli(projectionRecord.windowEndEpochMillis),
+                concentrationUnit = unit,
+                timeH = projectionRecord.timeH,
+                concentrations = projectionRecord.concentrations,
+                doseMarkers = projectionRecord.doseMarkers.map { marker ->
+                    com.mkx.hrttracker.model.pk.PkDoseMarker(
+                        timeH = marker.timeH,
+                        concentration = marker.concentration,
+                    )
+                },
+            )
         }.getOrNull()
     }
 
@@ -350,7 +362,15 @@ class HomeSnapshotRepository @Inject constructor(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
             windowStartEpochMillis = projection.windowStart.toEpochMilli(),
             windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
-            payloadJson = HomePkProjectionJsonCodec.encode(projection),
+            concentrationUnit = projection.concentrationUnit.name,
+            timeH = projection.timeH,
+            concentrations = projection.concentrations,
+            doseMarkers = projection.doseMarkers.map { marker ->
+                HomePkProjectionDoseMarkerRecord(
+                    timeH = marker.timeH,
+                    concentration = marker.concentration,
+                )
+            },
             latestEstradiolEntry = inputs.latestEstradiolEntry,
         )
         val snapshotRecord = HomeSnapshotRecord(

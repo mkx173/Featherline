@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -274,7 +275,10 @@ class HomeSnapshotRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
-                payloadJson = "{}",
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+                timeH = emptyList(),
+                concentrations = emptyList(),
+                doseMarkers = emptyList(),
                 latestEstradiolEntry = null,
             ),
             activeGroups = emptyList(),
@@ -432,7 +436,10 @@ class HomeSnapshotRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
-                payloadJson = "{}",
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+                timeH = emptyList(),
+                concentrations = emptyList(),
+                doseMarkers = emptyList(),
                 latestEstradiolEntry = null,
             ),
             activeGroups = emptyList(),

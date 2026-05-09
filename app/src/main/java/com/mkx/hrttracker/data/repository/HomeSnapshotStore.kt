@@ -131,8 +131,16 @@ data class HomePkProjectionRecord(
     val generatedAtEpochMillis: Long,
     val windowStartEpochMillis: Long,
     val windowEndEpochMillis: Long,
-    val payloadJson: String,
+    val concentrationUnit: String,
+    val timeH: List<Double>,
+    val concentrations: List<Double>,
+    val doseMarkers: List<HomePkProjectionDoseMarkerRecord>,
     val latestEstradiolEntry: MedicationLogEntry?,
+)
+
+data class HomePkProjectionDoseMarkerRecord(
+    val timeH: Double,
+    val concentration: Double,
 )
 
 internal data class HomeSnapshotState(
@@ -227,7 +235,13 @@ internal object HomeSnapshotCodec {
         writeLong(record.generatedAtEpochMillis)
         writeLong(record.windowStartEpochMillis)
         writeLong(record.windowEndEpochMillis)
-        writeString(record.payloadJson)
+        writeString(record.concentrationUnit)
+        writeList(record.timeH) { value -> writeDouble(value) }
+        writeList(record.concentrations) { value -> writeDouble(value) }
+        writeList(record.doseMarkers) { marker ->
+            writeDouble(marker.timeH)
+            writeDouble(marker.concentration)
+        }
         writeMedicationLogEntry(record.latestEstradiolEntry)
     }
 
@@ -239,7 +253,15 @@ internal object HomeSnapshotCodec {
             generatedAtEpochMillis = readLong(),
             windowStartEpochMillis = readLong(),
             windowEndEpochMillis = readLong(),
-            payloadJson = readString(),
+            concentrationUnit = readString(),
+            timeH = readList { readDouble() },
+            concentrations = readList { readDouble() },
+            doseMarkers = readList {
+                HomePkProjectionDoseMarkerRecord(
+                    timeH = readDouble(),
+                    concentration = readDouble(),
+                )
+            },
             latestEstradiolEntry = readMedicationLogEntry(),
         )
     }
@@ -575,7 +597,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 4
+private const val SNAPSHOT_CODEC_VERSION = 5
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"
