@@ -152,6 +152,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -474,34 +475,35 @@ internal fun MainE2ChartCard(
             .takeIf { xHours -> xHours.size == section.points.size }
             ?: section.points.indices.map { index -> index * section.sampleIntervalHours.toDouble() }
     }
-    // Split observed (solid) from predicted (dashed) at the start of today
-    // rather than at the precise minute. This is a constant offset of
-    // PastDays * 24 hours from the chart window start (which is itself today
-    // midnight − PastDays), so the split point doesn't move on per-minute
-    // ticks the way "split at exactly now" did — eliminating the visible
-    // dashed-line creep. Today's still-past portion (before now) gets drawn
-    // dashed too, which we accept as a "today is in flux" affordance: today's
-    // PK projection mixes very-recent doses where the model has the least
-    // anchoring, so signaling that with the dashed pattern is reasonable.
-    // Precise "now" position is still carried by the vertical decoration
-    // (currentTimeDecoration) below.
-    val todayStartXHours = remember { MainE2ChartPastDays * 24.0 }
-    val splitChartSeries = remember(pointXHours, section.points, todayStartXHours) {
+    // Two solid line series, no dashed stroke (which had a phase-shift artifact
+    // on zoom because Vico's Dashed is anchored to screen pixels):
+    // - Series 1: window-start → now, full alpha, area-filled.
+    // - Series 2: window-start → end, alpha-faded via a horizontal gradient
+    //   brush. Full alpha through "now"; nonlinear (1−t)² ease-out fade to
+    //   floor alpha after "now"; never reaches 0. In the [0, now] range Series
+    //   2 sits over Series 1 with full alpha — visually identical to a single
+    //   solid line. Past "now", only the faded Series 2 is visible.
+    val chartWindowHours = section.windowHours.coerceAtLeast(1)
+    val currentTimeXHours = section.predictionStartXHours
+        .coerceIn(0.0, chartWindowHours.toDouble())
+    val splitChartSeries = remember(
+        pointXHours,
+        section.points,
+        currentTimeXHours,
+    ) {
         splitMainE2ChartSeries(
             xHours = pointXHours,
             points = section.points,
-            predictionStartXHours = todayStartXHours,
+            observedEndXHours = currentTimeXHours,
+            predictedStartXHours = 0.0,
         )
     }
-    val chartWindowHours = section.windowHours.coerceAtLeast(1)
     val doseMarkerXHours = remember(section.doseMarkers) {
         section.doseMarkers.map { marker -> marker.xHours }
     }
     val doseMarkerConcentrations = remember(section.doseMarkers) {
         section.doseMarkers.map { marker -> marker.concentration }
     }
-    val currentTimeXHours = section.predictionStartXHours
-        .coerceIn(0.0, chartWindowHours.toDouble())
     val currentTimeConcentration = remember(currentTimeXHours, pointXHours, section.points) {
         mainE2ChartConcentrationAtX(
             xHours = currentTimeXHours,
@@ -679,6 +681,25 @@ internal fun MainE2ChartCard(
                 val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
                     MainE2ChartCoordinateMapper()
                 }
+                val chartViewportSnapshot = chartCoordinateMapper.viewportSnapshot
+                    .collectAsState().value
+                val predictedLineBrush = remember(
+                    lineColor,
+                    currentTimeXHours,
+                    chartWindowHours,
+                    chartViewportSnapshot,
+                ) {
+                    val visibleRange = chartViewportSnapshot?.visibleRange
+                    val visibleStart = visibleRange?.start ?: 0.0
+                    val visibleEnd = visibleRange?.endInclusive ?: chartWindowHours.toDouble()
+                    mainE2ChartPredictedLineBrush(
+                        lineColor = lineColor,
+                        visibleStartXHours = visibleStart,
+                        visibleEndXHours = visibleEnd,
+                        nowXHours = currentTimeXHours,
+                        fadeEndXHours = chartWindowHours.toDouble(),
+                    )
+                }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
@@ -788,8 +809,9 @@ internal fun MainE2ChartCard(
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
-                                                    stroke = LineCartesianLayer.LineStroke.Dashed(),
+                                                    fill = LineCartesianLayer.LineFill.single(
+                                                        Fill(predictedLineBrush)
+                                                    ),
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
@@ -1667,6 +1689,52 @@ private class MainE2ChartCoordinateMapper {
             _viewportSnapshot.value = nextSnapshot
         }
     }
+}
+
+// Predicted-line alpha is a function of *data* x:
+//   alpha(x) = 1                                              for x ≤ now
+//   alpha(x) = floor + (1 − floor) · (1 − t)²    where
+//              t = clamp((x − now) / (fadeEnd − now), 0, 1)   for x > now
+// Compose's Brush.horizontalGradient maps stop fractions to the visible
+// canvas (= Vico's plot area = current viewport in pixels). We sample the
+// data-space alpha curve at evenly spaced visible-pixel fractions so the
+// gradient's shape is anchored to data — panning past "now" to a future-only
+// view shows the correct partially-faded alpha at the visible left edge,
+// rather than restarting the curve from full alpha there.
+private const val MainE2ChartPredictedFloorAlpha = 0.3f
+private const val MainE2ChartPredictedFadeStops = 16
+
+private fun mainE2ChartPredictedLineBrush(
+    lineColor: Color,
+    visibleStartXHours: Double,
+    visibleEndXHours: Double,
+    nowXHours: Double,
+    fadeEndXHours: Double,
+): Brush {
+    val visibleSpan = (visibleEndXHours - visibleStartXHours).coerceAtLeast(1e-6)
+    val stops = Array(MainE2ChartPredictedFadeStops + 1) { i ->
+        val fraction = i.toFloat() / MainE2ChartPredictedFadeStops
+        val dataX = visibleStartXHours + fraction.toDouble() * visibleSpan
+        val alpha = mainE2ChartPredictedAlphaAt(
+            x = dataX,
+            nowX = nowXHours,
+            fadeEndX = fadeEndXHours,
+        )
+        fraction to lineColor.copy(alpha = alpha)
+    }
+    return Brush.horizontalGradient(colorStops = stops)
+}
+
+private fun mainE2ChartPredictedAlphaAt(
+    x: Double,
+    nowX: Double,
+    fadeEndX: Double,
+): Float {
+    if (x <= nowX) return 1f
+    val fadeSpan = (fadeEndX - nowX).coerceAtLeast(1e-6)
+    val t = ((x - nowX) / fadeSpan).coerceIn(0.0, 1.0).toFloat()
+    return MainE2ChartPredictedFloorAlpha +
+        (1f - MainE2ChartPredictedFloorAlpha) * (1f - t).pow(2f)
 }
 
 private fun mainE2ChartConcentrationAtX(

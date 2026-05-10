@@ -152,15 +152,20 @@ class MainUiModelsTest {
     }
 
     @Test
-    fun splitMainE2ChartSeries_splits_solid_and_predicted_segments_at_current_time() {
+    fun splitMainE2ChartSeries_overlaps_observed_to_now_with_predicted_from_today_start() {
+        // Observed series extends to "now" (x = 60), predicted starts from
+        // "today start" (x = 36). The two ranges overlap on [36, 60].
         val series = splitMainE2ChartSeries(
             xHours = listOf(0.0, 24.0, 48.0, 72.0),
             points = listOf(10f, 20f, 30f, 40f),
-            predictionStartXHours = 36.0,
+            observedEndXHours = 60.0,
+            predictedStartXHours = 36.0,
         )
 
-        assertEquals(listOf(0.0, 24.0, 36.0), series.observedXHours)
-        assertEquals(listOf(10f, 20f, 25f), series.observedPoints)
+        // Observed: window-start (0) → now (60), interpolated boundary at 60
+        assertEquals(listOf(0.0, 24.0, 48.0, 60.0), series.observedXHours)
+        assertEquals(listOf(10f, 20f, 30f, 35f), series.observedPoints)
+        // Predicted: today-start (36) → end, interpolated boundary at 36
         assertEquals(listOf(36.0, 48.0, 72.0), series.predictedXHours)
         assertEquals(listOf(25f, 30f, 40f), series.predictedPoints)
     }

@@ -276,7 +276,8 @@ internal fun mainE2ChartNoonTickHours(
 internal fun splitMainE2ChartSeries(
     xHours: List<Double>,
     points: List<Float>,
-    predictionStartXHours: Double,
+    observedEndXHours: Double,
+    predictedStartXHours: Double,
 ): MainE2SplitChartSeries {
     val paired = xHours
         .zip(points)
@@ -292,19 +293,23 @@ internal fun splitMainE2ChartSeries(
         )
     }
 
-    val splitX = predictionStartXHours.toVicoXHour()
-    val splitPoint = paired.exactOrInterpolatedPointAt(splitX)
+    val observedEnd = observedEndXHours.toVicoXHour()
+    val predictedStart = predictedStartXHours.toVicoXHour()
+
+    val observedEndPoint = paired.exactOrInterpolatedPointAt(observedEnd)
     val observed = buildList {
-        addAll(paired.filter { it.first <= splitX })
-        if (splitPoint != null && none { it.first == splitX }) {
-            add(splitPoint)
+        addAll(paired.filter { it.first <= observedEnd })
+        if (observedEndPoint != null && none { it.first == observedEnd }) {
+            add(observedEndPoint)
         }
     }.sortedBy { it.first }
+
+    val predictedStartPoint = paired.exactOrInterpolatedPointAt(predictedStart)
     val predicted = buildList {
-        if (splitPoint != null) {
-            add(splitPoint)
+        if (predictedStartPoint != null) {
+            add(predictedStartPoint)
         }
-        addAll(paired.filter { it.first > splitX })
+        addAll(paired.filter { it.first > predictedStart })
     }.distinctBy { it.first }.sortedBy { it.first }
 
     return MainE2SplitChartSeries(
