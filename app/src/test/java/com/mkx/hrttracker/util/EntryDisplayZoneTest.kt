@@ -9,8 +9,10 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.Locale
 
 class EntryDisplayZoneTest {
     @Test
@@ -180,6 +182,34 @@ class EntryDisplayZoneTest {
         assertEquals(
             "Asia/Tokyo · JST · +09:00",
             formatZoneLabel(entry, deviceZone = ZoneId.of("America/Los_Angeles"), locale = java.util.Locale.US)
+        )
+    }
+
+    @Test
+    fun formatEditorZoneLabel_null_when_picker_zone_matches_device() {
+        assertNull(
+            formatEditorZoneLabel(
+                appliedZoneId = ZoneId.of("America/Los_Angeles"),
+                appliedAtInstant = Instant.parse("2026-04-15T16:00:00Z"),
+                deviceZone = ZoneId.of("America/Los_Angeles"),
+                locale = Locale.US
+            )
+        )
+    }
+
+    @Test
+    fun formatEditorZoneLabel_returns_label_when_picker_zone_differs() {
+        val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
+            .atZone(ZoneId.of("Asia/Tokyo"))
+            .toInstant()
+        assertEquals(
+            "Asia/Tokyo · JST · +09:00",
+            formatEditorZoneLabel(
+                appliedZoneId = ZoneId.of("Asia/Tokyo"),
+                appliedAtInstant = instant,
+                deviceZone = ZoneId.of("America/Los_Angeles"),
+                locale = Locale.US
+            )
         )
     }
 }

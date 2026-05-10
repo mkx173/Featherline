@@ -107,12 +107,14 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatEditorZoneLabel
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -208,6 +210,7 @@ fun MedicationLogEntryEditorSheet(
     onIncreaseCountClick: () -> Unit,
     appliedDate: LocalDate,
     appliedTime: LocalTime,
+    appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
     errorMessageRes: Int? = null,
@@ -298,6 +301,7 @@ fun MedicationLogEntryEditorSheet(
             appliedTime = appliedTime,
             appliedDateText = dateFormatter(appliedDate),
             appliedTimeText = appliedTime.format(timeFormatter),
+            appliedZoneId = appliedZoneId,
             onAppliedDateChange = onAppliedDateChange,
             onAppliedTimeChange = onAppliedTimeChange,
         )
@@ -920,6 +924,7 @@ private fun MedicationLogAppliedAtFields(
     appliedTime: LocalTime,
     appliedDateText: String,
     appliedTimeText: String,
+    appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
 ) {
@@ -1010,6 +1015,23 @@ private fun MedicationLogAppliedAtFields(
         },
         singleLine = true,
     )
+
+    val locale = rememberAppLocale()
+    val deviceZone = remember { ZoneId.systemDefault() }
+    val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId) {
+        LocalDateTime.of(appliedDate, appliedTime).atZone(appliedZoneId).toInstant()
+    }
+    val zoneLabel = remember(pickerInstant, appliedZoneId, deviceZone, locale) {
+        formatEditorZoneLabel(appliedZoneId, pickerInstant, deviceZone, locale)
+    }
+    if (zoneLabel != null) {
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+        Text(
+            text = zoneLabel,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable

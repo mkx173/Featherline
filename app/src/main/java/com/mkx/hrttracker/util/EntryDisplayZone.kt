@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.util
 
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -51,6 +52,22 @@ fun formatZoneLabel(
     val tz = TimeZone.getTimeZone(zone.id)
     val abbrev = tz.getDisplayName(false, TimeZone.SHORT, locale)
     return listOf(zone.id, abbrev, offset.toString())
+        .filter(String::isNotEmpty)
+        .joinToString(separator = " · ")
+}
+
+fun formatEditorZoneLabel(
+    appliedZoneId: ZoneId,
+    appliedAtInstant: Instant,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+    locale: Locale = Locale.getDefault(),
+): String? {
+    val pickerOffset = appliedZoneId.rules.getOffset(appliedAtInstant)
+    val deviceOffset = deviceZone.rules.getOffset(appliedAtInstant)
+    if (pickerOffset == deviceOffset) return null
+    val tz = TimeZone.getTimeZone(appliedZoneId.id)
+    val abbrev = tz.getDisplayName(false, TimeZone.SHORT, locale).orEmpty()
+    return listOf(appliedZoneId.id, abbrev, pickerOffset.toString())
         .filter(String::isNotEmpty)
         .joinToString(separator = " · ")
 }
