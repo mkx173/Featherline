@@ -65,10 +65,8 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatEntryWallTime
-import com.mkx.hrttracker.util.formatZoneLabel
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -291,13 +289,9 @@ private fun SelectedDayRow(
         }
         is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
     }
-    val isUnplannedCrossZone = row is SelectedDayRowModel.Unplanned && isCrossZone(row.entry)
-    val appLocale = rememberAppLocale()
-    val deviceZone = remember { ZoneId.systemDefault() }
-    val linkedEntryZoneLabel = when (row) {
-        is SelectedDayRowModel.Scheduled -> row.entry.lastFulfillingEntry
-            ?.let { entry -> formatZoneLabel(entry, deviceZone, appLocale) }
-        is SelectedDayRowModel.Unplanned -> null
+    val isCrossZoneRow = when (row) {
+        is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
+        is SelectedDayRowModel.Scheduled -> row.entry.lastFulfillingEntry?.let { isCrossZone(it) } == true
     }
     val titleText = medicationDisplayName(row.details)
 
@@ -338,9 +332,9 @@ private fun SelectedDayRow(
                     Text(
                         text = timeLabel,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontStyle = if (isUnplannedCrossZone) FontStyle.Italic else FontStyle.Normal
+                            fontStyle = if (isCrossZoneRow) FontStyle.Italic else FontStyle.Normal
                         ),
-                        color = if (isUnplannedCrossZone) {
+                        color = if (isCrossZoneRow) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
                             MaterialTheme.colorScheme.onSurface
@@ -387,15 +381,7 @@ private fun SelectedDayRow(
                         )
                     }
                 }
-                if (linkedEntryZoneLabel != null) {
-                    Text(
-                        text = linkedEntryZoneLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+
             }
         }
     }
