@@ -579,7 +579,7 @@ private fun buildMainTodayRowsForDate(
                 scheduledAt.isBefore(now) -> MainTodayDoseStatus.OVERDUE
                 else -> MainTodayDoseStatus.UPCOMING
             },
-            loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it) },
+            loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,

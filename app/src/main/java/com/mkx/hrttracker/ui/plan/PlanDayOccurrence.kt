@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -26,7 +27,7 @@ data class PlanDayScheduleEntry(
     val fulfillingEntryUuids: List<UUID>,
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
-    val lastFulfillingEntry: MedicationLogEntry? = null,
+    val isLastFulfillingEntryCrossZone: Boolean = false,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
@@ -125,9 +126,9 @@ fun buildPlanDaySchedule(
                         medicationSortOrder = medicationSortOrder,
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
-                        loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it) },
-                        lastFulfillingEntry = lastFulfillingEntry,
-                        outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let { appliedAtAsLocalDateTime(it) },
+                        loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
+                        isLastFulfillingEntryCrossZone = lastFulfillingEntry?.let { isCrossZone(it, zoneId) } == true,
+                        outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let { appliedAtAsLocalDateTime(it, zoneId) },
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,

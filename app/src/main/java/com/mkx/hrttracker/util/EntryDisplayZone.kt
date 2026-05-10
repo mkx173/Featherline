@@ -4,8 +4,9 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZonedDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 
 fun displayZoneOf(
@@ -44,11 +45,26 @@ fun formatEditorZoneLabel(
     appliedZoneId: ZoneId,
     appliedAtInstant: Instant,
     deviceZone: ZoneId = ZoneId.systemDefault(),
+    locale: Locale = Locale.getDefault(),
 ): String? {
     val pickerOffset = appliedZoneId.rules.getOffset(appliedAtInstant)
     val deviceOffset = deviceZone.rules.getOffset(appliedAtInstant)
     if (pickerOffset == deviceOffset) return null
-    val abbrev = ZonedDateTime.ofInstant(appliedAtInstant, appliedZoneId)
-        .format(DateTimeFormatter.ofPattern("zzz", Locale.US))
-    return "${appliedZoneId.id} · $abbrev"
+    val offsetLabel = formatUtcOffset(pickerOffset)
+    val longName = appliedZoneId.getDisplayName(TextStyle.FULL, locale)
+    val zoneText = if (longName != appliedZoneId.id) longName else appliedZoneId.id
+    return "$zoneText · $offsetLabel"
+}
+
+private fun formatUtcOffset(offset: ZoneOffset): String {
+    val total = offset.totalSeconds
+    val sign = if (total >= 0) "+" else "-"
+    val abs = kotlin.math.abs(total)
+    val hours = abs / 3600
+    val minutes = (abs % 3600) / 60
+    return if (minutes == 0) {
+        "UTC$sign$hours"
+    } else {
+        "UTC$sign$hours:${minutes.toString().padStart(2, '0')}"
+    }
 }

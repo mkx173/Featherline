@@ -160,18 +160,35 @@ class EntryDisplayZoneTest {
     }
 
     @Test
-    fun formatEditorZoneLabel_returns_label_when_picker_zone_differs() {
+    fun formatEditorZoneLabel_returns_long_name_with_utc_offset_when_picker_zone_differs() {
         val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
-        assertEquals(
-            "Asia/Tokyo · JST",
-            formatEditorZoneLabel(
-                appliedZoneId = ZoneId.of("Asia/Tokyo"),
-                appliedAtInstant = instant,
-                deviceZone = ZoneId.of("America/Los_Angeles"),
-            )
+        val label = formatEditorZoneLabel(
+            appliedZoneId = ZoneId.of("Asia/Tokyo"),
+            appliedAtInstant = instant,
+            deviceZone = ZoneId.of("America/Los_Angeles"),
+            locale = java.util.Locale.US,
         )
+        // Long name varies subtly across runtimes ("Japan Time" vs "Japan Standard Time"),
+        // but the UTC offset suffix is stable, and the label should not be the bare IANA id.
+        assertEquals(true, label?.endsWith(" · UTC+9"))
+        assertEquals(false, label?.startsWith("Asia/Tokyo"))
+    }
+
+    @Test
+    fun formatEditorZoneLabel_renders_half_hour_offset() {
+        // India is UTC+5:30 year-round.
+        val instant = LocalDateTime.of(2026, 4, 15, 9, 0)
+            .atZone(ZoneId.of("Asia/Kolkata"))
+            .toInstant()
+        val label = formatEditorZoneLabel(
+            appliedZoneId = ZoneId.of("Asia/Kolkata"),
+            appliedAtInstant = instant,
+            deviceZone = ZoneId.of("America/Los_Angeles"),
+            locale = java.util.Locale.US,
+        )
+        assertEquals(true, label?.endsWith(" · UTC+5:30"))
     }
 
     @Test

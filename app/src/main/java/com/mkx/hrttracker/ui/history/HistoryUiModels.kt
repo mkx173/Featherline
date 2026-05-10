@@ -345,9 +345,6 @@ internal fun buildHistoryCalendarDayUiState(
     val entriesByPlanDate = rangeEntries.groupBy { entry ->
         entry.planCalendarDate(zoneId)
     }
-    val entriesByAppliedDate = rangeEntries.groupBy { entry ->
-        entry.planCalendarDate(zoneId)
-    }
 
     val dayStates = linkedMapOf<LocalDate, HistoryCalendarDayUiState>()
     var currentDate = startDate
@@ -355,7 +352,6 @@ internal fun buildHistoryCalendarDayUiState(
     while (!currentDate.isAfter(endDate)) {
         val scheduledGroups = groups.filter { group -> group.schedule.isScheduledOn(currentDate) }
         val planDateEntries = entriesByPlanDate[currentDate].orEmpty()
-        val appliedDateEntries = entriesByAppliedDate[currentDate].orEmpty()
         val primaryState = planDayStates[currentDate] ?: PlanCalendarDayUiState()
         val hasOffPlanRecord = planDateEntries.any { entry ->
             isPlanOffPlanEntry(
@@ -364,7 +360,7 @@ internal fun buildHistoryCalendarDayUiState(
                 date = currentDate,
                 zoneId = zoneId,
             )
-        } || appliedDateEntries.any { entry ->
+        } || planDateEntries.any { entry ->
             isHistoryAppliedDateOffPlanRecord(
                 entry = entry,
                 groups = groups,

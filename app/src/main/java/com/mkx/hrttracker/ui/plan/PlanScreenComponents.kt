@@ -291,7 +291,7 @@ private fun SelectedDayRow(
     }
     val isCrossZoneRow = when (row) {
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
-        is SelectedDayRowModel.Scheduled -> row.entry.lastFulfillingEntry?.let { isCrossZone(it) } == true
+        is SelectedDayRowModel.Scheduled -> row.entry.isLastFulfillingEntryCrossZone
     }
     val titleText = medicationDisplayName(row.details)
 
@@ -381,7 +381,6 @@ private fun SelectedDayRow(
                         )
                     }
                 }
-
             }
         }
     }
