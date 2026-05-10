@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +14,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -316,10 +314,10 @@ private fun CalibrationEditorScreenContent(
         }
     }
 
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
+    val contentFocusManager = LocalFocusManager.current
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
-        lazyListState = listState,
         state = topAppBarState
     )
     Scaffold(
@@ -327,7 +325,7 @@ private fun CalibrationEditorScreenContent(
         topBar = {
             TopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
+                    scrollState.animateScrollTo(0)
                 },
                 title = {
                     val title = stringResource(
@@ -375,64 +373,66 @@ private fun CalibrationEditorScreenContent(
                 LoadingIndicator()
             }
         } else {
-            LazyColumn(
-                state = listState,
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .imePadding(),
-                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+                    .imePadding()
+                    .verticalScroll(scrollState)
+                    .padding(dimensionResource(R.dimen.padding_medium)),
             ) {
-                item(key = "collected-at") {
-                    val deviceZone = remember { ZoneId.systemDefault() }
-                    val itemLocale = rememberAppLocale()
-                    val crossZoneLabel = remember(
-                        uiState.collectedDate,
-                        uiState.collectedTime,
-                        uiState.collectedZoneId,
-                        deviceZone,
-                        itemLocale,
-                    ) {
-                        val pickerInstant = LocalDateTime
-                            .of(uiState.collectedDate, uiState.collectedTime)
-                            .atZone(uiState.collectedZoneId)
-                            .toInstant()
-                        formatEditorZoneLabel(
-                            appliedZoneId = uiState.collectedZoneId,
-                            appliedAtInstant = pickerInstant,
-                            deviceZone = deviceZone,
-                            locale = itemLocale,
-                        )
-                    }
-                    CalibrationDateTimeCard(
-                        dateLabel = dateFormatter(uiState.collectedDate),
-                        timeLabel = uiState.collectedTime.format(timeFormatter),
-                        timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
-                        onDateClick = onDateClick,
-                        onTimeClick = onTimeClick,
-                        crossZoneLabel = crossZoneLabel,
+                val deviceZone = remember { ZoneId.systemDefault() }
+                val itemLocale = rememberAppLocale()
+                val crossZoneLabel = remember(
+                    uiState.collectedDate,
+                    uiState.collectedTime,
+                    uiState.collectedZoneId,
+                    deviceZone,
+                    itemLocale,
+                ) {
+                    val pickerInstant = LocalDateTime
+                        .of(uiState.collectedDate, uiState.collectedTime)
+                        .atZone(uiState.collectedZoneId)
+                        .toInstant()
+                    formatEditorZoneLabel(
+                        appliedZoneId = uiState.collectedZoneId,
+                        appliedAtInstant = pickerInstant,
+                        deviceZone = deviceZone,
+                        locale = itemLocale,
                     )
                 }
+                CalibrationDateTimeCard(
+                    dateLabel = dateFormatter(uiState.collectedDate),
+                    timeLabel = uiState.collectedTime.format(timeFormatter),
+                    timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
+                    onDateClick = onDateClick,
+                    onTimeClick = onTimeClick,
+                    crossZoneLabel = crossZoneLabel,
+                )
 
-                item(key = "results-header") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    Text(
-                        text = stringResource(R.string.settings_calibration_results).uppercase(),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
-                    )
-                }
-                itemsIndexed(
-                    items = uiState.drafts,
-                    key = { _, draft -> draft.draftKey },
-                ) { index, draft ->
-                    val totalCount = uiState.drafts.size
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                Text(
+                    text = stringResource(R.string.settings_calibration_results).uppercase(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 10.dp, top = 4.dp),
+                )
+
+                val totalCount = uiState.drafts.size
+                uiState.drafts.forEachIndexed { index, draft ->
+                    val nextDraft = uiState.drafts.getOrNull(index + 1)
+                    val nextFocusRequester = nextDraft
+                        ?.let { analyteFocusRequesters.getValue(it.draftKey) }
+                    // All drafts stay composed in a regular Column, so the next
+                    // field's FocusRequester is always attached when IME Next
+                    // fires. Direct requestFocus is sufficient.
+                    val onImeNext: () -> Unit = if (nextFocusRequester != null) {
+                        { nextFocusRequester.requestFocus() }
+                    } else {
+                        { contentFocusManager.clearFocus() }
+                    }
 
                     draft.analyteKey?.let { analyteKey ->
-                        val nextFocusRequester = uiState.drafts
-                            .getOrNull(index + 1)
-                            ?.let { nextDraft -> analyteFocusRequesters.getValue(nextDraft.draftKey) }
                         CalibrationAnalyteCard(
                             index = index,
                             count = totalCount,
@@ -445,6 +445,7 @@ private fun CalibrationEditorScreenContent(
                             focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
                             nextFocusRequester = nextFocusRequester,
                             imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
+                            onImeNext = onImeNext,
                             onValueChange = { value ->
                                 onBuiltinAnalyteValueChange(analyteKey, value)
                             },
@@ -455,10 +456,9 @@ private fun CalibrationEditorScreenContent(
                         )
                     } ?: CalibrationCustomAnalyteCard(
                         focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
-                        nextFocusRequester = uiState.drafts
-                            .getOrNull(index + 1)
-                            ?.let { nextDraft -> analyteFocusRequesters.getValue(nextDraft.draftKey) },
+                        nextFocusRequester = nextFocusRequester,
                         imeAction = calibrationEditorAnalyteImeAction(index, totalCount),
+                        onImeNext = onImeNext,
                         index = index,
                         count = totalCount,
                         abbreviation = checkNotNull(draft.customAnalyteAbbreviation),
@@ -481,76 +481,71 @@ private fun CalibrationEditorScreenContent(
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                     }
                 }
-                item(key = "add-analyte") {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small))
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.settings_calibration_remaining_analytes,
-                                remainingAnalyteCount,
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        HrtFilledTonalButton(
-                            text = stringResource(R.string.settings_calibration_add_analyte),
-                            onClick = onAddAnalyteClick,
-                            enabled = remainingAnalyteCount > 0,
-                            icon = Icons.Rounded.Add,
-                            iconModifier = Modifier.size(
-                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                            ),
-                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                            compact = true,
-                            contentPadding = ButtonDefaults.contentPaddingFor(
-                                ButtonDefaults.MinHeight,
-                                hasStartIcon = true
-                            ),
-                        )
-                    }
 
-                }
-                item(key = "notes") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().padding(top = dimensionResource(R.dimen.padding_small))
+                ) {
                     Text(
-                        text = stringResource(R.string.settings_calibration_notes_label).uppercase(),
-                        style = MaterialTheme.typography.titleSmall,
+                        text = stringResource(
+                            R.string.settings_calibration_remaining_analytes,
+                            remainingAnalyteCount,
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
                     )
-                    CalibrationNotesCard(
-                        notes = notesDraft,
-                        onNotesChange = { notesDraft = it },
-                        onNotesCommit = { onNotesCommit(notesDraft) },
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.settings_calibration_add_analyte),
+                        onClick = onAddAnalyteClick,
+                        enabled = remainingAnalyteCount > 0,
+                        icon = Icons.Rounded.Add,
+                        iconModifier = Modifier.size(
+                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                        ),
+                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                        compact = true,
+                        contentPadding = ButtonDefaults.contentPaddingFor(
+                            ButtonDefaults.MinHeight,
+                            hasStartIcon = true
+                        ),
                     )
                 }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                Text(
+                    text = stringResource(R.string.settings_calibration_notes_label).uppercase(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp, top = 4.dp),
+                )
+                CalibrationNotesCard(
+                    notes = notesDraft,
+                    onNotesChange = { notesDraft = it },
+                    onNotesCommit = { onNotesCommit(notesDraft) },
+                )
+
                 if (uiState.isEditing) {
-                    item(key = "delete") {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                        HrtButton(
-                            text = stringResource(R.string.delete_entries_confirm),
-                            onClick = onDeleteClick,
-                            enabled = !isCalibrationEditorBusy(uiState),
-                            modifier = Modifier.fillMaxWidth(),
-                            icon = Icons.Rounded.Delete,
-                            iconModifier = Modifier.size(
-                                ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
-                            ),
-                            iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            ),
-                        )
-                    }
-                }
-                item(key = "medical-disclaimer") {
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                    MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
+                    HrtButton(
+                        text = stringResource(R.string.delete_entries_confirm),
+                        onClick = onDeleteClick,
+                        enabled = !isCalibrationEditorBusy(uiState),
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = Icons.Rounded.Delete,
+                        iconModifier = Modifier.size(
+                            ButtonDefaults.iconSizeFor(ButtonDefaults.MinHeight)
+                        ),
+                        iconSpacing = ButtonDefaults.iconSpacingFor(ButtonDefaults.MinHeight),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                    )
                 }
+
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
             }
         }
     }
