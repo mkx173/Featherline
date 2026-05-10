@@ -33,6 +33,7 @@ import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -61,6 +62,7 @@ class BackupRestoreService @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
+    private val reminderNotificationManager: ReminderNotificationManager,
     private val backupCrypto: BackupCrypto,
 ) {
     suspend fun validateBackupFile(
@@ -97,6 +99,11 @@ class BackupRestoreService @Inject constructor(
         val snapshot = BackupSnapshotJsonCodec.decode(json)
             ?: throw IOException("Unable to decode the selected backup file.")
         val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = context.packageName)
+
+        // Any visible dose-reminder notification references slot UUIDs from the
+        // pre-restore database. Tap-actions afterward dispatch with stale state, so
+        // dismiss them up-front before the database mutation begins.
+        reminderNotificationManager.cancelAllDoseReminderNotifications()
 
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.runTransaction { database ->

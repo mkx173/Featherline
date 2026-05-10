@@ -65,6 +65,10 @@ class MedicationReminderActionHandler @Inject constructor(
                 TAG,
                 "reminder_action_log_now_saved entriesSaved=${entriesToSave.size} slots=${normalizedSlots.size}"
             )
+            // Only confirm the log when something actually got saved. A race where
+            // the slot was already fulfilled between the notification firing and the
+            // tap would otherwise produce a "logged 0 doses" toast.
+            reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         } else {
             diagnosticsLogger.info(
                 TAG,
@@ -72,7 +76,6 @@ class MedicationReminderActionHandler @Inject constructor(
             )
         }
 
-        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
         val groupUuidsToReschedule = normalizedSlots

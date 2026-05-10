@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -45,6 +46,8 @@ class AddEntryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
+        mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -471,6 +474,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -518,6 +522,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -567,6 +572,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -628,6 +634,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
@@ -702,6 +709,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -757,6 +765,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -813,6 +822,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -856,6 +866,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -909,7 +920,8 @@ class AddEntryViewModelTest {
         val viewModel = AddEntryViewModel(
             medicationLogRepository,
             medicationGroupRepository,
-            medicationReminderScheduler
+            medicationReminderScheduler,
+            medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -968,7 +980,10 @@ class AddEntryViewModelTest {
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val viewModel = AddEntryViewModel(
-            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+            medicationLogRepository,
+            medicationGroupRepository,
+            medicationReminderScheduler,
+            medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1013,7 +1028,10 @@ class AddEntryViewModelTest {
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
 
         val viewModel = AddEntryViewModel(
-            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+            medicationLogRepository,
+            medicationGroupRepository,
+            medicationReminderScheduler,
+            medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1044,6 +1062,7 @@ class AddEntryViewModelTest {
             medicationLogRepository = medicationLogRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()

@@ -168,6 +168,17 @@ class ReminderNotificationManager @Inject constructor(
         diagnosticsLogger.info(TAG, "reminder_notification_cancelled tag=$notificationTag")
     }
 
+    /**
+     * Cancel every dose-reminder notification this app currently has visible.
+     * Used by backup restore: any active reminder references slot UUIDs from the
+     * pre-restore database, so the notification must be dismissed before the
+     * user can tap an action that would dispatch with stale state.
+     */
+    fun cancelAllDoseReminderNotifications() {
+        NotificationManagerCompat.from(context).cancelAll()
+        diagnosticsLogger.info(TAG, "reminder_notifications_cancelled_all")
+    }
+
     fun canPostNotifications(): Boolean {
         try {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {

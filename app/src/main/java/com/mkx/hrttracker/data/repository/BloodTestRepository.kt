@@ -236,11 +236,17 @@ class BloodTestRepository @Inject constructor(
     }
 
     suspend fun deleteCustomAnalyte(uuid: UUID) {
-        val dao = databaseHolder.get().bloodTestDao()
-        require(dao.countResultsForCustomAnalyte(uuid.toString()) == 0) {
-            "Cannot delete a custom analyte that is referenced by blood test results."
+        // Wrap in a transaction so a concurrent panel save can't insert a referencing
+        // result between the count check and the delete. With ON DELETE RESTRICT the
+        // DB would block the delete with SQLiteConstraintException, which surfaces as
+        // an opaque constraint exception rather than the friendly require() message.
+        databaseHolder.withTransaction { database ->
+            val dao = database.bloodTestDao()
+            require(dao.countResultsForCustomAnalyte(uuid.toString()) == 0) {
+                "Cannot delete a custom analyte that is referenced by blood test results."
+            }
+            dao.deleteCustomAnalyte(uuid.toString())
         }
-        dao.deleteCustomAnalyte(uuid.toString())
         cachedActiveCustomAnalytes = null
     }
 

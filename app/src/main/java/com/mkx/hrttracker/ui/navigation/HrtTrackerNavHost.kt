@@ -338,7 +338,7 @@ fun HrtTrackerNavHost(
             popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
             popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
         ) {
-            composable(Screen.Main.route) {
+            composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
                 MainScreen(
                     modifier.padding(innerPadding),
                     scrollToTopSignal = mainScrollToTopSignal,
@@ -365,7 +365,7 @@ fun HrtTrackerNavHost(
                     }
                 )
             }
-            composable(Screen.Plan.route) {
+            composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
                 PlanScreen(
                     modifier = modifier.padding(innerPadding),
                     scrollToTopSignal = planScrollToTopSignal,
@@ -426,7 +426,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Plan.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 PlanBatchAddScreen(
                     modifier = modifier.padding(innerPadding),
@@ -440,7 +441,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Plan.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 ArchivedMedicationGroupsScreen(
                     modifier = modifier.padding(innerPadding),
@@ -463,7 +465,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Plan.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 HistoryScreen(
                     modifier = modifier.padding(innerPadding),
@@ -475,7 +478,7 @@ fun HrtTrackerNavHost(
                     }
                 )
             }
-            composable(Screen.Settings.route) {
+            composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
                 SettingsScreen(
                     modifier = modifier.padding(innerPadding),
                     scrollToTopSignal = settingsScrollToTopSignal,
@@ -493,7 +496,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Settings.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationScreen(
                     modifier = modifier.padding(innerPadding),
@@ -525,7 +529,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Settings.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationUnitsScreen(
                     modifier = modifier.padding(innerPadding),
@@ -544,7 +549,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = Screen.Settings.route
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationEditorScreen(
                     modifier = modifier.padding(innerPadding),
@@ -568,7 +574,8 @@ fun HrtTrackerNavHost(
                         type = NavType.StringType
                         defaultValue = ""
                     }
-                )
+                ),
+                sizeTransform = hrtSizeTransform,
             ) { backStackEntry ->
                 val openedFromArchivedGroupsPage =
                     backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==

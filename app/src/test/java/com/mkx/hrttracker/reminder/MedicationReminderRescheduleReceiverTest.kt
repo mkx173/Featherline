@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Intent
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -19,6 +20,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MedicationReminderRescheduleReceiverTest {
     private val reminderCapabilityReconciler: ReminderCapabilityReconciler = mockk(relaxed = true)
+    private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val pendingResult: BroadcastReceiver.PendingResult = mockk(relaxed = true)
     private val appScope = CoroutineScope(UnconfinedTestDispatcher())
@@ -57,6 +59,7 @@ class MedicationReminderRescheduleReceiverTest {
             action = Intent.ACTION_BOOT_COMPLETED,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = { pendingResult },
         )
@@ -73,6 +76,7 @@ class MedicationReminderRescheduleReceiverTest {
             action = Intent.ACTION_MY_PACKAGE_REPLACED,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = { pendingResult },
         )
@@ -89,12 +93,69 @@ class MedicationReminderRescheduleReceiverTest {
             action = AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = { pendingResult },
         )
 
         coVerify(exactly = 1) { reminderCapabilityReconciler.reconcile(any()) }
         verify(exactly = 1) { pendingResult.finish() }
+    }
+
+    @Test
+    fun timezoneChange_forcesHomeSnapshotRefresh() = runTest {
+        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+
+        handleReminderRescheduleBroadcast(
+            action = Intent.ACTION_TIMEZONE_CHANGED,
+            appScope = appScope,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+            goAsync = { pendingResult },
+        )
+
+        verify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+        }
+    }
+
+    @Test
+    fun timeChange_forcesHomeSnapshotRefresh() = runTest {
+        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+
+        handleReminderRescheduleBroadcast(
+            action = Intent.ACTION_TIME_CHANGED,
+            appScope = appScope,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+            goAsync = { pendingResult },
+        )
+
+        verify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
+        }
+    }
+
+    @Test
+    fun bootCompleted_doesNotRefreshSnapshot() = runTest {
+        coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
+
+        handleReminderRescheduleBroadcast(
+            action = Intent.ACTION_BOOT_COMPLETED,
+            appScope = appScope,
+            reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
+            diagnosticsLogger = diagnosticsLogger,
+            goAsync = { pendingResult },
+        )
+
+        // The startup preloader handles snapshot refresh; the receiver shouldn't
+        // double-fire here.
+        verify(exactly = 0) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = any())
+        }
     }
 
     @Test
@@ -110,6 +171,7 @@ class MedicationReminderRescheduleReceiverTest {
                 action = action,
                 appScope = appScope,
                 reminderCapabilityReconciler = reminderCapabilityReconciler,
+                homeSnapshotRepository = homeSnapshotRepository,
                 diagnosticsLogger = diagnosticsLogger,
                 goAsync = { pendingResult },
             )
@@ -127,6 +189,7 @@ class MedicationReminderRescheduleReceiverTest {
             action = "com.example.UNRELATED_ACTION",
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = {
                 goAsyncCallCount += 1
@@ -148,6 +211,7 @@ class MedicationReminderRescheduleReceiverTest {
             action = null,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = { pendingResult },
         )
@@ -164,6 +228,7 @@ class MedicationReminderRescheduleReceiverTest {
             action = Intent.ACTION_BOOT_COMPLETED,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = { pendingResult },
         )

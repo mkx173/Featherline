@@ -216,11 +216,29 @@ class MedicationReminderScheduler @Inject constructor(
         )
 
         if (exactAlarm) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                triggerAtMillis,
-                pendingIntent
-            )
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            } catch (error: SecurityException) {
+                // TOCTOU: the OS could revoke SCHEDULE_EXACT_ALARM between the
+                // capability check and the setExact call. Fall back to inexact
+                // so the alarm still fires (with reduced precision) instead of
+                // the exception propagating up to BroadcastReceiver crash.
+                diagnosticsLogger.warning(
+                    TAG,
+                    "reminder_alarm_schedule_exact_revoked groupUuid=${plan.groupUuid} " +
+                        "scheduledAt=${plan.scheduledAt}",
+                    error,
+                )
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }
         } else {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,

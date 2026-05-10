@@ -77,6 +77,16 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
         }
     }
 
+    /**
+     * Clear every snooze record tied to [groupUuid], regardless of whether the slot
+     * still matches the group's current schedule. Use after archive or delete to
+     * avoid waking the device for a slot whose owning group no longer exists.
+     */
+    suspend fun clearSnoozesForGroup(groupUuid: UUID) {
+        diagnosticsLogger.info(TAG, "snooze_clear_group_start groupUuid=$groupUuid")
+        clearSnoozesMatching { record -> record.slot.groupUuid == groupUuid }
+    }
+
     private suspend fun clearSnoozesMatching(
         shouldClear: (MedicationReminderSnoozeRecord) -> Boolean,
     ) {

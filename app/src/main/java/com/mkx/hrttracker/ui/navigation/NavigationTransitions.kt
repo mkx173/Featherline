@@ -3,8 +3,10 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -173,6 +175,21 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExit
 
 internal fun normalizeNavigationRoute(route: String?): String? {
     return route?.substringBefore("?")
+}
+
+/**
+ * Defeat the default [androidx.compose.animation.AnimatedContent] SizeTransform that
+ * navigation-compose installs. The default has clip = true, which on any momentary
+ * size delta between outgoing/incoming destinations (different Scaffold configs,
+ * inset changes, first-frame measurement) animates a clip rectangle from the top-left
+ * corner — exposing the surface color as a growing white rectangle.
+ *
+ * Returning `null` is *not* sufficient: navigation-compose falls back to
+ * SizeTransform() (clip = true). We must return a non-null SizeTransform with
+ * clip = false, plus snap() so the size tween itself is a no-op.
+ */
+internal val hrtSizeTransform: AnimatedContentTransitionScope<NavBackStackEntry>.() -> SizeTransform? = {
+    SizeTransform(clip = false) { _, _ -> snap() }
 }
 
 // Mirrors MaterialFadeThrough's alpha split: outgoing finishes before the

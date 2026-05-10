@@ -20,6 +20,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
@@ -63,6 +64,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     @param:ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle,
     private val appTimeSource: AppTimeSource
@@ -865,6 +867,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                    runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
@@ -938,6 +941,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
 
             runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+            runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
             runCatching { medicationReminderScheduler.rescheduleAll() }
 
             val savedGroupUuid = saveRecreatedDraftGroup(
@@ -1249,6 +1253,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 )
                 withContext(NonCancellable) {
                     runCatching { medicationReminderScheduler.cancelReminder(uuid) }
+                    runCatching { medicationReminderSnoozeScheduler.clearSnoozesForGroup(uuid) }
                 }
             }
         }
