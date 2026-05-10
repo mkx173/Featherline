@@ -171,7 +171,7 @@
     <string name="delete_entries_confirm">Delete</string>
     <string name="save_entry_failure">Unable to save entry.</string>
     <string name="delete_entry_failure">Unable to delete entry.</string>
-    <string name="cross_timezone_saved_toast">Saved · %1$s</string>
+    <string name="cross_timezone_saved_toast">Saved in %1$s</string>
     <string name="schedule_fulfillment_warning_title">Won’t Count as Completed</string>
     <string name="schedule_fulfillment_warning_message">The time you entered is far from the original scheduled time, so this record won’t count as completing this schedule.</string>
     <string name="history_delete_all_entries">Delete all records</string>

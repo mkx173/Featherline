@@ -4,10 +4,9 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
 import java.util.Locale
-import java.util.TimeZone
 
 fun displayZoneOf(
     entry: MedicationLogEntry,
@@ -41,33 +40,15 @@ fun formatEntryWallTime(
     return appliedAtAsLocalDateTime(entry, deviceZone).format(formatter)
 }
 
-fun formatZoneLabel(
-    entry: MedicationLogEntry,
-    deviceZone: ZoneId = ZoneId.systemDefault(),
-    locale: Locale = Locale.getDefault(),
-): String? {
-    if (!isCrossZone(entry, deviceZone)) return null
-    val zone = displayZoneOf(entry, deviceZone)
-    val offset = zone.rules.getOffset(entry.appliedAt)
-    val tz = TimeZone.getTimeZone(zone.id)
-    val abbrev = tz.getDisplayName(false, TimeZone.SHORT, locale)
-    return listOf(zone.id, abbrev, offset.toString())
-        .filter(String::isNotEmpty)
-        .joinToString(separator = " · ")
-}
-
 fun formatEditorZoneLabel(
     appliedZoneId: ZoneId,
     appliedAtInstant: Instant,
     deviceZone: ZoneId = ZoneId.systemDefault(),
-    locale: Locale = Locale.getDefault(),
 ): String? {
     val pickerOffset = appliedZoneId.rules.getOffset(appliedAtInstant)
     val deviceOffset = deviceZone.rules.getOffset(appliedAtInstant)
     if (pickerOffset == deviceOffset) return null
-    val tz = TimeZone.getTimeZone(appliedZoneId.id)
-    val abbrev = tz.getDisplayName(false, TimeZone.SHORT, locale).orEmpty()
-    return listOf(appliedZoneId.id, abbrev, pickerOffset.toString())
-        .filter(String::isNotEmpty)
-        .joinToString(separator = " · ")
+    val abbrev = ZonedDateTime.ofInstant(appliedAtInstant, appliedZoneId)
+        .format(DateTimeFormatter.ofPattern("zzz", Locale.US))
+    return "${appliedZoneId.id} · $abbrev"
 }

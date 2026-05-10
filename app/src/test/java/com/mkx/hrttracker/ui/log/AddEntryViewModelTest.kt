@@ -977,8 +977,7 @@ class AddEntryViewModelTest {
         advanceUntilIdle()
 
         val payload = viewModel.uiState.value.savedCrossZoneZoneText
-        assertNotNull(payload)
-        assertTrue(payload!!.contains("America/New_York"))
+        assertEquals("America/New_York", payload)
 
         // After consume, the field clears.
         viewModel.consumeCrossZoneToast()

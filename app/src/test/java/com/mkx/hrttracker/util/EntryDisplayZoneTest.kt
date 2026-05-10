@@ -12,7 +12,6 @@ import org.junit.Test
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.util.Locale
 
 class EntryDisplayZoneTest {
     @Test
@@ -150,49 +149,12 @@ class EntryDisplayZoneTest {
     }
 
     @Test
-    fun formatZoneLabel_null_when_not_cross_zone() {
-        val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            sourceGroupUuid = null,
-            appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
-            appliedAtTimeZoneId = "America/Los_Angeles"
-        )
-        assertNull(formatZoneLabel(entry, deviceZone = ZoneId.of("America/Los_Angeles"), locale = java.util.Locale.US))
-    }
-
-    @Test
-    fun formatZoneLabel_renders_iana_short_name_and_offset_for_cross_zone() {
-        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
-            .atZone(ZoneId.of("Asia/Tokyo"))
-            .toInstant()
-        val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            sourceGroupUuid = null,
-            appliedAt = instant,
-            appliedAtTimeZoneId = "Asia/Tokyo"
-        )
-        assertEquals(
-            "Asia/Tokyo · JST · +09:00",
-            formatZoneLabel(entry, deviceZone = ZoneId.of("America/Los_Angeles"), locale = java.util.Locale.US)
-        )
-    }
-
-    @Test
     fun formatEditorZoneLabel_null_when_picker_zone_matches_device() {
         assertNull(
             formatEditorZoneLabel(
                 appliedZoneId = ZoneId.of("America/Los_Angeles"),
                 appliedAtInstant = Instant.parse("2026-04-15T16:00:00Z"),
                 deviceZone = ZoneId.of("America/Los_Angeles"),
-                locale = Locale.US
             )
         )
     }
@@ -203,12 +165,11 @@ class EntryDisplayZoneTest {
             .atZone(ZoneId.of("Asia/Tokyo"))
             .toInstant()
         assertEquals(
-            "Asia/Tokyo · JST · +09:00",
+            "Asia/Tokyo · JST",
             formatEditorZoneLabel(
                 appliedZoneId = ZoneId.of("Asia/Tokyo"),
                 appliedAtInstant = instant,
                 deviceZone = ZoneId.of("America/Los_Angeles"),
-                locale = Locale.US
             )
         )
     }
