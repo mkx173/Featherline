@@ -474,11 +474,23 @@ internal fun MainE2ChartCard(
             .takeIf { xHours -> xHours.size == section.points.size }
             ?: section.points.indices.map { index -> index * section.sampleIntervalHours.toDouble() }
     }
-    val splitChartSeries = remember(pointXHours, section.points, section.predictionStartXHours) {
+    // Split observed (solid) from predicted (dashed) at the start of today
+    // rather than at the precise minute. This is a constant offset of
+    // PastDays * 24 hours from the chart window start (which is itself today
+    // midnight − PastDays), so the split point doesn't move on per-minute
+    // ticks the way "split at exactly now" did — eliminating the visible
+    // dashed-line creep. Today's still-past portion (before now) gets drawn
+    // dashed too, which we accept as a "today is in flux" affordance: today's
+    // PK projection mixes very-recent doses where the model has the least
+    // anchoring, so signaling that with the dashed pattern is reasonable.
+    // Precise "now" position is still carried by the vertical decoration
+    // (currentTimeDecoration) below.
+    val todayStartXHours = remember { MainE2ChartPastDays * 24.0 }
+    val splitChartSeries = remember(pointXHours, section.points, todayStartXHours) {
         splitMainE2ChartSeries(
             xHours = pointXHours,
             points = section.points,
-            predictionStartXHours = section.predictionStartXHours,
+            predictionStartXHours = todayStartXHours,
         )
     }
     val chartWindowHours = section.windowHours.coerceAtLeast(1)
@@ -490,9 +502,13 @@ internal fun MainE2ChartCard(
     }
     val currentTimeXHours = section.predictionStartXHours
         .coerceIn(0.0, chartWindowHours.toDouble())
-    val currentTimeConcentration = splitChartSeries.predictedPoints.firstOrNull()
-        ?: splitChartSeries.observedPoints.lastOrNull()
-        ?: 0f
+    val currentTimeConcentration = remember(currentTimeXHours, pointXHours, section.points) {
+        mainE2ChartConcentrationAtX(
+            xHours = currentTimeXHours,
+            pointXHours = pointXHours,
+            points = section.points,
+        )
+    }
     val chartWindowStart = remember(now) { mainE2ChartWindowStart(now) }
     val chartTimeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val chartDateFormatter = remember(appLocale, now.year) {
@@ -608,22 +624,18 @@ internal fun MainE2ChartCard(
         splitChartSeries,
         doseMarkerXHours,
         doseMarkerConcentrations,
-        currentTimeXHours,
-        currentTimeConcentration,
     ) {
         modelProducer.runTransaction {
             lineSeries {
+                // Solid line: window start → today midnight (with area fill).
                 series(
                     x = splitChartSeries.observedXHours,
                     y = splitChartSeries.observedPoints,
                 )
+                // Dashed line: today midnight → window end (no area fill).
                 series(
                     x = splitChartSeries.predictedXHours,
                     y = splitChartSeries.predictedPoints,
-                )
-                series(
-                    x = listOf(currentTimeXHours),
-                    y = listOf(currentTimeConcentration),
                 )
                 if (doseMarkerXHours.isNotEmpty()) {
                     series(
@@ -671,13 +683,27 @@ internal fun MainE2ChartCard(
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     currentTimeXHours,
+                    currentTimeConcentration,
                     currentTimeLineColor,
+                    currentTimeColor,
+                    markerSurfaceColor,
+                    yAxisSpec.maxY,
                     chartCoordinateMapper,
                 ) {
                     VerticalLineDecoration(
                         x = currentTimeXHours,
                         lineColor = currentTimeLineColor,
                         coordinateMapper = chartCoordinateMapper,
+                        // The "you are here" dot also rides this decoration so it
+                        // can update per minute without forcing a model republish
+                        // (the dot used to be its own line series, which dragged the
+                        // line model into every minute tick). Decorations recompose
+                        // independently of the line model, so the dot moves smoothly
+                        // while the solid + dashed line segments stay stable.
+                        pointY = currentTimeConcentration.toDouble(),
+                        pointMaxY = yAxisSpec.maxY,
+                        pointFillColor = currentTimeColor,
+                        pointStrokeColor = markerSurfaceColor,
                     )
                 }
                 val interactionMarkerDecoration = remember(
@@ -705,17 +731,6 @@ internal fun MainE2ChartCard(
                     } else {
                         null
                     }
-                }
-                val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
-                    LineCartesianLayer.Point(
-                        component = ShapeComponent(
-                            fill = Fill(currentTimeColor),
-                            shape = CircleShape,
-                            strokeFill = Fill(markerSurfaceColor),
-                            strokeThickness = 1.dp,
-                        ),
-                        size = 8.dp,
-                    )
                 }
                 val doseMarkerPoint = remember(doseMarkerColor, markerSurfaceColor) {
                     LineCartesianLayer.Point(
@@ -776,11 +791,6 @@ internal fun MainE2ChartCard(
                                                     fill = LineCartesianLayer.LineFill.single(Fill(lineColor)),
                                                     stroke = LineCartesianLayer.LineStroke.Dashed(),
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
-                                                ),
-                                                LineCartesianLayer.rememberLine(
-                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
-                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
-                                                    pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
