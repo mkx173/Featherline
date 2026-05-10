@@ -296,7 +296,20 @@ fun MedicationDraftUiState.changeMedicationKey(
 fun MedicationDraftUiState.changeDoseKind(
     doseKind: MedicationDoseKind,
 ): MedicationDraftUiState {
-    val next = copy(doseKind = doseKind)
+    if (this.doseKind == doseKind) {
+        return this
+    }
+    // Clear every dose-value field on a real switch so leftover values from the
+    // previous kind don't reappear if the user toggles back. Without this, e.g.
+    // typing 100 in MG_AS_MEDICINE, switching to PATCH_RELEASE_RATE_MCG_DAY, then
+    // back, would resurrect "100" instead of starting fresh.
+    val next = copy(
+        doseKind = doseKind,
+        doseMg = "",
+        gelPercent = "",
+        gelWeightGrams = "",
+        patchReleaseRateMcgPerDay = "",
+    )
     return if (next.showsCustomDoseUnitSelector()) {
         next
     } else {

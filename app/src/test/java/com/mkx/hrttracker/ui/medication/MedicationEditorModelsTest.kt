@@ -230,6 +230,39 @@ class MedicationEditorModelsTest {
     }
 
     @Test
+    fun changeDoseKind_clears_other_kinds_value_fields() {
+        // Reproduces a production-reported bug: typing in one dose kind, switching
+        // to another, then back, used to resurrect the original value because the
+        // previous kind's text fields were never cleared.
+        val draft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON,
+        )
+            .changeDoseKind(MedicationDoseKind.PATCH_TOTAL_MG)
+            .copy(doseMg = "3.8")
+            .changeDoseKind(MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY)
+            .copy(patchReleaseRateMcgPerDay = "75")
+
+        // Switching back must NOT bring the prior 3.8 mg value back.
+        val backToTotalMg = draft.changeDoseKind(MedicationDoseKind.PATCH_TOTAL_MG)
+        assertEquals("", backToTotalMg.doseMg)
+        assertEquals("", backToTotalMg.patchReleaseRateMcgPerDay)
+    }
+
+    @Test
+    fun changeDoseKind_no_op_when_target_kind_matches_keeps_value() {
+        // The clear-on-switch fix only applies on a real switch; same-kind calls
+        // (e.g. an idempotent UI emission) must not nuke user input.
+        val draft = defaultMedicationDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).copy(doseMg = "2.5")
+
+        val same = draft.changeDoseKind(MedicationDoseKind.MG_AS_MEDICINE)
+        assertEquals("2.5", same.doseMg)
+    }
+
+    @Test
     fun gel_percent_and_weight_validates_both_fields() {
         val draft = defaultMedicationDraft(
             category = MedicationCategory.ESTRADIOL,

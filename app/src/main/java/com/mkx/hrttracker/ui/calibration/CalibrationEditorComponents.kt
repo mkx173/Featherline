@@ -37,7 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -355,6 +357,18 @@ internal fun CalibrationAnalyteCard(
                         } else {
                             Modifier
                         }
+                    )
+                    .then(
+                        if (nextFocusRequester != null) {
+                            // Declarative focus order so the IME "next" target is known
+                            // to Compose's focus tree even before the next field has
+                            // attached. Fixes a first-tap-no-op reported in production:
+                            // typing in the E2 card and tapping IME Next would silently
+                            // fail until the user manually focused another field first.
+                            Modifier.focusProperties { next = nextFocusRequester }
+                        } else {
+                            Modifier
+                        }
                     ),
                 isError = isError,
                 label = {
@@ -377,9 +391,10 @@ internal fun CalibrationAnalyteCard(
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = {
-                        if (nextFocusRequester != null) {
-                            nextFocusRequester.requestFocus()
-                        } else {
+                        // Walk the focus tree (honors focusProperties { next = ... }
+                        // we attached above). moveFocus returns false if there's no
+                        // next focusable; in that case dismiss the keyboard.
+                        if (!focusManager.moveFocus(FocusDirection.Next)) {
                             focusManager.clearFocus()
                         }
                     },
@@ -549,6 +564,13 @@ internal fun CalibrationCustomAnalyteCard(
                         } else {
                             Modifier
                         }
+                    )
+                    .then(
+                        if (nextFocusRequester != null) {
+                            Modifier.focusProperties { next = nextFocusRequester }
+                        } else {
+                            Modifier
+                        }
                     ),
                 isError = isError,
                 label = {
@@ -571,9 +593,7 @@ internal fun CalibrationCustomAnalyteCard(
                 ),
                 keyboardActions = KeyboardActions(
                     onNext = {
-                        if (nextFocusRequester != null) {
-                            nextFocusRequester.requestFocus()
-                        } else {
+                        if (!focusManager.moveFocus(FocusDirection.Next)) {
                             focusManager.clearFocus()
                         }
                     },
