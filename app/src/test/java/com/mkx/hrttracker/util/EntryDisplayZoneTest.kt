@@ -7,6 +7,7 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -144,5 +145,41 @@ class EntryDisplayZoneTest {
         )
         val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
         assertEquals("09:00", formatEntryWallTime(entry, formatter, deviceZone = ZoneId.of("America/Los_Angeles")))
+    }
+
+    @Test
+    fun formatZoneLabel_null_when_not_cross_zone() {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
+            appliedAtTimeZoneId = "America/Los_Angeles"
+        )
+        assertNull(formatZoneLabel(entry, deviceZone = ZoneId.of("America/Los_Angeles"), locale = java.util.Locale.US))
+    }
+
+    @Test
+    fun formatZoneLabel_renders_iana_short_name_and_offset_for_cross_zone() {
+        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
+            .atZone(ZoneId.of("Asia/Tokyo"))
+            .toInstant()
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = instant,
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        assertEquals(
+            "Asia/Tokyo · JST · +09:00",
+            formatZoneLabel(entry, deviceZone = ZoneId.of("America/Los_Angeles"), locale = java.util.Locale.US)
+        )
     }
 }
