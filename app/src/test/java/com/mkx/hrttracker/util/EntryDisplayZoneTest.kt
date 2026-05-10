@@ -42,4 +42,67 @@ class EntryDisplayZoneTest {
         val deviceZone = ZoneId.of("America/Los_Angeles")
         assertEquals(deviceZone, displayZoneOf(entry, deviceZone = deviceZone))
     }
+
+    @Test
+    fun isCrossZone_false_when_same_zone() {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        assertEquals(false, isCrossZone(entry, deviceZone = ZoneId.of("Asia/Tokyo")))
+    }
+
+    @Test
+    fun isCrossZone_false_when_aliased_zones_share_offset() {
+        // America/Toronto and America/New_York share -05:00 / -04:00 rules.
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
+            appliedAtTimeZoneId = "America/Toronto"
+        )
+        assertEquals(false, isCrossZone(entry, deviceZone = ZoneId.of("America/New_York")))
+    }
+
+    @Test
+    fun isCrossZone_true_when_offsets_differ_at_entry_instant() {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0)
+                .atZone(ZoneId.of("Asia/Tokyo"))
+                .toInstant(),
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        assertEquals(true, isCrossZone(entry, deviceZone = ZoneId.of("America/Los_Angeles")))
+    }
+
+    @Test
+    fun isCrossZone_falls_back_to_false_when_entry_zone_invalid() {
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
+            appliedAtTimeZoneId = "Not/A_Zone"
+        )
+        assertEquals(false, isCrossZone(entry, deviceZone = ZoneId.of("America/Los_Angeles")))
+    }
 }
