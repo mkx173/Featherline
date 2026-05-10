@@ -65,8 +65,10 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatEntryWallTime
+import com.mkx.hrttracker.util.formatZoneLabel
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.rememberAppLocale
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -290,6 +292,13 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
     }
     val isUnplannedCrossZone = row is SelectedDayRowModel.Unplanned && isCrossZone(row.entry)
+    val appLocale = rememberAppLocale()
+    val deviceZone = remember { ZoneId.systemDefault() }
+    val linkedEntryZoneLabel = when (row) {
+        is SelectedDayRowModel.Scheduled -> row.entry.lastFulfillingEntry
+            ?.let { entry -> formatZoneLabel(entry, deviceZone, appLocale) }
+        is SelectedDayRowModel.Unplanned -> null
+    }
     val titleText = medicationDisplayName(row.details)
 
     EditorSegmentedListItem(
@@ -377,6 +386,15 @@ private fun SelectedDayRow(
                             modifier = Modifier.alignByBaseline().cjkTextOffset(titleText)
                         )
                     }
+                }
+                if (linkedEntryZoneLabel != null) {
+                    Text(
+                        text = linkedEntryZoneLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }

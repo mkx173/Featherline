@@ -25,6 +25,7 @@ data class PlanDayScheduleEntry(
     val fulfillingEntryUuids: List<UUID>,
     val outsideScheduleWindowEntryUuids: List<UUID> = emptyList(),
     val loggedAt: LocalDateTime? = null,
+    val lastFulfillingEntry: MedicationLogEntry? = null,
     val outsideScheduleWindowLoggedAt: LocalDateTime? = null,
     val loggedCount: Int = 0,
     val isFulfilled: Boolean,
@@ -109,6 +110,7 @@ fun buildPlanDaySchedule(
                         .sortedBy(MedicationLogEntry::appliedAt)
                     val loggedCount = matchingLogs.sumOf { entry -> entry.count }
                     val isFulfilled = loggedCount >= requiredCount
+                    val lastFulfillingEntry = matchingLogs.lastOrNull()
                     PlanDayScheduleEntry(
                         groupUuid = group.uuid,
                         groupName = group.name,
@@ -121,10 +123,11 @@ fun buildPlanDaySchedule(
                         medicationSortOrder = medicationSortOrder,
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
-                        loggedAt = matchingLogs.lastOrNull()
+                        loggedAt = lastFulfillingEntry
                             ?.appliedAt
                             ?.atZone(zoneId)
                             ?.toLocalDateTime(),
+                        lastFulfillingEntry = lastFulfillingEntry,
                         outsideScheduleWindowLoggedAt = outsideWindowLogs.lastOrNull()
                             ?.appliedAt
                             ?.atZone(zoneId)
