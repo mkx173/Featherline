@@ -592,7 +592,7 @@
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>
-    <string name="reminder_notification_nothing_to_add">已记录</string>
+    <string name="reminder_notification_nothing_to_add">已经记录过了</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 分组</item>
     </plurals>
