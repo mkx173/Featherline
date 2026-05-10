@@ -1017,11 +1017,12 @@ private fun MedicationLogAppliedAtFields(
     )
 
     val deviceZone = remember { ZoneId.systemDefault() }
+    val zoneLabelLocale = rememberAppLocale()
     val pickerInstant = remember(appliedDate, appliedTime, appliedZoneId) {
         LocalDateTime.of(appliedDate, appliedTime).atZone(appliedZoneId).toInstant()
     }
-    val zoneLabel = remember(pickerInstant, appliedZoneId, deviceZone) {
-        formatEditorZoneLabel(appliedZoneId, pickerInstant, deviceZone)
+    val zoneLabel = remember(pickerInstant, appliedZoneId, deviceZone, zoneLabelLocale) {
+        formatEditorZoneLabel(appliedZoneId, pickerInstant, deviceZone, zoneLabelLocale)
     }
     if (zoneLabel != null) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))

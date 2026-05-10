@@ -2102,7 +2102,7 @@ private fun HistoryEntryCard(
                         imageVector = Icons.Outlined.Public,
                         contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
                 Text(

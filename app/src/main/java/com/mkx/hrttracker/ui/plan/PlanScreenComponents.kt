@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
@@ -39,7 +40,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -331,14 +331,8 @@ private fun SelectedDayRow(
                     )
                     Text(
                         text = timeLabel,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontStyle = if (isCrossZoneRow) FontStyle.Italic else FontStyle.Normal
-                        ),
-                        color = if (isCrossZoneRow) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,
                         maxLines = 1,
                         modifier = Modifier.alignByBaseline()
@@ -369,6 +363,16 @@ private fun SelectedDayRow(
                                 ),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        if (isCrossZoneRow) {
+                            Icon(
+                                imageVector = Icons.Outlined.Public,
+                                contentDescription = stringResource(
+                                    R.string.cross_timezone_entry_indicator
+                                ),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                         Text(

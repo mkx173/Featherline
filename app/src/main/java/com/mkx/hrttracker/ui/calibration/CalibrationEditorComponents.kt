@@ -3,6 +3,8 @@ package com.mkx.hrttracker.ui.calibration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.WaterDrop
@@ -90,6 +93,7 @@ internal fun CalibrationEditorCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CalibrationDateTimeCard(
     dateLabel: String,
@@ -97,6 +101,7 @@ internal fun CalibrationDateTimeCard(
     timeSinceLastEstradiolDoseMillis: Long?,
     onDateClick: () -> Unit,
     onTimeClick: () -> Unit,
+    crossZoneLabel: String? = null,
 ) {
     CalibrationEditorCard(
         modifier = Modifier.padding(vertical = 8.dp)
@@ -123,9 +128,51 @@ internal fun CalibrationDateTimeCard(
                     onClick = onTimeClick,
                 )
             }
-            timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
-                CalibrationElapsedEstradiolDosePill(elapsedMillis = elapsedMillis)
+            if (timeSinceLastEstradiolDoseMillis != null || crossZoneLabel != null) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
+                        CalibrationElapsedEstradiolDosePill(elapsedMillis = elapsedMillis)
+                    }
+                    crossZoneLabel?.let { label ->
+                        CalibrationCrossZonePill(label = label)
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+internal fun CalibrationCrossZonePill(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Public,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 2.dp).cjkTextOffset(label)
+            )
         }
     }
 }
@@ -364,7 +411,7 @@ internal fun CalibrationAnalyteCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                         ) {
                             Box(
                                 modifier = Modifier.size(18.dp),

@@ -361,18 +361,20 @@ class CalibrationViewModelTest {
     }
 
     @Test
-    fun groupCalibrationPanelsByMonth_usesLocalDateAndPreservesPanelOrder() {
+    fun groupCalibrationPanelsByMonth_usesPanelStoredZoneAndPreservesPanelOrder() {
         val formatter = calibrationMonthHeaderFormatter(
             locale = Locale.ENGLISH,
             currentYear = 2026,
         )
-        val localZoneId = ZoneId.of("UTC")
-        val localAprilPanel = testBloodTestPanel(
+        // Panels bucket by their own stored zone, not the device zone passed here.
+        // losAngelesMarchPanel: 2026-04-01T06:30Z = 2026-03-31 23:30 PDT → March bucket.
+        val losAngelesMarchPanel = testBloodTestPanel(
             uuid = UUID.fromString("fdc5a64f-3b29-4676-8d51-37976eb07b1d"),
             collectedAt = Instant.parse("2026-04-01T06:30:00Z"),
             collectedAtTimeZoneId = "America/Los_Angeles",
         )
-        val localMarchPanel = testBloodTestPanel(
+        // tokyoAprilPanel: 2026-03-31T15:30Z = 2026-04-01 00:30 JST → April bucket.
+        val tokyoAprilPanel = testBloodTestPanel(
             uuid = UUID.fromString("1bd6b492-7670-4912-b625-7f06006e3797"),
             collectedAt = Instant.parse("2026-03-31T15:30:00Z"),
             collectedAtTimeZoneId = "Asia/Tokyo",
@@ -384,21 +386,21 @@ class CalibrationViewModelTest {
         )
 
         val groups = groupCalibrationPanelsByMonth(
-            panels = listOf(localAprilPanel, localMarchPanel, utcMarchPanel),
+            panels = listOf(losAngelesMarchPanel, tokyoAprilPanel, utcMarchPanel),
             monthFormatter = formatter,
-            zoneId = localZoneId,
+            zoneId = ZoneId.of("UTC"),
         )
 
         assertEquals(2, groups.size)
-        assertEquals(YearMonth.of(2026, 4), groups[0].yearMonth)
-        assertEquals("April", groups[0].monthLabel)
-        assertEquals(listOf(localAprilPanel.uuid), groups[0].panels.map(BloodTestPanel::uuid))
-        assertEquals(YearMonth.of(2026, 3), groups[1].yearMonth)
-        assertEquals("March", groups[1].monthLabel)
+        assertEquals(YearMonth.of(2026, 3), groups[0].yearMonth)
+        assertEquals("March", groups[0].monthLabel)
         assertEquals(
-            listOf(localMarchPanel.uuid, utcMarchPanel.uuid),
-            groups[1].panels.map(BloodTestPanel::uuid),
+            listOf(losAngelesMarchPanel.uuid, utcMarchPanel.uuid),
+            groups[0].panels.map(BloodTestPanel::uuid),
         )
+        assertEquals(YearMonth.of(2026, 4), groups[1].yearMonth)
+        assertEquals("April", groups[1].monthLabel)
+        assertEquals(listOf(tokyoAprilPanel.uuid), groups[1].panels.map(BloodTestPanel::uuid))
     }
 
     @Test

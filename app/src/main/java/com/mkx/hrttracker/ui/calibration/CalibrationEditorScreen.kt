@@ -80,13 +80,16 @@ import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatEditorZoneLabel
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
@@ -119,6 +122,17 @@ fun CalibrationEditorScreen(
         stringResource(R.string.settings_calibration_save_entry_failure)
     val deleteEntryFailureMessage =
         stringResource(R.string.settings_calibration_delete_entry_failure)
+    val crossZoneSavedFormat = stringResource(R.string.cross_timezone_saved_toast)
+
+    LaunchedEffect(uiState.savedCrossZoneZoneText) {
+        val zoneText = uiState.savedCrossZoneZoneText ?: return@LaunchedEffect
+        Toast.makeText(
+            context,
+            crossZoneSavedFormat.format(zoneText),
+            Toast.LENGTH_SHORT,
+        ).show()
+        viewModel.consumeCrossZoneToast()
+    }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
@@ -370,12 +384,33 @@ private fun CalibrationEditorScreenContent(
                 contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
             ) {
                 item(key = "collected-at") {
+                    val deviceZone = remember { ZoneId.systemDefault() }
+                    val itemLocale = rememberAppLocale()
+                    val crossZoneLabel = remember(
+                        uiState.collectedDate,
+                        uiState.collectedTime,
+                        uiState.collectedZoneId,
+                        deviceZone,
+                        itemLocale,
+                    ) {
+                        val pickerInstant = LocalDateTime
+                            .of(uiState.collectedDate, uiState.collectedTime)
+                            .atZone(uiState.collectedZoneId)
+                            .toInstant()
+                        formatEditorZoneLabel(
+                            appliedZoneId = uiState.collectedZoneId,
+                            appliedAtInstant = pickerInstant,
+                            deviceZone = deviceZone,
+                            locale = itemLocale,
+                        )
+                    }
                     CalibrationDateTimeCard(
                         dateLabel = dateFormatter(uiState.collectedDate),
                         timeLabel = uiState.collectedTime.format(timeFormatter),
                         timeSinceLastEstradiolDoseMillis = uiState.timeSinceLastEstradiolDoseMillis,
                         onDateClick = onDateClick,
                         onTimeClick = onTimeClick,
+                        crossZoneLabel = crossZoneLabel,
                     )
                 }
 

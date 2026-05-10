@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
@@ -88,7 +89,9 @@ import com.mkx.hrttracker.util.CalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.calibrationPanelDateTimeFormatters
+import com.mkx.hrttracker.util.displayZoneOf
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
+import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
 import java.time.Duration
@@ -511,7 +514,8 @@ internal fun groupCalibrationPanelsByMonth(
 ): List<CalibrationPanelMonthGroup> {
     val groups = linkedMapOf<YearMonth, MutableList<BloodTestPanel>>()
     panels.forEach { panel ->
-        val yearMonth = YearMonth.from(panel.collectedAt.atZone(zoneId).toLocalDate())
+        val panelZone = displayZoneOf(panel.collectedAtTimeZoneId, zoneId)
+        val yearMonth = YearMonth.from(panel.collectedAt.atZone(panelZone).toLocalDate())
         groups.getOrPut(yearMonth) { mutableListOf() }.add(panel)
     }
 
@@ -534,11 +538,19 @@ private fun CalibrationPanelRow(
     count: Int,
     onClick: () -> Unit,
 ) {
-    val dateTimeLabels = remember(panel.collectedAt, dateTimeFormatters) {
+    val deviceZone = remember { ZoneId.systemDefault() }
+    val panelZone = remember(panel.collectedAtTimeZoneId, deviceZone) {
+        displayZoneOf(panel.collectedAtTimeZoneId, deviceZone)
+    }
+    val dateTimeLabels = remember(panel.collectedAt, panelZone, dateTimeFormatters) {
         formatCalibrationPanelDateTimeLabels(
             collectedAt = panel.collectedAt,
             dateTimeFormatters = dateTimeFormatters,
+            zoneId = panelZone,
         )
+    }
+    val isPanelCrossZone = remember(panel.collectedAt, panel.collectedAtTimeZoneId, deviceZone) {
+        isCrossZone(panel.collectedAt, panel.collectedAtTimeZoneId, deviceZone)
     }
     val valueSummary = remember(panel.results, settingsState.calibrationDefaultUnits) {
         formatCalibrationPanelValueSummary(panel, settingsState)
@@ -593,6 +605,7 @@ private fun CalibrationPanelRow(
                 },
                 panel = panel,
                 valueSummary = valueSummary,
+                isCrossZone = isPanelCrossZone,
             )
 
             Icon(
@@ -663,6 +676,7 @@ private fun CalibrationPanelResultSummaryColumn(
     modifier: Modifier = Modifier,
     panel: BloodTestPanel,
     valueSummary: CalibrationPanelValueSummary,
+    isCrossZone: Boolean = false,
 ) {
     Column(
         modifier = modifier,
@@ -679,6 +693,7 @@ private fun CalibrationPanelResultSummaryColumn(
                 ?.takeIf { hasEstradiolResult },
             remainingResultCount = valueSummary.remainingResultCount,
             hasNotes = !panel.notes.isNullOrBlank(),
+            isCrossZone = isCrossZone,
         )
     }
 }
@@ -848,13 +863,18 @@ private fun CalibrationPanelMetadataRow(
     timeSinceLastEstradiolDoseMillis: Long?,
     remainingResultCount: Int,
     hasNotes: Boolean,
+    isCrossZone: Boolean = false,
 ) {
-    if (timeSinceLastEstradiolDoseMillis == null && remainingResultCount <= 0 && !hasNotes) {
+    if (timeSinceLastEstradiolDoseMillis == null &&
+        remainingResultCount <= 0 &&
+        !hasNotes &&
+        !isCrossZone
+    ) {
         return
     }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         timeSinceLastEstradiolDoseMillis?.let { elapsedMillis ->
@@ -901,6 +921,14 @@ private fun CalibrationPanelMetadataRow(
                 contentDescription = stringResource(R.string.settings_calibration_notes_label),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
+            )
+        }
+        if (isCrossZone) {
+            Icon(
+                imageVector = Icons.Outlined.Public,
+                contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(15.dp),
             )
         }
     }

@@ -15,6 +15,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.zoneDisplayName
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
@@ -297,7 +298,11 @@ class AddEntryViewModel @Inject constructor(
             val crossZoneText = if (isSaved) {
                 val pickerOffset = currentState.appliedZoneId.rules.getOffset(appliedAt)
                 val deviceOffset = ZoneId.systemDefault().rules.getOffset(appliedAt)
-                if (pickerOffset == deviceOffset) null else currentState.appliedZoneId.id
+                if (pickerOffset == deviceOffset) {
+                    null
+                } else {
+                    zoneDisplayName(currentState.appliedZoneId)
+                }
             } else {
                 null
             }

@@ -408,7 +408,7 @@
     <string name="settings_calibration_add_result">Add test result</string>
     <string name="settings_calibration_edit_result">Edit test result</string>
     <string name="settings_calibration_empty_state">No test results yet.</string>
-    <string name="settings_calibration_last_e2_elapsed">%1$s after last E2 dose.</string>
+    <string name="settings_calibration_last_e2_elapsed">%1$s after last E2 dose</string>
     <string name="settings_calibration_entry_title">Add result</string>
     <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
     <string name="settings_calibration_e2_field">E2 (pg/mL)</string>

@@ -10,28 +10,45 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 fun displayZoneOf(
-    entry: MedicationLogEntry,
+    storedTimeZoneId: String,
     deviceZone: ZoneId = ZoneId.systemDefault(),
 ): ZoneId {
-    return runCatching { ZoneId.of(entry.appliedAtTimeZoneId) }.getOrDefault(deviceZone)
+    return runCatching { ZoneId.of(storedTimeZoneId) }.getOrDefault(deviceZone)
+}
+
+fun displayZoneOf(
+    entry: MedicationLogEntry,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+): ZoneId = displayZoneOf(entry.appliedAtTimeZoneId, deviceZone)
+
+fun isCrossZone(
+    instant: Instant,
+    storedTimeZoneId: String,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    val displayZone = displayZoneOf(storedTimeZoneId, deviceZone)
+    val displayOffset = displayZone.rules.getOffset(instant)
+    val deviceOffset = deviceZone.rules.getOffset(instant)
+    return displayOffset != deviceOffset
 }
 
 fun isCrossZone(
     entry: MedicationLogEntry,
     deviceZone: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    val displayZone = displayZoneOf(entry, deviceZone)
-    val displayOffset = displayZone.rules.getOffset(entry.appliedAt)
-    val deviceOffset = deviceZone.rules.getOffset(entry.appliedAt)
-    return displayOffset != deviceOffset
+): Boolean = isCrossZone(entry.appliedAt, entry.appliedAtTimeZoneId, deviceZone)
+
+fun atStoredZone(
+    instant: Instant,
+    storedTimeZoneId: String,
+    deviceZone: ZoneId = ZoneId.systemDefault(),
+): LocalDateTime {
+    return instant.atZone(displayZoneOf(storedTimeZoneId, deviceZone)).toLocalDateTime()
 }
 
 fun appliedAtAsLocalDateTime(
     entry: MedicationLogEntry,
     deviceZone: ZoneId = ZoneId.systemDefault(),
-): LocalDateTime {
-    return entry.appliedAt.atZone(displayZoneOf(entry, deviceZone)).toLocalDateTime()
-}
+): LocalDateTime = atStoredZone(entry.appliedAt, entry.appliedAtTimeZoneId, deviceZone)
 
 fun formatEntryWallTime(
     entry: MedicationLogEntry,
@@ -39,6 +56,14 @@ fun formatEntryWallTime(
     deviceZone: ZoneId = ZoneId.systemDefault(),
 ): String {
     return appliedAtAsLocalDateTime(entry, deviceZone).format(formatter)
+}
+
+fun zoneDisplayName(
+    zoneId: ZoneId,
+    locale: Locale = Locale.getDefault(),
+): String {
+    val longName = zoneId.getDisplayName(TextStyle.FULL, locale)
+    return if (longName != zoneId.id) longName else zoneId.id
 }
 
 fun formatEditorZoneLabel(
@@ -50,10 +75,7 @@ fun formatEditorZoneLabel(
     val pickerOffset = appliedZoneId.rules.getOffset(appliedAtInstant)
     val deviceOffset = deviceZone.rules.getOffset(appliedAtInstant)
     if (pickerOffset == deviceOffset) return null
-    val offsetLabel = formatUtcOffset(pickerOffset)
-    val longName = appliedZoneId.getDisplayName(TextStyle.FULL, locale)
-    val zoneText = if (longName != appliedZoneId.id) longName else appliedZoneId.id
-    return "$zoneText · $offsetLabel"
+    return "${zoneDisplayName(appliedZoneId, locale)} · ${formatUtcOffset(pickerOffset)}"
 }
 
 private fun formatUtcOffset(offset: ZoneOffset): String {
