@@ -12,6 +12,8 @@ import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
@@ -47,7 +49,8 @@ import javax.inject.Inject
 class AddEntryViewModel @Inject constructor(
     private val medicationLogRepository: MedicationLogRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
-    private val medicationReminderScheduler: MedicationReminderScheduler
+    private val medicationReminderScheduler: MedicationReminderScheduler,
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
@@ -320,6 +323,24 @@ class AddEntryViewModel @Inject constructor(
 
             if (isSaved) {
                 withContext(NonCancellable) {
+                    // Mirror the notification action-handler path: when a manual log
+                    // satisfies a planned slot, clear the matching snooze so we don't
+                    // wake the device for a record the user has already filed.
+                    val groupUuid = currentState.sourceGroupUuid
+                    val scheduledFor = currentState.scheduledFor
+                    if (groupUuid != null && scheduledFor != null) {
+                        runCatching {
+                            medicationReminderSnoozeScheduler.clearSnoozesForSlots(
+                                listOf(
+                                    MedicationReminderSlot(
+                                        groupUuid = groupUuid,
+                                        scheduledAt = scheduledFor,
+                                        scheduleTimeUuid = currentState.scheduleTimeUuid,
+                                    )
+                                )
+                            )
+                        }
+                    }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
@@ -345,6 +366,27 @@ class AddEntryViewModel @Inject constructor(
                 )
             }
 
+            // Capture each entry's slot identity before delete so we can mirror the
+            // notification-action-handler path: when the entry being removed was
+            // fulfilling a snoozed slot, clear that snooze. After deleteEntries
+            // succeeds the rows are gone and we can no longer derive the slots.
+            val slotsToClear = runCatching {
+                medicationLogRepository.getEntries(editingEntryUuids)
+            }.getOrDefault(emptyList())
+                .mapNotNull { entry ->
+                    val groupUuid = entry.sourceGroupUuid
+                    val scheduledFor = entry.scheduledFor
+                    if (groupUuid != null && scheduledFor != null) {
+                        MedicationReminderSlot(
+                            groupUuid = groupUuid,
+                            scheduledAt = scheduledFor,
+                            scheduleTimeUuid = entry.scheduleTimeUuid,
+                        )
+                    } else {
+                        null
+                    }
+                }
+
             val result = runCatching {
                 medicationLogRepository.deleteEntries(editingEntryUuids)
             }.fold(
@@ -364,6 +406,11 @@ class AddEntryViewModel @Inject constructor(
 
             if (isDeleted) {
                 withContext(NonCancellable) {
+                    if (slotsToClear.isNotEmpty()) {
+                        runCatching {
+                            medicationReminderSnoozeScheduler.clearSnoozesForSlots(slotsToClear)
+                        }
+                    }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }

@@ -378,11 +378,19 @@ private fun PlanBatchAddRangeSelector(
                 count = 2
             )
             if (entryCount > 0 || skippedEntryCount > 0) {
-                val entriesToAddLabel = pluralStringResource(
-                    R.plurals.plan_batch_add_entries_to_add,
-                    entryCount,
-                    entryCount
-                )
+                val entriesToAddLabel = if (entryCount > 0) {
+                    pluralStringResource(
+                        R.plurals.plan_batch_add_entries_to_add,
+                        entryCount,
+                        entryCount
+                    )
+                } else {
+                    // entryCount == 0 but skippedEntryCount > 0 — the range
+                    // already has matching records, nothing new can be added.
+                    // Avoid rendering "0 records will be added" alongside the
+                    // skipped chip; show a clearer "no new records" line.
+                    stringResource(R.string.plan_batch_add_no_new_entries)
+                }
                 val skippedEntriesLabel = pluralStringResource(
                     R.plurals.plan_batch_add_entries_skipped,
                     skippedEntryCount,

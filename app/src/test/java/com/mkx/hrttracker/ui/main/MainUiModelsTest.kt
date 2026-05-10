@@ -688,6 +688,53 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_attaches_cross_zone_entry_to_scheduled_slot_not_manual() {
+        // Reproduce the production-reported bug: an entry logged in another zone
+        // (here Tokyo) for today's scheduled slot was rendering as a separate
+        // manual row on the home screen instead of fulfilling the slot.
+        val groupUuid = UUID.fromString("c1f7d35a-7322-4cdc-a8f5-30bd7f3a2e62")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val deviceZone = ZoneId.of("America/Los_Angeles")
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 9, 0)
+        val group = medicationGroup(
+            uuid = groupUuid,
+            name = "Daily oral",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+        )
+        val crossZoneEntry = testMedicationLogEntry(
+            uuid = UUID.fromString("b2a83c9e-6d1f-4f6b-b9b3-5db5ee3b35b1"),
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = group.uuid,
+            appliedAt = scheduledFor.atZone(tokyo).toInstant(),
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledFor = scheduledFor,
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = listOf(crossZoneEntry),
+            now = LocalDateTime.of(2026, 4, 18, 12, 0),
+            zoneId = deviceZone,
+        )
+
+        // The scheduled slot should be present and marked DONE; no manual rows.
+        assertEquals(0, todaySection.manualCount)
+        assertEquals(1, todaySection.totalCount)
+        assertEquals(1, todaySection.doneCount)
+        val row = todaySection.rows.single()
+        assertEquals(false, row.isManualRecord)
+        assertEquals(MainTodayDoseStatus.DONE, row.status)
+        assertEquals(listOf(crossZoneEntry.uuid), row.fulfillingEntryUuids)
+    }
+
+    @Test
     fun buildMainTodaySection_orders_manual_record_after_scheduled_row_at_same_time() {
         val scheduledGroupUuid = UUID.fromString("576db5e4-a76a-4fc3-8adb-89d83d914411")
         val manualEntryUuid = UUID.fromString("82546aa9-e2d4-4db2-b376-b5d54f92ca0c")

@@ -500,10 +500,22 @@ fun SettingsScreen(
                             backupRestoreSuccessMessage,
                             Toast.LENGTH_SHORT,
                         ).show()
-                    } catch (_: Exception) {
+                    } catch (error: Exception) {
+                        // Validate already filtered for IncompatibleBackupFileException upstream,
+                        // but the snapshot decoder and validators can still throw it (or
+                        // IllegalArgumentException) once the file is decrypted, so route those
+                        // to the version-mismatch message and treat the rest as wrong-password
+                        // / corrupted-file.
                         Toast.makeText(
                             context,
-                            backupRestoreFailedMessage,
+                            if (
+                                error is IncompatibleBackupFileException ||
+                                error is IllegalArgumentException
+                            ) {
+                                backupRestoreIncompatibleFileMessage
+                            } else {
+                                backupRestoreFailedMessage
+                            },
                             Toast.LENGTH_SHORT,
                         ).show()
                     } finally {

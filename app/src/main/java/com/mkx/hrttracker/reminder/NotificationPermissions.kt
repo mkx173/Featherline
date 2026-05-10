@@ -29,8 +29,10 @@ fun canScheduleExactAlarms(context: Context): Boolean {
     return try {
         context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     } catch (_: Throwable) {
-        // Alarm service is not available in some environments like Android Studio preview.
-        true
+        // AlarmManager unavailable (preview/test). Default to false so the scheduler
+        // takes the inexact path; an optimistic true would push the caller down the
+        // setExactAndAllowWhileIdle path and risk SecurityException on real devices.
+        false
     }
 }
 

@@ -19,6 +19,7 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
 import io.mockk.every
@@ -51,6 +52,8 @@ class MedicationGroupEditorLoadStateTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
+    private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
+        mockk(relaxed = true)
     private val context: Context = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
     private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 25, 10, 0))
@@ -78,6 +81,30 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun pendingReplacementGroupId_restoredFromSavedStateHandleOnConstruction() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val archivedGroupId = "12345678-1234-1234-1234-123456789abc"
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf("pendingReplacementGroupId" to archivedGroupId)
+            ),
+            appTimeSource = appTimeSource,
+        )
+
+        // Restored synchronously at construction so the recreate-from-old surface
+        // works on the first frame after process death recovery.
+        assertEquals(archivedGroupId, viewModel.uiState.value.pendingReplacementGroupId)
+        assertEquals(archivedGroupId, viewModel.uiState.value.recreatedFromGroupId)
+    }
+
+    @Test
     fun editingGroup_startsInLoadingStateUntilPersistedGroupLoads() = runTest {
         val groupUuid = UUID.fromString("3c13fbf7-95f5-4c20-8f2d-f902fd82afd2")
         val group = testMedicationGroup(groupUuid)
@@ -89,6 +116,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -119,6 +147,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -152,6 +181,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -213,6 +243,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -247,6 +278,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -304,6 +336,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -339,6 +372,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -394,6 +428,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -423,6 +458,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(
                 mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
@@ -464,6 +500,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,
@@ -488,6 +525,7 @@ class MedicationGroupEditorLoadStateTest {
             medicationLogRepository = medicationLogRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             context = context,
             savedStateHandle = SavedStateHandle(),
             appTimeSource = appTimeSource,

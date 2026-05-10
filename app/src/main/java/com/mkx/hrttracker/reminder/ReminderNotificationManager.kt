@@ -150,6 +150,11 @@ class ReminderNotificationManager @Inject constructor(
         )
     }
 
+    fun showDoseReminderNothingToAddToast() {
+        diagnosticsLogger.info(TAG, "reminder_notification_nothing_to_add_toast")
+        showToast(context.getString(R.string.reminder_notification_nothing_to_add))
+    }
+
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
         diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
         showToast(
@@ -166,6 +171,17 @@ class ReminderNotificationManager @Inject constructor(
             DOSE_REMINDER_NOTIFICATION_ID,
         )
         diagnosticsLogger.info(TAG, "reminder_notification_cancelled tag=$notificationTag")
+    }
+
+    /**
+     * Cancel every dose-reminder notification this app currently has visible.
+     * Used by backup restore: any active reminder references slot UUIDs from the
+     * pre-restore database, so the notification must be dismissed before the
+     * user can tap an action that would dispatch with stale state.
+     */
+    fun cancelAllDoseReminderNotifications() {
+        NotificationManagerCompat.from(context).cancelAll()
+        diagnosticsLogger.info(TAG, "reminder_notifications_cancelled_all")
     }
 
     fun canPostNotifications(): Boolean {

@@ -3,9 +3,11 @@ package com.mkx.hrttracker.data.repository
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -24,15 +26,20 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.dataStore by preferencesDataStore(name = "settings")
+private val Context.dataStore by preferencesDataStore(
+    name = "settings",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 @Singleton
 class SettingsRepository @Inject constructor(
@@ -53,12 +60,24 @@ class SettingsRepository @Inject constructor(
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
-    val onboardingCompleted: Flow<Boolean> = context.dataStore.data
+    // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
+    // down the upstream combine. SupervisorJob protects sibling jobs but not the
+    // inner pipeline, so a per-flow .catch is required.
+    private val storedPreferences: Flow<Preferences> = context.dataStore.data
+        .catch { cause ->
+            if (cause is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw cause
+            }
+        }
+
+    val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
         .distinctUntilChanged()
 
     val settingsState: StateFlow<SettingsState> = combine(
-        context.dataStore.data.map(::preferencesToStoredSettingsState),
+        storedPreferences.map(::preferencesToStoredSettingsState),
         appLanguageOption
     ) { storedSettingsState, currentAppLanguageOption ->
         storedSettingsState.copy(appLanguageOption = currentAppLanguageOption)

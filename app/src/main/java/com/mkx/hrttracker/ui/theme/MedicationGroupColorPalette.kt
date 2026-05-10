@@ -30,10 +30,10 @@ fun rememberMedicationGroupColorScheme(
     val groupPrimaryColor = medicationGroupSeedColor(colorKey).harmonize(
         MaterialTheme.colorScheme.primary
     )
-    val delta = medicationGroupLightenRatioDelta(colorKey)
+    val delta = medicationGroupLightenRatioDelta(colorKey, darkTheme = darkTheme)
     return if (darkTheme) {
         MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.1f),
+            primary = groupPrimaryColor.darken(1.2f),
             primaryContainer = groupPrimaryColor.darken(1.2f),
             onPrimaryContainer = groupPrimaryColor.lighten(4.15f + delta).desaturateHct()
         )
@@ -41,17 +41,20 @@ fun rememberMedicationGroupColorScheme(
         MaterialTheme.colorScheme.copy(
             primary = groupPrimaryColor.darken(1.2f),
             primaryContainer = groupPrimaryColor.lighten(4.0f + delta).desaturateHct(),
-            onPrimaryContainer = groupPrimaryColor.darken(1.1f)
+            onPrimaryContainer = groupPrimaryColor.darken(1.2f)
         )
     }
 }
 
-internal fun medicationGroupLightenRatioDelta(colorKey: MedicationGroupColorKey?): Float {
+internal fun medicationGroupLightenRatioDelta(
+    colorKey: MedicationGroupColorKey?,
+    darkTheme: Boolean
+): Float {
     return when (colorKey) {
         ROSE -> 1.2f
         CORAL -> -0.6f
-        AMBER -> -0.65f
-        CITRON -> 0.1f
+        AMBER -> -1.25f
+        CITRON -> if (!darkTheme) 0.15f else 0.0f
         TEAL -> 0.2f
         SKY -> -0.6f
         INDIGO -> 0.5f
@@ -65,7 +68,7 @@ internal fun medicationGroupSeedColor(colorKey: MedicationGroupColorKey?): Color
         null -> Color(0xFF5A6470)
         ROSE -> Color(0xFF95414A)
         CORAL -> Color(0xFFB66B43)
-        AMBER -> Color(0xFFA08524)
+        AMBER -> Color(0xFFC18B14)
         CITRON -> Color(0xFF7E7C2A)
         SAGE -> Color(0xFF4F7A55)
         TEAL -> Color(0xFF2E6E72)

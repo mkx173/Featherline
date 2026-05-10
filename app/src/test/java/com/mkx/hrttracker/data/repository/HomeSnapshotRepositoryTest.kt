@@ -74,6 +74,60 @@ class HomeSnapshotRepositoryTest {
     }
 
     @Test
+    fun runHomeDataMutation_runsCleanupAndRefreshEvenWhenBlockThrows() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val events = mutableListOf<String>()
+        coEvery { homeSnapshotStore.clearSnapshot() } coAnswers {
+            events += "clear"
+            Unit
+        }
+        coEvery { homeSnapshotStore.readSnapshot() } coAnswers {
+            events += "refresh_read"
+            null
+        }
+        // Refresh path will hit the database; minimal stubs so it returns quickly.
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.userProfileDao() } returns userProfileDao
+        coEvery { homeDao.getActiveGroups() } returns emptyList()
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            appScope = CoroutineScope(dispatcher + SupervisorJob()),
+            defaultDispatcher = dispatcher,
+        )
+
+        var caught: Throwable? = null
+        try {
+            repository.runHomeDataMutation {
+                events += "throw"
+                throw IllegalStateException("simulated mutation failure")
+            }
+        } catch (t: IllegalStateException) {
+            caught = t
+        }
+        advanceUntilIdle()
+
+        // Failure must propagate (we don't silently swallow), AND cleanup must have run.
+        assertEquals("simulated mutation failure", caught?.message)
+        assertTrue("clearSnapshot should run on the throwing path", events.contains("clear"))
+        coVerify(atLeast = 1) { homeSnapshotStore.clearSnapshot() }
+        // The async refresh should have been enqueued; readSnapshot is the first
+        // action of the refresh worker.
+        assertTrue("refresh should be enqueued", events.contains("refresh_read"))
+    }
+
+    @Test
     fun runHomeDataMutation_doesNotBlockWriteWhenClearSnapshotFails() = runTest {
         val dispatcher = StandardTestDispatcher()
         val events = mutableListOf<String>()

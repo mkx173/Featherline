@@ -94,15 +94,21 @@ class HomeSnapshotRepository @Inject constructor(
                 TAG,
                 "home_data_mutation_generation_incremented generation=$generation"
             )
-            val result = block()
-            diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
-            clearSnapshotBestEffort()
-            refreshHomeSnapshotAsync(force = true)
-            diagnosticsLogger.info(
-                TAG,
-                "home_data_mutation_snapshot_refresh_requested generation=$generation"
-            )
-            result
+            try {
+                val result = block()
+                diagnosticsLogger.info(TAG, "home_data_mutation_committed generation=$generation")
+                result
+            } finally {
+                // The generation has already been bumped, so observers will reject any
+                // stale snapshot. Run cleanup + refresh on every path so an exception
+                // inside block() doesn't leave the snapshot stale-flagged forever.
+                clearSnapshotBestEffort()
+                refreshHomeSnapshotAsync(force = true)
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_data_mutation_snapshot_refresh_requested generation=$generation"
+                )
+            }
         }
     }
 

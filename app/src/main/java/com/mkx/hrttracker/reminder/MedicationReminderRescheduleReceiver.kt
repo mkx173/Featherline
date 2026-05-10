@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
@@ -21,6 +22,9 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
     lateinit var reminderCapabilityReconciler: ReminderCapabilityReconciler
 
     @Inject
+    lateinit var homeSnapshotRepository: HomeSnapshotRepository
+
+    @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -28,6 +32,7 @@ class MedicationReminderRescheduleReceiver : BroadcastReceiver() {
             action = intent.action,
             appScope = appScope,
             reminderCapabilityReconciler = reminderCapabilityReconciler,
+            homeSnapshotRepository = homeSnapshotRepository,
             diagnosticsLogger = diagnosticsLogger,
             goAsync = ::goAsync,
         )
@@ -46,6 +51,7 @@ internal fun handleReminderRescheduleBroadcast(
     action: String?,
     appScope: CoroutineScope,
     reminderCapabilityReconciler: ReminderCapabilityReconciler,
+    homeSnapshotRepository: HomeSnapshotRepository,
     diagnosticsLogger: AppDiagnosticsLogger,
     goAsync: () -> BroadcastReceiver.PendingResult?,
 ) {
@@ -65,6 +71,16 @@ internal fun handleReminderRescheduleBroadcast(
     appScope.launch {
         runCatching {
             reminderCapabilityReconciler.reconcile(reason = "receiver_$action")
+            // The snapshot's stored zoneId is captured at write time; a TZ or wall-clock
+            // change leaves it mismatched. isSnapshotUsable correctly rejects it for
+            // display, but no refresh would otherwise be enqueued — so the snapshot
+            // stays stale on disk until the next mutation. Force a refresh here.
+            if (
+                action == Intent.ACTION_TIMEZONE_CHANGED ||
+                action == Intent.ACTION_TIME_CHANGED
+            ) {
+                homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+            }
             diagnosticsLogger.info(
                 REMINDER_RESCHEDULE_RECEIVER_TAG,
                 "reminder_reschedule_receiver_complete action=$action",

@@ -14,6 +14,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
+import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -42,6 +43,8 @@ class BackupRestoreServiceTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler = mockk()
+    private val reminderNotificationManager: ReminderNotificationManager =
+        mockk(relaxed = true)
 
     private lateinit var backupCrypto: BackupCrypto
     private lateinit var service: BackupRestoreService
@@ -85,6 +88,7 @@ class BackupRestoreServiceTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            reminderNotificationManager = reminderNotificationManager,
             backupCrypto = backupCrypto,
         )
     }

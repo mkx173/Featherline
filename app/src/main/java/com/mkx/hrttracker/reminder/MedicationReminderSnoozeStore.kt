@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -12,7 +14,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private val Context.medicationReminderSnoozeDataStore by preferencesDataStore(
-    name = "medication_reminder_snoozes"
+    name = "medication_reminder_snoozes",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
 
 @Singleton

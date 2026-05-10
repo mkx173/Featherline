@@ -65,14 +65,19 @@ class MedicationReminderActionHandler @Inject constructor(
                 TAG,
                 "reminder_action_log_now_saved entriesSaved=${entriesToSave.size} slots=${normalizedSlots.size}"
             )
+            reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         } else {
+            // Race: the slot was already fulfilled between the notification firing
+            // and the tap. Don't render "Logged 0 doses" — show a separate
+            // "already logged" confirmation instead so the tap still has visible
+            // feedback.
             diagnosticsLogger.info(
                 TAG,
                 "reminder_action_log_now_no_missing_entries slots=${normalizedSlots.size}"
             )
+            reminderNotificationManager.showDoseReminderNothingToAddToast()
         }
 
-        reminderNotificationManager.showDoseReminderLoggedToast(entriesToSave.size)
         medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
         notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
         val groupUuidsToReschedule = normalizedSlots

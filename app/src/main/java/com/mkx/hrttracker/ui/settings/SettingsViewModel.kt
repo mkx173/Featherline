@@ -45,6 +45,9 @@ class SettingsViewModel @Inject constructor(
     private val diagnosticsExportService: AppDiagnosticsExportService,
 ) : ViewModel() {
     private val pendingPrompt = MutableStateFlow<AuthenticationPromptRequest?>(null)
+    // Tracks the intent of pendingPrompt so the success handler knows whether the
+    // user authenticated to enable or to disable screen-lock protection.
+    private var pendingScreenLockIntent: ScreenLockPromptIntent? = null
     private val securityErrorMessageRes = MutableStateFlow<Int?>(null)
     private val pendingPreparedBackupExport = MutableStateFlow<PendingPreparedBackupExport?>(null)
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
@@ -155,43 +158,72 @@ class SettingsViewModel @Inject constructor(
             return
         }
 
-        if (enabled) {
-            val availabilityError = appLockSecurityManager.availabilityErrorMessageRes()
-            if (availabilityError != null) {
+        val availabilityError = appLockSecurityManager.availabilityErrorMessageRes()
+        if (availabilityError != null) {
+            // If biometrics are unavailable, gracefully fall back: enable cannot
+            // proceed (surface the error). Disable can still proceed without auth
+            // because the device cannot prompt — preserves the recovery path.
+            if (enabled) {
                 securityErrorMessageRes.value = availabilityError
                 pendingPrompt.value = null
+                pendingScreenLockIntent = null
                 return
             }
-
-            securityErrorMessageRes.value = null
-            pendingPrompt.value = AuthenticationPromptRequest(
-                id = ++nextPromptId,
-                titleRes = R.string.enable_screen_lock_prompt_title,
-                subtitleRes = R.string.enable_screen_lock_prompt_subtitle,
-            )
+            viewModelScope.launch {
+                settingsRepository.setScreenLockProtectionEnabled(false)
+                securityErrorMessageRes.value = null
+                pendingPrompt.value = null
+                pendingScreenLockIntent = null
+            }
             return
         }
 
-        viewModelScope.launch {
-            settingsRepository.setScreenLockProtectionEnabled(false)
-            securityErrorMessageRes.value = null
-            pendingPrompt.value = null
+        securityErrorMessageRes.value = null
+        pendingScreenLockIntent = if (enabled) {
+            ScreenLockPromptIntent.ENABLE
+        } else {
+            ScreenLockPromptIntent.DISABLE
         }
+        pendingPrompt.value = AuthenticationPromptRequest(
+            id = ++nextPromptId,
+            titleRes = if (enabled) {
+                R.string.enable_screen_lock_prompt_title
+            } else {
+                R.string.disable_screen_lock_prompt_title
+            },
+            subtitleRes = if (enabled) {
+                R.string.enable_screen_lock_prompt_subtitle
+            } else {
+                R.string.disable_screen_lock_prompt_subtitle
+            },
+        )
     }
 
     fun onScreenLockProtectionAuthenticated() {
+        val intent = pendingScreenLockIntent ?: ScreenLockPromptIntent.ENABLE
         pendingPrompt.value = null
+        pendingScreenLockIntent = null
         viewModelScope.launch {
-            settingsRepository.setScreenLockProtectionEnabled(true)
-            settingsRepository.setHideScreenContentEnabled(true)
+            when (intent) {
+                ScreenLockPromptIntent.ENABLE -> {
+                    settingsRepository.setScreenLockProtectionEnabled(true)
+                    settingsRepository.setHideScreenContentEnabled(true)
+                }
+                ScreenLockPromptIntent.DISABLE -> {
+                    settingsRepository.setScreenLockProtectionEnabled(false)
+                }
+            }
             securityErrorMessageRes.value = null
         }
     }
 
     fun onScreenLockProtectionPromptError(errorCode: Int) {
         pendingPrompt.value = null
+        pendingScreenLockIntent = null
         securityErrorMessageRes.value = appLockSecurityManager.promptErrorMessageRes(errorCode)
     }
+
+    private enum class ScreenLockPromptIntent { ENABLE, DISABLE }
 
     suspend fun prepareBackupExport(
         password: String,

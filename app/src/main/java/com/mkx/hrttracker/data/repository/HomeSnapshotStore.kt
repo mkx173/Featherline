@@ -5,8 +5,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStore
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
@@ -60,6 +62,7 @@ private val Context.homeSnapshotDataStore: DataStore<HomeSnapshotState> by dataS
 
 private val Context.homeSnapshotGenerationDataStore by preferencesDataStore(
     name = "home_snapshot_metadata",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
 
 @Singleton

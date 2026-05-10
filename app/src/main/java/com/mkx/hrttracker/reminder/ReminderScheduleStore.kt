@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -11,7 +13,10 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.reminderScheduleDataStore by preferencesDataStore(name = "reminder_schedule")
+private val Context.reminderScheduleDataStore by preferencesDataStore(
+    name = "reminder_schedule",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 @Singleton
 class ReminderScheduleStore @Inject constructor(

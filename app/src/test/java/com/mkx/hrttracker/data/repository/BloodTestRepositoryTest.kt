@@ -442,6 +442,11 @@ class BloodTestRepositoryTest {
     @Test
     fun deleteCustomAnalyte_deletes_only_when_unreferenced() = runTest {
         val analyteUuid = UUID.randomUUID()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
         coEvery { dao.countResultsForCustomAnalyte(analyteUuid.toString()) } returns 0
         coEvery { dao.deleteCustomAnalyte(analyteUuid.toString()) } returns Unit
 
@@ -453,6 +458,11 @@ class BloodTestRepositoryTest {
     @Test(expected = IllegalArgumentException::class)
     fun deleteCustomAnalyte_rejects_referenced_analyte() = runTest {
         val analyteUuid = UUID.randomUUID()
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
         coEvery { dao.countResultsForCustomAnalyte(analyteUuid.toString()) } returns 2
 
         repository.deleteCustomAnalyte(analyteUuid)

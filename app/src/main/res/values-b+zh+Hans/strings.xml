@@ -126,6 +126,7 @@
     <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
     <string name="plan_batch_add_select_group_prompt">请先选择一个分组</string>
     <string name="plan_batch_add_no_entries">此范围内没有可添加的记录</string>
+    <string name="plan_batch_add_no_new_entries">没有新记录可添加</string>
     <string name="plan_batch_add_confirm_button">添加记录</string>
     <string name="plan_batch_add_confirm_title">添加记录？</string>
     <string name="plan_batch_add_manual_before_start_note">计划开始日期之前的记录会保存为手动记录</string>
@@ -280,6 +281,7 @@
     <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_irreversible_acknowledgement">我理解归档后无法恢复</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
+    <string name="archive_medication_group_blocked_by_planned_slots">归档前请先处理已有记录的当前或未来计划时段</string>
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
         <item quantity="one">已有 1 个当前或未来计划时段有记录，因此无法归档</item>
         <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
@@ -477,7 +479,7 @@
     <string name="settings_backup_password_min_length">至少使用 %1$d 个字符</string>
     <string name="settings_backup_password_mismatch">密码不一致</string>
     <string name="settings_backup_restore_success">备份已恢复</string>
-    <string name="settings_backup_restore_failed">无法恢复备份</string>
+    <string name="settings_backup_restore_failed">密码错误或备份文件已损坏</string>
     <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
@@ -530,6 +532,8 @@
     <string name="app_lock_grace_period_30_minutes">30 分钟</string>
     <string name="enable_screen_lock_prompt_title">启用应用锁</string>
     <string name="enable_screen_lock_prompt_subtitle">验证身份以启用应用锁</string>
+    <string name="disable_screen_lock_prompt_title">关闭应用锁</string>
+    <string name="disable_screen_lock_prompt_subtitle">验证身份以关闭应用锁</string>
     <string name="unlock_app_prompt_title">解锁应用</string>
     <string name="unlock_app_prompt_subtitle">验证身份以打开应用</string>
     <string name="app_lock_title">应用已锁定</string>
@@ -588,6 +592,7 @@
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>
+    <string name="reminder_notification_nothing_to_add">已经记录过了</string>
     <plurals name="plan_regimen_group_count">
         <item quantity="other">%1$d 分组</item>
     </plurals>

@@ -11,8 +11,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.HrtButton
 
@@ -23,7 +25,16 @@ fun AppLockScreen(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent()
+                    }
+                }
+            }
+            .semantics(mergeDescendants = false) { },
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
