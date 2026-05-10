@@ -18,7 +18,7 @@ class MedicationGroupEditorColorTest {
             hasAssignedColor = false
         )
 
-        assertEquals(MedicationGroupColorKey.CORAL, colorKey)
+        assertEquals(MedicationGroupColorKey.TEAL, colorKey)
     }
 
     @Test

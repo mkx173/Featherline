@@ -15,7 +15,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.AMBER
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.CITRON
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.CORAL
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.INDIGO
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.MAUVE
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.PLUM
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.ROSE
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.SAGE
@@ -34,7 +33,7 @@ fun rememberMedicationGroupColorScheme(
     val delta = medicationGroupLightenRatioDelta(colorKey)
     return if (darkTheme) {
         MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.2f),
+            primary = groupPrimaryColor.darken(1.1f),
             primaryContainer = groupPrimaryColor.darken(1.2f),
             onPrimaryContainer = groupPrimaryColor.lighten(4.15f + delta).desaturateHct()
         )
@@ -42,18 +41,21 @@ fun rememberMedicationGroupColorScheme(
         MaterialTheme.colorScheme.copy(
             primary = groupPrimaryColor.darken(1.2f),
             primaryContainer = groupPrimaryColor.lighten(4.0f + delta).desaturateHct(),
-            onPrimaryContainer = groupPrimaryColor.darken(1.2f)
+            onPrimaryContainer = groupPrimaryColor.darken(1.1f)
         )
     }
 }
 
 internal fun medicationGroupLightenRatioDelta(colorKey: MedicationGroupColorKey?): Float {
     return when (colorKey) {
-        ROSE -> 0.3f
+        ROSE -> 1.2f
+        CORAL -> -0.6f
+        AMBER -> -0.65f
         CITRON -> 0.1f
-        PLUM -> 0.25f
-        CORAL -> -0.1f
-        AMBER -> -0.1f
+        TEAL -> 0.2f
+        SKY -> -0.6f
+        INDIGO -> 0.5f
+        PLUM -> 0.3f
         else -> 0f
     }
 }
@@ -61,17 +63,16 @@ internal fun medicationGroupLightenRatioDelta(colorKey: MedicationGroupColorKey?
 internal fun medicationGroupSeedColor(colorKey: MedicationGroupColorKey?): Color {
     return when (colorKey) {
         null -> Color(0xFF5A6470)
-        ROSE -> Color(0xFF8D4959)
-        CORAL -> Color(0xFFB6584A)
-        AMBER -> Color(0xFF9B7228)
+        ROSE -> Color(0xFF95414A)
+        CORAL -> Color(0xFFB66B43)
+        AMBER -> Color(0xFFA08524)
         CITRON -> Color(0xFF7E7C2A)
         SAGE -> Color(0xFF4F7A55)
         TEAL -> Color(0xFF2E6E72)
-        SKY -> Color(0xFF3F6FA8)
-        INDIGO -> Color(0xFF5557A8)
-        VIOLET -> Color(0xFF7C4FA0)
-        PLUM -> Color(0xFF8E3F7A)
-        MAUVE -> Color(0xFF75565C)
+        SKY -> Color(0xFF2D80B0)
+        INDIGO -> Color(0xFF4D55AC)
+        VIOLET -> Color(0xFF8C4AA8)
+        PLUM -> Color(0xFF9A3D78)
     }
 }
 

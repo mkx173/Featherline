@@ -157,7 +157,7 @@ class StartupFixtureActivity : AppCompatActivity() {
             benchmarkGroup(
                 key = "oral-e2",
                 name = "Daily estradiol",
-                colorKey = MedicationGroupColorKey.ORCHID,
+                colorKey = MedicationGroupColorKey.PLUM,
                 scheduleType = MedicationGroupScheduleType.DAILY,
                 interval = 1,
                 since = today.minusDays(180),

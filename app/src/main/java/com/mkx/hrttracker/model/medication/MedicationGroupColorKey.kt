@@ -10,22 +10,20 @@ enum class MedicationGroupColorKey {
     SKY,
     INDIGO,
     VIOLET,
-    PLUM,
-    MAUVE;
+    PLUM;
 
     companion object {
         val assignmentOrder: List<MedicationGroupColorKey> = listOf(
             ROSE,
-            CORAL,
-            AMBER,
-            CITRON,
-            SAGE,
             TEAL,
-            SKY,
+            AMBER,
             INDIGO,
-            VIOLET,
+            SAGE,
             PLUM,
-            MAUVE
+            CITRON,
+            SKY,
+            CORAL,
+            VIOLET
         )
 
         fun fromStorageValue(value: String?): MedicationGroupColorKey {

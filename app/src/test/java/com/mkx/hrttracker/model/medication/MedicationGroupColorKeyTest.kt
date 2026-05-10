@@ -21,7 +21,7 @@ class MedicationGroupColorKeyTest {
             seed = 42
         )
 
-        assertEquals(MedicationGroupColorKey.CORAL, colorKey)
+        assertEquals(MedicationGroupColorKey.TEAL, colorKey)
     }
 
     @Test
@@ -31,6 +31,6 @@ class MedicationGroupColorKeyTest {
             seed = 10
         )
 
-        assertEquals(MedicationGroupColorKey.MAUVE, colorKey)
+        assertEquals(MedicationGroupColorKey.ROSE, colorKey)
     }
 }
