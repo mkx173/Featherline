@@ -315,6 +315,7 @@
     <string name="save">Save</string>
     <string name="archive">Archive</string>
     <string name="archived_group_record_indicator">From archived group</string>
+    <string name="cross_timezone_entry_indicator">Recorded in a different timezone</string>
     <string name="plan_archived_groups">Archived groups</string>
     <string name="plan_archived_groups_empty">No archived groups yet.</string>
     <string name="plan_archived_groups_created_at">Created at %1$s</string>

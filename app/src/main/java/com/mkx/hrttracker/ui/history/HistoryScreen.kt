@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
@@ -127,8 +128,10 @@ import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatEntryWallTime
 import com.mkx.hrttracker.util.historyEntryGroupDateFormatter
 import com.mkx.hrttracker.util.historyMonthLabelFormatter
+import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.swmansion.kmpwheelpicker.WheelPicker
@@ -2078,6 +2081,8 @@ private fun HistoryEntryCard(
             }
         ),
         trailingContent = {
+            val deviceZone = remember { ZoneId.systemDefault() }
+            val crossZone = remember(entry) { isCrossZone(entry, deviceZone) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -2092,10 +2097,16 @@ private fun HistoryEntryCard(
                         modifier = Modifier.size(18.dp)
                     )
                 }
+                if (crossZone) {
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
+                        contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Text(
-                    text = entry.appliedAt
-                        .atZone(ZoneId.systemDefault())
-                        .format(timeFormatter),
+                    text = formatEntryWallTime(entry, timeFormatter, deviceZone),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End
