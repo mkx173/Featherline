@@ -78,6 +78,29 @@ class MedicationGroupEditorLoadStateTest {
     }
 
     @Test
+    fun pendingReplacementGroupId_restoredFromSavedStateHandleOnConstruction() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val archivedGroupId = "12345678-1234-1234-1234-123456789abc"
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf("pendingReplacementGroupId" to archivedGroupId)
+            ),
+            appTimeSource = appTimeSource,
+        )
+
+        // Restored synchronously at construction so the recreate-from-old surface
+        // works on the first frame after process death recovery.
+        assertEquals(archivedGroupId, viewModel.uiState.value.pendingReplacementGroupId)
+        assertEquals(archivedGroupId, viewModel.uiState.value.recreatedFromGroupId)
+    }
+
+    @Test
     fun editingGroup_startsInLoadingStateUntilPersistedGroupLoads() = runTest {
         val groupUuid = UUID.fromString("3c13fbf7-95f5-4c20-8f2d-f902fd82afd2")
         val group = testMedicationGroup(groupUuid)

@@ -280,6 +280,7 @@
     <string name="archive_medication_group_confirmation">要归档这个用药分组吗？它将从当前计划中移除并停止发送提醒，现有记录不会被删除</string>
     <string name="archive_medication_group_irreversible_acknowledgement">我理解归档后无法恢复</string>
     <string name="archive_medication_group_failure">无法归档分组</string>
+    <string name="archive_medication_group_blocked_by_planned_slots">归档前请先处理已有记录的当前或未来计划时段</string>
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
         <item quantity="one">已有 1 个当前或未来计划时段有记录，因此无法归档</item>
         <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
@@ -477,7 +478,7 @@
     <string name="settings_backup_password_min_length">至少使用 %1$d 个字符</string>
     <string name="settings_backup_password_mismatch">密码不一致</string>
     <string name="settings_backup_restore_success">备份已恢复</string>
-    <string name="settings_backup_restore_failed">无法恢复备份</string>
+    <string name="settings_backup_restore_failed">密码错误或备份文件已损坏</string>
     <string name="settings_backup_restore_incompatible_file">备份文件不兼容</string>
     <string name="settings_backup_restore_confirm_title">恢复备份？</string>
     <string name="settings_backup_restore_password_message">这会用所选备份替换当前本地数据，输入备份密码以继续</string>
@@ -530,6 +531,8 @@
     <string name="app_lock_grace_period_30_minutes">30 分钟</string>
     <string name="enable_screen_lock_prompt_title">启用应用锁</string>
     <string name="enable_screen_lock_prompt_subtitle">验证身份以启用应用锁</string>
+    <string name="disable_screen_lock_prompt_title">关闭应用锁</string>
+    <string name="disable_screen_lock_prompt_subtitle">验证身份以关闭应用锁</string>
     <string name="unlock_app_prompt_title">解锁应用</string>
     <string name="unlock_app_prompt_subtitle">验证身份以打开应用</string>
     <string name="app_lock_title">应用已锁定</string>

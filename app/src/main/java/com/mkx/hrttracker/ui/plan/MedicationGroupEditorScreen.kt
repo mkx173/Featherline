@@ -521,6 +521,8 @@ private fun MedicationGroupEditorScreenContent(
         stringResource(R.string.save_medication_group_failure)
     val archiveMedicationGroupFailureMessage =
         stringResource(R.string.archive_medication_group_failure)
+    val archiveMedicationGroupBlockedByPlannedSlotsMessage =
+        stringResource(R.string.archive_medication_group_blocked_by_planned_slots)
     val archiveAndRecreateMedicationGroupFailureMessage =
         stringResource(R.string.archive_and_recreate_medication_group_failure)
     val archiveAndRecreateMedicationGroupSuccessMessage =
@@ -688,6 +690,15 @@ private fun MedicationGroupEditorScreenContent(
                     context,
                     archiveMedicationGroupFailureMessage,
                     Toast.LENGTH_SHORT,
+                ).show()
+                onArchiveMedicationGroupResultConsumed()
+            }
+
+            ArchiveMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS -> {
+                Toast.makeText(
+                    context,
+                    archiveMedicationGroupBlockedByPlannedSlotsMessage,
+                    Toast.LENGTH_LONG,
                 ).show()
                 onArchiveMedicationGroupResultConsumed()
             }

@@ -286,6 +286,7 @@
     <string name="archive_medication_group_confirmation">Archive this medication group? It will be removed from your current plan and reminders will stop. Existing records won’t be deleted.</string>
     <string name="archive_medication_group_irreversible_acknowledgement">I understand that archived groups can’t be restored.</string>
     <string name="archive_medication_group_failure">Unable to archive group.</string>
+    <string name="archive_medication_group_blocked_by_planned_slots">Resolve current or upcoming planned slots that already have records before archiving.</string>
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
         <item quantity="one">Archive is blocked because 1 current or upcoming planned slot already has a record.</item>
         <item quantity="other">Archive is blocked because %1$d current or upcoming planned slots already have records.</item>
@@ -486,7 +487,7 @@
     <string name="settings_backup_password_min_length">Use at least %1$d characters</string>
     <string name="settings_backup_password_mismatch">Passwords must match</string>
     <string name="settings_backup_restore_success">Backup restored</string>
-    <string name="settings_backup_restore_failed">Incompatible backup file</string>
+    <string name="settings_backup_restore_failed">Wrong password or corrupted backup file</string>
     <string name="settings_backup_restore_incompatible_file">Selected file is not a compatible backup</string>
     <string name="settings_backup_restore_confirm_title">Restore backup?</string>
     <string name="settings_backup_restore_password_message">This will replace current local data with the selected backup. Enter the backup password to continue.</string>
@@ -539,6 +540,8 @@
     <string name="app_lock_grace_period_30_minutes">30 minutes</string>
     <string name="enable_screen_lock_prompt_title">Enable app lock</string>
     <string name="enable_screen_lock_prompt_subtitle">Verify your identity to enable app lock.</string>
+    <string name="disable_screen_lock_prompt_title">Disable app lock</string>
+    <string name="disable_screen_lock_prompt_subtitle">Verify your identity to disable app lock.</string>
     <string name="unlock_app_prompt_title">Unlock the app</string>
     <string name="unlock_app_prompt_subtitle">Verify your identity to open the app.</string>
     <string name="app_lock_title">App locked</string>

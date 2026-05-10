@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
+import com.mkx.hrttracker.data.repository.CurrentOrFuturePlannedSlotsBlockArchiveException
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
@@ -66,6 +67,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val appTimeSource: AppTimeSource
 ) : ViewModel() {
+    private val savedStateHandle: SavedStateHandle = savedStateHandle
     private val requestedEditingGroupId = savedStateHandle.get<String>(GROUP_ID_ARG)
     private val editingGroupUuid = requestedEditingGroupId?.let { groupId ->
         runCatching { UUID.fromString(groupId) }.getOrNull()
@@ -75,22 +77,43 @@ class MedicationGroupEditorViewModel @Inject constructor(
     private val cachedEditingGroup = editingGroupUuid?.let(medicationGroupRepository::getCachedGroup)
     private val defaultScheduleDateTime =
         nextMedicationGroupEditorDefaultDateTime(appTimeSource.currentMinute.value)
+    // Persisted across process death: lineage tag set by archive-and-recreate.
+    // Losing this drops the recreate-from-old surface for the new group, so we
+    // back this single field with SavedStateHandle even though the rest of the
+    // (large) editor UiState is not yet persisted.
+    private val restoredPendingReplacementGroupId =
+        savedStateHandle.get<String>(PENDING_REPLACEMENT_GROUP_ID_KEY)
     private var latestGroups: List<MedicationGroup> = emptyList()
     private val _uiState = MutableStateFlow(
-        cachedEditingGroup?.toEditorState(
-            remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
-            relatedEntryCount = 0,
-            plannedEntryCount = 0,
-        ) ?: MedicationGroupEditorUiState(
-            editingGroupId = editingGroupId,
-            isLoadingGroupForEditing = editingGroupUuid != null,
-            sinceDate = defaultScheduleDateTime.toLocalDate(),
-            weeklyDaysOfWeek = setOf(defaultScheduleDateTime.dayOfWeek),
-            weeklyTime = defaultScheduleDateTime.toLocalTime(),
-            dailyTimes = listOf(
-                MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
+        run {
+            val baseState = cachedEditingGroup?.toEditorState(
+                remindersEnabled = settingsRepository.settingsState.value.remindersEnabled,
+                relatedEntryCount = 0,
+                plannedEntryCount = 0,
+            ) ?: MedicationGroupEditorUiState(
+                editingGroupId = editingGroupId,
+                isLoadingGroupForEditing = editingGroupUuid != null,
+                sinceDate = defaultScheduleDateTime.toLocalDate(),
+                weeklyDaysOfWeek = setOf(defaultScheduleDateTime.dayOfWeek),
+                weeklyTime = defaultScheduleDateTime.toLocalTime(),
+                dailyTimes = listOf(
+                    MedicationGroupScheduleTimeUiState(time = defaultScheduleDateTime.toLocalTime())
+                )
             )
-        )
+            // Only restore pendingReplacementGroupId from SavedStateHandle when one
+            // was actually persisted. Don't clobber recreatedFromGroupId — that's a
+            // DB-derived lineage tag set by toEditorState above and is unrelated to
+            // process-death recovery of the in-flight archive-and-recreate draft.
+            if (restoredPendingReplacementGroupId != null) {
+                baseState.copy(
+                    pendingReplacementGroupId = restoredPendingReplacementGroupId,
+                    recreatedFromGroupId = baseState.recreatedFromGroupId
+                        ?: restoredPendingReplacementGroupId,
+                )
+            } else {
+                baseState
+            }
+        }
     )
     val uiState: StateFlow<MedicationGroupEditorUiState> = _uiState.asStateFlow()
     private val _completionEvents =
@@ -100,6 +123,20 @@ class MedicationGroupEditorViewModel @Inject constructor(
     val currentMinute: StateFlow<LocalDateTime> = appTimeSource.currentMinute
 
     init {
+        viewModelScope.launch {
+            // Mirror the lineage tag to SavedStateHandle so it survives process death.
+            // Other editor fields are not yet persisted; this is the single high-impact
+            // recovery field per the pre-release audit.
+            _uiState
+                .map { it.pendingReplacementGroupId }
+                .distinctUntilChanged()
+                .collect { value ->
+                    this@MedicationGroupEditorViewModel.savedStateHandle[
+                        PENDING_REPLACEMENT_GROUP_ID_KEY
+                    ] = value
+                }
+        }
+
         viewModelScope.launch {
             settingsRepository.settingsState.collect { settingsState ->
                 _uiState.update { currentState ->
@@ -800,7 +837,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationGroupRepository.archiveGroup(uuid, now = archiveNow)
             }.fold(
                 onSuccess = { null },
-                onFailure = { ArchiveMedicationGroupResult.FAILURE },
+                onFailure = { cause ->
+                    when (cause) {
+                        is CurrentOrFuturePlannedSlotsBlockArchiveException ->
+                            ArchiveMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS
+                        else -> ArchiveMedicationGroupResult.FAILURE
+                    }
+                },
             )
             val archived = archiveResult == null
 
@@ -1213,6 +1256,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
     companion object {
         const val GROUP_ID_ARG = "groupId"
+        private const val PENDING_REPLACEMENT_GROUP_ID_KEY = "pendingReplacementGroupId"
     }
 }
 
@@ -1756,6 +1800,14 @@ enum class DeleteMedicationGroupResult {
 
 enum class ArchiveMedicationGroupResult {
     FAILURE,
+
+    /**
+     * The repository rejected the archive because there are still current or
+     * future planned slots that haven't been resolved. Surfaced as a distinct
+     * outcome so the UI can guide the user toward the recovery action instead
+     * of showing a generic failure toast.
+     */
+    BLOCKED_BY_FUTURE_PLANNED_SLOTS,
 }
 
 enum class ArchiveAndRecreateMedicationGroupResult {
