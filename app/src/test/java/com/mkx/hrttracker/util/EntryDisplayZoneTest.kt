@@ -105,4 +105,44 @@ class EntryDisplayZoneTest {
         )
         assertEquals(false, isCrossZone(entry, deviceZone = ZoneId.of("America/Los_Angeles")))
     }
+
+    @Test
+    fun appliedAtAsLocalDateTime_uses_entry_zone() {
+        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
+            .atZone(ZoneId.of("Asia/Tokyo"))
+            .toInstant()
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = instant,
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        assertEquals(
+            java.time.LocalDateTime.of(2026, 4, 15, 9, 0),
+            appliedAtAsLocalDateTime(entry, deviceZone = ZoneId.of("America/Los_Angeles"))
+        )
+    }
+
+    @Test
+    fun formatEntryWallTime_renders_time_in_entry_zone() {
+        val instant = java.time.LocalDateTime.of(2026, 4, 15, 9, 0)
+            .atZone(ZoneId.of("Asia/Tokyo"))
+            .toInstant()
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = instant,
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+        assertEquals("09:00", formatEntryWallTime(entry, formatter, deviceZone = ZoneId.of("America/Los_Angeles")))
+    }
 }
