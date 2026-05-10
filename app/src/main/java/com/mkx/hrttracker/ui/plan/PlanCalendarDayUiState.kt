@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -118,7 +119,7 @@ fun buildPlanCalendarDayUiState(
 }
 
 internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
-    return scheduledFor?.toLocalDate() ?: appliedAt.atZone(zoneId).toLocalDate()
+    return scheduledFor?.toLocalDate() ?: appliedAtAsLocalDateTime(this, zoneId).toLocalDate()
 }
 
 internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(

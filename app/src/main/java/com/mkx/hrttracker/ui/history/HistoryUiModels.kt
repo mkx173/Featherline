@@ -49,7 +49,7 @@ internal fun buildHistoryVisibleEntries(
 ): List<MedicationLogEntry> {
     return entries
         .filter { entry ->
-            val entryDate = entry.appliedAt.atZone(zoneId).toLocalDate()
+            val entryDate = entry.planCalendarDate(zoneId)
             if (selectedDate != null) {
                 entryDate == selectedDate
             } else {
@@ -282,7 +282,7 @@ internal fun buildHistoryMonthSummary(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): HistoryMonthSummary {
     val logged = entries.count { entry ->
-        YearMonth.from(entry.appliedAt.atZone(zoneId).toLocalDate()) == displayedMonth
+        YearMonth.from(entry.planCalendarDate(zoneId)) == displayedMonth
     }
 
     var onTrack = 0
@@ -346,7 +346,7 @@ internal fun buildHistoryCalendarDayUiState(
         entry.planCalendarDate(zoneId)
     }
     val entriesByAppliedDate = rangeEntries.groupBy { entry ->
-        entry.appliedAt.atZone(zoneId).toLocalDate()
+        entry.planCalendarDate(zoneId)
     }
 
     val dayStates = linkedMapOf<LocalDate, HistoryCalendarDayUiState>()
@@ -392,7 +392,7 @@ private fun isHistoryAppliedDateOffPlanRecord(
     date: LocalDate,
     zoneId: ZoneId,
 ): Boolean {
-    if (entry.appliedAt.atZone(zoneId).toLocalDate() != date) {
+    if (entry.planCalendarDate(zoneId) != date) {
         return false
     }
     val sourceGroupUuid = entry.sourceGroupUuid ?: return false
@@ -412,7 +412,7 @@ internal fun groupHistoryEntriesByDate(
     zoneId: ZoneId = ZoneId.systemDefault()
 ): Map<LocalDate, List<MedicationLogEntry>> {
     return entries
-        .groupBy { entry -> entry.appliedAt.atZone(zoneId).toLocalDate() }
+        .groupBy { entry -> entry.planCalendarDate(zoneId) }
         .mapValues { (_, dateEntries) ->
             dateEntries.sortedBy { entry -> entry.appliedAt }
         }

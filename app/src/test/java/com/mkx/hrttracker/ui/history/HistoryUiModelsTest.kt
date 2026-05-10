@@ -786,7 +786,7 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun buildHistoryCalendarDayUiState_marks_outside_window_linked_record_off_plan_on_applied_date_only() {
+    fun buildHistoryCalendarDayUiState_marks_outside_window_linked_record_off_plan_on_scheduled_date() {
         val scheduledDate = LocalDate.of(2026, 5, 2)
         val appliedDate = LocalDate.of(2026, 5, 1)
         val group = MedicationGroup(
@@ -830,17 +830,18 @@ class HistoryUiModelsTest {
             endDate = scheduledDate
         )
 
+        // With planCalendarDate, scheduledFor wins for bucketing: entry lands on scheduledDate.
         assertEquals(
             HistoryCalendarDayUiState(
-                status = PlanCalendarDayStatus.OFFPLAN,
-                hasOffPlanRecord = true
+                status = PlanCalendarDayStatus.NONE,
+                hasOffPlanRecord = false
             ),
             dayStates.getValue(appliedDate)
         )
         assertEquals(
             HistoryCalendarDayUiState(
                 status = PlanCalendarDayStatus.MISSED,
-                hasOffPlanRecord = false
+                hasOffPlanRecord = true
             ),
             dayStates.getValue(scheduledDate)
         )

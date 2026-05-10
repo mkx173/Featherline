@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
+import com.mkx.hrttracker.ui.plan.planCalendarDate
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.AppTimeSource
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -109,7 +110,7 @@ class HistoryViewModel @Inject constructor(
         val today = now.toLocalDate()
         val currentMonth = YearMonth.from(today)
         val earliestEntryMonth = entries.minOfOrNull { entry ->
-            YearMonth.from(entry.appliedAt.atZone(ZoneId.systemDefault()).toLocalDate())
+            YearMonth.from(entry.planCalendarDate(ZoneId.systemDefault()))
         }
         val earliestGroupMonth = calendarGroups.minOfOrNull { group ->
             YearMonth.from(group.schedule.since)

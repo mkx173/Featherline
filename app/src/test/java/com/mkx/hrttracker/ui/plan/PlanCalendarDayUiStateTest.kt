@@ -1105,6 +1105,44 @@ class PlanCalendarDayUiStateTest {
         )
     }
 
+    @Test
+    fun planCalendarDate_for_manual_entry_uses_entry_zone() {
+        val pdt = ZoneId.of("America/Los_Angeles")
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = estradiolDetails(
+                applicationType = MedicationApplicationType.ORAL,
+                dose = 2.0,
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = LocalDateTime.of(2026, 5, 8, 9, 0).atZone(pdt).toInstant(),
+            appliedAtTimeZoneId = "America/Los_Angeles",
+            scheduledFor = null,
+        )
+        // Device in JST should still bucket the entry to its PDT date (May 8), not May 9.
+        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(ZoneId.of("Asia/Tokyo")))
+    }
+
+    @Test
+    fun planCalendarDate_for_linked_entry_uses_scheduledFor_date() {
+        val pdt = ZoneId.of("America/Los_Angeles")
+        val entry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            details = estradiolDetails(
+                applicationType = MedicationApplicationType.ORAL,
+                dose = 2.0,
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = UUID.randomUUID(),
+            appliedAt = LocalDateTime.of(2026, 5, 8, 9, 0).atZone(pdt).toInstant(),
+            appliedAtTimeZoneId = "America/Los_Angeles",
+            scheduledFor = LocalDateTime.of(2026, 5, 8, 9, 0),
+        )
+        // Even with device in JST, scheduledFor date (May 8) wins over device-zone conversion.
+        assertEquals(LocalDate.of(2026, 5, 8), entry.planCalendarDate(ZoneId.of("Asia/Tokyo")))
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         schedule: MedicationGroupSchedule,
