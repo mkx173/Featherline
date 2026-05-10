@@ -108,6 +108,17 @@ fun AddEntryScreen(
         }
     }
 
+    val crossZoneSavedFormat = stringResource(R.string.cross_timezone_saved_toast)
+    LaunchedEffect(uiState.savedCrossZoneZoneText) {
+        val zoneText = uiState.savedCrossZoneZoneText ?: return@LaunchedEffect
+        Toast.makeText(
+            context,
+            crossZoneSavedFormat.format(zoneText),
+            Toast.LENGTH_SHORT,
+        ).show()
+        viewModel.consumeCrossZoneToast()
+    }
+
     AddEntryScreenContent(
         uiState = uiState,
         sheetState = sheetState,

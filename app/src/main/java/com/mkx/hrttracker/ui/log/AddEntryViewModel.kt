@@ -15,6 +15,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.formatEditorZoneLabel
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
@@ -39,6 +40,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
@@ -294,6 +296,16 @@ class AddEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val crossZoneText = if (isSaved) {
+                formatEditorZoneLabel(
+                    appliedZoneId = currentState.appliedZoneId,
+                    appliedAtInstant = appliedAt,
+                    deviceZone = ZoneId.systemDefault(),
+                    locale = Locale.getDefault(),
+                )
+            } else {
+                null
+            }
 
             _uiState.update {
                 it.copy(
@@ -302,6 +314,7 @@ class AddEntryViewModel @Inject constructor(
                     errorMessageRes = null,
                     saveEntryResult = saveResult,
                     isScheduleFulfillmentWarningVisible = false,
+                    savedCrossZoneZoneText = crossZoneText,
                 )
             }
 
@@ -369,6 +382,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(deleteEntryResult = null) }
     }
 
+    fun consumeCrossZoneToast() {
+        _uiState.update { it.copy(savedCrossZoneZoneText = null) }
+    }
+
     private fun loadEntriesForEditing(entryIds: List<String>) {
         loadEntryJob = viewModelScope.launch {
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
@@ -406,6 +423,7 @@ data class AddEntryUiState(
     val saveEntryResult: SaveEntryResult? = null,
     val deleteEntryResult: DeleteEntryResult? = null,
     val isScheduleFulfillmentWarningVisible: Boolean = false,
+    val savedCrossZoneZoneText: String? = null,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)

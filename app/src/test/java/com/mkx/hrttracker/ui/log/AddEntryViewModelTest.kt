@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -938,6 +939,86 @@ class AddEntryViewModelTest {
                 appliedAtTimeZoneId = "Asia/Tokyo"
             )
         }
+    }
+
+    @Test
+    fun saveEntry_emits_cross_zone_toast_payload_when_zone_differs_from_device() = runTest(dispatcher) {
+        val entryId = UUID.randomUUID()
+        // Use UTC-5/UTC-4 (New York) — guaranteed to differ from any Asia/Pacific device zone.
+        val newYork = ZoneId.of("America/New_York")
+        val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant()
+        val existingEntry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = originalInstant,
+            appliedAtTimeZoneId = "America/New_York"
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        coEvery { medicationLogRepository.saveEntry(
+            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+            count = any(), appliedAtTimeZoneId = any()
+        ) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        val payload = viewModel.uiState.value.savedCrossZoneZoneText
+        assertNotNull(payload)
+        assertTrue(payload!!.contains("America/New_York"))
+
+        // After consume, the field clears.
+        viewModel.consumeCrossZoneToast()
+        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
+    }
+
+    @Test
+    fun saveEntry_does_not_emit_cross_zone_toast_payload_for_same_zone() = runTest(dispatcher) {
+        val entryId = UUID.randomUUID()
+        val deviceZone = ZoneId.systemDefault()
+        val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(deviceZone).toInstant()
+        val existingEntry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = originalInstant,
+            appliedAtTimeZoneId = deviceZone.id
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        coEvery { medicationLogRepository.saveEntry(
+            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+            count = any(), appliedAtTimeZoneId = any()
+        ) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
     }
 
     @Test
