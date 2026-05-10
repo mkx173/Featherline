@@ -58,6 +58,7 @@ class SettingsRepository @Inject constructor(
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+    private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
@@ -173,6 +174,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun acknowledgeTimeZone(zoneId: String) {
+        context.dataStore.edit { preferences ->
+            preferences[lastSeenTimeZoneIdKey] = zoneId
+        }
+    }
+
     suspend fun restoreSettings(
         darkModeOption: DarkModeOption,
         adaptiveColorEnabled: Boolean,
@@ -184,6 +191,7 @@ class SettingsRepository @Inject constructor(
         appLanguageOption: AppLanguageOption,
         calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
         homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+        lastSeenTimeZoneId: String? = null,
     ) {
         calibrationDefaultUnits.forEach { (analyteKey, unit) ->
             require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
@@ -213,6 +221,12 @@ class SettingsRepository @Inject constructor(
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
                 preferences[homeE2DisplayUnitKey] = homeE2DisplayUnit.storageValue
+            }
+
+            if (lastSeenTimeZoneId == null) {
+                preferences.remove(lastSeenTimeZoneIdKey)
+            } else {
+                preferences[lastSeenTimeZoneIdKey] = lastSeenTimeZoneId
             }
         }
 
@@ -249,6 +263,7 @@ class SettingsRepository @Inject constructor(
             ),
             hideScreenContentEnabled = preferences[hideScreenContentKey] ?: false,
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
+            lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
         )
     }
 

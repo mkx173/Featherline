@@ -157,6 +157,7 @@ class BackupRestoreService @Inject constructor(
             appLanguageOption = validatedSnapshot.settings.appLanguageOption,
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
+            lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
         )
         medicationReminderScheduler.rescheduleAll()
         medicationReminderSnoozeScheduler.clearAllSnoozes()
@@ -603,6 +604,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         appLanguageOption = appLanguageOption,
         calibrationDefaultUnits = calibrationDefaultUnits,
         homeE2DisplayUnit = homeE2DisplayUnitKey,
+        lastSeenTimeZoneId = lastSeenTimeZoneId,
     )
 }
 
@@ -719,6 +721,7 @@ internal data class ValidatedBackupSettings(
     val appLanguageOption: AppLanguageOption,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
     val homeE2DisplayUnit: BloodUnitKey,
+    val lastSeenTimeZoneId: String?,
 )
 
 private data class ValidatedMedicationData(

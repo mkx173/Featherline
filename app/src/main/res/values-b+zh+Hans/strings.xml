@@ -171,6 +171,8 @@
     <string name="save_entry_failure">无法保存记录</string>
     <string name="delete_entry_failure">无法删除记录</string>
     <string name="cross_timezone_saved_toast">已保存于 %1$s</string>
+    <string name="timezone_change_notice">时区已从%1$s变更为%2$s，计划时间将跟随当地时间</string>
+    <string name="timezone_change_notice_dismiss">关闭时区变更提示</string>
     <string name="schedule_fulfillment_warning_title">不会计为完成计划</string>
     <string name="schedule_fulfillment_warning_message">您输入的时间距离原计划时间较远，因此这条记录不会计为完成此次计划</string>
     <string name="history_delete_all_entries">删除全部记录</string>

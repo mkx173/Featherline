@@ -181,6 +181,7 @@ class BackupExportService @Inject constructor(
                     .associate { (analyteKey, unitKey) ->
                         analyteKey.storageValue to unitKey.storageValue
                     },
+                lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = userProfile.weightKg,

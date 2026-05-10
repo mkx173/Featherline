@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -925,7 +926,7 @@ private fun CalibrationPanelMetadataRow(
         }
         if (isCrossZone) {
             Icon(
-                imageVector = Icons.Outlined.Public,
+                imageVector = Icons.Rounded.Public,
                 contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),

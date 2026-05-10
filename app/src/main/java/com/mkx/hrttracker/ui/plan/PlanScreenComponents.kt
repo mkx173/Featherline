@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -367,7 +368,7 @@ private fun SelectedDayRow(
                         }
                         if (isCrossZoneRow) {
                             Icon(
-                                imageVector = Icons.Outlined.Public,
+                                imageVector = Icons.Rounded.Public,
                                 contentDescription = stringResource(
                                     R.string.cross_timezone_entry_indicator
                                 ),

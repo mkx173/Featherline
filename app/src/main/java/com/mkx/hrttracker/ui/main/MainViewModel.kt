@@ -10,6 +10,8 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.TimeZoneChangeNotice
+import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +33,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val settingsRepository: SettingsRepository,
+    private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController,
     appTimeSource: AppTimeSource,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -57,9 +60,10 @@ class MainViewModel @Inject constructor(
                 homeRepository.observeHomeInputs(anchorNow)
             },
         currentDateTime,
-    ) { inputs, now ->
+        timeZoneChangeNoticeController.notice,
+    ) { inputs, now, timeZoneNotice ->
         withContext(defaultDispatcher) {
-            buildHomeUiState(inputs = inputs, now = now)
+            buildHomeUiState(inputs = inputs, now = now, timeZoneNotice = timeZoneNotice)
         }
     }
         .stateIn(
@@ -70,6 +74,10 @@ class MainViewModel @Inject constructor(
                 now = currentDateTime.value,
             )
         )
+
+    fun dismissTimeZoneChangeNotice() {
+        timeZoneChangeNoticeController.dismiss()
+    }
 
     fun setHomeE2DisplayUnit(unit: BloodUnitKey) {
         viewModelScope.launch {
@@ -93,6 +101,7 @@ class MainViewModel @Inject constructor(
     private fun buildHomeUiState(
         inputs: HomeInputs,
         now: LocalDateTime,
+        timeZoneNotice: TimeZoneChangeNotice?,
     ): MainUiState {
         val homeE2DisplayUnit = inputs.settings.homeE2DisplayUnit
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
@@ -144,7 +153,8 @@ class MainViewModel @Inject constructor(
                 entries = homeEntries,
                 now = now,
                 zoneId = zoneId,
-            )
+            ),
+            timeZoneChangeNotice = timeZoneNotice,
         )
     }
 }
@@ -161,7 +171,8 @@ data class MainUiState(
         date = now.toLocalDate()
     ),
     val lastNightSection: MainLastNightSectionUiState = MainLastNightSectionUiState(),
-    val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState()
+    val upcomingSection: MainUpcomingSectionUiState = MainUpcomingSectionUiState(),
+    val timeZoneChangeNotice: TimeZoneChangeNotice? = null,
 ) {
     val splashReady: Boolean
         get() = homeDataReady

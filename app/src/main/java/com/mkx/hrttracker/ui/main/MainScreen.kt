@@ -137,6 +137,7 @@ fun MainScreen(
             listState = listState,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick,
+            onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)

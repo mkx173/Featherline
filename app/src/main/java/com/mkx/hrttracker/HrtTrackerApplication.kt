@@ -9,6 +9,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.ToastManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,9 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var diagnosticsLogger: AppDiagnosticsLogger
+
+    @Inject
+    lateinit var timeZoneChangeNoticeController: TimeZoneChangeNoticeController
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -53,6 +57,8 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")
         reminderNotificationManager.createNotificationChannel()
         diagnosticsLogger.info(TAG, "application_notification_channel_requested")
+        timeZoneChangeNoticeController.attachToProcessLifecycle()
+        diagnosticsLogger.info(TAG, "application_timezone_notice_controller_attached")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
     }
 

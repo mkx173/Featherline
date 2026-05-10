@@ -75,7 +75,16 @@ fun formatEditorZoneLabel(
     val pickerOffset = appliedZoneId.rules.getOffset(appliedAtInstant)
     val deviceOffset = deviceZone.rules.getOffset(appliedAtInstant)
     if (pickerOffset == deviceOffset) return null
-    return "${zoneDisplayName(appliedZoneId, locale)} · ${formatUtcOffset(pickerOffset)}"
+    return formatZoneLabel(appliedZoneId, appliedAtInstant, locale)
+}
+
+fun formatZoneLabel(
+    zoneId: ZoneId,
+    instant: Instant = Instant.now(),
+    locale: Locale = Locale.getDefault(),
+): String {
+    val offset = zoneId.rules.getOffset(instant)
+    return "${zoneDisplayName(zoneId, locale)} · ${formatUtcOffset(offset)}"
 }
 
 private fun formatUtcOffset(offset: ZoneOffset): String {

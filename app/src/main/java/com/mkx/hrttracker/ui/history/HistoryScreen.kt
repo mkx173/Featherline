@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -2099,7 +2100,7 @@ private fun HistoryEntryCard(
                 }
                 if (crossZone) {
                     Icon(
-                        imageVector = Icons.Outlined.Public,
+                        imageVector = Icons.Rounded.Public,
                         contentDescription = stringResource(R.string.cross_timezone_entry_indicator),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(17.dp)

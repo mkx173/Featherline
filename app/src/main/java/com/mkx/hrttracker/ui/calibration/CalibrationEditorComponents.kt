@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -164,7 +165,7 @@ internal fun CalibrationCrossZonePill(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
             Icon(
-                imageVector = Icons.Outlined.Public,
+                imageVector = Icons.Rounded.Public,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)

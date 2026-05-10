@@ -22,12 +22,14 @@ import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
+import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -53,12 +55,14 @@ import java.util.UUID
 class MainViewModelTest {
     private val homeRepository: HomeRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
+    private val timeZoneChangeNoticeController: TimeZoneChangeNoticeController = mockk()
     private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { homeRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
+        every { timeZoneChangeNoticeController.notice } returns MutableStateFlow(null)
     }
 
     @After
@@ -77,6 +81,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -113,6 +118,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -144,6 +150,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -182,6 +189,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -205,6 +213,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -237,6 +246,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -259,6 +269,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )
@@ -303,6 +314,7 @@ class MainViewModelTest {
         val viewModel = MainViewModel(
             homeRepository = homeRepository,
             settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
             appTimeSource = appTimeSource,
             defaultDispatcher = dispatcher,
         )

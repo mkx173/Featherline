@@ -32,6 +32,7 @@ data class BackupSettingsSnapshot(
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
     val calibrationDefaultUnits: Map<String, String>,
+    val lastSeenTimeZoneId: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
