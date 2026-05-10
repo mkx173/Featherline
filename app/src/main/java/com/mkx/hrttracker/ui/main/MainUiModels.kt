@@ -21,6 +21,7 @@ import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -563,6 +564,7 @@ private fun buildMainTodayRowsForDate(
         val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
             .mapNotNull { entriesByUuid[it] }
             .sortedBy { it.appliedAt }
+        val lastFulfillingEntry = fulfillingEntries.lastOrNull()
 
         MainTodayDoseRowUiState(
             groupUuid = scheduledEntry.groupUuid,
@@ -577,10 +579,7 @@ private fun buildMainTodayRowsForDate(
                 scheduledAt.isBefore(now) -> MainTodayDoseStatus.OVERDUE
                 else -> MainTodayDoseStatus.UPCOMING
             },
-            loggedAt = fulfillingEntries.lastOrNull()
-                ?.appliedAt
-                ?.atZone(zoneId)
-                ?.toLocalDateTime(),
+            loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it) },
             outsideScheduleWindowLoggedAt = scheduledEntry.outsideScheduleWindowLoggedAt,
             fulfillingEntryUuids = fulfillingEntries.map { it.uuid },
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,

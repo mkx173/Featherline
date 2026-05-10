@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -111,6 +112,7 @@ fun buildPlanDaySchedule(
                     val loggedCount = matchingLogs.sumOf { entry -> entry.count }
                     val isFulfilled = loggedCount >= requiredCount
                     val lastFulfillingEntry = matchingLogs.lastOrNull()
+                    val lastOutsideWindowEntry = outsideWindowLogs.lastOrNull()
                     PlanDayScheduleEntry(
                         groupUuid = group.uuid,
                         groupName = group.name,
@@ -123,15 +125,9 @@ fun buildPlanDaySchedule(
                         medicationSortOrder = medicationSortOrder,
                         fulfillingEntryUuids = matchingLogs.map { it.uuid },
                         outsideScheduleWindowEntryUuids = outsideWindowLogs.map { it.uuid },
-                        loggedAt = lastFulfillingEntry
-                            ?.appliedAt
-                            ?.atZone(zoneId)
-                            ?.toLocalDateTime(),
+                        loggedAt = lastFulfillingEntry?.let { appliedAtAsLocalDateTime(it) },
                         lastFulfillingEntry = lastFulfillingEntry,
-                        outsideScheduleWindowLoggedAt = outsideWindowLogs.lastOrNull()
-                            ?.appliedAt
-                            ?.atZone(zoneId)
-                            ?.toLocalDateTime(),
+                        outsideScheduleWindowLoggedAt = lastOutsideWindowEntry?.let { appliedAtAsLocalDateTime(it) },
                         loggedCount = loggedCount,
                         isFulfilled = isFulfilled,
                         isDueSoon = !isFulfilled && isDueSoonSlot,

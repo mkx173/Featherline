@@ -212,4 +212,27 @@ class EntryDisplayZoneTest {
             )
         )
     }
+
+    @Test
+    fun appliedAtAsLocalDateTime_yields_picker_match_for_cross_zone_entry() {
+        // A 09:05 Tokyo dose against a 09:00 Tokyo schedule should be "5 min late"
+        // when the device is in Los Angeles. Prior bug: device-zone derivation showed it as ~17h late.
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val scheduledFor = LocalDateTime.of(2026, 4, 15, 9, 0)
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = LocalDateTime.of(2026, 4, 15, 9, 5).atZone(tokyo).toInstant(),
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledFor = scheduledFor,
+        )
+        val deviceZone = ZoneId.of("America/Los_Angeles")
+        val applied = appliedAtAsLocalDateTime(entry, deviceZone)
+        assertEquals(LocalDateTime.of(2026, 4, 15, 9, 5), applied)
+        assertEquals(5, java.time.temporal.ChronoUnit.MINUTES.between(scheduledFor, applied))
+    }
 }
