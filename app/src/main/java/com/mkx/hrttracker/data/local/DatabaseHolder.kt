@@ -2,7 +2,9 @@ package com.mkx.hrttracker.data.local
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import com.mkx.hrttracker.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +66,7 @@ class DatabaseHolder @Inject constructor(
         val openHelperFactory =
             SupportOpenHelperFactory(databasePassphraseProvider.getPassphrase())
 
-        return Room.databaseBuilder(
+        val builder: RoomDatabase.Builder<HrtTrackerDatabase> = Room.databaseBuilder(
             context,
             HrtTrackerDatabase::class.java,
             DATABASE_NAME
@@ -82,8 +84,13 @@ class DatabaseHolder @Inject constructor(
                 MIGRATION_27_28,
                 MIGRATION_28_29,
             )
-            .fallbackToDestructiveMigration(dropAllTables = true)
-            .build()
+        if (BuildConfig.DEBUG) {
+            // Debug-only: side-loading older APKs is common during development.
+            // Release builds intentionally crash on a missing migration so silent
+            // data loss surfaces in stability metrics rather than wiping users.
+            builder.fallbackToDestructiveMigration(dropAllTables = true)
+        }
+        return builder.build()
     }
 
     private companion object {
