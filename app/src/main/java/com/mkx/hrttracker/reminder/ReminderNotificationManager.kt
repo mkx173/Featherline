@@ -150,6 +150,11 @@ class ReminderNotificationManager @Inject constructor(
         )
     }
 
+    fun showDoseReminderNothingToAddToast() {
+        diagnosticsLogger.info(TAG, "reminder_notification_nothing_to_add_toast")
+        showToast(context.getString(R.string.reminder_notification_nothing_to_add))
+    }
+
     fun showDoseReminderSnoozedToast(snoozeMinutes: Long) {
         diagnosticsLogger.info(TAG, "reminder_notification_snoozed_toast minutes=$snoozeMinutes")
         showToast(
