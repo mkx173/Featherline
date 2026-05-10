@@ -39,6 +39,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +64,8 @@ import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatEntryWallTime
+import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import java.time.Instant
 import java.time.LocalDate
@@ -284,10 +287,9 @@ private fun SelectedDayRow(
         } else {
             row.entry.scheduledTime.format(timeFormatter)
         }
-        is SelectedDayRowModel.Unplanned -> row.entry.appliedAt
-            .atZone(ZoneId.systemDefault())
-            .format(timeFormatter)
+        is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
     }
+    val isUnplannedCrossZone = row is SelectedDayRowModel.Unplanned && isCrossZone(row.entry)
     val titleText = medicationDisplayName(row.details)
 
     EditorSegmentedListItem(
@@ -326,8 +328,14 @@ private fun SelectedDayRow(
                     )
                     Text(
                         text = timeLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontStyle = if (isUnplannedCrossZone) FontStyle.Italic else FontStyle.Normal
+                        ),
+                        color = if (isUnplannedCrossZone) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
                         textAlign = TextAlign.End,
                         maxLines = 1,
                         modifier = Modifier.alignByBaseline()
