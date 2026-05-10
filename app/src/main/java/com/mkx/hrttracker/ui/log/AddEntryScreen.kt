@@ -34,6 +34,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +108,17 @@ fun AddEntryScreen(
         }
     }
 
+    val crossZoneSavedFormat = stringResource(R.string.cross_timezone_saved_toast)
+    LaunchedEffect(uiState.savedCrossZoneZoneText) {
+        val zoneText = uiState.savedCrossZoneZoneText ?: return@LaunchedEffect
+        Toast.makeText(
+            context,
+            crossZoneSavedFormat.format(zoneText),
+            Toast.LENGTH_SHORT,
+        ).show()
+        viewModel.consumeCrossZoneToast()
+    }
+
     AddEntryScreenContent(
         uiState = uiState,
         sheetState = sheetState,
@@ -120,6 +132,7 @@ fun AddEntryScreen(
         onIncreaseCountClick = viewModel::increaseCount,
         onAppliedDateChange = viewModel::updateAppliedDate,
         onAppliedTimeChange = viewModel::updateAppliedTime,
+        appliedZoneId = uiState.appliedZoneId,
         onDeleteClick = viewModel::deleteEntry,
         onSaveClick = viewModel::saveEntry,
         onSaveAfterFulfillmentWarningClick = viewModel::saveEntryAfterFulfillmentWarning,
@@ -141,6 +154,7 @@ private fun AddEntryScreenContent(
     onIncreaseCountClick: () -> Unit,
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveAfterFulfillmentWarningClick: () -> Unit,
@@ -202,6 +216,7 @@ private fun AddEntryScreenContent(
         onIncreaseCountClick = onIncreaseCountClick,
         appliedDate = uiState.appliedDate,
         appliedTime = uiState.appliedTime,
+        appliedZoneId = appliedZoneId,
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
         errorMessageRes = uiState.errorMessageRes,

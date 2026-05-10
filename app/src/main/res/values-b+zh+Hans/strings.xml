@@ -169,6 +169,7 @@
     <string name="delete_entries_confirm">删除</string>
     <string name="save_entry_failure">无法保存记录</string>
     <string name="delete_entry_failure">无法删除记录</string>
+    <string name="cross_timezone_saved_toast">已保存于 %1$s</string>
     <string name="schedule_fulfillment_warning_title">不会计为完成计划</string>
     <string name="schedule_fulfillment_warning_message">您输入的时间距离原计划时间较远，因此这条记录不会计为完成此次计划</string>
     <string name="history_delete_all_entries">删除全部记录</string>
@@ -309,6 +310,7 @@
     <string name="save">保存</string>
     <string name="archive">归档</string>
     <string name="archived_group_record_indicator">来自已归档分组</string>
+    <string name="cross_timezone_entry_indicator">在其他时区记录</string>
     <string name="plan_archived_groups">已归档的分组</string>
     <string name="plan_archived_groups_empty">暂无已归档的分组</string>
     <string name="plan_archived_groups_created_at">创建于 %1$s</string>

@@ -17,6 +17,8 @@ import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
+import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.zoneDisplayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -258,25 +260,33 @@ class CalibrationEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             val latestState = uiState.value
-            val collectedAt = latestState.toCollectedAtInstant(defaultZoneId)
+            val collectedAt = latestState.toCollectedAtInstant(latestState.collectedZoneId)
             val resultInputs = buildResultInputs(latestState)
 
             runCatching {
                 bloodTestRepository.savePanel(
                     uuid = editingPanelUuid,
                     collectedAt = collectedAt,
-                    collectedAtTimeZoneId = defaultZoneId.id,
+                    collectedAtTimeZoneId = latestState.collectedZoneId.id,
                     notes = latestState.notes,
                     results = resultInputs,
                     now = Instant.now(),
                 )
             }.onSuccess { savedPanelUuid ->
+                val pickerOffset = latestState.collectedZoneId.rules.getOffset(collectedAt)
+                val deviceOffset = defaultZoneId.rules.getOffset(collectedAt)
+                val crossZoneText = if (pickerOffset == deviceOffset) {
+                    null
+                } else {
+                    zoneDisplayName(latestState.collectedZoneId)
+                }
                 _uiState.update { state ->
                     state.copy(
                         panelUuid = savedPanelUuid.toString(),
                         isEditing = true,
                         isSaving = false,
                         isSaved = true,
+                        savedCrossZoneZoneText = crossZoneText,
                     )
                 }
             }.onFailure {
@@ -326,6 +336,12 @@ class CalibrationEditorViewModel @Inject constructor(
     fun consumeSavedState() {
         _uiState.update { state ->
             state.copy(isSaved = false)
+        }
+    }
+
+    fun consumeCrossZoneToast() {
+        _uiState.update { state ->
+            state.copy(savedCrossZoneZoneText = null)
         }
     }
 
@@ -416,7 +432,7 @@ class CalibrationEditorViewModel @Inject constructor(
 
     private fun refreshTimeSinceLastEstradiolDose() {
         val targetState = uiState.value
-        val targetCollectedAt = targetState.toCollectedAtInstant(defaultZoneId)
+        val targetCollectedAt = targetState.toCollectedAtInstant(targetState.collectedZoneId)
         when (
             val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(targetCollectedAt)
         ) {
@@ -452,7 +468,7 @@ class CalibrationEditorViewModel @Inject constructor(
         elapsedMillis: Long?,
     ) {
         _uiState.update { state ->
-            if (state.toCollectedAtInstant(defaultZoneId) != targetCollectedAt) {
+            if (state.toCollectedAtInstant(state.collectedZoneId) != targetCollectedAt) {
                 state
             } else {
                 state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
@@ -493,7 +509,8 @@ class CalibrationEditorViewModel @Inject constructor(
     }
 
     private fun BloodTestPanel.toEditorState(): CalibrationEditorUiState {
-        val collectedDateTime = collectedAt.atZone(defaultZoneId).toLocalDateTime()
+        val panelZone = displayZoneOf(collectedAtTimeZoneId, defaultZoneId)
+        val collectedDateTime = collectedAt.atZone(panelZone).toLocalDateTime()
         val drafts = results.map { result ->
             when (val analyte = result.analyte) {
                 is BloodTestResultAnalyte.Builtin -> {
@@ -525,6 +542,7 @@ class CalibrationEditorViewModel @Inject constructor(
             isLoading = false,
             collectedDate = collectedDateTime.toLocalDate(),
             collectedTime = collectedDateTime.toLocalTime().withSecond(0).withNano(0),
+            collectedZoneId = panelZone,
             timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
             notes = notes.orEmpty(),
             drafts = drafts,
@@ -548,6 +566,8 @@ data class CalibrationEditorUiState(
     val deleteEntryResult: CalibrationDeleteEntryResult? = null,
     val collectedDate: LocalDate = LocalDate.now(),
     val collectedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
+    val collectedZoneId: ZoneId = ZoneId.systemDefault(),
+    val savedCrossZoneZoneText: String? = null,
     val timeSinceLastEstradiolDoseMillis: Long? = null,
     val notes: String = "",
     val customAnalytes: List<CustomBloodAnalyte> = emptyList(),

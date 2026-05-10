@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
@@ -63,6 +64,8 @@ import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.formatEntryWallTime
+import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import java.time.Instant
 import java.time.LocalDate
@@ -284,9 +287,11 @@ private fun SelectedDayRow(
         } else {
             row.entry.scheduledTime.format(timeFormatter)
         }
-        is SelectedDayRowModel.Unplanned -> row.entry.appliedAt
-            .atZone(ZoneId.systemDefault())
-            .format(timeFormatter)
+        is SelectedDayRowModel.Unplanned -> formatEntryWallTime(row.entry, timeFormatter)
+    }
+    val isCrossZoneRow = when (row) {
+        is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
+        is SelectedDayRowModel.Scheduled -> row.entry.isLastFulfillingEntryCrossZone
     }
     val titleText = medicationDisplayName(row.details)
 
@@ -358,6 +363,16 @@ private fun SelectedDayRow(
                                 ),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        if (isCrossZoneRow) {
+                            Icon(
+                                imageVector = Icons.Outlined.Public,
+                                contentDescription = stringResource(
+                                    R.string.cross_timezone_entry_indicator
+                                ),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                         Text(

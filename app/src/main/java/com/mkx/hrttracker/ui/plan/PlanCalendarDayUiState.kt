@@ -11,6 +11,8 @@ import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.displayZoneOf
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -118,7 +120,7 @@ fun buildPlanCalendarDayUiState(
 }
 
 internal fun MedicationLogEntry.planCalendarDate(zoneId: ZoneId): LocalDate {
-    return scheduledFor?.toLocalDate() ?: appliedAt.atZone(zoneId).toLocalDate()
+    return scheduledFor?.toLocalDate() ?: appliedAtAsLocalDateTime(this, zoneId).toLocalDate()
 }
 
 internal fun List<MedicationGroup>.scheduledGroupsForPlanDay(
@@ -420,7 +422,7 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     val scheduledFor = entry.scheduledFor ?: return false
-    val appliedAtZoneId = ZoneId.of(entry.appliedAtTimeZoneId)
+    val appliedAtZoneId = displayZoneOf(entry.appliedAtTimeZoneId, zoneId)
     val appliedAt = entry.appliedAt.atZone(appliedAtZoneId).toLocalDateTime()
     return isWithinScheduleFulfillmentWindow(
         scheduledFor = scheduledFor,

@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -36,6 +37,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -869,6 +871,156 @@ class AddEntryViewModelTest {
         assertNull(viewModel.uiState.value.deleteEntryResult)
         coVerify(exactly = 1) { medicationLogRepository.deleteEntries(listOf(entryId)) }
         coVerify(exactly = 0) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun saveEntry_preserves_original_zone_when_editing_a_cross_zone_entry() = runTest(dispatcher) {
+        // GIVEN: existing entry stored in Asia/Tokyo
+        val entryId = UUID.randomUUID()
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val tokyoApplied = LocalDateTime.of(2026, 4, 15, 9, 0)
+        val originalInstant = tokyoApplied.atZone(tokyo).toInstant()
+        val existingEntry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = originalInstant,
+            appliedAtTimeZoneId = "Asia/Tokyo"
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = any(),
+                medication = any(),
+                sourceGroupUuid = any(),
+                scheduleTimeUuid = any(),
+                appliedAt = any(),
+                scheduledFor = any(),
+                count = any(),
+                appliedAtTimeZoneId = any()
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository,
+            medicationGroupRepository,
+            medicationReminderScheduler
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        // Verify state was loaded with Tokyo wall-clock
+        val loadedState = viewModel.uiState.value
+        assertEquals(tokyo, loadedState.appliedZoneId)
+        assertEquals(LocalTime.of(9, 0), loadedState.appliedTime)
+        assertEquals(LocalDate.of(2026, 4, 15), loadedState.appliedDate)
+
+        // Bump time by +20 min and save
+        viewModel.updateAppliedTime(LocalTime.of(9, 20))
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        // Verify the saved appliedAt and the preserved zone
+        val expectedInstant = LocalDateTime.of(2026, 4, 15, 9, 20).atZone(tokyo).toInstant()
+        coVerify {
+            medicationLogRepository.saveEntry(
+                uuid = entryId,
+                medication = any(),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = any(),
+                appliedAt = expectedInstant,
+                scheduledFor = any(),
+                count = any(),
+                appliedAtTimeZoneId = "Asia/Tokyo"
+            )
+        }
+    }
+
+    @Test
+    fun saveEntry_emits_cross_zone_toast_payload_when_zone_differs_from_device() = runTest(dispatcher) {
+        val entryId = UUID.randomUUID()
+        // Use UTC-5/UTC-4 (New York) — guaranteed to differ from any Asia/Pacific device zone.
+        val newYork = ZoneId.of("America/New_York")
+        val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant()
+        val existingEntry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = originalInstant,
+            appliedAtTimeZoneId = "America/New_York"
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        coEvery { medicationLogRepository.saveEntry(
+            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+            count = any(), appliedAtTimeZoneId = any()
+        ) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        val payload = viewModel.uiState.value.savedCrossZoneZoneText
+        // Long name varies subtly across runtimes; assert we got SOMETHING and it's
+        // not the bare IANA id.
+        assertNotNull(payload)
+        assertFalse(payload == "America/New_York")
+
+        // After consume, the field clears.
+        viewModel.consumeCrossZoneToast()
+        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
+    }
+
+    @Test
+    fun saveEntry_does_not_emit_cross_zone_toast_payload_for_same_zone() = runTest(dispatcher) {
+        val entryId = UUID.randomUUID()
+        val deviceZone = ZoneId.systemDefault()
+        val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(deviceZone).toInstant()
+        val existingEntry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            sourceGroupUuid = null,
+            appliedAt = originalInstant,
+            appliedAtTimeZoneId = deviceZone.id
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
+        every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        coEvery { medicationLogRepository.saveEntry(
+            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
+            count = any(), appliedAtTimeZoneId = any()
+        ) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository, medicationGroupRepository, medicationReminderScheduler
+        )
+        viewModel.initialize(listOf(entryId.toString()))
+        advanceUntilIdle()
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.savedCrossZoneZoneText)
     }
 
     @Test

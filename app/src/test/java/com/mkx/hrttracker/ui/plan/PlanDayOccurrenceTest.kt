@@ -299,14 +299,16 @@ class PlanDayOccurrenceTest {
                     details = details,
                     dosageMgAsEstradiol = 2.0,
                     sourceGroupUuid = null,
-                    appliedAt = LocalDateTime.of(2026, 4, 18, 21, 0).atZone(zoneId).toInstant()
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 21, 0).atZone(zoneId).toInstant(),
+                    appliedAtTimeZoneId = zoneId.id,
                 ),
                 com.mkx.hrttracker.model.medication.testMedicationLogEntry(
                     uuid = morningEntryUuid,
                     details = details,
                     dosageMgAsEstradiol = 2.0,
                     sourceGroupUuid = null,
-                    appliedAt = LocalDateTime.of(2026, 4, 18, 8, 0).atZone(zoneId).toInstant()
+                    appliedAt = LocalDateTime.of(2026, 4, 18, 8, 0).atZone(zoneId).toInstant(),
+                    appliedAtTimeZoneId = zoneId.id,
                 )
             ),
             now = LocalDateTime.of(2026, 4, 18, 22, 0),

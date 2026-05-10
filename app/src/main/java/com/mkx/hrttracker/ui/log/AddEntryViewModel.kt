@@ -13,6 +13,9 @@ import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
+import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.zoneDisplayName
 import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
@@ -217,7 +220,8 @@ class AddEntryViewModel @Inject constructor(
             currentState.appliedDate,
             currentState.appliedTime
         )
-        val appliedAt = appliedAtLocal.atZone(ZoneId.systemDefault()).toInstant()
+        val appliedAt = appliedAtLocal.atZone(currentState.appliedZoneId).toInstant()
+        val appliedAtTimeZoneId = currentState.appliedZoneId.id
         val errorRes = currentState.medicationDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
                 applicationType = currentState.medicationDraft.applicationType,
@@ -271,7 +275,8 @@ class AddEntryViewModel @Inject constructor(
                         scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = currentState.scheduledFor,
-                        count = resolvedCount
+                        count = resolvedCount,
+                        appliedAtTimeZoneId = appliedAtTimeZoneId
                     )
                 } else {
                     medicationLogRepository.saveEntry(
@@ -281,7 +286,8 @@ class AddEntryViewModel @Inject constructor(
                         scheduleTimeUuid = currentState.scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = currentState.scheduledFor,
-                        count = resolvedCount
+                        count = resolvedCount,
+                        appliedAtTimeZoneId = appliedAtTimeZoneId
                     )
                 }
             }.fold(
@@ -289,6 +295,17 @@ class AddEntryViewModel @Inject constructor(
                 onFailure = { SaveEntryResult.FAILURE },
             )
             val isSaved = saveResult == null
+            val crossZoneText = if (isSaved) {
+                val pickerOffset = currentState.appliedZoneId.rules.getOffset(appliedAt)
+                val deviceOffset = ZoneId.systemDefault().rules.getOffset(appliedAt)
+                if (pickerOffset == deviceOffset) {
+                    null
+                } else {
+                    zoneDisplayName(currentState.appliedZoneId)
+                }
+            } else {
+                null
+            }
 
             _uiState.update {
                 it.copy(
@@ -297,6 +314,7 @@ class AddEntryViewModel @Inject constructor(
                     errorMessageRes = null,
                     saveEntryResult = saveResult,
                     isScheduleFulfillmentWarningVisible = false,
+                    savedCrossZoneZoneText = crossZoneText,
                 )
             }
 
@@ -364,6 +382,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(deleteEntryResult = null) }
     }
 
+    fun consumeCrossZoneToast() {
+        _uiState.update { it.copy(savedCrossZoneZoneText = null) }
+    }
+
     private fun loadEntriesForEditing(entryIds: List<String>) {
         loadEntryJob = viewModelScope.launch {
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
@@ -392,6 +414,7 @@ data class AddEntryUiState(
     val countText: String = "1",
     val appliedDate: LocalDate = LocalDate.now(),
     val appliedTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
+    val appliedZoneId: ZoneId = ZoneId.systemDefault(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
@@ -400,6 +423,7 @@ data class AddEntryUiState(
     val saveEntryResult: SaveEntryResult? = null,
     val deleteEntryResult: DeleteEntryResult? = null,
     val isScheduleFulfillmentWarningVisible: Boolean = false,
+    val savedCrossZoneZoneText: String? = null,
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)
@@ -462,7 +486,7 @@ internal fun buildEditingUiState(
 ): AddEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
-    val appliedAt = representativeEntry.appliedAt.atZone(ZoneId.systemDefault())
+    val appliedAtLocal = appliedAtAsLocalDateTime(representativeEntry)
     val matchingSourceGroup = sourceGroup?.takeIf { group ->
         group.uuid == representativeEntry.sourceGroupUuid
     }
@@ -485,8 +509,9 @@ internal fun buildEditingUiState(
             representativeEntry.details.applicationType,
             representativeEntry.count
         ).toString(),
-        appliedDate = appliedAt.toLocalDate(),
-        appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0)
+        appliedZoneId = displayZoneOf(representativeEntry),
+        appliedDate = appliedAtLocal.toLocalDate(),
+        appliedTime = appliedAtLocal.toLocalTime().withSecond(0).withNano(0)
     )
 }
 
