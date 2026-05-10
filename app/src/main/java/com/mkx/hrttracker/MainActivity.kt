@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
@@ -266,6 +267,13 @@ class MainActivity : AppCompatActivity() {
                                         translationX = homeOffsetX.toFloat()
                                         alpha = homeAlpha
                                     }
+                                    .then(
+                                        if (contentLayers.showInWindowLockScreen) {
+                                            Modifier.clearAndSetSemantics { }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                             ) {
                                 HrtTrackerApp(navController = navController)
                             }

@@ -1,7 +1,20 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.compose.runtime.saveable.SaverScope
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDateTime
+import java.util.UUID
 
 class HrtTrackerNavHostTest {
     @Test
@@ -107,5 +120,81 @@ class HrtTrackerNavHostTest {
                 currentRoute = Screen.SettingsCalibration.baseRoute,
             )
         )
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsNull() {
+        val saver = AddEntrySheetRequestSaver
+        val saved = with(saver) { scope.save(null) }
+        assertNotNull(saved)
+        assertNull(saver.restore(saved!!))
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsEditEntries() {
+        val original = AddEntrySheetRequest(
+            entryIds = listOf("11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"),
+        )
+
+        assertEquals(original, roundTrip(original))
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsQuickLogRequestForEveryDoseShape() {
+        // Cover every MedicationDose branch so future additions break the test.
+        val doses = listOf(
+            MedicationDose.MgAsMedicine(2.5),
+            MedicationDose.GelEquivalentEstradiolMg(1.5),
+            MedicationDose.GelPercentAndWeight(0.06, 1.25),
+            MedicationDose.PatchTotalMg(3.8),
+            MedicationDose.PatchReleaseRateMcgPerDay(75.0),
+            MedicationDose.None,
+        )
+        doses.forEach { dose ->
+            val request = AddEntrySheetRequest(
+                quickLogRequest = AddEntryQuickLogRequest(
+                    groupId = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                    scheduleTimeUuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                    scheduledFor = LocalDateTime.of(2026, 5, 11, 9, 30),
+                    medicationDetails = MedicationDetails(
+                        category = MedicationCategory.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
+                        dose = dose,
+                        gelApplicationArea = MedicationGelApplicationArea.DEFAULT,
+                    ),
+                    medicationCount = 1,
+                ),
+            )
+            assertEquals("dose=$dose", request, roundTrip(request))
+        }
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsCustomSelectionAndOptionalScheduleTime() {
+        val request = AddEntrySheetRequest(
+            quickLogRequest = AddEntryQuickLogRequest(
+                groupId = UUID.fromString("55555555-5555-5555-5555-555555555555"),
+                scheduleTimeUuid = null,
+                scheduledFor = LocalDateTime.of(2026, 5, 11, 21, 0),
+                medicationDetails = MedicationDetails(
+                    category = MedicationCategory.CUSTOM,
+                    applicationType = MedicationApplicationType.SUBLINGUAL,
+                    selection = MedicationSelection.Custom("My med"),
+                    dose = MedicationDose.MgAsMedicine(0.25),
+                ),
+                medicationCount = 2,
+            ),
+        )
+
+        assertEquals(request, roundTrip(request))
+    }
+
+    private val scope = SaverScope { true }
+
+    private fun roundTrip(request: AddEntrySheetRequest?): AddEntrySheetRequest? {
+        val saver = AddEntrySheetRequestSaver
+        val saved = with(saver) { scope.save(request) } ?: error("saver returned null")
+        return saver.restore(saved)
     }
 }

@@ -19,6 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -38,6 +40,16 @@ import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
 import com.mkx.hrttracker.ui.history.HistoryScreen
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationDoseUnit
+import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainScreen
@@ -47,6 +59,7 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
+import java.time.LocalDateTime
 import java.util.UUID
 
 sealed class Screen(val route: String, @get:StringRes val label: Int) {
@@ -232,7 +245,9 @@ fun HrtTrackerNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
-    var addEntrySheetRequest by remember { mutableStateOf<AddEntrySheetRequest?>(null) }
+    var addEntrySheetRequest by rememberSaveable(stateSaver = AddEntrySheetRequestSaver) {
+        mutableStateOf<AddEntrySheetRequest?>(null)
+    }
     var mainScrollToTopSignal by remember { mutableIntStateOf(0) }
     var planScrollToTopSignal by remember { mutableIntStateOf(0) }
     var settingsScrollToTopSignal by remember { mutableIntStateOf(0) }
@@ -608,7 +623,126 @@ private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARG = "source"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS = "archivedGroups"
 
-private data class AddEntrySheetRequest(
+internal data class AddEntrySheetRequest(
     val entryIds: List<String> = emptyList(),
     val quickLogRequest: AddEntryQuickLogRequest? = null,
 )
+
+internal val AddEntrySheetRequestSaver: Saver<AddEntrySheetRequest?, Any> = Saver(
+    save = { request -> request?.let(::saveAddEntrySheetRequest) ?: SAVED_REQUEST_ABSENT },
+    restore = { saved ->
+        if (saved == SAVED_REQUEST_ABSENT) null else restoreAddEntrySheetRequest(saved)
+    }
+)
+
+private const val SAVED_REQUEST_ABSENT = "absent"
+
+private fun saveAddEntrySheetRequest(request: AddEntrySheetRequest): ArrayList<Any?> {
+    return arrayListOf<Any?>(
+        ArrayList(request.entryIds),
+        request.quickLogRequest?.let(::saveQuickLogRequest),
+    )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun restoreAddEntrySheetRequest(saved: Any): AddEntrySheetRequest {
+    val list = saved as ArrayList<Any?>
+    return AddEntrySheetRequest(
+        entryIds = (list[0] as? ArrayList<String>).orEmpty().toList(),
+        quickLogRequest = list[1]?.let(::restoreQuickLogRequest),
+    )
+}
+
+private fun saveQuickLogRequest(request: AddEntryQuickLogRequest): ArrayList<Any?> {
+    return arrayListOf(
+        request.groupId.toString(),
+        request.scheduleTimeUuid?.toString(),
+        request.scheduledFor.toString(),
+        saveMedicationDetails(request.medicationDetails),
+        request.medicationCount,
+    )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun restoreQuickLogRequest(saved: Any): AddEntryQuickLogRequest {
+    val list = saved as ArrayList<Any?>
+    return AddEntryQuickLogRequest(
+        groupId = UUID.fromString(list[0] as String),
+        scheduleTimeUuid = (list[1] as? String)?.let(UUID::fromString),
+        scheduledFor = LocalDateTime.parse(list[2] as String),
+        medicationDetails = restoreMedicationDetails(list[3]!!),
+        medicationCount = list[4] as Int,
+    )
+}
+
+private fun saveMedicationDetails(details: MedicationDetails): ArrayList<Any?> {
+    return arrayListOf(
+        details.category.name,
+        details.applicationType.name,
+        saveMedicationSelection(details.selection),
+        saveMedicationDose(details.dose),
+        details.gelApplicationArea.name,
+        details.customDoseUnit.name,
+    )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun restoreMedicationDetails(saved: Any): MedicationDetails {
+    val list = saved as ArrayList<Any?>
+    return MedicationDetails(
+        category = MedicationCategory.fromStorageValue(list[0] as String),
+        applicationType = MedicationApplicationType.fromStorageValue(list[1] as String),
+        selection = restoreMedicationSelection(list[2]!!),
+        dose = restoreMedicationDose(list[3]!!),
+        gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(list[4] as String),
+        customDoseUnit = MedicationDoseUnit.fromStorageValue(list[5] as String),
+    )
+}
+
+private fun saveMedicationSelection(selection: MedicationSelection): ArrayList<Any?> {
+    return when (selection) {
+        is MedicationSelection.Catalog -> arrayListOf(selection.kind.name, selection.medicationKey.name)
+        is MedicationSelection.Custom -> arrayListOf(selection.kind.name, selection.medicationName)
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun restoreMedicationSelection(saved: Any): MedicationSelection {
+    val list = saved as ArrayList<Any?>
+    return when (MedicationSelectionKind.fromStorageValue(list[0] as String)) {
+        MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
+            medicationKey = MedicationKey.fromStorageValue(list[1] as String)
+                ?: error("Unknown medication key: ${list[1]}")
+        )
+        MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
+            medicationName = list[1] as String
+        )
+    }
+}
+
+private fun saveMedicationDose(dose: MedicationDose): ArrayList<Any?> {
+    return when (dose) {
+        is MedicationDose.MgAsMedicine -> arrayListOf(dose.kind.name, dose.valueMg)
+        is MedicationDose.GelEquivalentEstradiolMg -> arrayListOf(dose.kind.name, dose.valueMg)
+        is MedicationDose.GelPercentAndWeight -> arrayListOf(dose.kind.name, dose.percent, dose.weightGrams)
+        is MedicationDose.PatchTotalMg -> arrayListOf(dose.kind.name, dose.valueMg)
+        is MedicationDose.PatchReleaseRateMcgPerDay -> arrayListOf(dose.kind.name, dose.valueMcgPerDay)
+        MedicationDose.None -> arrayListOf(dose.kind.name)
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun restoreMedicationDose(saved: Any): MedicationDose {
+    val list = saved as ArrayList<Any?>
+    return when (MedicationDoseKind.fromStorageValue(list[0] as String)) {
+        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(list[1] as Double)
+        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG ->
+            MedicationDose.GelEquivalentEstradiolMg(list[1] as Double)
+        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT ->
+            MedicationDose.GelPercentAndWeight(list[1] as Double, list[2] as Double)
+        MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(list[1] as Double)
+        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY ->
+            MedicationDose.PatchReleaseRateMcgPerDay(list[1] as Double)
+        MedicationDoseKind.NONE -> MedicationDose.None
+    }
+}
