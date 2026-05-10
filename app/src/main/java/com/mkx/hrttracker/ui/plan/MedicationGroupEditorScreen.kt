@@ -727,6 +727,15 @@ private fun MedicationGroupEditorScreenContent(
                 onArchiveAndRecreateMedicationGroupResultConsumed()
             }
 
+            ArchiveAndRecreateMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS -> {
+                Toast.makeText(
+                    context,
+                    archiveMedicationGroupBlockedByPlannedSlotsMessage,
+                    Toast.LENGTH_LONG,
+                ).show()
+                onArchiveAndRecreateMedicationGroupResultConsumed()
+            }
+
             null -> Unit
         }
     }

@@ -925,16 +925,24 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 resolvedGroupName = resolvedGroupName,
             )
 
-            val archiveSucceeded = runCatching {
+            val archiveOutcome = runCatching {
                 medicationGroupRepository.archiveGroup(uuid, now = recreateNowInstant)
-            }.isSuccess
+            }.fold(
+                onSuccess = { null },
+                onFailure = { cause ->
+                    when (cause) {
+                        is CurrentOrFuturePlannedSlotsBlockArchiveException ->
+                            ArchiveAndRecreateMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS
+                        else -> ArchiveAndRecreateMedicationGroupResult.FAILURE
+                    }
+                },
+            )
 
-            if (!archiveSucceeded) {
+            if (archiveOutcome != null) {
                 _uiState.update {
                     it.copy(
                         isRecreatingAfterArchive = false,
-                        archiveAndRecreateMedicationGroupResult =
-                            ArchiveAndRecreateMedicationGroupResult.FAILURE,
+                        archiveAndRecreateMedicationGroupResult = archiveOutcome,
                     )
                 }
                 return@launch
@@ -1818,6 +1826,14 @@ enum class ArchiveMedicationGroupResult {
 enum class ArchiveAndRecreateMedicationGroupResult {
     SUCCESS,
     FAILURE,
+
+    /**
+     * The repository rejected the archive step because there are still current or
+     * future planned slots that haven't been resolved. Mirrors
+     * [ArchiveMedicationGroupResult.BLOCKED_BY_FUTURE_PLANNED_SLOTS] so the UI can
+     * guide the user to the recovery action instead of showing a generic toast.
+     */
+    BLOCKED_BY_FUTURE_PLANNED_SLOTS,
 }
 
 internal fun applyDefaultGroupNameToEditorState(

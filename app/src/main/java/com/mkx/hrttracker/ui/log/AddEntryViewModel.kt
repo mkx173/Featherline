@@ -366,6 +366,27 @@ class AddEntryViewModel @Inject constructor(
                 )
             }
 
+            // Capture each entry's slot identity before delete so we can mirror the
+            // notification-action-handler path: when the entry being removed was
+            // fulfilling a snoozed slot, clear that snooze. After deleteEntries
+            // succeeds the rows are gone and we can no longer derive the slots.
+            val slotsToClear = runCatching {
+                medicationLogRepository.getEntries(editingEntryUuids)
+            }.getOrDefault(emptyList())
+                .mapNotNull { entry ->
+                    val groupUuid = entry.sourceGroupUuid
+                    val scheduledFor = entry.scheduledFor
+                    if (groupUuid != null && scheduledFor != null) {
+                        MedicationReminderSlot(
+                            groupUuid = groupUuid,
+                            scheduledAt = scheduledFor,
+                            scheduleTimeUuid = entry.scheduleTimeUuid,
+                        )
+                    } else {
+                        null
+                    }
+                }
+
             val result = runCatching {
                 medicationLogRepository.deleteEntries(editingEntryUuids)
             }.fold(
@@ -385,6 +406,11 @@ class AddEntryViewModel @Inject constructor(
 
             if (isDeleted) {
                 withContext(NonCancellable) {
+                    if (slotsToClear.isNotEmpty()) {
+                        runCatching {
+                            medicationReminderSnoozeScheduler.clearSnoozesForSlots(slotsToClear)
+                        }
+                    }
                     runCatching { medicationReminderScheduler.rescheduleAll() }
                 }
             }
