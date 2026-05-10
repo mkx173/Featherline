@@ -26,9 +26,9 @@ class MedicationGroupColorPaletteTest {
         val expectedSeeds = mapOf(
             null to Color(0xFF5A6470),
             ROSE to Color(0xFF95414A),
-            CORAL to Color(0xFFB66B43),
-            AMBER to Color(0xFFC18B14),
-            CITRON to Color(0xFF7E7C2A),
+            CORAL to Color(0xFFBD5C28),
+            AMBER to Color(0xFF9A8518),
+            CITRON to Color(0xFF6E8320),
             SAGE to Color(0xFF4F7A55),
             TEAL to Color(0xFF2E6E72),
             SKY to Color(0xFF2D80B0),
@@ -47,8 +47,8 @@ class MedicationGroupColorPaletteTest {
         val expectedDeltas = mapOf(
             ROSE to 1.2f,
             CORAL to -0.6f,
-            AMBER to -1.25f,
-            CITRON to 0.15f,
+            AMBER to -0.9f,
+            CITRON to -0.3f,
             SAGE to 0f,
             TEAL to 0.2f,
             SKY to -0.6f,
@@ -61,34 +61,7 @@ class MedicationGroupColorPaletteTest {
         expectedDeltas.forEach { (colorKey, delta) ->
             assertEquals(
                 delta,
-                medicationGroupLightenRatioDelta(colorKey, darkTheme = false)
-            )
-        }
-    }
-
-    @Test
-    fun medicationGroupLightenRatioDelta_returns_correct_delta_for_each_key_in_dark_mode() {
-        // Most keys share the same delta across modes; CITRON is the exception
-        // (light = 0.2, dark = 0.0) because light-mode CITRON needs an extra
-        // brightness bump that would oversaturate in dark mode.
-        val expectedDeltas = mapOf(
-            ROSE to 1.2f,
-            CORAL to -0.6f,
-            AMBER to -1.25f,
-            CITRON to 0f,
-            SAGE to 0f,
-            TEAL to 0.2f,
-            SKY to -0.6f,
-            VIOLET to 0f,
-            INDIGO to 0.5f,
-            PLUM to 0.3f,
-            null to 0f
-        )
-
-        expectedDeltas.forEach { (colorKey, delta) ->
-            assertEquals(
-                delta,
-                medicationGroupLightenRatioDelta(colorKey, darkTheme = true)
+                medicationGroupLightenRatioDelta(colorKey)
             )
         }
     }

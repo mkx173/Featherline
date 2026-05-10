@@ -27,34 +27,29 @@ fun rememberMedicationGroupColorScheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorKey: MedicationGroupColorKey?
 ): ColorScheme {
-    val groupPrimaryColor = medicationGroupSeedColor(colorKey).harmonize(
-        MaterialTheme.colorScheme.primary
-    )
-    val delta = medicationGroupLightenRatioDelta(colorKey, darkTheme = darkTheme)
+    val groupPrimaryColor = medicationGroupSeedColor(colorKey)
+    val delta = medicationGroupLightenRatioDelta(colorKey)
     return if (darkTheme) {
         MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.2f),
-            primaryContainer = groupPrimaryColor.darken(1.2f),
-            onPrimaryContainer = groupPrimaryColor.lighten(4.15f + delta).desaturateHct()
+            primary = groupPrimaryColor.darken(1.2f).desaturateHct(0.8),
+            primaryContainer = groupPrimaryColor.darken(1.2f).desaturateHct(0.8),
+            onPrimaryContainer = groupPrimaryColor.lighten(4.15f + delta)
         )
     } else {
         MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.2f),
+            primary = groupPrimaryColor.darken(1.3f),
             primaryContainer = groupPrimaryColor.lighten(4.0f + delta).desaturateHct(),
-            onPrimaryContainer = groupPrimaryColor.darken(1.2f)
+            onPrimaryContainer = groupPrimaryColor.darken(1.3f)
         )
     }
 }
 
-internal fun medicationGroupLightenRatioDelta(
-    colorKey: MedicationGroupColorKey?,
-    darkTheme: Boolean
-): Float {
+internal fun medicationGroupLightenRatioDelta(colorKey: MedicationGroupColorKey?): Float {
     return when (colorKey) {
         ROSE -> 1.2f
         CORAL -> -0.6f
-        AMBER -> -1.25f
-        CITRON -> if (!darkTheme) 0.15f else 0.0f
+        AMBER -> -0.9f
+        CITRON -> -0.3f
         TEAL -> 0.2f
         SKY -> -0.6f
         INDIGO -> 0.5f
@@ -67,9 +62,9 @@ internal fun medicationGroupSeedColor(colorKey: MedicationGroupColorKey?): Color
     return when (colorKey) {
         null -> Color(0xFF5A6470)
         ROSE -> Color(0xFF95414A)
-        CORAL -> Color(0xFFB66B43)
-        AMBER -> Color(0xFFC18B14)
-        CITRON -> Color(0xFF7E7C2A)
+        CORAL -> Color(0xFFBD5C28)
+        AMBER -> Color(0xFF9A8518)
+        CITRON -> Color(0xFF6E8320)
         SAGE -> Color(0xFF4F7A55)
         TEAL -> Color(0xFF2E6E72)
         SKY -> Color(0xFF2D80B0)
