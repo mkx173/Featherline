@@ -263,6 +263,7 @@ fun HrtTrackerNavHost(
             ?: bottomNavItems.firstOrNull { navItem ->
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
+            ?: Screen.Main
 
     BackHandler(
         enabled = topLevelRootBackAction(
