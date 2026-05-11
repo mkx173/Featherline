@@ -532,6 +532,7 @@ fun SettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreenContent(
+    modifier: Modifier = Modifier,
     uiState: SettingsUiState,
     hasNotificationAccess: Boolean,
     reminderSupportState: SettingsReminderSupportState,
@@ -555,7 +556,6 @@ private fun SettingsScreenContent(
     onExportDiagnosticLogsClick: () -> Unit,
     onCalibrationClick: () -> Unit,
     scrollToTopSignal: Int = 0,
-    modifier: Modifier = Modifier
 ) {
     val settingsState = uiState.settingsState
     val context = LocalContext.current
@@ -1442,12 +1442,7 @@ private fun resolveAppVersionInfo(context: Context): AppVersionInfo {
         @Suppress("DEPRECATION")
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
-    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        packageInfo.longVersionCode
-    } else {
-        @Suppress("DEPRECATION")
-        packageInfo.versionCode.toLong()
-    }
+    val versionCode = packageInfo.longVersionCode
     val versionName = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: versionCode.toString()
     return AppVersionInfo(
         versionName = versionName,

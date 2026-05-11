@@ -21,6 +21,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 @Singleton
 class ReminderNotificationManager @Inject constructor(
@@ -28,11 +29,6 @@ class ReminderNotificationManager @Inject constructor(
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            diagnosticsLogger.info(TAG, "reminder_notification_channel_skipped sdk=${Build.VERSION.SDK_INT}")
-            return
-        }
-
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
@@ -248,7 +244,7 @@ class ReminderNotificationManager @Inject constructor(
 }
 
 private fun reminderNotificationContentData(notificationTag: String): Uri {
-    return Uri.parse("$REMINDER_NOTIFICATION_CONTENT_URI_PREFIX/$notificationTag")
+    return "$REMINDER_NOTIFICATION_CONTENT_URI_PREFIX/$notificationTag".toUri()
 }
 
 private fun reminderNotificationActionData(
@@ -258,9 +254,7 @@ private fun reminderNotificationActionData(
     val actionUuid = java.util.UUID.nameUUIDFromBytes(
         "${action}:${bundle.notificationTag}".toByteArray(java.nio.charset.StandardCharsets.UTF_8)
     )
-    return Uri.parse(
-        "$REMINDER_NOTIFICATION_ACTION_URI_PREFIX/$action/$actionUuid"
-    )
+    return "$REMINDER_NOTIFICATION_ACTION_URI_PREFIX/$action/$actionUuid".toUri()
 }
 
 private const val DOSE_REMINDER_NOTIFICATION_ID = 0

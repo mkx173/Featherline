@@ -15,6 +15,7 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 @Singleton
 class MedicationReminderSnoozeScheduler @Inject constructor(
@@ -234,7 +235,7 @@ private fun snoozeIntentData(records: List<MedicationReminderSnoozeRecord>): Uri
         .sorted()
         .joinToString(separator = ";")
     val bundleUuid = UUID.nameUUIDFromBytes(slotsKey.toByteArray(StandardCharsets.UTF_8))
-    return Uri.parse("$REMINDER_SNOOZE_URI_PREFIX/$snoozeAt/$bundleUuid")
+    return "$REMINDER_SNOOZE_URI_PREFIX/$snoozeAt/$bundleUuid".toUri()
 }
 
 private fun MedicationReminderSlot.matchesCurrentScheduleTime(

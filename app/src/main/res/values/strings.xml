@@ -168,7 +168,10 @@
     <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
     <string name="delete_entry_title">Delete entry</string>
-    <string name="delete_entries_confirmation">Delete %1$d selected entries?</string>
+    <plurals name="delete_entries_confirmation">
+        <item quantity="one">Delete %1$d selected entry?</item>
+        <item quantity="other">Delete %1$d selected entries?</item>
+    </plurals>
     <string name="delete_entries_confirm">Delete</string>
     <string name="save_entry_failure">Unable to save entry.</string>
     <string name="delete_entry_failure">Unable to delete entry.</string>

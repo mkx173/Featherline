@@ -733,12 +733,12 @@ private fun CalibrationRangeStatusChip(status: CalibrationRangeStatus) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CalibrationMetadataChip(
+    modifier: Modifier = Modifier,
     label: String,
     value: String,
     icon: ImageVector? = null,
     iconPainter: Painter? = null,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = MaterialTheme.shapes.medium,

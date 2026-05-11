@@ -137,10 +137,10 @@ import java.util.UUID
 
 @Composable
 fun MedicationGroupEditorScreen(
+    modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit,
     onGroupSaved: () -> Unit,
     onGroupSavedToPlan: () -> Unit = onGroupSaved,
-    modifier: Modifier = Modifier,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
     viewModel: MedicationGroupEditorViewModel = hiltViewModel()
@@ -429,6 +429,7 @@ fun MedicationGroupEditorScreen(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun MedicationGroupEditorScreenContent(
+    modifier: Modifier = Modifier,
     uiState: MedicationGroupEditorUiState,
     onNavigateBack: () -> Unit,
     onGroupNameChange: (String) -> Unit,
@@ -483,7 +484,6 @@ private fun MedicationGroupEditorScreenContent(
     isNewGroupCreationFlow: Boolean = !uiState.isEditing,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
-    modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current

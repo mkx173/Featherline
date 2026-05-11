@@ -294,28 +294,39 @@ fun OnboardingScreen(
                             notificationsGranted = notificationsGranted,
                             exactAlarmGranted = exactAlarmGranted,
                             onAllowNotifications = {
+                                val hasRuntimePerm: Boolean
+                                val shouldShowRationale: Boolean
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    hasRuntimePerm = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    shouldShowRationale = activity?.let {
+                                        ActivityCompat.shouldShowRequestPermissionRationale(
+                                            it,
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        )
+                                    } ?: false
+                                } else {
+                                    hasRuntimePerm = false
+                                    shouldShowRationale = false
+                                }
                                 when (
                                     resolveOnboardingNotificationPermissionAction(
                                         sdkInt = Build.VERSION.SDK_INT,
-                                        hasRuntimePermission = ContextCompat.checkSelfPermission(
-                                            context,
-                                            Manifest.permission.POST_NOTIFICATIONS
-                                        ) == PackageManager.PERMISSION_GRANTED,
+                                        hasRuntimePermission = hasRuntimePerm,
                                         areNotificationsEnabled = NotificationManagerCompat
                                             .from(context)
                                             .areNotificationsEnabled(),
                                         hasRequestedPermissionBefore = hasRequestedNotificationPermission,
-                                        shouldShowPermissionRationale = activity?.let {
-                                            ActivityCompat.shouldShowRequestPermissionRationale(
-                                                it,
-                                                Manifest.permission.POST_NOTIFICATIONS
-                                            )
-                                        } ?: false
+                                        shouldShowPermissionRationale = shouldShowRationale,
                                     )
                                 ) {
                                     OnboardingNotificationPermissionAction.REQUEST_PERMISSION -> {
                                         hasRequestedNotificationPermission = true
-                                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
                                     }
                                     OnboardingNotificationPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
                                         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -332,13 +343,11 @@ fun OnboardingScreen(
                                 }
                             },
                             onAllowExactAlarm = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    val intent = Intent(
-                                        Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                        "package:${context.packageName}".toUri()
-                                    )
-                                    exactAlarmLauncher.launch(intent)
-                                }
+                                val intent = Intent(
+                                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    "package:${context.packageName}".toUri()
+                                )
+                                exactAlarmLauncher.launch(intent)
                             },
                         )
                         3 -> UsefulInfoStep(

@@ -114,6 +114,12 @@ android {
         generateLocaleConfig = true
     }
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }

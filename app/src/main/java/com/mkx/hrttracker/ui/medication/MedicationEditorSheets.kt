@@ -1036,12 +1036,12 @@ private fun MedicationLogAppliedAtFields(
 
 @Composable
 private fun MedicationEditorGroupInfoCard(
+    modifier: Modifier = Modifier,
     groupName: String,
     groupColorKey: MedicationGroupColorKey?,
     scheduledForText: String,
     scheduleOffsetText: String? = null,
     showScheduleOffsetWarning: Boolean = false,
-    modifier: Modifier = Modifier,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
 

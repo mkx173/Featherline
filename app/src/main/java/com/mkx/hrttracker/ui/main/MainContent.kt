@@ -51,12 +51,12 @@ import java.util.UUID
 
 @Composable
 fun MainContent(
+    modifier: Modifier = Modifier,
     uiState: MainUiState,
     listState: LazyListState,
     onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
     onDismissTimeZoneChangeNotice: () -> Unit = { },
-    modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
     val today = uiState.now.toLocalDate()

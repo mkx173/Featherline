@@ -41,6 +41,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,6 +115,7 @@ import java.util.UUID
 
 @Composable
 fun PlanScreen(
+    modifier: Modifier = Modifier,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
     onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
@@ -122,7 +124,6 @@ fun PlanScreen(
     onBatchAddClick: () -> Unit,
     onArchivedGroupsClick: () -> Unit,
     scrollToTopSignal: Int = 0,
-    modifier: Modifier = Modifier,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -148,6 +149,7 @@ fun PlanScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlanScreenContent(
+    modifier: Modifier = Modifier,
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
@@ -159,7 +161,6 @@ private fun PlanScreenContent(
     onDateSelected: (LocalDate) -> Unit,
     onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
-    modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
@@ -1123,13 +1124,13 @@ private fun rememberFirstMostVisibleWeek(
 
 @Composable
 private fun rememberWeekPageProgress(state: WeekCalendarState): Float {
-    val pageProgress = remember(state) { mutableStateOf(1f) }
+    val pageProgress = remember(state) { mutableFloatStateOf(1f) }
     LaunchedEffect(state) {
         snapshotFlow { state.layoutInfo.weekPageProgress() }
             .filterNotNull()
-            .collect { progress -> pageProgress.value = progress }
+            .collect { progress -> pageProgress.floatValue = progress }
     }
-    return pageProgress.value
+    return pageProgress.floatValue
 }
 
 private fun WeekCalendarLayoutInfo.weekPageProgress(): Float? {

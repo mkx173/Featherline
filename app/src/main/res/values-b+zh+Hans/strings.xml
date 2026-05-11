@@ -166,7 +166,9 @@
     <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
     <string name="delete_entry_title">删除记录</string>
-    <string name="delete_entries_confirmation">要删除已选择的 %1$d 条记录吗？</string>
+    <plurals name="delete_entries_confirmation">
+        <item quantity="other">要删除已选择的 %1$d 条记录吗？</item>
+    </plurals>
     <string name="delete_entries_confirm">删除</string>
     <string name="save_entry_failure">无法保存记录</string>
     <string name="delete_entry_failure">无法删除记录</string>
@@ -261,7 +263,6 @@
     <string name="delete_medication_group_title">删除分组</string>
     <string name="delete_medication_group_confirmation">要删除这个用药分组吗？它没有相关历史记录</string>
     <plurals name="delete_medication_group_confirmation_with_related_records">
-        <item quantity="one">要删除这个用药分组吗？您可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
         <item quantity="other">要删除这个用药分组吗？您可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
     </plurals>
     <string name="delete_medication_group_keep_records">保留记录</string>
@@ -285,7 +286,6 @@
     <string name="archive_medication_group_failure">无法归档分组</string>
     <string name="archive_medication_group_blocked_by_planned_slots">归档前请先处理已有记录的当前或未来计划时段</string>
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
-        <item quantity="one">已有 1 个当前或未来计划时段有记录，因此无法归档</item>
         <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
     </plurals>
     <string name="archive_and_recreate">归档并重建</string>

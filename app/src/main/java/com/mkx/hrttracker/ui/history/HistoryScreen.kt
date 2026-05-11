@@ -161,10 +161,10 @@ private const val HistoryCalendarNavigationSettleTimeoutMillis = 500L
 
 @Composable
 fun HistoryScreen(
+    modifier: Modifier = Modifier,
     onEntryClick: (Set<UUID>) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
     scrollToTopSignal: Int = 0,
-    modifier: Modifier = Modifier,
     viewModel: HistoryViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
     )
@@ -212,6 +212,7 @@ fun HistoryScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HistoryScreenContent(
+    modifier: Modifier = Modifier,
     uiState: HistoryUiState,
     onEntryClick: (MedicationLogEntry) -> Unit,
     onEntryLongClick: (MedicationLogEntry) -> Unit,
@@ -228,7 +229,6 @@ private fun HistoryScreenContent(
     onDisplayedMonthChange: (YearMonth, Boolean) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
     scrollToTopSignal: Int = 0,
-    modifier: Modifier = Modifier
 ) {
     val appLocale = rememberAppLocale()
     val context = LocalContext.current
@@ -549,8 +549,9 @@ private fun HistoryScreenContent(
             title = { Text(text = stringResource(R.string.delete_entry_title)) },
             text = {
                 Text(
-                    text = stringResource(
-                        R.string.delete_entries_confirmation,
+                    text = pluralStringResource(
+                        R.plurals.delete_entries_confirmation,
+                        selectedEntryCount,
                         selectedEntryCount
                     )
                 )

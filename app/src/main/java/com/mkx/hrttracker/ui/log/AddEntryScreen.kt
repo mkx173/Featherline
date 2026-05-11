@@ -40,10 +40,10 @@ import java.time.ZoneId
 @Composable
 fun AddEntryScreen(
     entryIds: List<String>,
+    modifier: Modifier = Modifier,
     quickLogRequest: AddEntryQuickLogRequest? = null,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
-    modifier: Modifier = Modifier,
     viewModel: AddEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -144,6 +144,7 @@ fun AddEntryScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddEntryScreenContent(
+    modifier: Modifier = Modifier,
     uiState: AddEntryUiState,
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
@@ -158,8 +159,7 @@ private fun AddEntryScreenContent(
     onDeleteClick: () -> Unit,
     onSaveClick: () -> Unit,
     onSaveAfterFulfillmentWarningClick: () -> Unit,
-    onScheduleFulfillmentWarningDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    onScheduleFulfillmentWarningDismiss: () -> Unit
 ) {
     var isDeleteConfirmationVisible by remember(uiState.canDelete) { mutableStateOf(false) }
 

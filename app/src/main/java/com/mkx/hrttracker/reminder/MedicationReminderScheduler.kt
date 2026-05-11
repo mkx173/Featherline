@@ -17,6 +17,7 @@ import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 @Singleton
 class MedicationReminderScheduler @Inject constructor(
@@ -284,7 +285,7 @@ class MedicationReminderScheduler @Inject constructor(
 }
 
 internal fun reminderIntentData(groupUuid: UUID): Uri {
-    return Uri.parse("$REMINDER_INTENT_URI_PREFIX/$groupUuid")
+    return "$REMINDER_INTENT_URI_PREFIX/$groupUuid".toUri()
 }
 
 private const val REMINDER_REQUEST_CODE = 0
