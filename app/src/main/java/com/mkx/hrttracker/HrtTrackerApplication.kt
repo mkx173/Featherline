@@ -6,6 +6,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.ComposeMaterial3Flags
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -15,6 +16,8 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -52,6 +55,36 @@ class HrtTrackerApplication : Application() {
                 )
                 applyDarkMode(settings.darkModeOption)
             }
+        }
+        // Re-register the reminder channel whenever the app locale changes so
+        // its name/description in system Settings → Apps → Notifications
+        // reflect the new language. Calling createNotificationChannel with the
+        // same channel ID updates the (mutable) name + description fields and
+        // leaves everything else untouched.
+        applicationScope.launch {
+            var lastSeen: AppLanguageOption? = null
+            settingsRepository.settingsState
+                .map { it.appLanguageOption }
+                .distinctUntilChanged()
+                .collect { option ->
+                    // Skip the initial emission — the channel is already
+                    // created with the current locale right after this block
+                    // starts. We only need to react to actual changes.
+                    if (lastSeen != null && lastSeen != option) {
+                        diagnosticsLogger.info(
+                            TAG,
+                            "application_notification_channel_refresh_for_locale option=$option"
+                        )
+                        // Pass the new language tag so the channel's
+                        // name/description resolve via a config-overridden
+                        // context — the ApplicationContext's Resources may
+                        // still be on the old locale at this point.
+                        reminderNotificationManager.createNotificationChannel(
+                            languageTag = option.languageTag,
+                        )
+                    }
+                    lastSeen = option
+                }
         }
         ToastManager.init(this)
         diagnosticsLogger.info(TAG, "application_toast_manager_initialized")

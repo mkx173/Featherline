@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -16,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.core.os.LocaleListCompat
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -28,17 +30,43 @@ class ReminderNotificationManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    fun createNotificationChannel() {
+    /**
+     * Creates (or updates the mutable name/description fields of) the
+     * dose-reminder channel.
+     *
+     * When called in response to a locale change, pass [languageTag] (e.g.
+     * `"en"`, `"zh-Hans"`). The strings are then resolved through a
+     * configuration-overridden context, sidestepping the timing gap where
+     * `AppCompatDelegate.setApplicationLocales` has updated the system's
+     * per-app locale but the singleton ApplicationContext's Resources cache
+     * hasn't refreshed yet. Without this, re-registering the channel right
+     * after the locale switch would just re-write the channel with the
+     * old-locale strings.
+     */
+    fun createNotificationChannel(languageTag: String? = null) {
+        val resolvedContext = languageTag?.let(::localizedContextFor) ?: context
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
-            context.getString(R.string.reminder_notification_channel_name),
+            resolvedContext.getString(R.string.reminder_notification_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = context.getString(R.string.reminder_notification_channel_description)
+            description = resolvedContext.getString(R.string.reminder_notification_channel_description)
         }
         notificationManager.createNotificationChannel(channel)
-        diagnosticsLogger.info(TAG, "reminder_notification_channel_created channelId=$REMINDER_CHANNEL_ID")
+        diagnosticsLogger.info(
+            TAG,
+            "reminder_notification_channel_created channelId=$REMINDER_CHANNEL_ID " +
+                "languageTag=${languageTag ?: "default"}"
+        )
+    }
+
+    private fun localizedContextFor(languageTag: String): Context {
+        val locale = LocaleListCompat.forLanguageTags(languageTag).get(0) ?: return context
+        val overrideConfig = Configuration(context.resources.configuration).apply {
+            setLocale(locale)
+        }
+        return context.createConfigurationContext(overrideConfig)
     }
 
     fun showDoseReminderNotification(
