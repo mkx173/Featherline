@@ -10,22 +10,14 @@
     <string name="add_medication_group">Add Group</string>
     <string name="edit_medication_group">Edit Group</string>
     <string name="archived_medication_group">Archived Group</string>
-    <string name="main_empty_state">Log your next dose from here.</string>
     <string name="main_today_title">Today</string>
     <string name="main_last_night_title">Last night</string>
     <string name="main_tomorrow_title">Tomorrow</string>
     <string name="main_upcoming_title">Upcoming</string>
-    <string name="main_today_progress">%1$d/%2$d done</string>
-    <string name="main_today_progress_count_label">%1$s done</string>
     <string name="main_today_summary_done_label">DONE</string>
     <string name="main_today_summary_manual_label">MANUAL</string>
     <string name="main_today_empty_state">Nothing scheduled for today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
-    <string name="main_today_status_done">Done</string>
-    <string name="main_today_status_logged_at">Logged at %1$s</string>
-    <string name="main_today_status_due_soon">Due soon</string>
-    <string name="main_today_status_upcoming">Upcoming later today</string>
-    <string name="main_today_status_overdue">Missed / overdue</string>
     <string name="main_today_quick_log">Quick log</string>
     <string name="main_today_range_night">Night</string>
     <string name="main_today_range_morning">Morning</string>
@@ -39,11 +31,8 @@
         <item quantity="one">-%1$d hour</item>
         <item quantity="other">-%1$d hours</item>
     </plurals>
-    <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="main_e2_title">Estradiol · estimated</string>
     <string name="main_e2_estimate_info">Show estradiol estimate information</string>
-    <string name="main_e2_status_in_range">IN RANGE</string>
-    <string name="main_e2_status_below_range">BELOW RANGE</string>
     <string name="main_e2_chart_title">7-day trend</string>
     <string name="main_e2_chart_target">Target %1$s–%2$s %3$s</string>
     <string name="main_e2_chart_overview">Chart overview</string>
@@ -58,7 +47,6 @@
     <string name="medical_disclaimer_wpath_reference_ranges">Target ranges are based on WPATH Standards of Care 8. They are general guidelines, not medical advice—your target ranges may differ based on your treatment plan.</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">Plasma concentration values are model estimates based on your dosing schedule, not measured values.</string>
     <string name="main_antiandrogen_title">Antiandrogen</string>
-    <string name="main_antiandrogen_active_count">%1$d active</string>
     <string name="main_antiandrogen_last_dose_elapsed">Last dose %1$s ago</string>
     <string name="main_antiandrogen_no_last_dose">No logged dose yet</string>
     <string name="main_antiandrogen_next_dose">Due %1$s</string>
@@ -71,14 +59,10 @@
     <string name="main_duration_hours_minutes">%1$dh %2$dm</string>
     <string name="main_duration_minutes">%1$dm</string>
     <string name="main_relative_tomorrow">tomorrow</string>
-    <string name="main_relative_today_time">today, %1$s</string>
-    <string name="main_relative_tomorrow_time">tomorrow, %1$s</string>
-    <string name="main_relative_date_time">%1$s, %2$s</string>
     <string name="main_more_options">More options</string>
     <string name="main_display_unit">Display unit</string>
     <string name="reminder_notification_channel_name">Dose reminders</string>
     <string name="reminder_notification_channel_description">Notifications for scheduled doses.</string>
-    <string name="reminder_notification_body">It\'s time for your dose.</string>
     <string name="reminder_notification_single_title">Time for your dose</string>
     <string name="reminder_notification_merged_title">Time for your doses</string>
     <string name="reminder_notification_action_log_now">Log now</string>
@@ -86,20 +70,8 @@
     <string name="reminder_notification_action_remind_later">Remind later</string>
     <string name="reminder_notification_snoozed">We\'ll remind you in %1$d minutes.</string>
     <string name="fab_add_entry">Add medication log entry</string>
-    <string name="fab_add_medication_group">Add medication group</string>
     <string name="plan_empty_state">No medication groups yet.</string>
-    <string name="plan_selected_day_records_title">Records on %1$s</string>
     <string name="plan_selected_day_records_empty">No records for this day.</string>
-    <string name="plan_selected_day_schedule_title">Scheduled on %1$s</string>
-    <string name="plan_selected_day_schedule_empty">Nothing scheduled for this day.</string>
-    <string name="plan_selected_day_unplanned_title">Unplanned entries</string>
-    <string name="plan_selected_day_summary_past">%1$d of %2$d doses completed</string>
-    <string name="plan_selected_day_summary_today">%1$d of %2$d doses so far</string>
-    <string name="plan_selected_day_summary_future">%1$d doses scheduled</string>
-    <string name="plan_selected_day_summary_manual_only">Manual entries only</string>
-    <string name="plan_selected_day_summary_empty_past">No doses logged</string>
-    <string name="plan_selected_day_summary_empty_future">Nothing planned yet</string>
-    <string name="plan_schedule_entry_not_logged">Not logged yet</string>
     <string name="plan_schedule_entry_logged">Logged</string>
     <string name="plan_schedule_entry_logged_day_offset_later">+%1$d</string>
     <string name="plan_schedule_entry_logged_day_offset_earlier">-%1$d</string>
@@ -122,8 +94,6 @@
     <string name="plan_batch_add_select_group">Select group</string>
     <string name="plan_batch_add_group_selected">Selected</string>
     <string name="plan_batch_add_range_title">Date range</string>
-    <string name="plan_batch_add_start_date">Start date</string>
-    <string name="plan_batch_add_end_date">End date</string>
     <string name="plan_batch_add_date_range">Range</string>
     <string name="plan_batch_add_date_range_value">%1$s–%2$s</string>
     <string name="plan_batch_add_select_group_prompt">Please select a group first.</string>
@@ -156,16 +126,11 @@
     <string name="history_month_picker_title">Jump to month</string>
     <string name="history_month_picker_month">Month</string>
     <string name="history_month_picker_year">Year</string>
-    <string name="history_month_summary_title">%1$s summary</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
-    <string name="history_summary_logged">logged</string>
     <string name="history_summary_on_track">On track</string>
     <string name="history_summary_partial">Partial</string>
     <string name="history_summary_missed">Missed</string>
     <string name="history_legend_unplanned">Off plan</string>
-    <string name="history_unknown_estradiol_dose">Estradiol equivalent: Unknown</string>
-    <string name="history_entry_source_manual">Manual entry</string>
-    <string name="history_entry_source_group_schedule">Entry from medication schedule</string>
     <string name="delete_entries_fab">Delete selected entries</string>
     <string name="delete_entry_title">Delete entry</string>
     <plurals name="delete_entries_confirmation">
@@ -202,7 +167,6 @@
     <string name="field_medication_category">Category</string>
     <string name="field_medication_application">Application</string>
     <string name="field_medication">Medication</string>
-    <string name="field_medication_source">Selection</string>
     <string name="field_medication_name">Medication name</string>
     <string name="medication_editor_original_schedule">Scheduled for %1$s</string>
     <string name="medication_editor_schedule_offset_minutes_later">+%1$dm</string>
@@ -256,10 +220,8 @@
     <string name="group_schedule_backfill_records_failure">Group saved, but unable to add records.</string>
     <string name="group_schedule_days_of_week">Days of week</string>
     <string name="group_schedule_time">Time</string>
-    <string name="group_schedule_times">Times</string>
     <string name="group_schedule_times_with_count">Times of day · %d</string>
     <string name="group_schedule_preview">Preview</string>
-    <string name="group_schedule_time_item">At %1$s</string>
     <string name="group_schedule_duplicate_time">That time is already in the schedule.</string>
     <string name="group_medication_duplicate_exists">This medication is already in the group.</string>
     <string name="group_schedule_since_summary">Since %1$s</string>
@@ -272,7 +234,6 @@
         <item quantity="one">Delete this medication group? You can keep its %1$d related history record and convert it to a manual entry, or delete it too.</item>
         <item quantity="other">Delete this medication group? You can keep its %1$d related history records and convert them to manual entries, or delete them too.</item>
     </plurals>
-    <string name="delete_medication_group_keep_records">Keep records</string>
     <string name="save_medication_group_failure">Unable to save group.</string>
     <string name="delete_medication_group_failure">Unable to delete group.</string>
     <string name="delete_group_related_records">Delete records</string>
@@ -297,28 +258,21 @@
         <item quantity="one">Archive is blocked because 1 current or upcoming planned slot already has a record.</item>
         <item quantity="other">Archive is blocked because %1$d current or upcoming planned slots already have records.</item>
     </plurals>
-    <string name="archive_and_recreate">Archive and recreate</string>
     <string name="archive_create_active_copy">Create copy after archive</string>
     <string name="duplicate_medication_group">Duplicate as new group</string>
     <string name="archive_and_recreate_medication_group_success">Archived.</string>
     <string name="archive_and_recreate_medication_group_failure">Unable to archive and recreate group.</string>
     <string name="group_locked_banner">This group already has related records, so some settings can’t be changed. To make adjustments, archive the current group and create a new one.</string>
     <string name="group_locked_time_note">Changing the scheduled time also updates the scheduled time shown on past records.</string>
-    <string name="group_field_locked">Locked</string>
     <string name="add">Add</string>
     <string name="group_schedule_reset_days_to_start">Reset</string>
     <string name="add_medication_to_group">Add medication</string>
-    <string name="edit_time">Edit</string>
     <string name="edit_medication">Edit medication</string>
     <string name="increase_medication_count">Increase medication count</string>
     <string name="decrease_medication_count">Decrease medication count</string>
     <string name="remove_medication_from_group">Remove medication</string>
     <string name="remove_time">Remove</string>
-    <string name="quick_add_group_save_entries">Save group entries</string>
     <string name="quick_add_group_planned_slot_today">Today</string>
-    <string name="quick_add_group_planned_slot_yesterday">Yesterday</string>
-    <string name="quick_add_group_planned_slot_tomorrow">Tomorrow</string>
-    <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="archive">Archive</string>
@@ -328,8 +282,6 @@
     <string name="plan_archived_groups_empty">No archived groups yet.</string>
     <string name="plan_archived_groups_created_at">Created at %1$s</string>
     <string name="plan_archived_groups_archived_at">Archived at %1$s</string>
-    <string name="medication_source_catalog">Built-in</string>
-    <string name="medication_source_custom">Custom name</string>
     <string name="dose_type_mg_as_medicine">Dose in mg</string>
     <string name="dose_type_gel_equivalent_estradiol_mg">Equivalent Dosage</string>
     <string name="dose_type_gel_percent_and_weight">Concentration and weight</string>
@@ -344,20 +296,10 @@
     <string name="validation_patch_release_rate_required">Enter a valid release rate.</string>
     <string name="validation_count_required">Enter a valid count.</string>
     <string name="default_group_name_format">Group %1$d</string>
-    <string name="validation_group_medication_name_required">Each medication needs a name.</string>
-    <string name="validation_group_medication_dose_required">Each medication needs a valid dosage.</string>
-    <string name="entry_medicine_dose">Medicine dose: %1$s mg</string>
-    <string name="entry_estradiol_dose">Estradiol equivalent: %1$s mg</string>
     <string name="medication_dose_with_unit">%1$s %2$s</string>
-    <string name="medication_dose_mg">%1$s mg</string>
     <string name="medication_dose_mg_e2">%1$s mg E2</string>
     <string name="medication_dose_percent_and_weight">%1$s%% · %2$s g</string>
     <string name="medication_dose_release_rate_mcg_day">%1$s μg/day</string>
-    <string name="medication_summary_with_dose">%1$s, %2$s, %3$s</string>
-    <string name="medication_summary_without_dose">%1$s, %2$s</string>
-    <string name="entry_time_applied">Applied: %1$s</string>
-    <string name="entry_uuid">UUID: %1$s</string>
-    <string name="plan_group_medication_summary">%1$s, %2$s mg, %3$s</string>
     <string name="dark_mode_follow_system">Follow system</string>
     <string name="dark_mode_always_off">Always off</string>
     <string name="dark_mode_always_on">Always on</string>
@@ -416,10 +358,6 @@
     <string name="settings_calibration_edit_result">Edit test result</string>
     <string name="settings_calibration_empty_state">No test results yet.</string>
     <string name="settings_calibration_last_e2_elapsed">%1$s after last E2 dose</string>
-    <string name="settings_calibration_entry_title">Add result</string>
-    <string name="settings_calibration_entry_collected_at">Collected at %1$s</string>
-    <string name="settings_calibration_e2_field">E2 (pg/mL)</string>
-    <string name="settings_calibration_collected_at">Collected at</string>
     <string name="settings_calibration_date_label">Date</string>
     <string name="settings_calibration_time_label">Time</string>
     <string name="settings_calibration_unit_label">Unit</string>
@@ -474,7 +412,6 @@
         <item quantity="one">%1$d total</item>
         <item quantity="other">%1$d total</item>
     </plurals>
-    <string name="settings_calibration_info_message">Log blood test results to refine plasma concentration estimates.</string>
     <string name="settings_calibration_under_development_message">Calibration is under development. You can still log blood test results.</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 Target range</string>
     <string name="settings_calibration_target_range_line">%1$s: %2$s</string>
@@ -575,8 +512,6 @@
     <string name="onboarding_disclaimer_view_full_policy">View full privacy policy</string>
     <string name="onboarding_disclaimer_acknowledge">I agree</string>
     <string name="onboarding_continue">Continue</string>
-    <string name="onboarding_skip">Skip</string>
-    <string name="onboarding_back">Back</string>
     <string name="onboarding_notifications_title">Enable dose reminders</string>
     <string name="onboarding_notifications_subtitle">To send reminders at your scheduled dose times, Plume needs the following two permissions. You can revoke them at any time in your system settings.</string>
     <string name="onboarding_notifications_app_title">App notifications</string>
@@ -584,8 +519,6 @@
     <string name="onboarding_notifications_alarm_title">Exact alarms</string>
     <string name="onboarding_notifications_alarm_desc">Deliver reminders closer to their scheduled times.</string>
     <string name="onboarding_notifications_optional">Optional</string>
-    <string name="onboarding_allow">Allow</string>
-    <string name="onboarding_allowed">Allowed</string>
     <string name="onboarding_skip_notifications">Skip</string>
     <string name="onboarding_useful_title">Recommended setup</string>
     <string name="onboarding_useful_subtitle">These steps are optional, but can help Plume provide more complete tracking, reminders, and estimates.</string>
@@ -595,14 +528,9 @@
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
     <string name="onboarding_open_app">Open Plume</string>
-    <string name="onboarding_progress_step" translatable="false">%1$d / %2$d</string>
     <string name="privacy_policy_url" translatable="false">https://mkx173.github.io/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>
 
-    <plurals name="plan_group_medication_count">
-        <item quantity="one">%1$d medication</item>
-        <item quantity="other">%1$d medications</item>
-    </plurals>
     <string name="reminder_notification_two_groups">%1$s and %2$s</string>
     <plurals name="reminder_notification_more_groups">
         <item quantity="one">%1$s, %2$s, and %3$d more group</item>
@@ -662,7 +590,6 @@
     <plurals name="group_schedule_weekly_interval_summary">
         <item quantity="other">Every %1$d weeks</item>
     </plurals>
-    <string name="group_schedule_every_label">Repeat every</string>
     <string name="confirm">OK</string>
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>

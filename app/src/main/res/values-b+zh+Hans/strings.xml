@@ -10,22 +10,14 @@
     <string name="add_medication_group">添加分组</string>
     <string name="edit_medication_group">编辑分组</string>
     <string name="archived_medication_group">已归档的分组</string>
-    <string name="main_empty_state">在这里记录下一次用药</string>
     <string name="main_today_title">今天</string>
     <string name="main_last_night_title">昨晚</string>
     <string name="main_tomorrow_title">明天</string>
     <string name="main_upcoming_title">即将到来</string>
-    <string name="main_today_progress">已完成 %1$d/%2$d</string>
-    <string name="main_today_progress_count_label">已完成 %1$s</string>
     <string name="main_today_summary_done_label">已完成</string>
     <string name="main_today_summary_manual_label">手动</string>
     <string name="main_today_empty_state">今天暂无计划</string>
     <string name="main_upcoming_empty_state">接下来 90 天内暂无计划</string>
-    <string name="main_today_status_done">已完成</string>
-    <string name="main_today_status_logged_at">记录于 %1$s</string>
-    <string name="main_today_status_due_soon">即将到点</string>
-    <string name="main_today_status_upcoming">今天稍后</string>
-    <string name="main_today_status_overdue">已错过 / 逾期</string>
     <string name="main_today_quick_log">快速记录</string>
     <string name="main_today_range_night">夜间</string>
     <string name="main_today_range_morning">上午</string>
@@ -37,11 +29,8 @@
     <plurals name="main_today_schedule_offset_hours_earlier">
         <item quantity="other">-%1$d小时</item>
     </plurals>
-    <string name="main_upcoming_datetime_format">%1$s · %2$s</string>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_estimate_info">显示雌二醇估算说明</string>
-    <string name="main_e2_status_in_range">在范围内</string>
-    <string name="main_e2_status_below_range">低于范围</string>
     <string name="main_e2_chart_title">7 天趋势</string>
     <string name="main_e2_chart_target">目标 %1$s–%2$s %3$s</string>
     <string name="main_e2_chart_overview">图表概览</string>
@@ -56,7 +45,6 @@
     <string name="medical_disclaimer_wpath_reference_ranges">目标范围基于 WPATH 第八版照护标准（SOC-8），仅作通用指引，不构成医疗建议——您的目标范围可能因治疗方案而异</string>
     <string name="medical_disclaimer_plasma_concentration_estimates">血药浓度数值为基于服药记录的模型估算值，并非实测值</string>
     <string name="main_antiandrogen_title">抗雄激素</string>
-    <string name="main_antiandrogen_active_count">%1$d 活跃</string>
     <string name="main_antiandrogen_last_dose_elapsed">上次用药 %1$s前</string>
     <string name="main_antiandrogen_no_last_dose">还没有记录</string>
     <string name="main_antiandrogen_next_dose">下次 %1$s</string>
@@ -69,14 +57,10 @@
     <string name="main_duration_hours_minutes">%1$d小时%2$d分钟</string>
     <string name="main_duration_minutes">%1$d分钟</string>
     <string name="main_relative_tomorrow">明天</string>
-    <string name="main_relative_today_time">今天 %1$s</string>
-    <string name="main_relative_tomorrow_time">明天 %1$s</string>
-    <string name="main_relative_date_time">%1$s %2$s</string>
     <string name="main_more_options">更多选项</string>
     <string name="main_display_unit">显示单位</string>
     <string name="reminder_notification_channel_name">用药提醒</string>
     <string name="reminder_notification_channel_description">计划用药提醒</string>
-    <string name="reminder_notification_body">该用药了</string>
     <string name="reminder_notification_single_title">该用药了</string>
     <string name="reminder_notification_merged_title">该用药了</string>
     <string name="reminder_notification_action_log_now">立即记录</string>
@@ -84,20 +68,8 @@
     <string name="reminder_notification_action_remind_later">稍后提醒</string>
     <string name="reminder_notification_snoozed">将在 %1$d 分钟后再次提醒您</string>
     <string name="fab_add_entry">添加用药记录</string>
-    <string name="fab_add_medication_group">添加用药分组</string>
     <string name="plan_empty_state">暂无用药分组</string>
-    <string name="plan_selected_day_records_title">%1$s 的记录</string>
     <string name="plan_selected_day_records_empty">这一天暂无记录</string>
-    <string name="plan_selected_day_schedule_title">%1$s 的计划</string>
-    <string name="plan_selected_day_schedule_empty">这一天暂无计划</string>
-    <string name="plan_selected_day_unplanned_title">未计划的记录</string>
-    <string name="plan_selected_day_summary_past">已完成 %1$d/%2$d 次用药</string>
-    <string name="plan_selected_day_summary_today">目前已完成 %1$d/%2$d 次用药</string>
-    <string name="plan_selected_day_summary_future">已安排 %1$d 次用药</string>
-    <string name="plan_selected_day_summary_manual_only">仅有手动记录</string>
-    <string name="plan_selected_day_summary_empty_past">没有已记录的用药</string>
-    <string name="plan_selected_day_summary_empty_future">尚无计划</string>
-    <string name="plan_schedule_entry_not_logged">尚未记录</string>
     <string name="plan_schedule_entry_logged">已记录</string>
     <string name="plan_schedule_entry_logged_day_offset_later">+%1$d</string>
     <string name="plan_schedule_entry_logged_day_offset_earlier">-%1$d</string>
@@ -120,8 +92,6 @@
     <string name="plan_batch_add_select_group">选择分组</string>
     <string name="plan_batch_add_group_selected">已选择</string>
     <string name="plan_batch_add_range_title">日期范围</string>
-    <string name="plan_batch_add_start_date">开始日期</string>
-    <string name="plan_batch_add_end_date">结束日期</string>
     <string name="plan_batch_add_date_range">日期范围</string>
     <string name="plan_batch_add_date_range_value">%1$s 至 %2$s</string>
     <string name="plan_batch_add_select_group_prompt">请先选择一个分组</string>
@@ -154,16 +124,11 @@
     <string name="history_month_picker_title">跳转到月份</string>
     <string name="history_month_picker_month">月份</string>
     <string name="history_month_picker_year">年份</string>
-    <string name="history_month_summary_title">%1$s 概览</string>
     <string name="history_summary_logged_strip">%1$s %2$s</string>
-    <string name="history_summary_logged">已记录</string>
     <string name="history_summary_on_track">按计划</string>
     <string name="history_summary_partial">部分完成</string>
     <string name="history_summary_missed">遗漏</string>
     <string name="history_legend_unplanned">计划外</string>
-    <string name="history_unknown_estradiol_dose">雌二醇当量：未知</string>
-    <string name="history_entry_source_manual">手动记录</string>
-    <string name="history_entry_source_group_schedule">来自用药计划的记录</string>
     <string name="delete_entries_fab">删除所选记录</string>
     <string name="delete_entry_title">删除记录</string>
     <plurals name="delete_entries_confirmation">
@@ -196,7 +161,6 @@
     <string name="field_medication_category">类别</string>
     <string name="field_medication_application">应用类型</string>
     <string name="field_medication">药物</string>
-    <string name="field_medication_source">选择方式</string>
     <string name="field_medication_name">药物名称</string>
     <string name="medication_editor_original_schedule">计划于 %1$s</string>
     <string name="medication_editor_schedule_offset_minutes_later">+%1$d分钟</string>
@@ -250,10 +214,8 @@
     <string name="group_schedule_backfill_records_failure">分组已保存，但无法添加记录</string>
     <string name="group_schedule_days_of_week">选择星期</string>
     <string name="group_schedule_time">时间</string>
-    <string name="group_schedule_times">时间列表</string>
     <string name="group_schedule_times_with_count">每日时间 · %d</string>
     <string name="group_schedule_preview">预览</string>
-    <string name="group_schedule_time_item">%1$s</string>
     <string name="group_schedule_duplicate_time">该时间已存在于计划中</string>
     <string name="group_medication_duplicate_exists">该药物已存在于分组中</string>
     <string name="group_schedule_since_summary">开始于 %1$s</string>
@@ -265,7 +227,6 @@
     <plurals name="delete_medication_group_confirmation_with_related_records">
         <item quantity="other">要删除这个用药分组吗？您可以保留它关联的 %1$d 条历史记录并将其转为手动记录，或一并删除</item>
     </plurals>
-    <string name="delete_medication_group_keep_records">保留记录</string>
     <string name="save_medication_group_failure">无法保存分组</string>
     <string name="delete_medication_group_failure">无法删除分组</string>
     <string name="delete_group_related_records">删除记录</string>
@@ -288,28 +249,21 @@
     <plurals name="archive_medication_group_current_or_future_planned_slots_block">
         <item quantity="other">已有 %1$d 个当前或未来计划时段有记录，因此无法归档</item>
     </plurals>
-    <string name="archive_and_recreate">归档并重建</string>
     <string name="archive_create_active_copy">归档后创建副本</string>
     <string name="duplicate_medication_group">复制为新分组</string>
     <string name="archive_and_recreate_medication_group_success">已归档</string>
     <string name="archive_and_recreate_medication_group_failure">无法归档并重建分组</string>
     <string name="group_locked_banner">这个分组已有相关的记录，因此您无法更改部分内容，如需调整，请归档当前分组并重新创建</string>
     <string name="group_locked_time_note">更改计划时间也会更新历史记录中显示的计划时间</string>
-    <string name="group_field_locked">已锁定</string>
     <string name="add">添加</string>
     <string name="group_schedule_reset_days_to_start">重置</string>
     <string name="add_medication_to_group">添加药物</string>
-    <string name="edit_time">编辑</string>
     <string name="edit_medication">编辑药物</string>
     <string name="increase_medication_count">增加药物数量</string>
     <string name="decrease_medication_count">减少药物数量</string>
     <string name="remove_medication_from_group">移除药物</string>
     <string name="remove_time">移除</string>
-    <string name="quick_add_group_save_entries">保存分组记录</string>
     <string name="quick_add_group_planned_slot_today">今天</string>
-    <string name="quick_add_group_planned_slot_yesterday">昨天</string>
-    <string name="quick_add_group_planned_slot_tomorrow">明天</string>
-    <string name="quick_add_group_planned_slot_format">%1$s %2$s</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
     <string name="archive">归档</string>
@@ -319,8 +273,6 @@
     <string name="plan_archived_groups_empty">暂无已归档的分组</string>
     <string name="plan_archived_groups_created_at">创建于 %1$s</string>
     <string name="plan_archived_groups_archived_at">归档于 %1$s</string>
-    <string name="medication_source_catalog">内置</string>
-    <string name="medication_source_custom">自定义名称</string>
     <string name="dose_type_mg_as_medicine">mg 剂量</string>
     <string name="dose_type_gel_equivalent_estradiol_mg">等效剂量</string>
     <string name="dose_type_gel_percent_and_weight">浓度和重量</string>
@@ -335,20 +287,10 @@
     <string name="validation_patch_release_rate_required">请输入有效的释放速率</string>
     <string name="validation_count_required">请输入有效数量</string>
     <string name="default_group_name_format">分组 %1$d</string>
-    <string name="validation_group_medication_name_required">每种药物都需要名称</string>
-    <string name="validation_group_medication_dose_required">每种药物都需要有效的剂量</string>
-    <string name="entry_medicine_dose">药物剂量：%1$s mg</string>
-    <string name="entry_estradiol_dose">雌二醇当量：%1$s mg</string>
     <string name="medication_dose_with_unit">%1$s %2$s</string>
-    <string name="medication_dose_mg">%1$s mg</string>
     <string name="medication_dose_mg_e2">%1$s mg E2</string>
     <string name="medication_dose_percent_and_weight">%1$s%% · %2$s g</string>
     <string name="medication_dose_release_rate_mcg_day">%1$s μg/天</string>
-    <string name="medication_summary_with_dose">%1$s，%2$s，%3$s</string>
-    <string name="medication_summary_without_dose">%1$s，%2$s</string>
-    <string name="entry_time_applied">用药时间：%1$s</string>
-    <string name="entry_uuid">UUID：%1$s</string>
-    <string name="plan_group_medication_summary">%1$s，%3$s，%2$s mg</string>
     <string name="dark_mode_follow_system">跟随系统</string>
     <string name="dark_mode_always_off">始终关闭</string>
     <string name="dark_mode_always_on">始终开启</string>
@@ -407,10 +349,6 @@
     <string name="settings_calibration_edit_result">编辑检查结果</string>
     <string name="settings_calibration_empty_state">暂无检查结果</string>
     <string name="settings_calibration_last_e2_elapsed">距上次雌二醇用药 %1$s</string>
-    <string name="settings_calibration_entry_title">添加结果</string>
-    <string name="settings_calibration_entry_collected_at">采样时间：%1$s</string>
-    <string name="settings_calibration_e2_field">E2（pg/mL）</string>
-    <string name="settings_calibration_collected_at">采样时间</string>
     <string name="settings_calibration_date_label">日期</string>
     <string name="settings_calibration_time_label">时间</string>
     <string name="settings_calibration_unit_label">单位</string>
@@ -462,7 +400,6 @@
     <plurals name="settings_calibration_total_count">
         <item quantity="other">%1$d 项记录</item>
     </plurals>
-    <string name="settings_calibration_info_message">记录血液检查结果以优化血药浓度估算</string>
     <string name="settings_calibration_under_development_message">校准功能正在开发中，您仍可以记录血液检查结果</string>
     <string name="settings_calibration_target_ranges_title">WPATH SOC-8 目标范围</string>
     <string name="settings_calibration_target_range_line">%1$s：%2$s</string>
@@ -563,8 +500,6 @@
     <string name="onboarding_disclaimer_view_full_policy">查看完整隐私政策</string>
     <string name="onboarding_disclaimer_acknowledge">我同意</string>
     <string name="onboarding_continue">继续</string>
-    <string name="onboarding_skip">跳过</string>
-    <string name="onboarding_back">返回</string>
     <string name="onboarding_notifications_title">开启用药提醒</string>
     <string name="onboarding_notifications_subtitle">为了在您预定的服药时间发送提醒，Plume 需要以下两项权限，您可以随时在系统设置中关闭它们</string>
     <string name="onboarding_notifications_app_title">通知权限</string>
@@ -572,8 +507,6 @@
     <string name="onboarding_notifications_alarm_title">精确闹钟</string>
     <string name="onboarding_notifications_alarm_desc">使提醒更接近预定时间送达</string>
     <string name="onboarding_notifications_optional">可选</string>
-    <string name="onboarding_allow">允许</string>
-    <string name="onboarding_allowed">已允许</string>
     <string name="onboarding_skip_notifications">跳过</string>
     <string name="onboarding_useful_title">建议完成的设置</string>
     <string name="onboarding_useful_subtitle">以下步骤为可选项，可帮助 Plume 提供更完整的记录、提醒和估算</string>
@@ -585,9 +518,6 @@
     <string name="onboarding_open_app">打开 Plume</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
 
-    <plurals name="plan_group_medication_count">
-        <item quantity="other">%1$d 种药物</item>
-    </plurals>
     <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>
     <plurals name="reminder_notification_more_groups">
         <item quantity="other">%1$s、%2$s 和 %3$d 个其他分组</item>
@@ -635,7 +565,6 @@
     <plurals name="group_schedule_weekly_interval_summary">
         <item quantity="other">每 %1$d 周</item>
     </plurals>
-    <string name="group_schedule_every_label">每次间隔</string>
     <string name="confirm">确定</string>
     <string name="select_date">选择日期</string>
     <string name="select_time">选择时间</string>
