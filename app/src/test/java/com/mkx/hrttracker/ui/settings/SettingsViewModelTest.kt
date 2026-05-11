@@ -90,6 +90,7 @@ class SettingsViewModelTest {
         viewModel.setPendingRestoreRequest(
             fileUri = uri,
             displayName = "backup.json",
+            encryptedBytes = ByteArray(0),
         )
         advanceUntilIdle()
 

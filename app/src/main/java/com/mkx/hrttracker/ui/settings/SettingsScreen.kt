@@ -102,6 +102,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
 import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -163,6 +164,25 @@ fun SettingsScreen(
         stringResource(R.string.settings_backup_restore_incompatible_file)
     val backupRestoreFailedMessage = stringResource(R.string.settings_backup_restore_failed)
     val backupRestoreSuccessMessage = stringResource(R.string.settings_backup_restore_success)
+
+    // Restore runs in viewModelScope so it survives the activity recreate
+    // that the restored app-locale setting triggers. Results come back
+    // through this replaying SharedFlow so the new composition still
+    // shows the toast.
+    LaunchedEffect(viewModel) {
+        viewModel.backupRestoreEvents.collect { event ->
+            val message = when (event) {
+                BackupRestoreEvent.Success -> backupRestoreSuccessMessage
+                is BackupRestoreEvent.Failure -> when (event.error) {
+                    is IncompatibleBackupFileException,
+                    is IllegalArgumentException -> backupRestoreIncompatibleFileMessage
+                    else -> backupRestoreFailedMessage
+                }
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.consumeBackupRestoreEvent()
+        }
+    }
     val diagnosticsExportSuccessMessage = stringResource(R.string.settings_diagnostics_export_success)
     val diagnosticsExportFailedMessage = stringResource(R.string.settings_diagnostics_export_failed)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -246,14 +266,35 @@ fun SettingsScreen(
         pickerResultScope.launch {
             viewModel.setBackupRestoreInProgress(true)
             try {
-                viewModel.validateBackupFile(fileUri)
-                persistBackupRestoreReadPermission(context, fileUri)
-                viewModel.setPendingRestoreRequest(
-                    fileUri = fileUri,
-                    displayName = resolveDocumentDisplayName(context, fileUri),
-                )
+                // Load the file bytes once here (while the picker's read
+                // grant is still fresh) and stash them in the pending
+                // request. The password dialog can then decrypt from
+                // memory without re-opening the URI — that re-open used
+                // to fail intermittently on the first attempt after a
+                // fresh install because the temporary SAF grant could
+                // lapse before the user finished typing.
+                //
+                // Resolve the display name before we load the bytes so a
+                // failure in that lookup can't strand the encrypted bytes
+                // outside the ViewModel's ownership.
+                val displayName = resolveDocumentDisplayName(context, fileUri)
+                val encryptedBytes = viewModel.loadAndValidateBackupBytes(fileUri)
+                var transferredOwnership = false
+                try {
+                    viewModel.setPendingRestoreRequest(
+                        fileUri = fileUri,
+                        displayName = displayName,
+                        encryptedBytes = encryptedBytes,
+                    )
+                    transferredOwnership = true
+                } finally {
+                    if (!transferredOwnership) {
+                        encryptedBytes.fill(0)
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
-                releaseBackupRestoreReadPermission(context, fileUri)
                 Toast.makeText(
                     context,
                     if (error is IncompatibleBackupFileException) {
@@ -484,46 +525,13 @@ fun SettingsScreen(
             isInProgress = isBackupRestoreInProgress,
             minimumPasswordLength = MINIMUM_BACKUP_PASSWORD_LENGTH,
             onDismiss = {
-                releaseBackupRestoreReadPermission(context, restoreRequest.uri)
                 viewModel.clearPendingRestoreRequest()
             },
             onConfirm = { password ->
-                coroutineScope.launch {
-                    viewModel.setBackupRestoreInProgress(true)
-                    try {
-                        viewModel.restoreBackup(
-                            fileUri = restoreRequest.uri,
-                            password = password,
-                        )
-                        Toast.makeText(
-                            context,
-                            backupRestoreSuccessMessage,
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    } catch (error: Exception) {
-                        // Validate already filtered for IncompatibleBackupFileException upstream,
-                        // but the snapshot decoder and validators can still throw it (or
-                        // IllegalArgumentException) once the file is decrypted, so route those
-                        // to the version-mismatch message and treat the rest as wrong-password
-                        // / corrupted-file.
-                        Toast.makeText(
-                            context,
-                            if (
-                                error is IncompatibleBackupFileException ||
-                                error is IllegalArgumentException
-                            ) {
-                                backupRestoreIncompatibleFileMessage
-                            } else {
-                                backupRestoreFailedMessage
-                            },
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    } finally {
-                        viewModel.setBackupRestoreInProgress(false)
-                        releaseBackupRestoreReadPermission(context, restoreRequest.uri)
-                        viewModel.clearPendingRestoreRequest()
-                    }
-                }
+                // Routed through the ViewModel so the restore + result toast
+                // outlive the activity recreate that the restored app-locale
+                // setting triggers. See backupRestoreEvents collector above.
+                viewModel.requestBackupRestore(password)
             },
         )
     }
@@ -1528,30 +1536,6 @@ private fun SettingsScreenPreview() {
 
 private const val MINIMUM_BACKUP_PASSWORD_LENGTH = 6
 private const val DIAGNOSTICS_EXPORT_MIME_TYPE = "text/plain"
-
-private fun persistBackupRestoreReadPermission(
-    context: Context,
-    uri: Uri,
-) {
-    runCatching {
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
-    }
-}
-
-private fun releaseBackupRestoreReadPermission(
-    context: Context,
-    uri: Uri,
-) {
-    runCatching {
-        context.contentResolver.releasePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
-    }
-}
 
 private fun resolveDocumentDisplayName(
     context: Context,

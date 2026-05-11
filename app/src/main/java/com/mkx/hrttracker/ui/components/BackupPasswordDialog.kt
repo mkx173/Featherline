@@ -104,7 +104,10 @@ fun BackupPasswordDialog(
 
     BasicAlertDialog(
         modifier = modifier,
-        onDismissRequest = onDismiss,
+        // Block outside-tap / back-press while a restore is mid-flight —
+        // dismissing would let the surrounding screen wipe the encrypted
+        // bytes that the in-progress restore is still decrypting from.
+        onDismissRequest = { if (!isInProgress) onDismiss() },
     ) {
         Surface(
             modifier = Modifier

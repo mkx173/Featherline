@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.data.backup
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import com.mkx.hrttracker.data.local.BloodTestPanelEntity
 import com.mkx.hrttracker.data.local.BloodTestResultEntity
@@ -35,6 +34,8 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -64,11 +65,24 @@ class BackupRestoreService @Inject constructor(
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
     private val reminderNotificationManager: ReminderNotificationManager,
     private val backupCrypto: BackupCrypto,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
-    suspend fun validateBackupFile(
+    /**
+     * Reads the backup file into memory once so callers can validate and
+     * later decrypt it without re-opening the URI. ContentResolver temporary
+     * read grants (SAF OpenDocument) can lapse between the picker callback
+     * and password dialog confirmation, which caused intermittent
+     * "decrypt failed / wrong password" errors on first restore attempts.
+     */
+    suspend fun loadEncryptedBackupBytes(
         fileUri: Uri,
+    ): ByteArray = withContext(Dispatchers.IO) {
+        readEncryptedBackupBytes(fileUri)
+    }
+
+    suspend fun validateBackupBytes(
+        encryptedBytes: ByteArray,
     ) = withContext(Dispatchers.IO) {
-        val encryptedBytes = readEncryptedBackupBytes(fileUri)
         try {
             backupCrypto.validateEncryptedBackupContainer(encryptedBytes)
         } catch (error: IllegalArgumentException) {
@@ -76,6 +90,15 @@ class BackupRestoreService @Inject constructor(
                 message = error.message ?: "Selected file is not a compatible backup.",
                 cause = error,
             )
+        }
+    }
+
+    suspend fun validateBackupFile(
+        fileUri: Uri,
+    ) = withContext(Dispatchers.IO) {
+        val encryptedBytes = readEncryptedBackupBytes(fileUri)
+        try {
+            validateBackupBytes(encryptedBytes)
         } finally {
             encryptedBytes.fill(0)
         }
@@ -86,6 +109,17 @@ class BackupRestoreService @Inject constructor(
         password: String,
     ) = withContext(Dispatchers.IO) {
         val encryptedBytes = readEncryptedBackupBytes(fileUri)
+        try {
+            restoreBackupBytes(encryptedBytes, password)
+        } finally {
+            encryptedBytes.fill(0)
+        }
+    }
+
+    suspend fun restoreBackupBytes(
+        encryptedBytes: ByteArray,
+        password: String,
+    ) = withContext(Dispatchers.IO) {
         val passwordChars = password.toCharArray()
         val json = try {
             backupCrypto.decryptSnapshotJson(
@@ -94,7 +128,6 @@ class BackupRestoreService @Inject constructor(
             )
         } finally {
             passwordChars.fill('\u0000')
-            encryptedBytes.fill(0)
         }
         val snapshot = BackupSnapshotJsonCodec.decode(json)
             ?: throw IOException("Unable to decode the selected backup file.")
@@ -159,23 +192,47 @@ class BackupRestoreService @Inject constructor(
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
         )
-        medicationReminderScheduler.rescheduleAll()
-        medicationReminderSnoozeScheduler.clearAllSnoozes()
-    }
 
-    private fun persistReadAccess(fileUri: Uri) {
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                fileUri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        // Reminder rescheduling is a best-effort side effect — the data is
+        // already committed. Surfacing a failure here as a generic
+        // exception caused "restore failed" toasts even when the user's
+        // data had been restored successfully. The alarm scheduler will
+        // reconcile on the next app launch.
+        try {
+            medicationReminderScheduler.rescheduleAll()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            diagnosticsLogger.warning(
+                TAG,
+                "restore_reminder_reschedule_failed",
+                error,
             )
         }
+        try {
+            medicationReminderSnoozeScheduler.clearAllSnoozes()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            diagnosticsLogger.warning(
+                TAG,
+                "restore_snooze_clear_failed",
+                error,
+            )
+        }
+    }
+
+    private companion object {
+        private const val TAG = "BackupRestoreService"
     }
 
     private fun readEncryptedBackupBytes(
         fileUri: Uri,
     ): ByteArray {
-        persistReadAccess(fileUri)
+        // Read once with the temporary grant from the SAF picker — no
+        // persistable permission needed. (Persisting here without ever
+        // releasing would leak document grants on every restore attempt
+        // and could eventually hit the system's per-app grant cap.)
         return context.contentResolver.openInputStream(fileUri)
             ?.use { inputStream -> inputStream.readBytes() }
             ?: throw IOException("Unable to open the selected backup file.")
