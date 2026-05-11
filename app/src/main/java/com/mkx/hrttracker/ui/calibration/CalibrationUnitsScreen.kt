@@ -204,6 +204,17 @@ private fun CalibrationUnitsScreenContent(
             )
         }
     ) { innerPadding ->
+        if (uiState.isLoadingCustomAnalytes) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingIndicator()
+            }
+            return@Scaffold
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -241,49 +252,32 @@ private fun CalibrationUnitsScreenContent(
                 )
             }
 
-            when {
-                uiState.isLoadingCustomAnalytes -> {
-                    item(key = "custom-loading") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = sectionSpacing),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            LoadingIndicator()
-                        }
-                    }
+            if (uiState.customAnalytes.isEmpty()) {
+                item(key = "custom-empty") {
+                    SupportMessageListItem(
+                        text = stringResource(R.string.settings_calibration_custom_analytes_empty),
+                        painter = painterResource(R.drawable.ic_info),
+                        index = 0,
+                        count = 1,
+                    )
                 }
-
-                uiState.customAnalytes.isEmpty() -> {
-                    item(key = "custom-empty") {
-                        SupportMessageListItem(
-                            text = stringResource(R.string.settings_calibration_custom_analytes_empty),
-                            painter = painterResource(R.drawable.ic_info),
-                            index = 0,
-                            count = 1,
-                        )
-                    }
-                }
-
-                else -> {
-                    item(key = "custom-list") {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(listSegmentGap),
-                        ) {
-                            uiState.customAnalytes.forEachIndexed { index, analyte ->
-                                CalibrationCustomAnalyteItem(
-                                    customAnalyte = analyte,
-                                    index = index,
-                                    count = uiState.customAnalytes.size,
-                                    onClick = {
-                                        openCustomAnalyteDialog(
-                                            customAnalyteId = analyte.uuid.toString()
-                                        )
-                                    },
-                                )
-                            }
+            } else {
+                item(key = "custom-list") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(listSegmentGap),
+                    ) {
+                        uiState.customAnalytes.forEachIndexed { index, analyte ->
+                            CalibrationCustomAnalyteItem(
+                                customAnalyte = analyte,
+                                index = index,
+                                count = uiState.customAnalytes.size,
+                                onClick = {
+                                    openCustomAnalyteDialog(
+                                        customAnalyteId = analyte.uuid.toString()
+                                    )
+                                },
+                            )
                         }
                     }
                 }
