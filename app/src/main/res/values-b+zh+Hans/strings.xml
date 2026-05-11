@@ -588,8 +588,9 @@
     <plurals name="plan_group_medication_count">
         <item quantity="other">%1$d 种药物</item>
     </plurals>
+    <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>
     <plurals name="reminder_notification_more_groups">
-        <item quantity="other">%1$s 和 %2$d 个其他分组</item>
+        <item quantity="other">%1$s、%2$s 和 %3$d 个其他分组</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已添加 %1$d 条记录</item>

@@ -89,11 +89,9 @@ class ReminderNotificationManager @Inject constructor(
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setStyle(
-                NotificationCompat.InboxStyle().also { style ->
-                    bundle.items.forEach { item ->
-                        style.addLine(item.groupName)
-                    }
-                }
+                NotificationCompat.BigTextStyle().bigText(
+                    bundle.items.joinToString(separator = " · ") { it.groupName }
+                )
             )
             .apply {
                 if (canSnooze) {
@@ -227,10 +225,16 @@ class ReminderNotificationManager @Inject constructor(
     private fun ReminderNotificationBody.resolve(): String {
         return when (this) {
             is ReminderNotificationBody.GroupName -> groupName
+            is ReminderNotificationBody.TwoGroups -> context.getString(
+                R.string.reminder_notification_two_groups,
+                firstGroupName,
+                secondGroupName,
+            )
             is ReminderNotificationBody.MoreGroups -> context.resources.getQuantityString(
                 R.plurals.reminder_notification_more_groups,
                 additionalGroupCount,
                 firstGroupName,
+                secondGroupName,
                 additionalGroupCount,
             )
         }

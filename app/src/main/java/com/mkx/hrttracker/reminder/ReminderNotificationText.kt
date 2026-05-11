@@ -13,8 +13,14 @@ internal sealed interface ReminderNotificationBody {
         val groupName: String,
     ) : ReminderNotificationBody
 
+    data class TwoGroups(
+        val firstGroupName: String,
+        val secondGroupName: String,
+    ) : ReminderNotificationBody
+
     data class MoreGroups(
         val firstGroupName: String,
+        val secondGroupName: String,
         val additionalGroupCount: Int,
     ) : ReminderNotificationBody
 }
@@ -22,19 +28,27 @@ internal sealed interface ReminderNotificationBody {
 internal fun buildReminderNotificationText(
     bundle: MedicationReminderBundle,
 ): ReminderNotificationText {
-    val firstGroupName = bundle.items.first().groupName
-    return if (bundle.items.size > 1) {
-        ReminderNotificationText(
+    val items = bundle.items
+    val firstGroupName = items.first().groupName
+    return when {
+        items.size == 1 -> ReminderNotificationText(
+            titleRes = R.string.reminder_notification_single_title,
+            body = ReminderNotificationBody.GroupName(firstGroupName),
+        )
+        items.size == 2 -> ReminderNotificationText(
+            titleRes = R.string.reminder_notification_merged_title,
+            body = ReminderNotificationBody.TwoGroups(
+                firstGroupName = firstGroupName,
+                secondGroupName = items[1].groupName,
+            ),
+        )
+        else -> ReminderNotificationText(
             titleRes = R.string.reminder_notification_merged_title,
             body = ReminderNotificationBody.MoreGroups(
                 firstGroupName = firstGroupName,
-                additionalGroupCount = bundle.items.size - 1,
+                secondGroupName = items[1].groupName,
+                additionalGroupCount = items.size - 2,
             ),
-        )
-    } else {
-        ReminderNotificationText(
-            titleRes = R.string.reminder_notification_single_title,
-            body = ReminderNotificationBody.GroupName(firstGroupName),
         )
     }
 }

@@ -165,14 +165,18 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         val groupsByUuid = loadRepresentedGroups(unfulfilledSlots)
-        val bundleItems = unfulfilledSlots.mapNotNull { slot ->
-            val group = groupsByUuid[slot.groupUuid] ?: return@mapNotNull null
-            MedicationReminderBundleItem(
-                slot = slot,
-                groupName = group.name,
-                medications = group.medications,
-            )
-        }
+        val bundleItems = unfulfilledSlots
+            .mapNotNull { slot ->
+                groupsByUuid[slot.groupUuid]?.let { group -> group to slot }
+            }
+            .sortedBy { (group, _) -> group.createdAt }
+            .map { (group, slot) ->
+                MedicationReminderBundleItem(
+                    slot = slot,
+                    groupName = group.name,
+                    medications = group.medications,
+                )
+            }
         if (bundleItems.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_bundle_items")
             return

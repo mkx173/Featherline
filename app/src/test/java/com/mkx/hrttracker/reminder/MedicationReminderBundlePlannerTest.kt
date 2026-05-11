@@ -59,6 +59,40 @@ class MedicationReminderBundlePlannerTest {
     }
 
     @Test
+    fun buildMedicationReminderBundle_orders_items_by_group_createdAt_ascending() {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val newest = medicationGroup(
+            uuid = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            name = "Newest",
+            time = LocalTime.of(9, 0),
+            createdAt = Instant.parse("2026-04-15T00:00:00Z"),
+        )
+        val oldest = medicationGroup(
+            uuid = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+            name = "Oldest",
+            time = LocalTime.of(9, 0),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+        val middle = medicationGroup(
+            uuid = UUID.fromString("33333333-3333-3333-3333-333333333333"),
+            name = "Middle",
+            time = LocalTime.of(9, 0),
+            createdAt = Instant.parse("2026-04-10T00:00:00Z"),
+        )
+
+        val bundle = buildMedicationReminderBundle(
+            scheduledAt = scheduledAt,
+            groups = listOf(newest, oldest, middle),
+            entries = emptyList(),
+        )
+
+        assertEquals(
+            listOf(oldest.uuid, middle.uuid, newest.uuid),
+            bundle?.items?.map { it.slot.groupUuid }
+        )
+    }
+
+    @Test
     fun buildMedicationReminderBundle_excludes_fulfilled_same_time_slots() {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val fulfilledGroup = medicationGroup(
@@ -94,6 +128,7 @@ class MedicationReminderBundlePlannerTest {
         uuid: UUID,
         name: String,
         time: LocalTime,
+        createdAt: Instant = Instant.parse("2026-04-01T00:00:00Z"),
     ): MedicationGroup {
         return MedicationGroup(
             uuid = uuid,
@@ -115,8 +150,8 @@ class MedicationReminderBundlePlannerTest {
                 )
             ),
             notificationsEnabled = true,
-            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
-            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+            createdAt = createdAt,
+            updatedAt = createdAt,
         )
     }
 

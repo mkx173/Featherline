@@ -40,6 +40,7 @@ internal fun buildMedicationReminderBundle(
     entries: List<MedicationLogEntry>,
 ): MedicationReminderBundle? {
     val items = groups
+        .sortedBy(MedicationGroup::createdAt)
         .asSequence()
         .filter(MedicationGroup::isActive)
         .filter { group -> group.notificationsEnabled && group.medications.isNotEmpty() }

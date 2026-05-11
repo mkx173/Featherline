@@ -600,9 +600,10 @@
         <item quantity="one">%1$d medication</item>
         <item quantity="other">%1$d medications</item>
     </plurals>
+    <string name="reminder_notification_two_groups">%1$s and %2$s</string>
     <plurals name="reminder_notification_more_groups">
-        <item quantity="one">%1$s and %2$d more group</item>
-        <item quantity="other">%1$s and %2$d more groups</item>
+        <item quantity="one">%1$s, %2$s, and %3$d more group</item>
+        <item quantity="other">%1$s, %2$s, and %3$d more groups</item>
     </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="one">Added %1$d entry.</item>
