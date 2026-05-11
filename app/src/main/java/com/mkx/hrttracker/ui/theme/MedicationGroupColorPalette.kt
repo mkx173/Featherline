@@ -21,14 +21,16 @@ fun rememberMedicationGroupColorScheme(
     val container = if (darkTheme) palette.darkContainer else palette.lightContainer
     val accent = if (darkTheme) palette.darkAccent else palette.lightAccent
     val onContainer = if (darkTheme) palette.darkOnContainer else palette.lightOnContainer
-    val (finalContainer, finalAccent, finalOnContainer) = if (harmonize) {
+    val onPrimary = if (darkTheme) palette.lightOnContainer else palette.darkOnContainer
+    val (finalContainer, finalAccent, finalOnContainer, finalOnPrimary) = if (harmonize) {
         val target = MaterialTheme.colorScheme.primary
-        Triple(container.harmonize(target), accent.harmonize(target), onContainer.harmonize(target))
+        listOf(container, accent, onContainer, onPrimary).map { it.harmonize(target) }
     } else {
-        Triple(container, accent, onContainer)
+        listOf(container, accent, onContainer, onPrimary)
     }
     return MaterialTheme.colorScheme.copy(
         primary = finalAccent.desaturateHct(),
+        onPrimary = finalOnPrimary,
         primaryContainer = finalContainer.desaturateHct(),
         onPrimaryContainer = finalAccent.desaturateHct(),
         // Carries the high-contrast text-on-container color (used for chip body text;

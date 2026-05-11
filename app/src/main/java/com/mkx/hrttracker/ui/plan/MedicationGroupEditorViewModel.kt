@@ -239,6 +239,19 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    fun updateGroupColor(colorKey: MedicationGroupColorKey) {
+        _uiState.update { current ->
+            if (current.isArchived || current.groupColorKey == colorKey) {
+                current
+            } else {
+                current.copy(
+                    groupColorKey = colorKey,
+                    hasAssignedGroupColor = true,
+                )
+            }
+        }
+    }
+
     fun updateScheduleType(scheduleType: MedicationGroupScheduleType) {
         _uiState.update {
             if (it.areScheduleShapeFieldsLocked) {

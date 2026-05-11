@@ -184,6 +184,10 @@
     <string name="unit_mcg_day">μg/天</string>
     <string name="field_medication_group_name">分组名称</string>
     <string name="clear_group_name">清空分组名称</string>
+    <string name="group_color_picker_action">更改分组颜色</string>
+    <string name="group_color_picker_title">选择颜色</string>
+    <string name="group_color_picker_swatch_content_description">颜色 %1$d</string>
+    <string name="group_color_picker_swatch_selected_content_description">颜色 %1$d，已选择</string>
     <string name="group_notifications_title">通知</string>
     <string name="group_notifications_reminder">用药提醒</string>
     <string name="group_notifications_summary">为这个分组发送提醒</string>

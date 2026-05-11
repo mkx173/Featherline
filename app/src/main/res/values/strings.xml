@@ -190,6 +190,10 @@
     <string name="unit_mcg_day">μg/day</string>
     <string name="field_medication_group_name">Group name</string>
     <string name="clear_group_name">Clear group name</string>
+    <string name="group_color_picker_action">Change group color</string>
+    <string name="group_color_picker_title">Pick a color</string>
+    <string name="group_color_picker_swatch_content_description">Color %1$d</string>
+    <string name="group_color_picker_swatch_selected_content_description">Color %1$d, selected</string>
     <string name="group_notifications_title">Notifications</string>
     <string name="group_notifications_reminder">Remind me</string>
     <string name="group_notifications_summary">Remind me for this group.</string>

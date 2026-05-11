@@ -10,6 +10,9 @@ import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +25,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,7 +37,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -44,13 +52,18 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,6 +77,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -125,6 +140,7 @@ import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import kotlinx.coroutines.launch
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -317,6 +333,7 @@ fun MedicationGroupEditorScreen(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onGroupNameChange = viewModel::updateGroupName,
+        onGroupColorChange = viewModel::updateGroupColor,
         onScheduleTypeChange = viewModel::updateScheduleType,
         onSinceDateChange = viewModel::updateSinceDate,
         onIncludePastScheduledSlotsChange = viewModel::updateIncludePastScheduledSlots,
@@ -433,6 +450,7 @@ private fun MedicationGroupEditorScreenContent(
     uiState: MedicationGroupEditorUiState,
     onNavigateBack: () -> Unit,
     onGroupNameChange: (String) -> Unit,
+    onGroupColorChange: (MedicationGroupColorKey) -> Unit,
     onScheduleTypeChange: (MedicationGroupScheduleType) -> Unit,
     onSinceDateChange: (LocalDate) -> Unit,
     onIncludePastScheduledSlotsChange: (Boolean) -> Unit,
@@ -1218,12 +1236,10 @@ private fun MedicationGroupEditorScreenContent(
                         onValueChange = onGroupNameChange,
                         label = { Text(text = stringResource(R.string.field_medication_group_name)) },
                         leadingIcon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Label,
-                                contentDescription = null,
-                                tint = rememberMedicationGroupColorScheme(
-                                    colorKey = uiState.groupColorKey
-                                ).primary
+                            MedicationGroupColorPickerLeadingIcon(
+                                selectedColorKey = uiState.groupColorKey,
+                                enabled = !uiState.isArchived,
+                                onColorSelected = onGroupColorChange,
                             )
                         },
                         trailingIcon = if (
@@ -2023,6 +2039,134 @@ private fun maybeRequestExactAlarmAccess(
     launch(intent)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MedicationGroupColorPickerLeadingIcon(
+    selectedColorKey: MedicationGroupColorKey,
+    enabled: Boolean,
+    onColorSelected: (MedicationGroupColorKey) -> Unit,
+) {
+    val currentScheme = rememberMedicationGroupColorScheme(colorKey = selectedColorKey)
+    if (!enabled) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.Label,
+            contentDescription = null,
+            tint = currentScheme.primary,
+        )
+        return
+    }
+    val tooltipState = rememberTooltipState(isPersistent = true)
+    val scope = rememberCoroutineScope()
+    val pickerActionDescription = stringResource(R.string.group_color_picker_action)
+    val pickerTitle = stringResource(R.string.group_color_picker_title)
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+            TooltipAnchorPosition.Below,
+        ),
+        tooltip = {
+            RichTooltip(
+                title = { Text(pickerTitle) },
+            ) {
+                MedicationGroupColorSwatchGrid(
+                    selectedColorKey = selectedColorKey,
+                    onColorSelected = { colorKey ->
+                        onColorSelected(colorKey)
+                        tooltipState.dismiss()
+                    },
+                )
+            }
+        },
+        state = tooltipState,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(
+                    onClickLabel = pickerActionDescription,
+                ) {
+                    if (tooltipState.isVisible) {
+                        tooltipState.dismiss()
+                    } else {
+                        scope.launch { tooltipState.show() }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_circle),
+                contentDescription = pickerActionDescription,
+                tint = currentScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MedicationGroupColorSwatchGrid(
+    selectedColorKey: MedicationGroupColorKey,
+    onColorSelected: (MedicationGroupColorKey) -> Unit,
+) {
+    val ordered = MedicationGroupColorKey.assignmentOrder
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ordered.chunked(5).forEach { row ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.forEachIndexed { indexInRow, key ->
+                    val absoluteIndex = ordered.indexOf(key) + 1
+                    val scheme = rememberMedicationGroupColorScheme(colorKey = key)
+                    val isSelected = key == selectedColorKey
+                    val swatchDescription = stringResource(
+                        if (isSelected) {
+                            R.string.group_color_picker_swatch_selected_content_description
+                        } else {
+                            R.string.group_color_picker_swatch_content_description
+                        },
+                        absoluteIndex,
+                    )
+                    val borderColor = if (isSelected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        Color.Transparent
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(scheme.primary)
+                            .border(
+                                width = 1.dp,
+                                color = borderColor,
+                                shape = CircleShape,
+                            )
+                            .clickable(onClickLabel = swatchDescription) {
+                                onColorSelected(key)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = scheme.onPrimary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    if (indexInRow < row.lastIndex) {
+                        // No spacer needed: Row's horizontalArrangement
+                        // already handles gaps. Keeping the index check so
+                        // future tweaks (e.g. a separator) have a hook.
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun EditorSectionHeader(
     title: String,
@@ -2063,6 +2207,7 @@ private fun MedicationGroupEditorDailyPreview() {
             ),
             onNavigateBack = { },
             onGroupNameChange = { },
+            onGroupColorChange = { },
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onIncludePastScheduledSlotsChange = { },
@@ -2135,6 +2280,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             ),
             onNavigateBack = { },
             onGroupNameChange = { },
+            onGroupColorChange = { },
             onScheduleTypeChange = { },
             onSinceDateChange = { },
             onIncludePastScheduledSlotsChange = { },
@@ -2248,6 +2394,7 @@ private fun MedicationGroupEditorPreviewContent(
         uiState = uiState,
         onNavigateBack = { },
         onGroupNameChange = { },
+        onGroupColorChange = { },
         onScheduleTypeChange = { },
         onSinceDateChange = { },
         onIncludePastScheduledSlotsChange = { },
