@@ -1,7 +1,6 @@
 package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -33,13 +32,20 @@ import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +75,6 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -237,9 +242,10 @@ internal fun MainE2HeroCard(
         now = now
     )
     val hasPreviousRecord = section.lastDoseAt != null
-    val context = LocalContext.current
     val titleText = stringResource(R.string.main_e2_title)
-    val estimateInfoToastText = stringResource(mainE2EstimateInfoToastRes())
+    val estimateInfoTooltipText = stringResource(mainE2EstimateInfoToastRes())
+    val estimateInfoTooltipState = rememberTooltipState(isPersistent = true)
+    val estimateInfoTooltipScope = rememberCoroutineScope()
     val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
     val rangeStatusIconDrawableRes = when {
@@ -297,22 +303,43 @@ internal fun MainE2HeroCard(
                         CompositionLocalProvider(
                             LocalMinimumInteractiveComponentSize provides Dp.Unspecified
                         ) {
-                            IconButton(
-                                onClick = {
-                                    Toast.makeText(
-                                        context,
-                                        estimateInfoToastText,
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                            @OptIn(ExperimentalMaterial3Api::class)
+                            TooltipBox(
+                                positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
+                                    TooltipAnchorPosition.Above
+                                ),
+                                tooltip = {
+                                    RichTooltip {
+                                        Text(
+                                            text = estimateInfoTooltipText,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+                                    }
                                 },
-                                modifier = Modifier.size(24.dp),
+                                state = estimateInfoTooltipState,
                             ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_info),
-                                    contentDescription = stringResource(R.string.main_e2_estimate_info),
-                                    tint = heroSupportingColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                IconButton(
+                                    onClick = {
+                                        if (estimateInfoTooltipState.isVisible) {
+                                            estimateInfoTooltipState.dismiss()
+                                        } else {
+                                            estimateInfoTooltipScope.launch {
+                                                estimateInfoTooltipState.show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_info),
+                                        contentDescription = stringResource(R.string.main_e2_estimate_info),
+                                        tint = heroSupportingColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -626,6 +653,8 @@ internal fun MainE2ChartCard(
         splitChartSeries,
         doseMarkerXHours,
         doseMarkerConcentrations,
+        currentTimeXHours,
+        currentTimeConcentration,
     ) {
         modelProducer.runTransaction {
             lineSeries {
@@ -638,6 +667,15 @@ internal fun MainE2ChartCard(
                 series(
                     x = splitChartSeries.predictedXHours,
                     y = splitChartSeries.predictedPoints,
+                )
+                // "You are here" dot — a one-point series so it animates in
+                // alongside the dose markers instead of popping in flat. Sits
+                // in slot 3 (unconditional) because Vico matches series to
+                // LineProvider entries by index and rejects empty series, so
+                // any conditional series has to come last.
+                series(
+                    x = listOf(currentTimeXHours),
+                    y = listOf(currentTimeConcentration),
                 )
                 if (doseMarkerXHours.isNotEmpty()) {
                     series(
@@ -704,27 +742,13 @@ internal fun MainE2ChartCard(
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     currentTimeXHours,
-                    currentTimeConcentration,
                     currentTimeLineColor,
-                    currentTimeColor,
-                    markerSurfaceColor,
-                    yAxisSpec.maxY,
                     chartCoordinateMapper,
                 ) {
                     VerticalLineDecoration(
                         x = currentTimeXHours,
                         lineColor = currentTimeLineColor,
                         coordinateMapper = chartCoordinateMapper,
-                        // The "you are here" dot also rides this decoration so it
-                        // can update per minute without forcing a model republish
-                        // (the dot used to be its own line series, which dragged the
-                        // line model into every minute tick). Decorations recompose
-                        // independently of the line model, so the dot moves smoothly
-                        // while the solid + dashed line segments stay stable.
-                        pointY = currentTimeConcentration.toDouble(),
-                        pointMaxY = yAxisSpec.maxY,
-                        pointFillColor = currentTimeColor,
-                        pointStrokeColor = markerSurfaceColor,
                     )
                 }
                 val interactionMarkerDecoration = remember(
@@ -762,6 +786,17 @@ internal fun MainE2ChartCard(
                             strokeThickness = 1.dp,
                         ),
                         size = 7.dp,
+                    )
+                }
+                val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
+                    LineCartesianLayer.Point(
+                        component = ShapeComponent(
+                            fill = Fill(currentTimeColor),
+                            shape = CircleShape,
+                            strokeFill = Fill(markerSurfaceColor),
+                            strokeThickness = 1.dp,
+                        ),
+                        size = 8.dp,
                     )
                 }
 
@@ -813,6 +848,11 @@ internal fun MainE2ChartCard(
                                                         Fill(predictedLineBrush)
                                                     ),
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
+                                                ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(currentTimePoint),
                                                 ),
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
