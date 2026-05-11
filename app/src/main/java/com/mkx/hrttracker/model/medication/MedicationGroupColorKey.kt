@@ -16,13 +16,13 @@ enum class MedicationGroupColorKey {
         val assignmentOrder: List<MedicationGroupColorKey> = listOf(
             ROSE,
             TEAL,
-            AMBER,
+            CORAL,
             INDIGO,
             SAGE,
             PLUM,
             CITRON,
             SKY,
-            CORAL,
+            AMBER,
             VIOLET
         )
 

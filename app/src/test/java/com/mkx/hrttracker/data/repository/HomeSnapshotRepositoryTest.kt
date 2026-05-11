@@ -73,6 +73,7 @@ class HomeSnapshotRepositoryTest {
         coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun runHomeDataMutation_runsCleanupAndRefreshEvenWhenBlockThrows() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -119,7 +120,7 @@ class HomeSnapshotRepositoryTest {
         advanceUntilIdle()
 
         // Failure must propagate (we don't silently swallow), AND cleanup must have run.
-        assertEquals("simulated mutation failure", caught?.message)
+        assertEquals("simulated mutation failure", caught.message)
         assertTrue("clearSnapshot should run on the throwing path", events.contains("clear"))
         coVerify(atLeast = 1) { homeSnapshotStore.clearSnapshot() }
         // The async refresh should have been enqueued; readSnapshot is the first
