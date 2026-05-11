@@ -923,8 +923,9 @@ internal fun MainE2ChartCard(
                                         )
                                     },
                                 shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                color = MaterialTheme.colorScheme.surfaceContainer,
                                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                shadowElevation = 3.dp
                             ) {
                                 Text(
                                     text = markerLabel,
