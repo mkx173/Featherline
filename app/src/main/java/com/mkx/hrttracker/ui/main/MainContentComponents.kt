@@ -124,6 +124,7 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerDrawingModel
 import com.patrykandpatrick.vico.compose.cartesian.data.LineCartesianLayerModel
 import com.patrykandpatrick.vico.compose.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.compose.cartesian.decoration.Decoration
@@ -135,6 +136,8 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoZoomState
 import com.patrykandpatrick.vico.compose.common.Fill
+import com.patrykandpatrick.vico.compose.common.data.CartesianLayerDrawingModelInterpolator
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import com.patrykandpatrick.vico.compose.common.component.ShapeComponent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1502,11 +1505,28 @@ private fun rememberEdgeAlignedLineCartesianLayer(
     rangeProvider: CartesianLayerRangeProvider,
     pointSpacing: Dp = MainE2ChartPointSpacing,
 ): LineCartesianLayer {
+    // The drawing-model key and interpolator carry the in-flight animation state
+    // between the chart's `transform` writes and its `drawInternal` reads. Vico's
+    // public LineCartesianLayer ctor mints a fresh ExtraStore.Key() per call, so
+    // letting `remember(lineProvider, …)` reconstruct the layer when the predicted-
+    // line brush updates would orphan the interpolated frames written under the
+    // previous key — the next draw reads null from the new key and snaps to the
+    // raw model. Pinning both across recompositions matches Vico's own
+    // rememberLineCartesianLayer + copy() wrapper pattern.
+    val drawingModelKey = remember { ExtraStore.Key<LineCartesianLayerDrawingModel>() }
+    val drawingModelInterpolator = remember {
+        CartesianLayerDrawingModelInterpolator.default<
+            LineCartesianLayerDrawingModel.Entry,
+            LineCartesianLayerDrawingModel,
+            >()
+    }
     return remember(lineProvider, rangeProvider, pointSpacing) {
         EdgeAlignedLineCartesianLayer(
             lineProvider = lineProvider,
             pointSpacing = pointSpacing,
             rangeProvider = rangeProvider,
+            drawingModelInterpolator = drawingModelInterpolator,
+            drawingModelKey = drawingModelKey,
         )
     }
 }
@@ -1515,10 +1535,18 @@ private class EdgeAlignedLineCartesianLayer(
     lineProvider: LineCartesianLayer.LineProvider,
     pointSpacing: Dp,
     rangeProvider: CartesianLayerRangeProvider,
+    drawingModelInterpolator: CartesianLayerDrawingModelInterpolator<
+        LineCartesianLayerDrawingModel.Entry,
+        LineCartesianLayerDrawingModel,
+        >,
+    drawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>,
 ) : LineCartesianLayer(
     lineProvider = lineProvider,
     pointSpacing = pointSpacing,
     rangeProvider = rangeProvider,
+    verticalAxisPosition = null,
+    drawingModelInterpolator = drawingModelInterpolator,
+    drawingModelKey = drawingModelKey,
 ) {
     override fun updateDimensions(
         context: CartesianMeasuringContext,
