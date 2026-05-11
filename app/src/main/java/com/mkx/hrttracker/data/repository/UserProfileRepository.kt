@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import javax.inject.Inject
@@ -38,6 +39,15 @@ class UserProfileRepository @Inject constructor(
                         }
                         .catch { emit(UserProfile()) }
                 }
+            }
+            // Seed the flow from the home snapshot cache so screens that bind the
+            // profile (Settings) render the real weight on first frame instead of
+            // flashing the empty default while Room cold-init completes. Failures
+            // are swallowed — the Room flow follows immediately and is authoritative.
+            .onStart {
+                runCatching {
+                    homeSnapshotRepository.readUsableHomeSnapshot()?.userProfile
+                }.getOrNull()?.let { emit(it) }
             }
             .stateIn(
                 scope = appScope,

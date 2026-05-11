@@ -389,6 +389,7 @@ class HomeSnapshotRepository @Inject constructor(
             activeGroups = inputs.activeGroups,
             scheduleEntries = inputs.scheduleEntries,
             antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
+            userProfile = inputs.profile,
         )
 
         withContext(Dispatchers.IO) {
@@ -565,7 +566,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 3
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 4
 private const val TAG = "HomeSnapshotRepository"
 private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
 private const val HOME_PK_PROJECTION_FUTURE_DAYS = 14L

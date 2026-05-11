@@ -26,6 +26,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -128,6 +130,11 @@ data class HomeSnapshotRecord(
     val activeGroups: List<MedicationGroup>,
     val scheduleEntries: List<MedicationLogEntry>,
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
+    // Cached so Settings (and any other UserProfile consumer) can render the real
+    // weight on first frame instead of flashing the empty default while Room cold
+    // init completes. Nullable for forward-compat with snapshots from before this
+    // field was added.
+    val userProfile: UserProfile? = null,
 )
 
 data class HomePkProjectionRecord(
@@ -208,6 +215,7 @@ internal object HomeSnapshotCodec {
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
+            stream.writeUserProfile(record.userProfile)
         }
         return output.toByteArray()
     }
@@ -228,6 +236,7 @@ internal object HomeSnapshotCodec {
                 activeGroups = stream.readList { readMedicationGroup() },
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 antiandrogenHistoryEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
+                userProfile = stream.readUserProfile(),
             )
         }
     }
@@ -500,6 +509,25 @@ internal object HomeSnapshotCodec {
         return if (readBoolean()) readDouble() else null
     }
 
+    private fun DataOutputStream.writeUserProfile(profile: UserProfile?) {
+        writeBoolean(profile != null)
+        profile ?: return
+        writeNullableDouble(profile.weightKg)
+        writeNullableDouble(profile.weightOriginalValue)
+        writeString(profile.weightOriginalUnit.name)
+        writeNullableLong(profile.updatedAt?.toEpochMilli())
+    }
+
+    private fun DataInputStream.readUserProfile(): UserProfile? {
+        if (!readBoolean()) return null
+        return UserProfile(
+            weightKg = readNullableDouble(),
+            weightOriginalValue = readNullableDouble(),
+            weightOriginalUnit = WeightUnit.fromStorageValue(readString()),
+            updatedAt = readNullableLong()?.let(Instant::ofEpochMilli),
+        )
+    }
+
     private fun DataOutputStream.writeNullableLong(value: Long?) {
         writeBoolean(value != null)
         value?.let(::writeLong)
@@ -600,7 +628,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 5
+private const val SNAPSHOT_CODEC_VERSION = 6
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

@@ -266,7 +266,7 @@ class HomeSnapshotRepositoryTest {
                 match { message ->
                     "home_snapshot_read_rejected" in message &&
                         "reason=schema_version" in message &&
-                        "actual=2" in message
+                        "actual=${HOME_SNAPSHOT_SCHEMA_VERSION - 1}" in message
                 }
             )
         }
