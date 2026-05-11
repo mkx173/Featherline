@@ -125,6 +125,7 @@ import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.medicationDisplayName
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
@@ -1220,7 +1221,10 @@ private fun MedicationGroupEditorScreenContent(
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.Label,
-                                contentDescription = null
+                                contentDescription = null,
+                                tint = rememberMedicationGroupColorScheme(
+                                    colorKey = uiState.groupColorKey
+                                ).primary
                             )
                         },
                         trailingIcon = if (
