@@ -551,9 +551,9 @@
     <string name="onboarding_start_tagline">记录HRT用药、查看血药浓度、掌握用药节奏</string>
     <string name="onboarding_start_cta">开始使用</string>
     <string name="onboarding_disclaimer_title">重要说明</string>
-    <string name="onboarding_disclaimer_subtitle">Plume 是一个记录工具，不提供医疗建议。血药浓度数值是根据您的用药计划计算出的模型估算值，并非实际测量值。这些数值不应替代实验室检测或临床医生的指导</string>
+    <string name="onboarding_disclaimer_subtitle">Plume 是一个记录工具，不提供医疗建议。血药浓度数值是根据您的用药计划计算出的模型估算值，并非实际测量值。这些数值不应替代实验室检测或临床医生的指导。</string>
     <string name="onboarding_disclaimer_data_heading">数据与隐私</string>
-    <string name="onboarding_disclaimer_data_body">所有用药、剂量和实验室数据都会存储在您设备上的本地加密数据库中。本应用不会将数据发送到任何服务器、分析服务或第三方。您可以随时导出加密备份。</string>
+    <string name="onboarding_disclaimer_data_body">所有用药、剂量和实验室数据都会存储在您设备上的本地加密数据库中。本应用不使用任何分析或第三方追踪服务。默认情况下，您的数据不会离开您的设备——您可以随时导出加密备份。</string>
     <string name="onboarding_disclaimer_estimates_heading">估算与建模</string>
     <string name="onboarding_disclaimer_estimates_body">血药浓度估算基于近似药代动力学模型，并参考已发表数据和不同给药途径的建模假设。个体反应可能存在显著差异。请仅将估算值作为粗略的趋势参考。</string>
     <string name="onboarding_disclaimer_advice_heading">非医疗建议</string>
