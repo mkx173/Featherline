@@ -25,6 +25,7 @@ import com.mkx.hrttracker.util.AppDiagnosticsExportedFile
 import com.mkx.hrttracker.util.AppLockSecurityManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -307,10 +308,6 @@ class SettingsViewModel @Inject constructor(
         if (isBackupRestoreInProgress.value) return
         val request = pendingRestoreRequest.value ?: return
         val ownedBytes = request.encryptedBytes
-        // The sentinel empty-bytes case means a previous call already
-        // took ownership of the real bytes — bail rather than launch a
-        // second coroutine that would fail-fast and emit a false failure
-        // toast while flipping the in-progress flag off mid-restore.
         if (ownedBytes.isEmpty()) return
         // Flip the in-progress flag *synchronously* before launching so
         // a second click that lands before the coroutine runs sees it
@@ -319,13 +316,9 @@ class SettingsViewModel @Inject constructor(
         // Transfer ownership of the encrypted bytes out of the pending
         // request so a mid-flight dialog dismiss (which still calls
         // clearPendingRestoreRequest) can't zero the array we're actively
-        // decrypting from. Leave a sentinel empty array in its place so
-        // the rest of the UI flow still sees a live request.
-        pendingRestoreRequest.value = PendingBackupRestoreRequest(
-            uri = request.uri,
-            displayName = request.displayName,
-            encryptedBytes = ByteArray(0),
-        )
+        // decrypting from. Clear the request immediately so an activity
+        // recreate caused by restored settings has no dialog to re-render.
+        pendingRestoreRequest.value = null
         viewModelScope.launch {
             try {
                 backupRestoreService.restoreBackupBytes(
@@ -347,6 +340,7 @@ class SettingsViewModel @Inject constructor(
 
     val backupRestoreEvents: SharedFlow<BackupRestoreEvent> = restoreEvents.asSharedFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun consumeBackupRestoreEvent() {
         restoreEvents.resetReplayCache()
     }

@@ -439,7 +439,6 @@ fun SettingsScreen(
             }
         },
         isBackupExportInProgress = isBackupExportInProgress || isBackupFlowPending,
-        isBackupRestoreInProgress = isBackupRestoreInProgress,
         showDiagnosticsExport = BuildConfig.DEBUG,
         isDiagnosticsExportInProgress = isDiagnosticsExportInProgress,
         onExportDiagnosticLogsClick = {
@@ -558,7 +557,6 @@ private fun SettingsScreenContent(
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupExportInProgress: Boolean,
-    isBackupRestoreInProgress: Boolean,
     showDiagnosticsExport: Boolean,
     isDiagnosticsExportInProgress: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
@@ -964,7 +962,7 @@ private fun SettingsScreenContent(
             ) {
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_backup_to_file),
-                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
+                    enabled = !isBackupExportInProgress,
                     index = 0,
                     count = 2,
                     onClick = onBackupToFileClick,
@@ -980,7 +978,7 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_restore_from_file),
-                    enabled = !isBackupExportInProgress && !isBackupRestoreInProgress,
+                    enabled = !isBackupExportInProgress,
                     index = 1,
                     count = 2,
                     onClick = onRestoreFromFileClick,
@@ -1525,7 +1523,6 @@ private fun SettingsScreenPreview() {
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupExportInProgress = false,
-            isBackupRestoreInProgress = false,
             showDiagnosticsExport = true,
             isDiagnosticsExportInProgress = false,
             onExportDiagnosticLogsClick = { },

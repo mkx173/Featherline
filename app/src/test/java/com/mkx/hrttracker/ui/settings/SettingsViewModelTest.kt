@@ -20,6 +20,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -139,6 +140,37 @@ class SettingsViewModelTest {
         viewModel.validateBackupFile(uri)
 
         coVerify(exactly = 1) { backupRestoreService.validateBackupFile(uri) }
+    }
+
+    @Test
+    fun requestBackupRestore_clearsPendingRequestImmediatelyWhileRestoreIsInFlight() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val uri = mockk<Uri>()
+        val restoreStarted = CompletableDeferred<Unit>()
+        val allowRestoreToFinish = CompletableDeferred<Unit>()
+        coEvery {
+            backupRestoreService.restoreBackupBytes(any(), "password")
+        } coAnswers {
+            restoreStarted.complete(Unit)
+            allowRestoreToFinish.await()
+        }
+
+        viewModel.setPendingRestoreRequest(
+            fileUri = uri,
+            displayName = "backup.json",
+            encryptedBytes = byteArrayOf(1),
+        )
+        advanceUntilIdle()
+
+        viewModel.requestBackupRestore("password")
+        advanceUntilIdle()
+        restoreStarted.await()
+
+        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+
+        allowRestoreToFinish.complete(Unit)
+        advanceUntilIdle()
     }
 
     @Test
