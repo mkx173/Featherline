@@ -35,9 +35,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Label
-import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.WarningAmber

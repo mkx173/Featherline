@@ -46,11 +46,11 @@ import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.startup.StartupTiming
 import java.time.LocalDateTime
 import java.util.UUID
 

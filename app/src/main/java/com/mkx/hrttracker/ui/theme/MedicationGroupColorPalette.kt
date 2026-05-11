@@ -9,18 +9,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.materialkolor.hct.Hct
 import com.materialkolor.ktx.darken
 import com.materialkolor.ktx.harmonize
-import com.materialkolor.ktx.lighten
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.AMBER
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.CITRON
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.CORAL
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.INDIGO
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.PLUM
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.ROSE
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.SAGE
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.SKY
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.TEAL
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.VIOLET
 
 @Composable
 fun rememberMedicationGroupColorScheme(

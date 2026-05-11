@@ -10,9 +10,9 @@ import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine

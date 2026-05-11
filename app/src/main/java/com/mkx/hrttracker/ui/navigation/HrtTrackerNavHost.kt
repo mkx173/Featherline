@@ -1,8 +1,8 @@
 package com.mkx.hrttracker.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.exclude
@@ -35,11 +35,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
-import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
-import com.mkx.hrttracker.ui.calibration.CalibrationScreen
-import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
-import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
@@ -50,6 +45,11 @@ import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
+import com.mkx.hrttracker.ui.calibration.CalibrationScreen
+import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
+import com.mkx.hrttracker.ui.history.HistoryScreen
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainScreen

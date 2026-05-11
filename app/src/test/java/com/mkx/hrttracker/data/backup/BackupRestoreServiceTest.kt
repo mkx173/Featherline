@@ -24,11 +24,11 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.IOException
-import org.junit.Assert.fail
 
 class BackupRestoreServiceTest {
     private val context: Context = mockk(relaxed = true)
