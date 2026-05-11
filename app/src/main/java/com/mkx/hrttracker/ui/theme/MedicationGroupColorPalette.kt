@@ -25,56 +25,30 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey.VIOLET
 @Composable
 fun rememberMedicationGroupColorScheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    colorKey: MedicationGroupColorKey?
+    colorKey: MedicationGroupColorKey?,
+    harmonize: Boolean = true,
 ): ColorScheme {
-    val groupPrimaryColor = medicationGroupSeedColor(colorKey)
-    val delta = medicationGroupLightenRatioDelta(colorKey)
-    return if (darkTheme) {
-        MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.2f).desaturateHct(0.8),
-            primaryContainer = groupPrimaryColor.darken(1.2f).desaturateHct(0.8),
-            onPrimaryContainer = groupPrimaryColor.lighten(4.15f + delta)
-        )
+    val palette = MedicationGroupPalettes.getValue(colorKey)
+    val container = if (darkTheme) palette.darkContainer else palette.lightContainer
+    val accent = if (darkTheme) palette.darkAccent else palette.lightAccent
+    val onContainer = if (darkTheme) palette.darkOnContainer else palette.lightOnContainer
+    val (finalContainer, finalAccent, finalOnContainer) = if (harmonize) {
+        val target = MaterialTheme.colorScheme.primary
+        Triple(container.harmonize(target), accent.harmonize(target), onContainer.harmonize(target))
     } else {
-        MaterialTheme.colorScheme.copy(
-            primary = groupPrimaryColor.darken(1.3f),
-            primaryContainer = groupPrimaryColor.lighten(4.0f + delta).desaturateHct(),
-            onPrimaryContainer = groupPrimaryColor.darken(1.3f)
-        )
+        Triple(container, accent, onContainer)
     }
+    return MaterialTheme.colorScheme.copy(
+        primary = finalAccent.desaturateHct(),
+        primaryContainer = finalContainer.desaturateHct(),
+        onPrimaryContainer = finalAccent.desaturateHct(),
+        // Carries the high-contrast text-on-container color (used for chip body text;
+        // icons keep using onPrimaryContainer = accent).
+        onPrimaryFixed = finalOnContainer,
+    )
 }
 
-internal fun medicationGroupLightenRatioDelta(colorKey: MedicationGroupColorKey?): Float {
-    return when (colorKey) {
-        ROSE -> 1.2f
-        CORAL -> -0.6f
-        AMBER -> -0.9f
-        CITRON -> -0.3f
-        TEAL -> 0.2f
-        SKY -> -0.6f
-        INDIGO -> 0.5f
-        PLUM -> 0.3f
-        else -> 0f
-    }
-}
-
-internal fun medicationGroupSeedColor(colorKey: MedicationGroupColorKey?): Color {
-    return when (colorKey) {
-        null -> Color(0xFF5A6470)
-        ROSE -> Color(0xFF95414A)
-        CORAL -> Color(0xFFBD5C28)
-        AMBER -> Color(0xFF9A8518)
-        CITRON -> Color(0xFF6E8320)
-        SAGE -> Color(0xFF4F7A55)
-        TEAL -> Color(0xFF2E6E72)
-        SKY -> Color(0xFF2D80B0)
-        INDIGO -> Color(0xFF4D55AC)
-        VIOLET -> Color(0xFF8C4AA8)
-        PLUM -> Color(0xFF9A3D78)
-    }
-}
-
-fun Color.desaturateHct(factor: Double = 0.62): Color {
+fun Color.desaturateHct(factor: Double = 0.7): Color {
     val source = Hct.fromInt(toArgb())
     val safeFactor = factor.coerceIn(0.0, 1.0)
 
@@ -86,3 +60,103 @@ fun Color.desaturateHct(factor: Double = 0.62): Color {
         ).toInt()
     )
 }
+
+internal data class HuePalette(
+    val lightContainer: Color,
+    val lightAccent: Color,
+    val lightOnContainer: Color,
+    val darkContainer: Color,
+    val darkAccent: Color,
+    val darkOnContainer: Color,
+)
+
+internal val MedicationGroupPalettes: Map<MedicationGroupColorKey?, HuePalette> = mapOf(
+    null to HuePalette( // slate · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFE7E8EC),
+        lightAccent      = Color(0xFF60646C),
+        lightOnContainer = Color(0xFF1C2024),
+        darkContainer    = Color(0xFF212225),
+        darkAccent       = Color(0xFFB0B4BA),
+        darkOnContainer  = Color(0xFFEDEEF0),
+    ),
+    MedicationGroupColorKey.ROSE to HuePalette( // red · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFFFDBDC),
+        lightAccent      = Color(0xFFCE2C31),
+        lightOnContainer = Color(0xFF641723),
+        darkContainer    = Color(0xFF3B1219),
+        darkAccent       = Color(0xFFFF8A88),
+        darkOnContainer  = Color(0xFFFFD1D9),
+    ),
+    MedicationGroupColorKey.CORAL to HuePalette( // orange · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFFFDDA9),
+        lightAccent      = Color(0xFFD14E00),
+        lightOnContainer = Color(0xFF582D1D),
+        darkContainer    = Color(0xFF331E0B),
+        darkAccent       = Color(0xFFFF9B52),
+        darkOnContainer  = Color(0xFFFFE0C2),
+    ),
+    MedicationGroupColorKey.AMBER to HuePalette( // yellow · L4/11/12 D3/9/12
+        lightContainer   = Color(0xFFFFF394),
+        lightAccent      = Color(0xFFA06E00),
+        lightOnContainer = Color(0xFF473B1F),
+        darkContainer    = Color(0xFF2C2305),
+        darkAccent       = Color(0xFFFFEA00).darken(1.35f),
+        darkOnContainer  = Color(0xFFF6EEB4),
+    ),
+    MedicationGroupColorKey.CITRON to HuePalette( // lime · L4/11/12 D3/9/12
+        lightContainer   = Color(0xFFE2F0BD),
+        lightAccent      = Color(0xFF5C7C2F),
+        lightOnContainer = Color(0xFF37401C),
+        darkContainer    = Color(0xFF1F2917),
+        darkAccent       = Color(0xFFBDEE63),
+        darkOnContainer  = Color(0xFFE3F7BA),
+    ),
+    MedicationGroupColorKey.SAGE to HuePalette( // green · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFD6F1DF),
+        lightAccent      = Color(0xFF00824D),
+        lightOnContainer = Color(0xFF193B2D),
+        darkContainer    = Color(0xFF132D21),
+        darkAccent       = Color(0xFF3DD68C),
+        darkOnContainer  = Color(0xFFB1F1CB),
+    ),
+    MedicationGroupColorKey.TEAL to HuePalette( // teal · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFCCF3EA),
+        lightAccent      = Color(0xFF00826D),
+        lightOnContainer = Color(0xFF0D3D38),
+        darkContainer    = Color(0xFF0D2D2A),
+        darkAccent       = Color(0xFF0AD8B6),
+        darkOnContainer  = Color(0xFFADF0DD),
+    ),
+    MedicationGroupColorKey.SKY to HuePalette( // sky · L4/11/12 D3/9/12
+        lightContainer   = Color(0xFFD1F0FB),
+        lightAccent      = Color(0xFF00749E),
+        lightOnContainer = Color(0xFF1D3E56),
+        darkContainer    = Color(0xFF112840),
+        darkAccent       = Color(0xFF7CE2FE),
+        darkOnContainer  = Color(0xFFC2F3FF),
+    ),
+    MedicationGroupColorKey.INDIGO to HuePalette( // indigo · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFE0E9FF),
+        lightAccent      = Color(0xFF3A5BC7),
+        lightOnContainer = Color(0xFF1F2D5C),
+        darkContainer    = Color(0xFF182449),
+        darkAccent       = Color(0xFF9DB1FF),
+        darkOnContainer  = Color(0xFFD6E1FF),
+    ),
+    MedicationGroupColorKey.VIOLET to HuePalette( // purple · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFF2E2FC),
+        lightAccent      = Color(0xFF8145B5),
+        lightOnContainer = Color(0xFF402060),
+        darkContainer    = Color(0xFF2F1C3B),
+        darkAccent       = Color(0xFFD59CFF),
+        darkOnContainer  = Color(0xFFECD9FA),
+    ),
+    MedicationGroupColorKey.PLUM to HuePalette( // pink · L4/11/12 D3/11/12
+        lightContainer   = Color(0xFFFBDCEF),
+        lightAccent      = Color(0xFFC1298A),
+        lightOnContainer = Color(0xFF651249),
+        darkContainer    = Color(0xFF37172F),
+        darkAccent       = Color(0xFFFF80CA),
+        darkOnContainer  = Color(0xFFFDD1EA),
+    ),
+)
