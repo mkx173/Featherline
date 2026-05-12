@@ -56,16 +56,27 @@ class AddEntryViewModel @Inject constructor(
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
 
-    fun initialize(entryIds: List<String>) {
+    fun initialize(
+        entryIds: List<String>,
+        editSnapshot: AddEntryEditSnapshot? = null,
+    ) {
         loadEntryJob?.cancel()
         val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
-        _uiState.value = AddEntryUiState(
-            editingEntryIds = normalizedEntryIds,
-            isLoading = normalizedEntryIds.isNotEmpty()
-        )
+        val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
+        val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
+        val initialEditingState = matchingEditSnapshot?.toEditingUiState()
+        _uiState.value = initialEditingState
+            ?.copy(isLoading = normalizedEntryIds.isNotEmpty())
+            ?: AddEntryUiState(
+                editingEntryIds = normalizedEntryIds,
+                isLoading = normalizedEntryIds.isNotEmpty()
+            )
 
         if (normalizedEntryIds.isNotEmpty()) {
-            loadEntriesForEditing(normalizedEntryIds)
+            loadEntriesForEditing(
+                entryIds = normalizedEntryIds,
+                editSnapshot = matchingEditSnapshot,
+            )
         }
     }
 
@@ -75,9 +86,14 @@ class AddEntryViewModel @Inject constructor(
         scheduledFor: LocalDateTime,
         medicationDetails: MedicationDetails,
         medicationCount: Int,
+        sourceGroupName: String? = null,
+        sourceGroupColorKey: MedicationGroupColorKey? = null,
+        sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+        sourceGroupNextScheduledFor: LocalDateTime? = null,
     ) {
         loadEntryJob?.cancel()
         val cachedGroup = medicationGroupRepository.getCachedGroup(groupId)
+        val hasSourceGroupSnapshot = !sourceGroupName.isNullOrBlank()
         _uiState.value = buildQuickLogUiState(
             groupId = groupId,
             group = cachedGroup,
@@ -85,8 +101,12 @@ class AddEntryViewModel @Inject constructor(
             scheduledFor = scheduledFor,
             medicationDetails = medicationDetails,
             medicationCount = medicationCount,
+            sourceGroupName = sourceGroupName,
+            sourceGroupColorKey = sourceGroupColorKey,
+            sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
+            sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
             appliedAt = LocalDateTime.now(),
-            isLoading = cachedGroup == null,
+            isLoading = cachedGroup == null && !hasSourceGroupSnapshot,
         )
 
         loadEntryJob = viewModelScope.launch {
@@ -98,7 +118,11 @@ class AddEntryViewModel @Inject constructor(
                     if (currentState.sourceGroupUuid == groupId &&
                         currentState.scheduledFor == scheduledFor
                     ) {
-                        currentState.copy(isLoading = false, isSaved = true)
+                        if (hasSourceGroupSnapshot) {
+                            currentState.copy(isLoading = false)
+                        } else {
+                            currentState.copy(isLoading = false, isSaved = true)
+                        }
                     } else {
                         currentState
                     }
@@ -433,7 +457,10 @@ class AddEntryViewModel @Inject constructor(
         _uiState.update { it.copy(savedCrossZoneZoneText = null) }
     }
 
-    private fun loadEntriesForEditing(entryIds: List<String>) {
+    private fun loadEntriesForEditing(
+        entryIds: List<String>,
+        editSnapshot: AddEntryEditSnapshot? = null,
+    ) {
         loadEntryJob = viewModelScope.launch {
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
             val sourceGroup = entries.firstOrNull()?.sourceGroupUuid?.let { sourceGroupUuid ->
@@ -441,8 +468,15 @@ class AddEntryViewModel @Inject constructor(
             }
             _uiState.value = buildEditingUiState(
                 entries = entries,
-                sourceGroup = sourceGroup
-            ) ?: AddEntryUiState()
+                sourceGroup = sourceGroup,
+                sourceGroupName = editSnapshot?.sourceGroupName,
+                sourceGroupColorKey = editSnapshot?.sourceGroupColorKey,
+                sourceGroupPreviousScheduledFor = editSnapshot?.sourceGroupPreviousScheduledFor,
+                sourceGroupNextScheduledFor = editSnapshot?.sourceGroupNextScheduledFor,
+            ) ?: editSnapshot
+                ?.toEditingUiState()
+                ?.copy(isLoading = false)
+                ?: AddEntryUiState()
         }
     }
 
@@ -504,6 +538,18 @@ data class AddEntryQuickLogRequest(
     val scheduledFor: LocalDateTime,
     val medicationDetails: MedicationDetails,
     val medicationCount: Int,
+    val sourceGroupName: String? = null,
+    val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    val sourceGroupNextScheduledFor: LocalDateTime? = null,
+)
+
+data class AddEntryEditSnapshot(
+    val entries: List<MedicationLogEntry>,
+    val sourceGroupName: String? = null,
+    val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )
 
 enum class SaveEntryResult {
@@ -530,6 +576,10 @@ internal fun normalizeEditingEntryIds(entryIds: Collection<String>): List<String
 internal fun buildEditingUiState(
     entries: List<MedicationLogEntry>,
     sourceGroup: MedicationGroup? = null,
+    sourceGroupName: String? = null,
+    sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    sourceGroupNextScheduledFor: LocalDateTime? = null,
 ): AddEntryUiState? {
     val representativeEntry = entries.firstOrNull() ?: return null
     val editableEntries = if (canBulkEditTogether(entries)) entries else listOf(representativeEntry)
@@ -537,20 +587,26 @@ internal fun buildEditingUiState(
     val matchingSourceGroup = sourceGroup?.takeIf { group ->
         group.uuid == representativeEntry.sourceGroupUuid
     }
+    val hasMatchingSourceGroupSnapshot = representativeEntry.sourceGroupUuid != null &&
+        !sourceGroupName.isNullOrBlank()
 
     return AddEntryUiState(
         editingEntryIds = editableEntries.map { entry -> entry.uuid.toString() },
         medicationDraft = medicationDraftFromDetails(representativeEntry.details),
         sourceGroupUuid = representativeEntry.sourceGroupUuid,
         scheduleTimeUuid = representativeEntry.scheduleTimeUuid,
-        sourceGroupName = matchingSourceGroup?.name,
-        sourceGroupColorKey = matchingSourceGroup?.colorKey,
+        sourceGroupName = matchingSourceGroup?.name
+            ?: sourceGroupName?.takeIf { hasMatchingSourceGroupSnapshot },
+        sourceGroupColorKey = matchingSourceGroup?.colorKey
+            ?: sourceGroupColorKey?.takeIf { hasMatchingSourceGroupSnapshot },
         scheduledFor = representativeEntry.scheduledFor,
         sourceGroupPreviousScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
             matchingSourceGroup?.previousScheduledForBefore(scheduledFor)
+                ?: sourceGroupPreviousScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         sourceGroupNextScheduledFor = representativeEntry.scheduledFor?.let { scheduledFor ->
             matchingSourceGroup?.nextScheduledForAfter(scheduledFor)
+                ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         countText = normalizeMedicationCount(
             representativeEntry.details.applicationType,
@@ -562,6 +618,26 @@ internal fun buildEditingUiState(
     )
 }
 
+private fun AddEntryEditSnapshot.matchingEntries(entryUuids: List<UUID>): AddEntryEditSnapshot? {
+    if (entryUuids.isEmpty()) {
+        return null
+    }
+
+    val entriesByUuid = entries.associateBy(MedicationLogEntry::uuid)
+    val matchingEntries = entryUuids.mapNotNull(entriesByUuid::get)
+    return takeIf { matchingEntries.isNotEmpty() }?.copy(entries = matchingEntries)
+}
+
+private fun AddEntryEditSnapshot.toEditingUiState(): AddEntryUiState? {
+    return buildEditingUiState(
+        entries = entries,
+        sourceGroupName = sourceGroupName,
+        sourceGroupColorKey = sourceGroupColorKey,
+        sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
+        sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
+    )
+}
+
 internal fun buildQuickLogUiState(
     groupId: UUID,
     group: MedicationGroup?,
@@ -569,6 +645,10 @@ internal fun buildQuickLogUiState(
     scheduledFor: LocalDateTime,
     medicationDetails: MedicationDetails,
     medicationCount: Int,
+    sourceGroupName: String? = null,
+    sourceGroupColorKey: MedicationGroupColorKey? = null,
+    sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    sourceGroupNextScheduledFor: LocalDateTime? = null,
     appliedAt: LocalDateTime,
     isLoading: Boolean = false,
 ): AddEntryUiState {
@@ -576,11 +656,13 @@ internal fun buildQuickLogUiState(
         medicationDraft = medicationDraftFromDetails(medicationDetails),
         sourceGroupUuid = groupId,
         scheduleTimeUuid = scheduleTimeUuid,
-        sourceGroupName = group?.name,
-        sourceGroupColorKey = group?.colorKey,
+        sourceGroupName = group?.name ?: sourceGroupName,
+        sourceGroupColorKey = group?.colorKey ?: sourceGroupColorKey,
         scheduledFor = scheduledFor,
-        sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(scheduledFor),
-        sourceGroupNextScheduledFor = group?.nextScheduledForAfter(scheduledFor),
+        sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(scheduledFor)
+            ?: sourceGroupPreviousScheduledFor,
+        sourceGroupNextScheduledFor = group?.nextScheduledForAfter(scheduledFor)
+            ?: sourceGroupNextScheduledFor,
         countText = normalizeMedicationCount(
             medicationDetails.applicationType,
             medicationCount

@@ -31,7 +31,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -43,17 +42,15 @@ import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.zoneDisplayName
-import java.time.LocalDateTime
 import java.util.Locale
-import java.util.UUID
 
 @Composable
 fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     listState: LazyListState,
-    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
-    onEntryClick: (Set<UUID>) -> Unit,
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
+    onEntryClick: (MainEditEntryRequest) -> Unit,
     onDismissTimeZoneChangeNotice: () -> Unit = { },
 ) {
     val appLocale = rememberAppLocale()
@@ -225,7 +222,7 @@ private fun MainContentPreview() {
                     timeZoneChangeNotice = PreviewTimeZoneChangeNotice,
                 ),
                 listState = rememberLazyListState(),
-                onQuickLogDoseClick = { _, _, _, _, _ -> },
+                onQuickLogDoseClick = { },
                 onEntryClick = { },
             )
         }

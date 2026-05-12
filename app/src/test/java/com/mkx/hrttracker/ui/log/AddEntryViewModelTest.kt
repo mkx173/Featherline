@@ -158,6 +158,39 @@ class AddEntryViewModelTest {
     }
 
     @Test
+    fun buildEditingUiState_uses_snapshot_group_metadata_when_sourceGroupIsUnavailable() {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val entry = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = scheduledFor
+        )
+
+        val uiState = buildEditingUiState(
+            entries = listOf(entry),
+            sourceGroupName = "Snapshot estradiol",
+            sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+            sourceGroupPreviousScheduledFor = scheduledFor.minusDays(1),
+            sourceGroupNextScheduledFor = scheduledFor.plusDays(1),
+        )
+
+        requireNotNull(uiState)
+        assertEquals(groupId, uiState.sourceGroupUuid)
+        assertEquals("Snapshot estradiol", uiState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.PLUM, uiState.sourceGroupColorKey)
+        assertEquals(scheduledFor.minusDays(1), uiState.sourceGroupPreviousScheduledFor)
+        assertEquals(scheduledFor.plusDays(1), uiState.sourceGroupNextScheduledFor)
+        assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
     fun buildEditingUiState_falls_back_to_single_entry_when_rows_do_not_match_exactly() {
         val firstId = UUID.fromString("58810b58-3176-428d-b361-e93e7e492a97")
         val secondId = UUID.fromString("693ecdb0-7414-41f2-b775-a79e7b1f2abf")
@@ -489,6 +522,107 @@ class AddEntryViewModelTest {
         assertEquals("Nightly estradiol", uiState.sourceGroupName)
         assertEquals(2, uiState.count)
         assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun initialize_uses_editSnapshotBeforeRoomEntryLoads() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val entryId = UUID.fromString("59c02f09-381d-47df-8512-cf3af70d4eaf")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val entry = testMedicationLogEntry(
+            uuid = entryId,
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0)
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupId,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            scheduledFor = scheduledFor,
+        )
+        coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns emptyList()
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        )
+        viewModel.initialize(
+            entryIds = listOf(entryId.toString()),
+            editSnapshot = AddEntryEditSnapshot(
+                entries = listOf(entry),
+                sourceGroupName = "Snapshot estradiol",
+                sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+                sourceGroupPreviousScheduledFor = scheduledFor.minusDays(1),
+                sourceGroupNextScheduledFor = scheduledFor.plusDays(1),
+            ),
+        )
+
+        val initialState = viewModel.uiState.value
+        assertTrue(initialState.isLoading)
+        assertEquals(listOf(entryId.toString()), initialState.editingEntryIds)
+        assertEquals(groupId, initialState.sourceGroupUuid)
+        assertEquals("Snapshot estradiol", initialState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.PLUM, initialState.sourceGroupColorKey)
+        assertFalse(initialState.canEditMedicationIdentity)
+
+        advanceUntilIdle()
+
+        val fallbackState = viewModel.uiState.value
+        assertFalse(fallbackState.isLoading)
+        assertEquals("Snapshot estradiol", fallbackState.sourceGroupName)
+        assertEquals(groupId, fallbackState.sourceGroupUuid)
+    }
+
+    @Test
+    fun initializeQuickLog_uses_snapshot_group_metadata_beforeRepositoryGroupLoads() = runTest {
+        val groupId = UUID.fromString("b6a391e2-c448-4d08-95a1-3451c7bf4060")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val previousScheduledFor = LocalDateTime.of(2026, 4, 21, 21, 0)
+        val nextScheduledFor = LocalDateTime.of(2026, 4, 23, 21, 0)
+        val details = testCatalogMedicationDetails(
+            key = MedicationKey.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            dose = MedicationDose.MgAsMedicine(2.0)
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns null
+        coEvery { medicationGroupRepository.getGroup(groupId) } returns null
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicationDetails = details,
+            medicationCount = 2,
+            sourceGroupName = "Snapshot estradiol",
+            sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+            sourceGroupPreviousScheduledFor = previousScheduledFor,
+            sourceGroupNextScheduledFor = nextScheduledFor,
+        )
+
+        val initialState = viewModel.uiState.value
+        assertFalse(initialState.isLoading)
+        assertEquals(groupId, initialState.sourceGroupUuid)
+        assertEquals("Snapshot estradiol", initialState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.PLUM, initialState.sourceGroupColorKey)
+        assertEquals(previousScheduledFor, initialState.sourceGroupPreviousScheduledFor)
+        assertEquals(nextScheduledFor, initialState.sourceGroupNextScheduledFor)
+        assertEquals(2, initialState.count)
+
+        advanceUntilIdle()
+
+        val resolvedState = viewModel.uiState.value
+        assertFalse(resolvedState.isLoading)
+        assertFalse(resolvedState.isSaved)
+        assertEquals("Snapshot estradiol", resolvedState.sourceGroupName)
+        assertEquals(MedicationGroupColorKey.PLUM, resolvedState.sourceGroupColorKey)
     }
 
     @Test

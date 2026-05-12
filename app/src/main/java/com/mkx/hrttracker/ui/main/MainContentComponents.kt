@@ -2262,8 +2262,8 @@ internal fun MainTodaySection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
-    onEntryClick: (Set<UUID>) -> Unit,
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
+    onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val groupedRows = remember(section.rows) {
@@ -2344,8 +2344,8 @@ internal fun MainLastNightSection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
-    onEntryClick: (Set<UUID>) -> Unit,
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
+    onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (section.rows.isEmpty()) return
@@ -2439,8 +2439,8 @@ private fun MainTodayDoseRow(
     itemCount: Int,
     now: LocalDateTime,
     timeFormatter: DateTimeFormatter,
-    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
-    onEntryClick: (Set<UUID>) -> Unit,
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
+    onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val details = row.medication.details
@@ -2461,20 +2461,26 @@ private fun MainTodayDoseRow(
     val onQuickLogClick = {
         if (quickLogGroupUuid != null) {
             onQuickLogDoseClick(
-                quickLogGroupUuid,
-                row.scheduleTimeUuid,
-                row.scheduledAt,
-                row.medication.details,
-                remainingQuickLogCount(
-                    totalCount = row.medication.count,
-                    fulfilledCount = row.loggedCount
+                MainQuickLogDoseRequest(
+                    groupUuid = quickLogGroupUuid,
+                    scheduleTimeUuid = row.scheduleTimeUuid,
+                    scheduledAt = row.scheduledAt,
+                    medicationDetails = row.medication.details,
+                    medicationCount = remainingQuickLogCount(
+                        totalCount = row.medication.count,
+                        fulfilledCount = row.loggedCount
+                    ),
+                    sourceGroupName = row.groupName,
+                    sourceGroupColorKey = row.groupColorKey,
+                    sourceGroupPreviousScheduledFor = row.sourceGroupPreviousScheduledFor,
+                    sourceGroupNextScheduledFor = row.sourceGroupNextScheduledFor,
                 )
             )
         }
     }
     val onStatusClick = {
         if (entryEditorIds.isNotEmpty()) {
-            onEntryClick(entryEditorIds)
+            onEntryClick(row.toMainEditEntryRequest(entryEditorIds))
         } else {
             onQuickLogClick()
         }
@@ -3059,6 +3065,23 @@ private fun mainTodayEntryEditorIds(row: MainTodayDoseRowUiState): Set<UUID> {
     return (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids).toSet()
 }
 
+private fun MainTodayDoseRowUiState.toMainEditEntryRequest(
+    entryEditorIds: Set<UUID>,
+): MainEditEntryRequest {
+    val rowGroupUuid = groupUuid
+    val snapshotEntries = editSnapshotEntries.filter { entry -> entry.uuid in entryEditorIds }
+    return MainEditEntryRequest(
+        entryUuids = entryEditorIds,
+        snapshotEntries = snapshotEntries,
+        sourceGroupName = groupName.takeIf { rowGroupUuid != null && it.isNotBlank() },
+        sourceGroupColorKey = groupColorKey.takeIf { rowGroupUuid != null },
+        sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor
+            .takeIf { rowGroupUuid != null },
+        sourceGroupNextScheduledFor = sourceGroupNextScheduledFor
+            .takeIf { rowGroupUuid != null },
+    )
+}
+
 internal fun mainCompactElapsedTotalMinutes(
     from: LocalDateTime,
     to: LocalDateTime
@@ -3203,7 +3226,7 @@ private fun MainTodaySectionPreview() {
             now = uiState.now,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
-            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onQuickLogDoseClick = { },
             onEntryClick = { }
         )
     }
@@ -3222,7 +3245,7 @@ private fun MainLastNightSectionPreview() {
             now = uiState.now,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
-            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onQuickLogDoseClick = { },
             onEntryClick = { }
         )
     }
@@ -3257,7 +3280,7 @@ private fun MainTodayDoseRowPreview() {
             itemCount = 2,
             now = uiState.now,
             timeFormatter = timeFormatter,
-            onQuickLogDoseClick = { _, _, _, _, _ -> },
+            onQuickLogDoseClick = { },
             onEntryClick = { }
         )
     }

@@ -45,23 +45,19 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.HomeInputSource
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import java.time.LocalDateTime
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
-    onQuickLogDoseClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit =
-        { _, _, _, _, _ -> },
-    onEntryClick: (Set<UUID>) -> Unit = { },
+    onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit = { },
+    onEntryClick: (MainEditEntryRequest) -> Unit = { },
     onAddEntryClick: () -> Unit = { },
     viewModel: MainViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity

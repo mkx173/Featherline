@@ -6,13 +6,17 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.ui.log.AddEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -184,6 +188,66 @@ class HrtTrackerNavHostTest {
                     dose = MedicationDose.MgAsMedicine(0.25),
                 ),
                 medicationCount = 2,
+            ),
+        )
+
+        assertEquals(request, roundTrip(request))
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsSnapshotGroupContext() {
+        val request = AddEntrySheetRequest(
+            quickLogRequest = AddEntryQuickLogRequest(
+                groupId = UUID.fromString("66666666-6666-6666-6666-666666666666"),
+                scheduleTimeUuid = UUID.fromString("77777777-7777-7777-7777-777777777777"),
+                scheduledFor = LocalDateTime.of(2026, 5, 11, 21, 0),
+                medicationDetails = MedicationDetails(
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                medicationCount = 2,
+                sourceGroupName = "Snapshot estradiol",
+                sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+                sourceGroupPreviousScheduledFor = LocalDateTime.of(2026, 5, 10, 21, 0),
+                sourceGroupNextScheduledFor = LocalDateTime.of(2026, 5, 12, 21, 0),
+            ),
+        )
+
+        assertEquals(request, roundTrip(request))
+    }
+
+    @Test
+    fun addEntrySheetRequestSaver_roundTripsEditSnapshot() {
+        val groupId = UUID.fromString("88888888-8888-8888-8888-888888888888")
+        val scheduleTimeId = UUID.fromString("99999999-9999-9999-9999-999999999999")
+        val entryId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val scheduledFor = LocalDateTime.of(2026, 5, 11, 21, 0)
+        val entry = MedicationLogEntry(
+            uuid = entryId,
+            details = MedicationDetails(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupId,
+            scheduleTimeUuid = scheduleTimeId,
+            appliedAt = Instant.parse("2026-05-11T12:05:00Z"),
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledFor = scheduledFor,
+            count = 2,
+        )
+        val request = AddEntrySheetRequest(
+            entryIds = listOf(entryId.toString()),
+            editSnapshot = AddEntryEditSnapshot(
+                entries = listOf(entry),
+                sourceGroupName = "Snapshot estradiol",
+                sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+                sourceGroupPreviousScheduledFor = scheduledFor.minusDays(1),
+                sourceGroupNextScheduledFor = scheduledFor.plusDays(1),
             ),
         )
 

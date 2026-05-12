@@ -42,6 +42,7 @@ fun AddEntryScreen(
     entryIds: List<String>,
     modifier: Modifier = Modifier,
     quickLogRequest: AddEntryQuickLogRequest? = null,
+    editSnapshot: AddEntryEditSnapshot? = null,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     viewModel: AddEntryViewModel = hiltViewModel()
@@ -52,9 +53,12 @@ fun AddEntryScreen(
     )
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(entryIds, quickLogRequest) {
+    LaunchedEffect(entryIds, quickLogRequest, editSnapshot) {
         if (quickLogRequest == null) {
-            viewModel.initialize(entryIds)
+            viewModel.initialize(
+                entryIds = entryIds,
+                editSnapshot = editSnapshot,
+            )
         } else {
             viewModel.initializeQuickLog(
                 groupId = quickLogRequest.groupId,
@@ -62,6 +66,10 @@ fun AddEntryScreen(
                 scheduledFor = quickLogRequest.scheduledFor,
                 medicationDetails = quickLogRequest.medicationDetails,
                 medicationCount = quickLogRequest.medicationCount,
+                sourceGroupName = quickLogRequest.sourceGroupName,
+                sourceGroupColorKey = quickLogRequest.sourceGroupColorKey,
+                sourceGroupPreviousScheduledFor = quickLogRequest.sourceGroupPreviousScheduledFor,
+                sourceGroupNextScheduledFor = quickLogRequest.sourceGroupNextScheduledFor,
             )
         }
     }

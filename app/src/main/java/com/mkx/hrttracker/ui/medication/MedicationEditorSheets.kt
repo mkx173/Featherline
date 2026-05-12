@@ -361,6 +361,7 @@ private fun MedicationEditorSheetScaffold(
                 HrtFilledTonalButton(
                     text = stringResource(R.string.cancel),
                     onClick = onCloseClick,
+                    enabled = !isSaving
                 )
             }
 

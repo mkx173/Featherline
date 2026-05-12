@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
@@ -114,6 +115,9 @@ data class MainTodayDoseRowUiState(
     val isManualRecord: Boolean = false,
     val groupCreatedAt: Instant = Instant.EPOCH,
     val medicationSortOrder: Int = 0,
+    val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    val sourceGroupNextScheduledFor: LocalDateTime? = null,
+    val editSnapshotEntries: List<MedicationLogEntry> = emptyList(),
 )
 
 enum class MainTodayDoseStatus {
@@ -141,6 +145,27 @@ data class MainUpcomingDoseRowUiState(
     val scheduleTimeUuid: UUID?,
     val scheduledAt: LocalDateTime,
     val medication: MedicationGroupMedication,
+)
+
+data class MainQuickLogDoseRequest(
+    val groupUuid: UUID,
+    val scheduleTimeUuid: UUID?,
+    val scheduledAt: LocalDateTime,
+    val medicationDetails: MedicationDetails,
+    val medicationCount: Int,
+    val sourceGroupName: String,
+    val sourceGroupColorKey: MedicationGroupColorKey?,
+    val sourceGroupPreviousScheduledFor: LocalDateTime?,
+    val sourceGroupNextScheduledFor: LocalDateTime?,
+)
+
+data class MainEditEntryRequest(
+    val entryUuids: Set<UUID>,
+    val snapshotEntries: List<MedicationLogEntry> = emptyList(),
+    val sourceGroupName: String? = null,
+    val sourceGroupColorKey: MedicationGroupColorKey? = null,
+    val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
+    val sourceGroupNextScheduledFor: LocalDateTime? = null,
 )
 
 internal fun buildMainE2Hero(
@@ -563,12 +588,19 @@ private fun buildMainTodayRowsForDate(
         now = now,
         zoneId = zoneId
     )
+    val groupsByUuid = groups.associateBy { group -> group.uuid }
 
     val scheduledRows = daySchedule.scheduledEntries.map { scheduledEntry ->
         val scheduledAt = scheduledEntry.scheduledFor
+        val group = groupsByUuid[scheduledEntry.groupUuid]
         val fulfillingEntries = scheduledEntry.fulfillingEntryUuids
             .mapNotNull { entriesByUuid[it] }
             .sortedBy { it.appliedAt }
+        val outsideScheduleWindowEntries = scheduledEntry.outsideScheduleWindowEntryUuids
+            .mapNotNull { entriesByUuid[it] }
+            .sortedBy { it.appliedAt }
+        val editSnapshotEntries = (fulfillingEntries + outsideScheduleWindowEntries)
+            .distinctBy(MedicationLogEntry::uuid)
         val lastFulfillingEntry = fulfillingEntries.lastOrNull()
 
         MainTodayDoseRowUiState(
@@ -577,6 +609,14 @@ private fun buildMainTodayRowsForDate(
             groupColorKey = scheduledEntry.groupColorKey,
             scheduleTimeUuid = scheduledEntry.scheduleTimeUuid,
             scheduledAt = scheduledAt,
+            sourceGroupPreviousScheduledFor = group?.previousScheduledForBefore(
+                scheduledFor = scheduledAt,
+                zoneId = zoneId,
+            ),
+            sourceGroupNextScheduledFor = group?.nextScheduledForAfter(
+                scheduledFor = scheduledAt,
+                zoneId = zoneId,
+            ),
             medication = scheduledEntry.medication,
             status = when {
                 scheduledEntry.isFulfilled -> MainTodayDoseStatus.DONE
@@ -590,7 +630,8 @@ private fun buildMainTodayRowsForDate(
             outsideScheduleWindowEntryUuids = scheduledEntry.outsideScheduleWindowEntryUuids,
             loggedCount = scheduledEntry.loggedCount,
             groupCreatedAt = scheduledEntry.groupCreatedAt,
-            medicationSortOrder = scheduledEntry.medicationSortOrder
+            medicationSortOrder = scheduledEntry.medicationSortOrder,
+            editSnapshotEntries = editSnapshotEntries,
         )
     }
     val manualRows = daySchedule.unplannedEntries.map { entry ->
@@ -613,7 +654,8 @@ private fun buildMainTodayRowsForDate(
             loggedAt = appliedAt,
             fulfillingEntryUuids = listOf(entry.uuid),
             loggedCount = entry.count,
-            isManualRecord = true
+            isManualRecord = true,
+            editSnapshotEntries = listOf(entry),
         )
     }
 

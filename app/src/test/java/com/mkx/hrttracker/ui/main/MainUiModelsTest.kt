@@ -576,6 +576,77 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun buildMainTodaySection_keeps_quickLogSourceGroupContext_onScheduledRows() {
+        val groupUuid = UUID.fromString("fa31a982-b7f5-40bf-8d87-8f87d61c0237")
+        val group = medicationGroup(
+            uuid = groupUuid,
+            name = "Snapshot estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(21, 0))
+            )
+        )
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 21, 0)
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = emptyList(),
+            now = LocalDateTime.of(2026, 4, 18, 20, 0),
+            zoneId = testZoneId
+        )
+
+        val row = todaySection.rows.single()
+        assertEquals(groupUuid, row.groupUuid)
+        assertEquals("Snapshot estradiol", row.groupName)
+        assertEquals(MedicationGroupColorKey.PLUM, row.groupColorKey)
+        assertEquals(scheduledFor.minusDays(1), row.sourceGroupPreviousScheduledFor)
+        assertEquals(scheduledFor.plusDays(1), row.sourceGroupNextScheduledFor)
+    }
+
+    @Test
+    fun buildMainTodaySection_keeps_editSnapshotForLoggedScheduledRows() {
+        val groupUuid = UUID.fromString("1b947ceb-a655-48a7-b017-fb180dc17548")
+        val entryUuid = UUID.fromString("e765fdad-fd9f-4291-84a1-d43d25003b83")
+        val scheduledFor = LocalDateTime.of(2026, 4, 18, 21, 0)
+        val group = medicationGroup(
+            uuid = groupUuid,
+            name = "Snapshot estradiol",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(scheduledFor.toLocalTime())
+            )
+        )
+        val entry = testMedicationLogEntry(
+            uuid = entryUuid,
+            details = group.medications.single().details,
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = groupUuid,
+            appliedAt = testInstant(scheduledFor.plusMinutes(5)),
+            scheduledFor = scheduledFor,
+        )
+
+        val todaySection = buildMainTodaySection(
+            groups = listOf(group),
+            entries = listOf(entry),
+            now = LocalDateTime.of(2026, 4, 18, 22, 0),
+            zoneId = testZoneId
+        )
+
+        val row = todaySection.rows.single()
+        assertEquals(MainTodayDoseStatus.DONE, row.status)
+        assertEquals(listOf(entryUuid), row.fulfillingEntryUuids)
+        assertEquals(listOf(entry), row.editSnapshotEntries)
+        assertEquals("Snapshot estradiol", row.groupName)
+        assertEquals(MedicationGroupColorKey.PLUM, row.groupColorKey)
+    }
+
+    @Test
     fun buildMainTodaySection_orders_planned_ties_by_groupCreation_andMedicationOrder() {
         val schedule = MedicationGroupSchedule(
             type = MedicationGroupScheduleType.DAILY,
