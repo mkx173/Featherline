@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -55,12 +56,16 @@ class AddEntryViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AddEntryUiState())
     val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
     private var loadEntryJob: Job? = null
+    private var pendingSave: PendingSaveRequest? = null
+    private var pendingDelete: PendingDeleteRequest? = null
 
     fun initialize(
         entryIds: List<String>,
         editSnapshot: AddEntryEditSnapshot? = null,
     ) {
         loadEntryJob?.cancel()
+        pendingSave = null
+        pendingDelete = null
         val normalizedEntryIds = normalizeEditingEntryIds(entryIds)
         val normalizedEntryUuids = normalizedEntryIds.map(UUID::fromString)
         val matchingEditSnapshot = editSnapshot?.matchingEntries(normalizedEntryUuids)
@@ -92,6 +97,8 @@ class AddEntryViewModel @Inject constructor(
         sourceGroupNextScheduledFor: LocalDateTime? = null,
     ) {
         loadEntryJob?.cancel()
+        pendingSave = null
+        pendingDelete = null
         val cachedGroup = medicationGroupRepository.getCachedGroup(groupId)
         val hasSourceGroupSnapshot = !sourceGroupName.isNullOrBlank()
         _uiState.value = buildQuickLogUiState(
@@ -113,6 +120,13 @@ class AddEntryViewModel @Inject constructor(
             val group = cachedGroup ?: runCatching {
                 medicationGroupRepository.getGroup(groupId)
             }.getOrNull()
+            val drained = pendingSave
+            if (drained != null) {
+                pendingSave = null
+                _uiState.update { it.copy(isLoading = false) }
+                performSave(drained)
+                return@launch
+            }
             if (group == null) {
                 _uiState.update { currentState ->
                     if (currentState.sourceGroupUuid == groupId &&
@@ -240,7 +254,7 @@ class AddEntryViewModel @Inject constructor(
 
     private fun saveEntry(skipFulfillmentWarning: Boolean) {
         val currentState = _uiState.value
-        if (isAddEntryBusy(currentState)) {
+        if (currentState.isSaving || currentState.isDeleting || currentState.isSaved) {
             return
         }
         val appliedAtLocal = LocalDateTime.of(
@@ -277,44 +291,64 @@ class AddEntryViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isSaving = true,
-                    errorMessageRes = null,
-                    saveEntryResult = null,
-                    isScheduleFulfillmentWarningVisible = false,
-                )
-            }
-
-            val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
-            val resolvedCount = resolvedMedicationCountForSave(
+        val request = PendingSaveRequest(
+            editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString),
+            medicationDetails = currentState.medicationDraft.toMedicationDetails(),
+            sourceGroupUuid = currentState.sourceGroupUuid,
+            scheduleTimeUuid = currentState.scheduleTimeUuid,
+            appliedAt = appliedAt,
+            appliedAtTimeZoneId = appliedAtTimeZoneId,
+            appliedZoneId = currentState.appliedZoneId,
+            scheduledFor = currentState.scheduledFor,
+            count = resolvedMedicationCountForSave(
                 applicationType = currentState.medicationDraft.applicationType,
                 countText = currentState.countText,
+            ),
+        )
+
+        _uiState.update {
+            it.copy(
+                isSaving = true,
+                errorMessageRes = null,
+                saveEntryResult = null,
+                isScheduleFulfillmentWarningVisible = false,
             )
-            val medicationDetails = currentState.medicationDraft.toMedicationDetails()
+        }
+
+        if (currentState.isLoading) {
+            // Defer the repo write until the initial load drains it. Lets the user
+            // tap save while the sheet is still backed by snapshot data.
+            pendingSave = request
+            return
+        }
+
+        performSave(request)
+    }
+
+    private fun performSave(request: PendingSaveRequest) {
+        viewModelScope.launch {
             val saveResult = runCatching {
-                if (editingEntryUuids.size > 1) {
+                if (request.editingEntryUuids.size > 1) {
                     medicationLogRepository.saveEntries(
-                        uuids = editingEntryUuids,
-                        medication = medicationDetails,
-                        sourceGroupUuid = currentState.sourceGroupUuid,
-                        scheduleTimeUuid = currentState.scheduleTimeUuid,
-                        appliedAt = appliedAt,
-                        scheduledFor = currentState.scheduledFor,
-                        count = resolvedCount,
-                        appliedAtTimeZoneId = appliedAtTimeZoneId
+                        uuids = request.editingEntryUuids,
+                        medication = request.medicationDetails,
+                        sourceGroupUuid = request.sourceGroupUuid,
+                        scheduleTimeUuid = request.scheduleTimeUuid,
+                        appliedAt = request.appliedAt,
+                        scheduledFor = request.scheduledFor,
+                        count = request.count,
+                        appliedAtTimeZoneId = request.appliedAtTimeZoneId,
                     )
                 } else {
                     medicationLogRepository.saveEntry(
-                        uuid = editingEntryUuids.firstOrNull(),
-                        medication = medicationDetails,
-                        sourceGroupUuid = currentState.sourceGroupUuid,
-                        scheduleTimeUuid = currentState.scheduleTimeUuid,
-                        appliedAt = appliedAt,
-                        scheduledFor = currentState.scheduledFor,
-                        count = resolvedCount,
-                        appliedAtTimeZoneId = appliedAtTimeZoneId
+                        uuid = request.editingEntryUuids.firstOrNull(),
+                        medication = request.medicationDetails,
+                        sourceGroupUuid = request.sourceGroupUuid,
+                        scheduleTimeUuid = request.scheduleTimeUuid,
+                        appliedAt = request.appliedAt,
+                        scheduledFor = request.scheduledFor,
+                        count = request.count,
+                        appliedAtTimeZoneId = request.appliedAtTimeZoneId,
                     )
                 }
             }.fold(
@@ -323,12 +357,12 @@ class AddEntryViewModel @Inject constructor(
             )
             val isSaved = saveResult == null
             val crossZoneText = if (isSaved) {
-                val pickerOffset = currentState.appliedZoneId.rules.getOffset(appliedAt)
-                val deviceOffset = ZoneId.systemDefault().rules.getOffset(appliedAt)
+                val pickerOffset = request.appliedZoneId.rules.getOffset(request.appliedAt)
+                val deviceOffset = ZoneId.systemDefault().rules.getOffset(request.appliedAt)
                 if (pickerOffset == deviceOffset) {
                     null
                 } else {
-                    zoneDisplayName(currentState.appliedZoneId)
+                    zoneDisplayName(request.appliedZoneId)
                 }
             } else {
                 null
@@ -336,6 +370,7 @@ class AddEntryViewModel @Inject constructor(
 
             _uiState.update {
                 it.copy(
+                    isLoading = false,
                     isSaving = false,
                     isSaved = isSaved,
                     errorMessageRes = null,
@@ -350,8 +385,8 @@ class AddEntryViewModel @Inject constructor(
                     // Mirror the notification action-handler path: when a manual log
                     // satisfies a planned slot, clear the matching snooze so we don't
                     // wake the device for a record the user has already filed.
-                    val groupUuid = currentState.sourceGroupUuid
-                    val scheduledFor = currentState.scheduledFor
+                    val groupUuid = request.sourceGroupUuid
+                    val scheduledFor = request.scheduledFor
                     if (groupUuid != null && scheduledFor != null) {
                         runCatching {
                             medicationReminderSnoozeScheduler.clearSnoozesForSlots(
@@ -359,7 +394,7 @@ class AddEntryViewModel @Inject constructor(
                                     MedicationReminderSlot(
                                         groupUuid = groupUuid,
                                         scheduledAt = scheduledFor,
-                                        scheduleTimeUuid = currentState.scheduleTimeUuid,
+                                        scheduleTimeUuid = request.scheduleTimeUuid,
                                     )
                                 )
                             )
@@ -373,7 +408,7 @@ class AddEntryViewModel @Inject constructor(
 
     fun deleteEntry() {
         val currentState = _uiState.value
-        if (isAddEntryBusy(currentState)) {
+        if (currentState.isSaving || currentState.isDeleting || currentState.isSaved) {
             return
         }
         val editingEntryUuids = currentState.editingEntryIds.map(UUID::fromString)
@@ -381,21 +416,32 @@ class AddEntryViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isDeleting = true,
-                    errorMessageRes = null,
-                    deleteEntryResult = null,
-                )
-            }
+        val request = PendingDeleteRequest(editingEntryUuids = editingEntryUuids)
 
+        _uiState.update {
+            it.copy(
+                isDeleting = true,
+                errorMessageRes = null,
+                deleteEntryResult = null,
+            )
+        }
+
+        if (currentState.isLoading) {
+            pendingDelete = request
+            return
+        }
+
+        performDelete(request)
+    }
+
+    private fun performDelete(request: PendingDeleteRequest) {
+        viewModelScope.launch {
             // Capture each entry's slot identity before delete so we can mirror the
             // notification-action-handler path: when the entry being removed was
             // fulfilling a snoozed slot, clear that snooze. After deleteEntries
             // succeeds the rows are gone and we can no longer derive the slots.
             val slotsToClear = runCatching {
-                medicationLogRepository.getEntries(editingEntryUuids)
+                medicationLogRepository.getEntries(request.editingEntryUuids)
             }.getOrDefault(emptyList())
                 .mapNotNull { entry ->
                     val groupUuid = entry.sourceGroupUuid
@@ -412,7 +458,7 @@ class AddEntryViewModel @Inject constructor(
                 }
 
             val result = runCatching {
-                medicationLogRepository.deleteEntries(editingEntryUuids)
+                medicationLogRepository.deleteEntries(request.editingEntryUuids)
             }.fold(
                 onSuccess = { null },
                 onFailure = { DeleteEntryResult.FAILURE },
@@ -421,6 +467,7 @@ class AddEntryViewModel @Inject constructor(
 
             _uiState.update {
                 it.copy(
+                    isLoading = false,
                     isDeleting = false,
                     isSaved = isDeleted,
                     errorMessageRes = null,
@@ -465,6 +512,41 @@ class AddEntryViewModel @Inject constructor(
             val entries = medicationLogRepository.getEntries(entryIds.map(UUID::fromString))
             val sourceGroup = entries.firstOrNull()?.sourceGroupUuid?.let { sourceGroupUuid ->
                 medicationGroupRepository.getGroup(sourceGroupUuid)
+            }
+            val drainedSave = pendingSave
+            if (drainedSave != null) {
+                pendingSave = null
+                if (entries.isEmpty()) {
+                    // Edit target is gone from Room — the user asked to edit, not create.
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSaving = false,
+                            saveEntryResult = SaveEntryResult.FAILURE,
+                        )
+                    }
+                    return@launch
+                }
+                _uiState.update { it.copy(isLoading = false) }
+                performSave(drainedSave)
+                return@launch
+            }
+            val drainedDelete = pendingDelete
+            if (drainedDelete != null) {
+                pendingDelete = null
+                if (entries.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isDeleting = false,
+                            deleteEntryResult = DeleteEntryResult.FAILURE,
+                        )
+                    }
+                    return@launch
+                }
+                _uiState.update { it.copy(isLoading = false) }
+                performDelete(drainedDelete)
+                return@launch
             }
             _uiState.value = buildEditingUiState(
                 entries = entries,
@@ -550,6 +632,22 @@ data class AddEntryEditSnapshot(
     val sourceGroupColorKey: MedicationGroupColorKey? = null,
     val sourceGroupPreviousScheduledFor: LocalDateTime? = null,
     val sourceGroupNextScheduledFor: LocalDateTime? = null,
+)
+
+private data class PendingSaveRequest(
+    val editingEntryUuids: List<UUID>,
+    val medicationDetails: MedicationDetails,
+    val sourceGroupUuid: UUID?,
+    val scheduleTimeUuid: UUID?,
+    val appliedAt: Instant,
+    val appliedAtTimeZoneId: String,
+    val appliedZoneId: ZoneId,
+    val scheduledFor: LocalDateTime?,
+    val count: Int,
+)
+
+private data class PendingDeleteRequest(
+    val editingEntryUuids: List<UUID>,
 )
 
 enum class SaveEntryResult {

@@ -1,9 +1,11 @@
 package com.mkx.hrttracker.ui.log
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -13,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,9 +51,16 @@ fun AddEntryScreen(
     viewModel: AddEntryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
+    val isSheetLockedState = rememberUpdatedState(
+        uiState.isSaving || uiState.isDeleting
     )
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { value ->
+            value != SheetValue.Hidden || !isSheetLockedState.value
+        },
+    )
+    BackHandler(enabled = isSheetLockedState.value) { }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(entryIds, quickLogRequest, editSnapshot) {
@@ -130,9 +140,15 @@ fun AddEntryScreen(
     AddEntryScreenContent(
         uiState = uiState,
         sheetState = sheetState,
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            if (!isSheetLockedState.value) {
+                onDismissRequest()
+            }
+        },
         onCloseClick = {
-            hideBottomSheet(scope, sheetState, onDismissRequest)
+            if (!isSheetLockedState.value) {
+                hideBottomSheet(scope, sheetState, onDismissRequest)
+            }
         },
         onMedicationDraftChange = viewModel::updateMedicationDraft,
         onCountTextChange = viewModel::updateCountText,
@@ -228,7 +244,7 @@ private fun AddEntryScreenContent(
         onAppliedDateChange = onAppliedDateChange,
         onAppliedTimeChange = onAppliedTimeChange,
         errorMessageRes = uiState.errorMessageRes,
-        isSaving = isAddEntryBusy(uiState),
+        isSaving = uiState.isSaving || uiState.isDeleting || uiState.isSaved,
         destructiveButtonText = if (uiState.canDelete) {
             stringResource(R.string.delete_entries_confirm)
         } else {
