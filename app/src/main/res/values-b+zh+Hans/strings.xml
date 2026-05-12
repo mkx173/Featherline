@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Plume</string>
+    <string name="app_name">Featherline</string>
     <string name="tab_main">主页</string>
     <string name="tab_plan">计划</string>
     <string name="tab_history">历史</string>
@@ -493,7 +493,7 @@
     <string name="onboarding_start_tagline">记录HRT用药、查看血药浓度、掌握用药节奏</string>
     <string name="onboarding_start_cta">开始使用</string>
     <string name="onboarding_disclaimer_title">重要说明</string>
-    <string name="onboarding_disclaimer_subtitle">Plume 是一个记录工具，不提供医疗建议。血药浓度数值是根据您的用药计划计算出的模型估算值，并非实际测量值。这些数值不应替代实验室检测或临床医生的指导。</string>
+    <string name="onboarding_disclaimer_subtitle">Featherline 是一个记录工具，不提供医疗建议。血药浓度数值是根据您的用药计划计算出的模型估算值，并非实际测量值。这些数值不应替代实验室检测或临床医生的指导。</string>
     <string name="onboarding_disclaimer_data_heading">数据与隐私</string>
     <string name="onboarding_disclaimer_data_body">所有用药、剂量和实验室数据都会存储在您设备上的本地加密数据库中。本应用不使用任何分析或第三方追踪服务。默认情况下，您的数据不会离开您的设备——您可以随时导出加密备份。</string>
     <string name="onboarding_disclaimer_estimates_heading">估算与建模</string>
@@ -506,7 +506,7 @@
     <string name="onboarding_disclaimer_acknowledge">我同意</string>
     <string name="onboarding_continue">继续</string>
     <string name="onboarding_notifications_title">开启用药提醒</string>
-    <string name="onboarding_notifications_subtitle">为了在您预定的服药时间发送提醒，Plume 需要以下两项权限，您可以随时在系统设置中关闭它们</string>
+    <string name="onboarding_notifications_subtitle">为了在您预定的服药时间发送提醒，Featherline 需要以下两项权限，您可以随时在系统设置中关闭它们</string>
     <string name="onboarding_notifications_app_title">通知权限</string>
     <string name="onboarding_notifications_app_desc">在预定的服药时间发送提醒</string>
     <string name="onboarding_notifications_alarm_title">精确闹钟</string>
@@ -514,13 +514,13 @@
     <string name="onboarding_notifications_optional">可选</string>
     <string name="onboarding_skip_notifications">跳过</string>
     <string name="onboarding_useful_title">建议完成的设置</string>
-    <string name="onboarding_useful_subtitle">以下步骤为可选项，可帮助 Plume 提供更完整的记录、提醒和估算</string>
+    <string name="onboarding_useful_subtitle">以下步骤为可选项，可帮助 Featherline 提供更完整的记录、提醒和估算</string>
     <string name="onboarding_useful_plan_title">创建用药计划</string>
     <string name="onboarding_useful_plan_desc">添加用药分组以启用预测和提醒功能</string>
     <string name="onboarding_useful_plan_added">已添加分组</string>
     <string name="onboarding_useful_weight_title">设置体重</string>
     <string name="onboarding_useful_weight_desc">填写体重以改进血药浓度估算</string>
-    <string name="onboarding_open_app">打开 Plume</string>
+    <string name="onboarding_open_app">打开 Featherline</string>
     <string name="settings_calibration_remaining_analytes">%1$d 可用</string>
 
     <string name="reminder_notification_two_groups">%1$s 和 %2$s</string>

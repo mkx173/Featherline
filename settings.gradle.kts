@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Plume"
+rootProject.name = "Featherline"
 include(":app")
 include(":macrobenchmark")

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Plume</string>
+    <string name="app_name">Featherline</string>
     <string name="tab_main">Home</string>
     <string name="tab_plan">Plan</string>
     <string name="tab_history">History</string>
@@ -505,7 +505,7 @@
     <string name="onboarding_start_tagline">Log HRT doses, view plasma levels, and stay on top of your routine.</string>
     <string name="onboarding_start_cta">Get started</string>
     <string name="onboarding_disclaimer_title">Important information</string>
-    <string name="onboarding_disclaimer_subtitle">Plume is a logging tool and does not provide medical advice. Plasma concentration values are model estimates calculated from your dosing schedule, not measured values, and should not replace lab tests or guidance from your clinician.</string>
+    <string name="onboarding_disclaimer_subtitle">Featherline is a logging tool and does not provide medical advice. Plasma concentration values are model estimates calculated from your dosing schedule, not measured values, and should not replace lab tests or guidance from your clinician.</string>
     <string name="onboarding_disclaimer_data_heading">Data &amp; privacy</string>
     <string name="onboarding_disclaimer_data_body">All medication, dose, and lab data is stored in an encrypted local database on your device. The app uses no analytics or third-party tracking services. By default, your data does not leave your device — you can export an encrypted backup at any time.</string>
     <string name="onboarding_disclaimer_estimates_heading">Estimates &amp; modeling</string>
@@ -518,7 +518,7 @@
     <string name="onboarding_disclaimer_acknowledge">I agree</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_notifications_title">Enable dose reminders</string>
-    <string name="onboarding_notifications_subtitle">To send reminders at your scheduled dose times, Plume needs the following two permissions. You can revoke them at any time in your system settings.</string>
+    <string name="onboarding_notifications_subtitle">To send reminders at your scheduled dose times, Featherline needs the following two permissions. You can revoke them at any time in your system settings.</string>
     <string name="onboarding_notifications_app_title">App notifications</string>
     <string name="onboarding_notifications_app_desc">Send reminders at your scheduled dose times.</string>
     <string name="onboarding_notifications_alarm_title">Exact alarms</string>
@@ -526,13 +526,13 @@
     <string name="onboarding_notifications_optional">Optional</string>
     <string name="onboarding_skip_notifications">Skip</string>
     <string name="onboarding_useful_title">Recommended setup</string>
-    <string name="onboarding_useful_subtitle">These steps are optional, but can help Plume provide more complete tracking, reminders, and estimates.</string>
+    <string name="onboarding_useful_subtitle">These steps are optional, but can help Featherline provide more complete tracking, reminders, and estimates.</string>
     <string name="onboarding_useful_plan_title">Create your first plan</string>
     <string name="onboarding_useful_plan_desc">Add a medication group to enable predictions and reminders.</string>
     <string name="onboarding_useful_plan_added">Group added</string>
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
-    <string name="onboarding_open_app">Open Plume</string>
+    <string name="onboarding_open_app">Open Featherline</string>
     <string name="privacy_policy_url" translatable="false">https://mkx173.github.io/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>
 

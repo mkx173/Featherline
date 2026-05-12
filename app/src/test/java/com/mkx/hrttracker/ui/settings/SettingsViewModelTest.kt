@@ -113,7 +113,7 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         viewModel.setPendingPreparedBackupExport(
-            displayName = "plume-backup.hrtbackup",
+            displayName = "featherline-backup.hrtbackup",
             tempFilePath = "C:\\temp\\backup.tmp",
         )
         advanceUntilIdle()
@@ -121,7 +121,7 @@ class SettingsViewModelTest {
         val pendingPreparedBackupExport = viewModel.uiState.value.pendingPreparedBackupExport
         assertNotNull(pendingPreparedBackupExport)
         checkNotNull(pendingPreparedBackupExport)
-        assertEquals("plume-backup.hrtbackup", pendingPreparedBackupExport.displayName)
+        assertEquals("featherline-backup.hrtbackup", pendingPreparedBackupExport.displayName)
         assertEquals("C:\\temp\\backup.tmp", pendingPreparedBackupExport.tempFilePath)
 
         viewModel.clearPendingPreparedBackupExport()
