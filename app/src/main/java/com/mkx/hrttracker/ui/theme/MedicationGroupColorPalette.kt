@@ -15,7 +15,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 fun rememberMedicationGroupColorScheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorKey: MedicationGroupColorKey?,
-    harmonize: Boolean = true,
+    harmonize: Boolean = false,
 ): ColorScheme {
     val palette = MedicationGroupPalettes.getValue(colorKey)
     val container = if (darkTheme) palette.darkContainer else palette.lightContainer
