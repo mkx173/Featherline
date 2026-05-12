@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.widget.Toast
@@ -52,6 +53,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -577,6 +580,11 @@ private fun SettingsScreenContent(
     val appName = stringResource(R.string.app_name)
     val appVersionInfo = remember(context) { resolveAppVersionInfo(context) }
     val copyAppInfoMessage = stringResource(R.string.settings_about_app_info_copied)
+    val easterEggMessage = stringResource(R.string.settings_about_app_info_easter_egg)
+    var versionTapCount by remember { mutableIntStateOf(0) }
+    var firstVersionTapAt by remember { mutableLongStateOf(0L) }
+    var lastAppInfoCopiedAt by remember { mutableLongStateOf(-VERSION_COPY_THROTTLE_MS) }
+    var lastCopiedToast by remember { mutableStateOf<Toast?>(null) }
     val appInfoSummary = stringResource(
         R.string.settings_about_app_info_version,
         appVersionInfo.versionName,
@@ -1122,9 +1130,29 @@ private fun SettingsScreenContent(
                     index = 4,
                     count = 5,
                     onClick = {
-                        context.getSystemService(ClipboardManager::class.java)
-                            ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
-                        Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT).show()
+                        val now = SystemClock.elapsedRealtime()
+                        val isInsideTapWindow =
+                            versionTapCount > 0 && now - firstVersionTapAt <= VERSION_TAP_WINDOW_MS
+                        versionTapCount = if (isInsideTapWindow) {
+                            versionTapCount + 1
+                        } else {
+                            firstVersionTapAt = now
+                            1
+                        }
+                        if (versionTapCount >= VERSION_EASTER_EGG_TAP_COUNT) {
+                            versionTapCount = 0
+                            firstVersionTapAt = 0L
+                            lastCopiedToast?.cancel()
+                            lastCopiedToast = null
+                            Toast.makeText(context, easterEggMessage, Toast.LENGTH_SHORT).show()
+                        } else if (now - lastAppInfoCopiedAt >= VERSION_COPY_THROTTLE_MS) {
+                            context.getSystemService(ClipboardManager::class.java)
+                                ?.setPrimaryClip(ClipData.newPlainText(appName, appInfoCopyText))
+                            lastAppInfoCopiedAt = now
+                            lastCopiedToast?.cancel()
+                            lastCopiedToast = Toast.makeText(context, copyAppInfoMessage, Toast.LENGTH_SHORT)
+                                .also { it.show() }
+                        }
                     },
                     leadingContent = {
                         Box(
@@ -1480,6 +1508,9 @@ private const val FEEDBACK_EMAIL_URI = "mailto:mikanmkx173@gmail.com"
 private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
 private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"
+private const val VERSION_COPY_THROTTLE_MS = 2_000L
+private const val VERSION_EASTER_EGG_TAP_COUNT = 5
+private const val VERSION_TAP_WINDOW_MS = 1_000L
 
 @Preview(
     name = "Settings Screen",

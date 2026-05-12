@@ -449,7 +449,7 @@
     <string name="settings_about_model">About the model</string>
     <string name="settings_about_model_summary">HRT-Recorder-PKcomponent-Test</string>
     <string name="settings_about_contact_developer">Contact developer</string>
-    <string name="settings_about_contact_developer_summary">@mikanmkx</string>
+    <string name="settings_about_contact_developer_summary">\@mikanmkx</string>
     <string name="settings_about_feedback">Feedback &amp; suggestions</string>
     <string name="settings_about_feedback_summary">Send feedback by email</string>
     <string name="settings_about_feedback_subject">%1$s feedback</string>
@@ -462,6 +462,7 @@
     <string name="settings_about_app_info_version">%1$s (%2$s)</string>
     <string name="settings_about_app_info_copy_text">%1$s (%2$s)</string>
     <string name="settings_about_app_info_copied">Copied.</string>
+    <string name="settings_about_app_info_easter_egg">Ciallo～(∠・ω&lt; )⌒☆</string>
     <string name="personalization_weight">Body weight</string>
     <string name="personalization_weight_not_set">Not set</string>
     <string name="personalization_weight_display">%1$s %2$s</string>

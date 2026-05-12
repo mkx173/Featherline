@@ -437,7 +437,7 @@
     <string name="settings_about_model">关于模型</string>
     <string name="settings_about_model_summary">HRT-Recorder-PKcomponent-Test</string>
     <string name="settings_about_contact_developer">联系开发者</string>
-    <string name="settings_about_contact_developer_summary">@mikanmkx</string>
+    <string name="settings_about_contact_developer_summary">\@mikanmkx</string>
     <string name="settings_about_feedback">反馈与建议</string>
     <string name="settings_about_feedback_summary">通过邮件发送反馈</string>
     <string name="settings_about_feedback_subject">%1$s 反馈与建议</string>
@@ -450,6 +450,7 @@
     <string name="settings_about_app_info_version">%1$s (%2$s)</string>
     <string name="settings_about_app_info_copy_text">%1$s (%2$s)</string>
     <string name="settings_about_app_info_copied">已复制</string>
+    <string name="settings_about_app_info_easter_egg">Ciallo～(∠・ω&lt; )⌒☆</string>
     <string name="personalization_weight">体重</string>
     <string name="personalization_weight_not_set">未设置</string>
     <string name="personalization_weight_display">%1$s %2$s</string>
