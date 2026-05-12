@@ -1504,7 +1504,7 @@ private fun launchFeedbackEmail(
     }
 }
 
-private const val FEEDBACK_EMAIL_URI = "mailto:mikanmkx173@gmail.com"
+private const val FEEDBACK_EMAIL_URI = "mailto:support@asterismlabs.io"
 private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
 private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"

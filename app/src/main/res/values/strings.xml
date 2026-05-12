@@ -533,7 +533,7 @@
     <string name="onboarding_useful_weight_title">Enter your weight</string>
     <string name="onboarding_useful_weight_desc">Set your weight to improve plasma concentration estimates.</string>
     <string name="onboarding_open_app">Open Featherline</string>
-    <string name="privacy_policy_url" translatable="false">https://mkx173.github.io/</string>
+    <string name="privacy_policy_url" translatable="false">https://asterismlabs.io/featherline/privacy/</string>
     <string name="settings_calibration_remaining_analytes">%1$d available</string>
 
     <string name="reminder_notification_two_groups">%1$s and %2$s</string>
