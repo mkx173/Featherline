@@ -477,7 +477,7 @@ class MedicationGroupRepositoryTest {
         }
 
     @Test
-    fun saveGroup_forExistingFreshBackfilledGroupWithRecords_preservesEffectiveFromWhenStartDateChanges() =
+    fun saveGroup_forExistingFreshBackfilledGroupWithRecords_movesCurrentRowsToNewSinceStart() =
         runTest {
             val groupUuid = UUID.fromString("94d89db6-c7b7-41b5-95a2-8be9dc3e375d")
             val savedGroup = slot<MedicationGroupEntity>()
@@ -532,7 +532,7 @@ class MedicationGroupRepositoryTest {
             }
             assertEquals(LocalDate.of(2026, 4, 1).toEpochDay(), savedGroup.captured.scheduleSinceEpochDay)
             assertEquals(
-                listOf("2026-04-10T00:00", "2026-04-10T00:00"),
+                listOf("2026-04-01T00:00", "2026-04-01T00:00"),
                 savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
             )
         }
@@ -833,11 +833,10 @@ class MedicationGroupRepositoryTest {
     }
 
     @Test
-    fun saveGroup_forExistingGroupPreservesUnchangedScheduleTimeAndResetsChangedTime() = runTest {
+    fun saveGroup_forExistingFreshBackfilledGroup_resetsAllScheduleTimesEffectiveFromToSinceStart() = runTest {
         val groupUuid = UUID.fromString("d301984f-47c4-4617-8d4d-0f18c66f306d")
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
         val now = Instant.parse("2026-04-30T08:15:00Z")
-        val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
@@ -883,13 +882,13 @@ class MedicationGroupRepositoryTest {
             )
         }
         assertEquals(
-            listOf("2026-04-01T00:00", expectedEffectiveFrom),
+            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
         )
     }
 
     @Test
-    fun saveGroup_forExistingGroupPreservesEffectiveFromWhenRowsAreReordered() = runTest {
+    fun saveGroup_forExistingFreshBackfilledGroup_resetsEffectiveFromAndPreservesUuidOrderWhenRowsAreReordered() = runTest {
         val groupUuid = UUID.fromString("04d776b5-294a-4135-bf59-9cad0b0cb893")
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
         coEvery {
@@ -941,17 +940,16 @@ class MedicationGroupRepositoryTest {
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::uuid),
         )
         assertEquals(
-            listOf("2026-04-02T00:00", "2026-04-01T00:00"),
+            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
         )
     }
 
     @Test
-    fun saveGroup_whenReplacingEightWithExistingNine_preservesUnrelatedNineEffectiveFrom() = runTest {
+    fun saveGroup_forExistingFreshBackfilledGroup_resetsAllScheduleTimesEffectiveFromWhenReplacingSlotTime() = runTest {
         val groupUuid = UUID.fromString("c34fc9ce-2870-4198-9d54-ae1d91e96f41")
         val savedTimes = slot<List<MedicationGroupScheduleTimeEntity>>()
         val now = Instant.parse("2026-04-30T08:15:00Z")
-        val expectedEffectiveFrom = now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString()
         coEvery {
             databaseHolder.withTransaction<Unit>(any())
         } coAnswers {
@@ -1001,7 +999,7 @@ class MedicationGroupRepositoryTest {
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::uuid),
         )
         assertEquals(
-            listOf(expectedEffectiveFrom, "2026-04-02T00:00"),
+            listOf("2026-04-01T00:00", "2026-04-01T00:00"),
             savedTimes.captured.map(MedicationGroupScheduleTimeEntity::effectiveFromLocalIso),
         )
     }

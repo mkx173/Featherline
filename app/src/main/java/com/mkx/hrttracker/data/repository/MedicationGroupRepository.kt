@@ -228,11 +228,6 @@ class MedicationGroupRepository @Inject constructor(
                     !isExistingRecreatedGroup &&
                     !hasExistingRecords &&
                     existingGroupRow.includePastScheduledSlots != resolvedIncludePastScheduledSlots
-                val didBackfilledStartDateChange = existingGroupRow != null &&
-                    !isExistingRecreatedGroup &&
-                    !hasExistingRecords &&
-                    resolvedIncludePastScheduledSlots &&
-                    existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
                 val didRecordlessRecreatedStartDateChange = existingGroupRow != null &&
                     isExistingRecordlessRecreatedGroup &&
                     existingGroupRow.scheduleSinceEpochDay != schedule.since.toEpochDay()
@@ -241,9 +236,6 @@ class MedicationGroupRepository @Inject constructor(
                 } else {
                     nowLocal.toString()
                 }
-                val shouldMoveCurrentRowsToSinceStart =
-                    (didBackfillModeChange && resolvedIncludePastScheduledSlots) ||
-                        didBackfilledStartDateChange
                 val resolvedRecreatedFromGroupUuid = existingGroupRow?.recreatedFromGroupUuid
                     ?: replacesGroupUuid?.toString()
                 val existingScheduleTimesByUuid = existingGroup
@@ -322,24 +314,28 @@ class MedicationGroupRepository @Inject constructor(
                             LocalTime.of(existingTimeRow.hourOfDay, existingTimeRow.minuteOfHour)
                         }
                         val effectiveFromLocal = when {
-                            shouldMoveCurrentRowsToSinceStart ->
+                            isExistingRecreatedGroup -> when {
+                                didRecordlessRecreatedStartDateChange ->
+                                    recordlessRecreatedEffectiveFromLocal
+
+                                existingScheduleTime != null && existingTime == time ->
+                                    existingScheduleTime.effectiveFromLocalIso
+
+                                isExistingRecordlessRecreatedGroup &&
+                                    schedule.since.isAfter(nowLocal.toLocalDate()) ->
+                                    schedule.since.atStartOfDay().toString()
+
+                                else -> nowLocal.toString()
+                            }
+
+                            resolvedIncludePastScheduledSlots ->
                                 schedule.since.atStartOfDay().toString()
 
                             didBackfillModeChange ->
                                 nowLocal.toString()
 
-                            didRecordlessRecreatedStartDateChange ->
-                                recordlessRecreatedEffectiveFromLocal
-
                             existingScheduleTime != null && existingTime == time ->
                                 existingScheduleTime.effectiveFromLocalIso
-
-                            isExistingRecordlessRecreatedGroup &&
-                                schedule.since.isAfter(nowLocal.toLocalDate()) ->
-                                schedule.since.atStartOfDay().toString()
-
-                            existingGroup == null && resolvedIncludePastScheduledSlots ->
-                                schedule.since.atStartOfDay().toString()
 
                             else -> nowLocal.toString()
                         }
