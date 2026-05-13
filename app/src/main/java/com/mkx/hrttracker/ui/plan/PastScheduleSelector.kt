@@ -196,6 +196,10 @@ private fun PastScheduleLockedRow(
             cornerShape = MaterialTheme.shapes.medium,
             pressedShape = MaterialTheme.shapes.medium
         ),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
     ) {
         Text(
             text = text,
