@@ -237,6 +237,271 @@ class PkSimulationTest {
     }
 
     @Test
+    fun patchSimulation_pairsAcrossGroupsForRemoveAll() {
+        val groupA = UUID.randomUUID()
+        val groupB = UUID.randomUUID()
+        val releaseRate = 50.0
+
+        fun simulate(events: List<PkDoseEvent>): List<Double> {
+            return PkSimulationEngine(
+                events = events,
+                hormone = PkHormone.ESTRADIOL,
+                bodyWeightKg = 70.0,
+                startTimeH = 0.0,
+                endTimeH = 200.0,
+                numberOfSteps = 201,
+            ).run(sampleTimeH = listOf(0.0, 84.0, 150.0)).concentrations
+        }
+
+        val crossGroup = simulate(
+            listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupB,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_REMOVE,
+                    timeH = 84.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                ),
+            )
+        )
+        val sameGroup = simulate(
+            listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_REMOVE,
+                    timeH = 84.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                ),
+            )
+        )
+
+        assertEquals(sameGroup, crossGroup)
+        // Sanity: the patch must actually have been removed — concentration at
+        // t=150 should be strictly lower than at t=84 (decay phase).
+        assertTrue(crossGroup[2] < crossGroup[1])
+    }
+
+    @Test
+    fun patchSimulation_removeAtSameInstantAsApplyPairsWithPreviousApply() {
+        // Logging "remove old patch" and "apply new patch" at the same instant
+        // (common when swapping patches) must pair the remove with the previous
+        // apply, not the new one — the new patch should still be on at the end
+        // of the run.
+        val groupA = UUID.randomUUID()
+        val releaseRate = 50.0
+
+        val swapResult = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_REMOVE,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 400.0,
+            numberOfSteps = 401,
+        ).run(sampleTimeH = listOf(0.0, 168.0, 200.0))
+
+        // Equivalent decomposition: a removed first patch + a still-on second patch.
+        // The sum of the two single-event runs must match the combined run, which
+        // is only true if the REMOVE bound the FIRST apply (not the second one).
+        val firstPatchOnly = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_REMOVE,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                ),
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 400.0,
+            numberOfSteps = 401,
+        ).run(sampleTimeH = listOf(0.0, 168.0, 200.0))
+        val secondPatchOnly = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 400.0,
+            numberOfSteps = 401,
+        ).run(sampleTimeH = listOf(0.0, 168.0, 200.0))
+
+        for (timeH in listOf(0.0, 168.0, 200.0)) {
+            val expected = (firstPatchOnly.concentrationAt(timeH) ?: 0.0) +
+                (secondPatchOnly.concentrationAt(timeH) ?: 0.0)
+            val actual = swapResult.concentrationAt(timeH) ?: 0.0
+            assertEquals("at t=$timeH", expected, actual, 1e-9)
+        }
+        // Sanity: at t=200 the second (still-on) patch must dominate.
+        assertTrue((secondPatchOnly.concentrationAt(200.0) ?: 0.0) > 0.0)
+    }
+
+    @Test
+    fun patchSimulation_unmatchedApplyKeepsReleasingIndefinitely() {
+        // Without an explicit PATCH_REMOVE, a patch wears forever. The engine
+        // does not infer a removal from a later PATCH_APPLY — users who don't
+        // log removals must accept that their PK projection shows an indefinitely
+        // worn patch.
+        val groupA = UUID.randomUUID()
+        val releaseRate = 50.0
+
+        val unmatchedResult = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 400.0,
+            numberOfSteps = 401,
+        ).run(sampleTimeH = listOf(0.0, 200.0, 400.0))
+
+        // The first patch should still be saturating at zero-order rate (no
+        // implicit removal at t=168). A test for that: concentration at t=400
+        // must exceed any pure-decay scenario where the patch was actually
+        // removed.
+        val firstStaysOn = unmatchedResult.concentrationAt(400.0) ?: 0.0
+        val removedAt168 = PkSimulationEngine(
+            events = listOf(
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 0.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_REMOVE,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                ),
+                PkDoseEvent(
+                    id = UUID.randomUUID(),
+                    sourceGroupUuid = groupA,
+                    hormone = PkHormone.ESTRADIOL,
+                    route = PkRoute.PATCH_APPLY,
+                    timeH = 168.0,
+                    doseMg = 0.0,
+                    compound = PkCompound.E2,
+                    releaseRateMcgPerDay = releaseRate,
+                ),
+            ),
+            hormone = PkHormone.ESTRADIOL,
+            bodyWeightKg = 70.0,
+            startTimeH = 0.0,
+            endTimeH = 400.0,
+            numberOfSteps = 401,
+        ).run(sampleTimeH = listOf(0.0, 200.0, 400.0)).concentrationAt(400.0) ?: 0.0
+
+        assertTrue(firstStaysOn > removedAt168)
+    }
+
+    @Test
     fun simulateMainEstradiolProjection_windowMatchesHomeSnapshotChartBounds() {
         val zoneId = ZoneId.of("Asia/Tokyo")
         val generatedAt = LocalDateTime.of(2026, 5, 8, 14, 27)

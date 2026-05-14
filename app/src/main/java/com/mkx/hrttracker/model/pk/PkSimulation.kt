@@ -654,13 +654,17 @@ private class PrecomputedPkEventModel(
         }
 
         PkRoute.PATCH_APPLY -> {
+            // PATCH_OFF means "remove all currently-on patches of this compound",
+            // independent of the group that scheduled the apply. The strict `>`
+            // filter ensures a remove logged at the same instant as an apply is
+            // ordered before the apply — it pairs with the previous patch, not
+            // the one being applied right now.
             val removeEvent = allEvents
                 .asSequence()
                 .filter { candidate ->
                     candidate.hormone == event.hormone &&
-                        candidate.route == PkRoute.PATCH_REMOVE &&
                         candidate.compound == event.compound &&
-                        candidate.matchesPatchIdentity(event) &&
+                        candidate.route == PkRoute.PATCH_REMOVE &&
                         candidate.timeH > startTime
                 }
                 .minByOrNull(PkDoseEvent::timeH)
@@ -1052,12 +1056,6 @@ private fun MedicationLogEntry.toEstradiolPkDoseEvent(anchor: Instant): PkDoseEv
         releaseRateMcgPerDay = releaseRateMcgPerDay,
         areaCm2 = DefaultGelAreaCm2,
     )
-}
-
-private fun PkDoseEvent.matchesPatchIdentity(patchApply: PkDoseEvent): Boolean {
-    return sourceGroupUuid == null ||
-        patchApply.sourceGroupUuid == null ||
-        sourceGroupUuid == patchApply.sourceGroupUuid
 }
 
 private fun PkDoseEvent.isDoseMarkerCandidate(): Boolean {
