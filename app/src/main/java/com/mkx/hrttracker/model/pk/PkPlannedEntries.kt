@@ -62,7 +62,9 @@ internal fun buildEstradiolPkSimulationEntries(
                 zoneId = zoneId,
             ).asSequence()
                 .filter { occurrence -> occurrence.scheduledFor.isAfter(now) }
-                .filter { occurrence -> !occurrence.scheduledFor.isAfter(horizon) }
+                // `horizon` is an exclusive upper bound; callers pass midnight
+                // after the final time they want projected into the window.
+                .filter { occurrence -> occurrence.scheduledFor.isBefore(horizon) }
                 .flatMap { occurrence ->
                     group.virtualEntriesForOccurrence(occurrence, loggedCount, zoneId)
                         .asSequence()

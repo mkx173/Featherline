@@ -180,6 +180,45 @@ class PkSimulationTest {
     }
 
     @Test
+    fun simulateMainEstradiolTrend_excludesWindowEndMidnightDoseFromChart() {
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val now = LocalDateTime.of(2026, 5, 14, 12, 0)
+        val windowEnd = LocalDateTime.of(2026, 5, 18, 0, 0)
+        val doseAtWindowEnd = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = windowEnd.atZone(zoneId).toInstant(),
+        )
+
+        val trend = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = listOf(doseAtWindowEnd),
+                bodyWeightKg = 70.0,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+
+        assertTrue(
+            "chart should stay before 168h, got ${trend.chartTimeH.lastOrNull()}",
+            trend.chartTimeH.all { timeH ->
+                timeH < PkMedicationSimulation.mainChartWindowHours.toDouble()
+            },
+        )
+        assertTrue(
+            "window-end dose marker leaked into chart",
+            trend.doseMarkers.none { marker ->
+                marker.timeH == PkMedicationSimulation.mainChartWindowHours.toDouble()
+            },
+        )
+    }
+
+    @Test
     fun simulateMainEstradiolProjection_canServeLaterMainTrendFromCache() {
         val zoneId = ZoneId.systemDefault()
         val generatedAt = LocalDateTime.of(2026, 5, 5, 12, 0)
@@ -234,6 +273,50 @@ class PkSimulationTest {
         assertEquals(directTrend.dailyConcentrations, cachedTrend.dailyConcentrations)
         assertEquals(directTrend.chartWindowHours, cachedTrend.chartWindowHours)
         assertEquals(directTrend.predictionStartTimeH, cachedTrend.predictionStartTimeH, 1e-9)
+    }
+
+    @Test
+    fun projectionToMainEstradiolTrend_excludesWindowEndMidnightDoseFromChart() {
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val generatedAt = LocalDateTime.of(2026, 5, 14, 12, 0)
+        val windowEnd = LocalDateTime.of(2026, 5, 18, 0, 0)
+        val doseAtWindowEnd = testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            dosageMgAsEstradiol = 2.0,
+            sourceGroupUuid = null,
+            appliedAt = windowEnd.atZone(zoneId).toInstant(),
+        )
+        val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+            entries = listOf(doseAtWindowEnd),
+            bodyWeightKg = 70.0,
+            generatedAt = generatedAt,
+            zoneId = zoneId,
+            futureDays = 4,
+        )
+
+        val trend = checkNotNull(
+            projection.toMainEstradiolTrend(
+                now = generatedAt,
+                zoneId = zoneId,
+            )
+        )
+
+        assertTrue(
+            "chart should stay before 168h, got ${trend.chartTimeH.lastOrNull()}",
+            trend.chartTimeH.all { timeH ->
+                timeH < PkMedicationSimulation.mainChartWindowHours.toDouble()
+            },
+        )
+        assertTrue(
+            "window-end dose marker leaked into chart",
+            trend.doseMarkers.none { marker ->
+                marker.timeH == PkMedicationSimulation.mainChartWindowHours.toDouble()
+            },
+        )
     }
 
     @Test

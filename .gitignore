@@ -45,3 +45,6 @@ docs/
 # Backups
 hrttracker-backup*
 keystore.properties
+
+# F Apple
+.DS_Store

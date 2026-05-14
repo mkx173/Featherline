@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDateTime
 
 class MainContentComponentsTest {
     @Test
@@ -168,6 +169,36 @@ class MainContentComponentsTest {
             resolveMainE2ChartMinimapDateLabelRange(
                 visibleRange = MainE2ChartVisibleXRange(48.0, 96.0),
                 pendingResetRange = MainE2ChartVisibleXRange(0.0, 168.0),
+            )
+        )
+    }
+
+    @Test
+    fun mainE2ChartDisplayDateTimeForXHours_mapsWindowEndToLastVisibleMinute() {
+        val chartWindowStart = LocalDateTime.of(2026, 5, 11, 0, 0)
+
+        assertEquals(
+            LocalDateTime.of(2026, 5, 11, 0, 0),
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 0.0,
+                chartWindowHours = 168,
+            )
+        )
+        assertEquals(
+            LocalDateTime.of(2026, 5, 14, 0, 0),
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 72.0,
+                chartWindowHours = 168,
+            )
+        )
+        assertEquals(
+            LocalDateTime.of(2026, 5, 17, 23, 59),
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = 168.0,
+                chartWindowHours = 168,
             )
         )
     }

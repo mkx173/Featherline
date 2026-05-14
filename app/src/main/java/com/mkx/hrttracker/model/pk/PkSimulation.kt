@@ -188,17 +188,19 @@ data class PkProjectionResult(
         }
 
         val chartWindowStartH = hoursFromWindowStart(chartWindowStart)
-        val chartWindowEndH = chartWindowStartH + PkMedicationSimulation.mainChartWindowHours.toDouble()
+        val chartVisibleEndH = chartWindowStartH + pkChartVisibleEndHours(
+            PkMedicationSimulation.mainChartWindowHours.toDouble()
+        )
         val predictionStartTimeH = hoursBetween(chartWindowStart, now.atZone(zoneId).toInstant())
             .toProjectionChartXHour()
         val currentTimeH = chartWindowStartH + predictionStartTimeH
         val previousDayTimeH = currentTimeH - PkMedicationSimulation.hoursPerDay
 
         val chartTimeH = (
-            timeH.filter { time -> time in chartWindowStartH..chartWindowEndH } +
-                listOf(chartWindowStartH, chartWindowEndH, currentTimeH, previousDayTimeH)
+            timeH.filter { time -> time in chartWindowStartH..chartVisibleEndH } +
+                listOf(chartWindowStartH, chartVisibleEndH, currentTimeH, previousDayTimeH)
             )
-            .filter { time -> time.isFinite() && time in chartWindowStartH..chartWindowEndH }
+            .filter { time -> time.isFinite() && time in chartWindowStartH..chartVisibleEndH }
             .map { time -> time.toProjectionChartXHour() }
             .distinct()
             .sorted()
@@ -216,7 +218,7 @@ data class PkProjectionResult(
             chartSampleIntervalHours = PkMedicationSimulation.mainChartSampleIntervalHours,
             chartTimeH = chartTimeH.map { time -> (time - chartWindowStartH).toProjectionChartXHour() },
             doseMarkers = doseMarkers
-                .filter { marker -> marker.timeH in chartWindowStartH..chartWindowEndH }
+                .filter { marker -> marker.timeH in chartWindowStartH..chartVisibleEndH }
                 .map { marker ->
                     marker.copy(timeH = (marker.timeH - chartWindowStartH).toProjectionChartXHour())
                 },
@@ -271,7 +273,14 @@ private fun Double.toProjectionChartXHour(): Double {
     return (this * PkProjectionChartXPrecisionScale).roundToLong() / PkProjectionChartXPrecisionScale
 }
 
+private fun pkChartVisibleEndHours(windowEndHours: Double): Double {
+    // The 7-day chart's midnight end is exclusive; render the last minute
+    // inside the window so the UI doesn't expose the following day at 00:00.
+    return (windowEndHours - PkChartEndInsetHours).coerceAtLeast(0.0).toProjectionChartXHour()
+}
+
 private const val PkProjectionChartXPrecisionScale = 10_000.0
+private const val PkChartEndInsetHours = 1.0 / 60.0
 
 object PkMedicationSimulation {
     private const val HoursPerDay = 24.0
@@ -324,9 +333,12 @@ object PkMedicationSimulation {
             realEntries = entries,
             plannedEntries = plannedEntries,
         )
+        val chartVisibleEndHours = pkChartVisibleEndHours(MainChartWindowHours.toDouble())
         val chartSampleTimeH = mainChartSampleTimeH(
             events = events,
             predictionStartTimeH = predictionStartTimeH,
+            windowEndHours = MainChartWindowHours.toDouble(),
+            chartVisibleEndHours = chartVisibleEndHours,
         )
 
         val result = PkSimulationEngine(
@@ -341,9 +353,12 @@ object PkMedicationSimulation {
         val dailyConcentrations = (0..MainChartWindowDays.toInt()).map { index ->
             result.concentrationAt(index * HoursPerDay) ?: 0.0
         }
+        val chartSamples = result.timeH
+            .zip(result.concentrations)
+            .filter { (timeH, _) -> timeH in 0.0..chartVisibleEndHours }
         val doseMarkers = buildDoseMarkers(
             events = events,
-            windowEndHours = MainChartWindowHours.toDouble(),
+            windowEndHours = chartVisibleEndHours,
             concentrationAt = result::concentrationAt,
         )
         return PkTrendResult(
@@ -351,9 +366,9 @@ object PkMedicationSimulation {
             previousDayConcentration = result.concentrationAt(predictionStartTimeH - HoursPerDay) ?: 0.0,
             dailyConcentrations = dailyConcentrations,
             concentrationUnit = result.metadata.concentrationUnit,
-            chartConcentrations = result.concentrations,
+            chartConcentrations = chartSamples.map { (_, concentration) -> concentration },
             chartSampleIntervalHours = MainChartSampleIntervalHours,
-            chartTimeH = result.timeH,
+            chartTimeH = chartSamples.map { (timeH, _) -> timeH },
             doseMarkers = doseMarkers,
             chartWindowHours = MainChartWindowHours.toInt(),
             predictionStartTimeH = predictionStartTimeH.toChartXHour(),
@@ -475,27 +490,29 @@ object PkMedicationSimulation {
     private fun mainChartSampleTimeH(
         events: List<PkDoseEvent>,
         predictionStartTimeH: Double,
+        windowEndHours: Double,
+        chartVisibleEndHours: Double,
     ): List<Double> {
         val windowStart = 0.0
-        val windowEnd = MainChartWindowHours.toDouble()
         val previousDayTimeH = predictionStartTimeH - HoursPerDay
         val denseSampleTimeH = mainChartDenseSampleTimeH(
             startTimeH = windowStart,
-            endTimeH = windowEnd,
+            endTimeH = windowEndHours,
         )
         val loggedEventTimeH = events
             .asSequence()
             .map { event -> event.timeH.toChartXHour() }
-            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
             .toList()
         val exactSampleTimeH = (
             listOf(predictionStartTimeH.toChartXHour()) +
+                listOf(chartVisibleEndHours.toChartXHour()) +
                 listOf(previousDayTimeH.toChartXHour()).filter { timeH ->
-                    timeH.isFinite() && timeH in windowStart..windowEnd
+                    timeH.isFinite() && timeH in windowStart..windowEndHours
                 } +
                 loggedEventTimeH
             )
-            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
         val postDoseSampleTimeH = events
             .asSequence()
             .filter(PkDoseEvent::isDoseMarkerCandidate)
@@ -504,7 +521,7 @@ object PkMedicationSimulation {
                     (event.timeH + offsetHours).toChartXHour()
                 }
             }
-            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEnd }
+            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
             .toList()
 
         return (denseSampleTimeH + exactSampleTimeH + postDoseSampleTimeH)

@@ -809,6 +809,7 @@ internal fun MainE2ChartCard(
         interactiveMarkerXHoursValue,
         interactionMarkerConcentration,
         chartWindowStart,
+        chartWindowHours,
         chartDateFormatter,
         chartTimeFormatter,
         unit,
@@ -816,7 +817,11 @@ internal fun MainE2ChartCard(
         val xHours = interactiveMarkerXHoursValue
         val concentration = interactionMarkerConcentration
         if (xHours != null && concentration != null) {
-            val dateTime = chartWindowStart.plusMinutes((xHours * 60).roundToLong())
+            val dateTime = mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = xHours,
+                chartWindowHours = chartWindowHours,
+            )
             val date = chartDateFormatter(dateTime.toLocalDate())
             val time = dateTime.format(chartTimeFormatter)
             "$date $time\n${formatMainE2ConcentrationValue(concentration.toDouble(), displayUnit)} $unit"
@@ -847,9 +852,11 @@ internal fun MainE2ChartCard(
     }
     val bottomAxisValueFormatter = remember(chartWindowHours, now, appLocale) {
         CartesianValueFormatter { _, value, _ ->
-            val hoursFromWindowStart = value.coerceIn(0.0, chartWindowHours.toDouble())
-            chartWindowStart
-                .plusMinutes((hoursFromWindowStart * 60).roundToLong())
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = value,
+                chartWindowHours = chartWindowHours,
+            )
                 .toLocalDate()
                 .dayOfWeek
                 .getDisplayName(TextStyle.NARROW, appLocale)
@@ -1265,6 +1272,20 @@ internal fun resolveMainE2ChartMinimapDateLabelRange(
     return pendingResetRange ?: visibleRange
 }
 
+internal fun mainE2ChartDisplayDateTimeForXHours(
+    chartWindowStart: LocalDateTime,
+    xHours: Double,
+    chartWindowHours: Int,
+): LocalDateTime {
+    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val fullMinutes = (fullHours * 60).roundToLong().coerceAtLeast(1L)
+    val safeXHours = if (xHours.isFinite()) xHours else 0.0
+    val displayMinutes = (safeXHours.coerceIn(0.0, fullHours) * 60)
+        .roundToLong()
+        .coerceIn(0L, fullMinutes - 1L)
+    return chartWindowStart.plusMinutes(displayMinutes)
+}
+
 private fun mainE2ChartMinimapIsZoomed(
     visibleRange: MainE2ChartVisibleXRange,
     chartWindowHours: Int,
@@ -1352,21 +1373,33 @@ private fun MainE2ChartMinimap(
         chartWindowHours = chartWindowHours,
         hasPendingReset = pendingResetRange != null,
     )
-    val startDateLabel = remember(chartWindowStart, dateFormatter, dateLabelVisibleRange.start) {
+    val startDateLabel = remember(
+        chartWindowStart,
+        chartWindowHours,
+        dateFormatter,
+        dateLabelVisibleRange.start,
+    ) {
         dateFormatter(
-            chartWindowStart
-                .plusMinutes((dateLabelVisibleRange.start * 60).roundToLong())
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = dateLabelVisibleRange.start,
+                chartWindowHours = chartWindowHours,
+            )
                 .toLocalDate()
         )
     }
     val endDateLabel = remember(
         chartWindowStart,
+        chartWindowHours,
         dateFormatter,
         dateLabelVisibleRange.endInclusive,
     ) {
         dateFormatter(
-            chartWindowStart
-                .plusMinutes((dateLabelVisibleRange.endInclusive * 60).roundToLong())
+            mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = chartWindowStart,
+                xHours = dateLabelVisibleRange.endInclusive,
+                chartWindowHours = chartWindowHours,
+            )
                 .toLocalDate()
         )
     }

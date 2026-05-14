@@ -85,6 +85,33 @@ class PkPlannedEntriesTest {
     }
 
     @Test
+    fun build_dailyEstradiolGroup_excludesSlotExactlyAtHorizon() {
+        val now = LocalDateTime.of(2026, 5, 14, 12, 0)
+        val horizon = LocalDateTime.of(2026, 5, 18, 0, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.MIDNIGHT,
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 5, 15, 0, 0),
+                LocalDateTime.of(2026, 5, 16, 0, 0),
+                LocalDateTime.of(2026, 5, 17, 0, 0),
+            ),
+            result.planned.map { it.scheduledFor },
+        )
+    }
+
+    @Test
     fun build_realEntryWithMatchingSlotTriple_suppressesVirtualForThatSlot() {
         val now = LocalDateTime.of(2026, 5, 6, 10, 0)
         val horizon = LocalDateTime.of(2026, 5, 9, 0, 0)
