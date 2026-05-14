@@ -746,7 +746,7 @@ internal fun MainE2ChartCard(
             ) {
                 val lineColor = MaterialTheme.colorScheme.primary
                 val doseMarkerColor = MaterialTheme.colorScheme.primary
-                val plannedDoseMarkerColor = MaterialTheme.colorScheme.secondary
+                val plannedDoseMarkerColor = MaterialTheme.colorScheme.outlineVariant
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
                 val currentTimeLineColor =
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)

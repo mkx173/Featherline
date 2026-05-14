@@ -2049,7 +2049,7 @@ private fun MedicationGroupColorPickerLeadingIcon(
     val currentScheme = rememberMedicationGroupColorScheme(colorKey = selectedColorKey)
     if (!enabled) {
         Icon(
-            imageVector = Icons.AutoMirrored.Rounded.Label,
+            painter = painterResource(R.drawable.ic_circle),
             contentDescription = null,
             tint = currentScheme.primary,
         )
