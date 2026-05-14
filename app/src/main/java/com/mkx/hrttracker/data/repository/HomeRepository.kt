@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import javax.inject.Inject
@@ -87,6 +88,8 @@ class HomeRepository @Inject constructor(
                 profile = UserProfile(),
                 settings = settingsState,
                 pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                pkProjectionExpiresAt = pkProjectionRecord
+                    ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                 latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
                 estradiolPkEntries = emptyList(),
                 source = HomeInputSource.SNAPSHOT,
@@ -122,6 +125,8 @@ class HomeRepository @Inject constructor(
                 profile = inputs.profile,
                 settings = inputs.settings,
                 pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                pkProjectionExpiresAt = pkProjectionRecord
+                    ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
                 latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
                 estradiolPkEntries = inputs.estradiolPkEntries,
                 estradiolPkPlannedEntries = inputs.estradiolPkPlannedEntries,
@@ -139,6 +144,7 @@ class HomeRepository @Inject constructor(
                         profile = UserProfile(),
                         settings = settingsRepository.settingsState.value,
                         pkProjection = null,
+                        pkProjectionExpiresAt = null,
                         latestEstradiolEntry = null,
                         estradiolPkEntries = emptyList(),
                         source = HomeInputSource.ROOM,
@@ -303,6 +309,13 @@ data class HomeInputs(
     val profile: UserProfile,
     val settings: SettingsState,
     val pkProjection: PkProjectionResult?,
+    // Wall-clock instant past which the cached pkProjection is stale and the
+    // consumer should fall back to recomputing from `estradiolPkEntries` +
+    // `estradiolPkPlannedEntries`. `decodeProjection` rejects expired records
+    // at subscription time (against `now`-at-subscribe), but the live `now`
+    // ticks per minute while the flow stays subscribed — consumers must
+    // re-check against the live `now` to catch mid-session expiry.
+    val pkProjectionExpiresAt: Instant?,
     val latestEstradiolEntry: MedicationLogEntry?,
     val estradiolPkEntries: List<MedicationLogEntry>,
     val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),

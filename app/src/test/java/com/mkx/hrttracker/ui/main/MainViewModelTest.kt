@@ -329,6 +329,88 @@ class MainViewModelTest {
         assertTrue(viewModel.uiState.value.e2Hero.currentValue > 0.0)
     }
 
+    @Test
+    fun expiredProjectionFallsBackToRoomTrendAgainstLiveNow() = runTest {
+        // Sanity: HomeInputs carries a non-null pkProjection (currentConcentration 100)
+        // but pkProjectionExpiresAt is in the past relative to `now`. The
+        // MainViewModel must drop the stale curve and fall back to
+        // simulateMainEstradiolTrend, which against empty real+planned entries
+        // produces zero — so the hero current value must be 0, not 100.
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val zoneId = ZoneId.systemDefault()
+        val expiredAt = now.minusHours(1).atZone(zoneId).toInstant()
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                trendResult = PkTrendResult(
+                    currentConcentration = 100.0,
+                    previousDayConcentration = 90.0,
+                    dailyConcentrations = listOf(70.0, 80.0, 90.0, 100.0),
+                    concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+                ),
+                pkProjectionExpiresAt = expiredAt,
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(0.0, viewModel.uiState.value.e2Hero.currentValue, 1e-9)
+    }
+
+    @Test
+    fun pastDuePlannedEntryIsFilteredFromTrendFallback() = runTest {
+        // A planned virtual entry whose scheduledFor is in the past relative to
+        // live `now` must NOT flow into the trend simulator — the user didn't
+        // take it, so the curve must not include its contribution.
+        val now = LocalDateTime.of(2026, 4, 30, 12, 0)
+        val pastDuePlanned = MedicationLogEntry(
+            uuid = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            dosageMgAsEstradiol = null,
+            sourceGroupUuid = UUID.fromString("bbbbbbbb-1111-2222-3333-444444444444"),
+            appliedAt = Instant.parse("2026-04-30T01:00:00Z"),
+            appliedAtTimeZoneId = "UTC",
+            scheduledFor = now.minusHours(1),
+            scheduleTimeUuid = UUID.fromString("cccccccc-1111-2222-3333-444444444444"),
+        )
+        val appTimeSource = FakeAppTimeSource(now)
+        every { homeRepository.observeHomeInputs(any()) } returns flowOf(
+            homeInputs(
+                now = now,
+                source = HomeInputSource.ROOM,
+                trendResult = null,
+                estradiolPkEntries = emptyList(),
+                estradiolPkPlannedEntries = listOf(pastDuePlanned),
+            )
+        )
+
+        val viewModel = MainViewModel(
+            homeRepository = homeRepository,
+            settingsRepository = settingsRepository,
+            timeZoneChangeNoticeController = timeZoneChangeNoticeController,
+            appTimeSource = appTimeSource,
+            defaultDispatcher = dispatcher,
+        )
+        startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        // Empty real + filtered planned = trend has no doses → currentValue == 0.
+        assertEquals(0.0, viewModel.uiState.value.e2Hero.currentValue, 1e-9)
+    }
+
     private fun TestScope.startUiStateCollection(viewModel: MainViewModel) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -346,8 +428,10 @@ class MainViewModelTest {
             concentrationUnit = PkConcentrationUnit.PG_PER_ML,
         ),
         pkProjection: PkProjectionResult? = null,
+        pkProjectionExpiresAt: Instant? = null,
         latestEstradiolEntry: MedicationLogEntry? = null,
         estradiolPkEntries: List<MedicationLogEntry> = emptyList(),
+        estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
         source: HomeInputSource = HomeInputSource.SNAPSHOT,
     ): HomeInputs {
         return HomeInputs(
@@ -357,8 +441,10 @@ class MainViewModelTest {
             profile = UserProfile(weightKg = 60.0),
             settings = settings,
             pkProjection = pkProjection ?: trendResult?.toProjection(now),
+            pkProjectionExpiresAt = pkProjectionExpiresAt,
             latestEstradiolEntry = latestEstradiolEntry,
             estradiolPkEntries = estradiolPkEntries,
+            estradiolPkPlannedEntries = estradiolPkPlannedEntries,
             source = source,
             now = now,
         )

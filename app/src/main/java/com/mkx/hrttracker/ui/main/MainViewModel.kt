@@ -107,10 +107,25 @@ class MainViewModel @Inject constructor(
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
             .distinctBy { entry -> entry.uuid }
             .sortedByDescending { entry -> entry.appliedAt }
-        val trendResult = inputs.pkProjection?.toMainEstradiolTrend(now = now, zoneId = zoneId)
+        // HomeInputs was constructed against the date-scoped anchor `now` at
+        // flow subscription time. The live `now` ticks per minute and may
+        // cross a planned-slot expiry without a fresh upstream emission, so
+        // re-validate against the live `now` here:
+        //   - pkProjection: drop if the cached expiry is on or before now.
+        //   - estradiolPkPlannedEntries: drop synthetic doses whose slot has
+        //     already passed (the user didn't take them — don't keep them on
+        //     the curve as if they did).
+        val nowInstant = now.atZone(zoneId).toInstant()
+        val freshProjection = inputs.pkProjection?.takeIf {
+            inputs.pkProjectionExpiresAt?.isAfter(nowInstant) ?: true
+        }
+        val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
+            entry.scheduledFor?.isAfter(now) ?: false
+        }
+        val trendResult = freshProjection?.toMainEstradiolTrend(now = now, zoneId = zoneId)
             ?: PkMedicationSimulation.simulateMainEstradiolTrend(
                 entries = inputs.estradiolPkEntries,
-                plannedEntries = inputs.estradiolPkPlannedEntries,
+                plannedEntries = freshPlannedEntries,
                 bodyWeightKg = inputs.profile.weightKg,
                 now = now,
                 zoneId = zoneId,
