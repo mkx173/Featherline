@@ -36,6 +36,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -237,9 +238,11 @@ class HomeRepositoryTest {
         ).observeHomeInputs(now).first()
 
         assertEquals(HomeInputSource.ROOM, inputs.source)
-        assertEquals(
-            listOf(latestEstradiolEntry.uuid),
-            inputs.estradiolPkEntries.map { it.uuid.toString() },
+        // Real entry comes from the room query; the fallback path also synthesizes
+        // virtual entries for the active group's future slots, so check inclusion
+        // rather than exact equality.
+        assertTrue(
+            inputs.estradiolPkEntries.any { it.uuid.toString() == latestEstradiolEntry.uuid },
         )
         assertEquals(latestEstradiolEntry.uuid, inputs.latestEstradiolEntry?.uuid.toString())
         verify(exactly = 0) { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) }

@@ -55,6 +55,7 @@ fun testMedicationLogEntry(
     appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     scheduledFor: LocalDateTime? = null,
     count: Int = 1,
+    scheduleTimeUuid: UUID? = null,
 ): MedicationLogEntry {
     return MedicationLogEntry(
         uuid = uuid,
@@ -64,7 +65,8 @@ fun testMedicationLogEntry(
         appliedAt = appliedAt,
         appliedAtTimeZoneId = appliedAtTimeZoneId,
         scheduledFor = scheduledFor,
-        count = count
+        count = count,
+        scheduleTimeUuid = scheduleTimeUuid,
     )
 }
 

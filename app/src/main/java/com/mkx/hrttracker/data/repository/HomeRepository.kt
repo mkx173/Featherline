@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
@@ -183,6 +184,8 @@ class HomeRepository @Inject constructor(
             .atZone(zoneId)
             .toInstant()
             .toEpochMilli()
+        val pkHorizon = today.plusDays(HOME_PK_FALLBACK_FUTURE_DAYS).atStartOfDay()
+        val pkEndEpochMillis = pkHorizon.atZone(zoneId).toInstant().toEpochMilli()
 
         return flow {
             val homeDao = databaseHolder.get().homeDao()
@@ -222,7 +225,7 @@ class HomeRepository @Inject constructor(
                     basicsFlow,
                     homeDao.observeEstradiolPkEntries(
                         startEpochMillis = pkStartEpochMillis,
-                        endEpochMillis = endOfTodayInclusiveEpochMillis,
+                        endEpochMillis = pkEndEpochMillis,
                     ).map { entries ->
                         entries.map { it.toMedicationLogEntryModel() }
                     },
@@ -231,9 +234,16 @@ class HomeRepository @Inject constructor(
                     ).map { entry ->
                         entry?.toMedicationLogEntryModel()
                     },
-                ) { basics, estradiolPkEntries, latestEstradiolEntry ->
+                ) { basics, realPkEntries, latestEstradiolEntry ->
+                    val simulationEntries = buildEstradiolPkSimulationEntries(
+                        realEntries = realPkEntries,
+                        activeGroups = basics.activeGroups,
+                        now = now,
+                        horizon = pkHorizon,
+                        zoneId = zoneId,
+                    )
                     basics.copy(
-                        estradiolPkEntries = estradiolPkEntries,
+                        estradiolPkEntries = simulationEntries,
                         latestEstradiolEntry = latestEstradiolEntry,
                     )
                 }
@@ -267,6 +277,9 @@ class HomeRepository @Inject constructor(
         const val TAG = "HomeRepository"
         const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
         const val HOME_PK_FALLBACK_LOOKBACK_DAYS = 180L
+        // Matches HOME_PK_PROJECTION_FUTURE_DAYS in HomeSnapshotRepository so the
+        // fallback path and the cached snapshot path show the same prediction window.
+        const val HOME_PK_FALLBACK_FUTURE_DAYS = 14L
     }
 }
 

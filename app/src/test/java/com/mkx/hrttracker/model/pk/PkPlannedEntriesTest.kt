@@ -1,0 +1,414 @@
+package com.mkx.hrttracker.model.pk
+
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testInstant
+import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.util.UUID
+
+class PkPlannedEntriesTest {
+    private val zoneId = ZoneId.systemDefault()
+
+    @Test
+    fun build_emptyInputs_returnsEmpty() {
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = emptyList(),
+            now = LocalDateTime.of(2026, 5, 6, 10, 0),
+            horizon = LocalDateTime.of(2026, 5, 20, 0, 0),
+            zoneId = zoneId,
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun build_horizonNotAfterNow_returnsRealEntriesUnchanged() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val real = listOf(realPastOralEntry(appliedAt = now.minusHours(1)))
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(dailyEstradiolGroup()),
+            now = now,
+            horizon = now,
+            zoneId = zoneId,
+        )
+
+        assertEquals(real, result)
+    }
+
+    @Test
+    fun build_dailyEstradiolGroup_synthesizesEntryForEachFutureSlot() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 10, 0, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        // Expected future slots: May 7 8am, May 8 8am, May 9 8am. May 6 8am is
+        // before now (10:00); May 10 0am equals horizon (strict isBefore).
+        val expectedSlots = listOf(
+            LocalDateTime.of(2026, 5, 7, 8, 0),
+            LocalDateTime.of(2026, 5, 8, 8, 0),
+            LocalDateTime.of(2026, 5, 9, 8, 0),
+        )
+        assertEquals(expectedSlots, result.map { it.scheduledFor })
+        assertTrue(result.all { it.sourceGroupUuid == group.uuid })
+        assertTrue(result.all { it.scheduleTimeUuid == group.schedule.timeSlots.single().uuid })
+    }
+
+    @Test
+    fun build_realEntryWithMatchingSlotTriple_suppressesVirtualForThatSlot() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 9, 0, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+        val slotUuid = group.schedule.timeSlots.single().uuid
+        val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
+        val real = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceGroupUuid = group.uuid,
+                appliedAt = testInstant(fulfilledSlot.plusMinutes(5)),
+                scheduledFor = fulfilledSlot,
+                scheduleTimeUuid = slotUuid,
+            )
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        // Real entry stays, virtual for May 7 8am is suppressed, May 8 8am virtual
+        // remains.
+        assertEquals(
+            listOf(
+                LocalDateTime.of(2026, 5, 7, 8, 0),
+                LocalDateTime.of(2026, 5, 8, 8, 0),
+            ),
+            result.map { it.scheduledFor },
+        )
+        assertEquals(real.single().uuid, result.first().uuid)
+    }
+
+    @Test
+    fun build_realEntryWithDifferentSlotTime_doesNotSuppressVirtual() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+        val slotUuid = group.schedule.timeSlots.single().uuid
+        // Real entry has the same slot uuid but a different scheduledFor — must
+        // not suppress the May 7 8am virtual.
+        val real = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceGroupUuid = group.uuid,
+                appliedAt = testInstant(now.minusHours(2)),
+                scheduledFor = LocalDateTime.of(2026, 5, 6, 8, 0),
+                scheduleTimeUuid = slotUuid,
+            )
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.uuid == real.single().uuid })
+        assertTrue(result.any { it.scheduledFor == LocalDateTime.of(2026, 5, 7, 8, 0) })
+    }
+
+    @Test
+    fun build_manualRealEntry_doesNotSuppressAnyVirtual() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+        // Manual entry — no sourceGroupUuid, no scheduleTimeUuid, no scheduledFor.
+        val real = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceGroupUuid = null,
+                appliedAt = testInstant(now.minusHours(2)),
+                scheduledFor = null,
+            )
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertEquals(2, result.size)
+        assertEquals(LocalDateTime.of(2026, 5, 7, 8, 0), result.last().scheduledFor)
+    }
+
+    @Test
+    fun build_antiandrogenGroup_synthesizesNothing() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 9, 0, 0)
+        val group = MedicationGroup(
+            uuid = UUID.fromString("8a0d3c8f-1d11-4d10-9c9c-e51d9b09a111"),
+            name = "Spiro",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("0b0d3c8f-1d11-4d10-9c9c-e51d9b09a222"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.SPIRONOLACTONE,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(100.0),
+                    ),
+                ),
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun build_groupWithMultipleEstradiolMeds_emitsOneVirtualPerMedPerSlot() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
+        val medA = MedicationGroupMedication(
+            uuid = UUID.fromString("aaa3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+        )
+        val medB = MedicationGroupMedication(
+            uuid = UUID.fromString("bbb3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+        )
+        val group = MedicationGroup(
+            uuid = UUID.fromString("ccc3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
+            name = "Two pills",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(medA, medB),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        // Single future slot (May 7 8am), two medications.
+        assertEquals(2, result.size)
+        assertEquals(
+            setOf(LocalDateTime.of(2026, 5, 7, 8, 0)),
+            result.map { it.scheduledFor }.toSet(),
+        )
+    }
+
+    @Test
+    fun build_virtualEntriesHaveStableUuidsAcrossInvocations() {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
+        val group = dailyEstradiolGroup()
+
+        val first = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+        val second = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertEquals(first.map { it.uuid }, second.map { it.uuid })
+    }
+
+    @Test
+    fun projection_includesFutureScheduledDose_inPredictionZone() {
+        // Integration check: a daily 8am estradiol group with no past doses
+        // should still produce a non-zero predicted concentration after `now`.
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val zoneId = ZoneId.systemDefault()
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+
+        val simulationEntries = buildEstradiolPkSimulationEntries(
+            realEntries = emptyList(),
+            activeGroups = listOf(group),
+            now = now,
+            horizon = now.toLocalDate().plusDays(14).atStartOfDay(),
+            zoneId = zoneId,
+        )
+        val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+            entries = simulationEntries,
+            bodyWeightKg = 70.0,
+            generatedAt = now,
+            zoneId = zoneId,
+            futureDays = 14,
+        )
+
+        // windowStart = today - 3 days = May 3 at 0:00.
+        // First synthesized slot is May 7 at 8am — that's
+        // (May 7 8am - May 3 0am) = 4*24 + 8 = 104 hours from windowStart.
+        // Check that concentration at t=110h (a couple hours after the dose) is
+        // strictly higher than at t=100h (just before the dose), proving the
+        // future dose contributes to the prediction curve.
+        val before = projection.concentrationAtOrZero(100.0)
+        val after = projection.concentrationAtOrZero(110.0)
+        assertTrue("expected $after > $before", after > before)
+    }
+
+    private fun PkProjectionResult.concentrationAtOrZero(hour: Double): Double {
+        // Use the same linear interpolation the snapshot path uses.
+        if (timeH.isEmpty() || timeH.size != concentrations.size) return 0.0
+        if (hour <= timeH.first()) return concentrations.first()
+        if (hour >= timeH.last()) return concentrations.last()
+        var low = 0
+        var high = timeH.lastIndex
+        while (high - low > 1) {
+            val mid = (low + high) / 2
+            when {
+                timeH[mid] == hour -> return concentrations[mid]
+                timeH[mid] < hour -> low = mid
+                else -> high = mid
+            }
+        }
+        val t0 = timeH[low]
+        val t1 = timeH[high]
+        val c0 = concentrations[low]
+        val c1 = concentrations[high]
+        if (t1 <= t0) return c0
+        val ratio = (hour - t0) / (t1 - t0)
+        return c0 + (c1 - c0) * ratio
+    }
+
+    private fun realPastOralEntry(appliedAt: LocalDateTime) =
+        testMedicationLogEntry(
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+            sourceGroupUuid = null,
+            appliedAt = testInstant(appliedAt),
+        )
+
+    private fun dailyEstradiolGroup(
+        since: LocalDate = LocalDate.of(2026, 5, 1),
+        time: LocalTime = LocalTime.of(8, 0),
+    ): MedicationGroup {
+        return MedicationGroup(
+            uuid = UUID.fromString("11111111-2222-3333-4444-555555555555"),
+            name = "Daily E2",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = since,
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(time),
+            ),
+            medications = listOf(
+                MedicationGroupMedication(
+                    uuid = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa"),
+                    details = testCatalogMedicationDetails(
+                        key = MedicationKey.ESTRADIOL,
+                        applicationType = MedicationApplicationType.ORAL,
+                        dose = MedicationDose.MgAsMedicine(2.0),
+                    ),
+                ),
+            ),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+    }
+}

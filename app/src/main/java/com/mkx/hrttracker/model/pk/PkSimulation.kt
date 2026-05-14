@@ -316,7 +316,6 @@ object PkMedicationSimulation {
             .toMillis() / 3_600_000.0
         val events = entries
             .asSequence()
-            .filterNot { entry -> entry.appliedAt.isAfter(nowInstant) }
             .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = startInstant) }
             .toList()
         val doseMarkerTimeH = events
@@ -399,7 +398,6 @@ object PkMedicationSimulation {
             .toMillis() / 3_600_000.0
         val events = entries
             .asSequence()
-            .filterNot { entry -> entry.appliedAt.isAfter(generatedAtInstant) }
             .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = windowStart) }
             .toList()
         val sampleTimeH = mainProjectionSampleTimeH(

@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
+import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
@@ -323,7 +324,7 @@ class HomeSnapshotRepository @Inject constructor(
             ).map { entry -> entry.toMedicationLogEntryModel() }
             val pkEntries = homeDao.getEstradiolPkEntries(
                 startEpochMillis = cacheWindow.inputStartEpochMillis,
-                endEpochMillis = cacheWindow.generatedAtEpochMillis,
+                endEpochMillis = cacheWindow.windowEndEpochMillis,
             ).map { entry -> entry.toMedicationLogEntryModel() }
             val latestEstradiolEntry = homeDao.getLatestEstradiolEntryOnOrBefore(
                 onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
@@ -351,8 +352,15 @@ class HomeSnapshotRepository @Inject constructor(
         )
 
         val projection = withContext(defaultDispatcher) {
+            val simulationEntries = buildEstradiolPkSimulationEntries(
+                realEntries = inputs.pkEntries,
+                activeGroups = inputs.activeGroups,
+                now = now,
+                horizon = now.toLocalDate().plusDays(HOME_PK_PROJECTION_FUTURE_DAYS).atStartOfDay(),
+                zoneId = zoneId,
+            )
             PkMedicationSimulation.simulateMainEstradiolProjection(
-                entries = inputs.pkEntries,
+                entries = simulationEntries,
                 bodyWeightKg = inputs.profile.weightKg,
                 generatedAt = now,
                 zoneId = zoneId,
