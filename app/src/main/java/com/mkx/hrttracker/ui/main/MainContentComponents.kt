@@ -2,6 +2,14 @@ package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -69,13 +80,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -218,14 +232,123 @@ private enum class MainTodayTimeRange(
     );
 }
 
+internal const val MainE2ChartContentTestTag = "main-e2-chart-content"
+internal const val MainE2ChartSkeletonTestTag = "main-e2-chart-skeleton"
+
+private const val SkeletonShimmerPeriodMillis = 1400
+
+@Composable
+private fun SkeletonShimmerBlock(
+    modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.medium,
+) {
+    val base = MaterialTheme.colorScheme.surfaceContainer
+    val highlight = MaterialTheme.colorScheme.surfaceContainerHigh
+    val transition = rememberInfiniteTransition(label = "skeleton-shimmer")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = SkeletonShimmerPeriodMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "skeleton-shimmer-progress",
+    )
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .drawBehind {
+                val width = size.width
+                val sweep = width * 1.5f
+                val travel = sweep + width
+                val brush = Brush.linearGradient(
+                    colors = listOf(base, highlight, base),
+                    start = Offset(x = -sweep + progress * travel, y = 0f),
+                    end = Offset(x = progress * travel, y = 0f),
+                )
+                drawRect(brush)
+            }
+    )
+}
+
+// Lets the real content drive layout (intrinsic width/height) while painting
+// a shimmer on top. Keeps the skeleton's footprint pinned to whatever the
+// loaded content would actually measure to — no width/height tuning needed
+// as fonts or locales change.
+@Composable
+private fun SkeletonOverlay(
+    active: Boolean,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (!active) {
+        Box(modifier = modifier) { content() }
+        return
+    }
+    Box(modifier = modifier) {
+        Box(modifier = Modifier.alpha(0f)) { content() }
+        SkeletonShimmerBlock(
+            modifier = Modifier.matchParentSize(),
+            shape = shape,
+        )
+    }
+}
+
+@Composable
+private fun AnimatedEllipsis(
+    color: Color,
+    modifier: Modifier = Modifier,
+    bounceHeight: Dp = 12.dp,
+    cycleMillis: Int = 1200,
+    staggerMillis: Int = 150,
+) {
+    val bounceHeightPx = with(LocalDensity.current) { bounceHeight.toPx() }
+    val liftEasing = remember { CubicBezierEasing(0.2f, 0f, 0f, 1f) }
+    val dropEasing = remember { CubicBezierEasing(0.4f, 0f, 1f, 1f) }
+
+    Row(modifier = modifier) {
+        repeat(3) { index ->
+            val transition = rememberInfiniteTransition(label = "animated-ellipsis-$index")
+            val yOffsetPx by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 0f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = cycleMillis
+                        0f at 0 using liftEasing
+                        -bounceHeightPx at cycleMillis / 4 using dropEasing
+                        0f at cycleMillis / 2 using LinearEasing
+                        0f at cycleMillis
+                    },
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(index * staggerMillis),
+                ),
+                label = "animated-ellipsis-y-$index",
+            )
+
+            Text(
+                text = ".",
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Medium,
+                color = color,
+                modifier = Modifier
+                    .alignByBaseline()
+                    .graphicsLayer { translationY = yOffsetPx },
+            )
+        }
+    }
+}
 
 @Composable
 internal fun MainE2HeroCard(
     section: MainE2HeroUiState,
     now: LocalDateTime,
     displayUnit: BloodUnitKey,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trendReady: Boolean = true,
 ) {
+    val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
         changeSinceYesterday = section.changeSinceYesterday,
         unit = section.unit,
@@ -235,8 +358,9 @@ internal fun MainE2HeroCard(
         changeSinceYesterday = section.changeSinceYesterday,
         displayUnit = displayUnit,
     )
+    val effectiveIsTrendDeltaDisplayZero = showSkeleton || isTrendDeltaDisplayZero
     val trendIcon = when {
-        isTrendDeltaDisplayZero -> Icons.AutoMirrored.Rounded.TrendingFlat
+        effectiveIsTrendDeltaDisplayZero -> Icons.AutoMirrored.Rounded.TrendingFlat
         section.changeSinceYesterday > 0 -> Icons.AutoMirrored.Rounded.TrendingUp
         section.changeSinceYesterday < 0 -> Icons.AutoMirrored.Rounded.TrendingDown
         else -> Icons.AutoMirrored.Rounded.TrendingFlat
@@ -252,12 +376,17 @@ internal fun MainE2HeroCard(
     val estimateInfoTooltipScope = rememberCoroutineScope()
     val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
+    // When the trend isn't ready, we pin the pill to "in range" so the slot
+    // stays visually continuous instead of popping below→above as the value
+    // arrives.
     val rangeStatusIconDrawableRes = when {
+        showSkeleton -> R.drawable.ic_adjust
         section.currentValue > section.targetMax -> R.drawable.ic_expand_circle_up
         section.currentValue < section.targetMin -> R.drawable.ic_expand_circle_down
         else -> R.drawable.ic_adjust
     }
     val rangeStatusLabelRes = when {
+        showSkeleton -> R.string.settings_calibration_range_status_in_range
         section.currentValue > section.targetMax -> R.string.settings_calibration_range_status_above
         section.currentValue < section.targetMin -> R.string.settings_calibration_range_status_below
         else -> R.string.settings_calibration_range_status_in_range
@@ -353,16 +482,26 @@ internal fun MainE2HeroCard(
                     ) {
                         val (valueRef, unitRef, rangeStatusRef) = createRefs()
 
-                        Text(
-                            text = currentValueText,
-                            style = MaterialTheme.typography.displayLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = heroContentColor,
-                            modifier = Modifier.constrainAs(valueRef) {
-                                start.linkTo(parent.start)
-                                top.linkTo(parent.top)
-                            },
-                        )
+                        if (showSkeleton) {
+                            AnimatedEllipsis(
+                                color = heroContentColor,
+                                modifier = Modifier.constrainAs(valueRef) {
+                                    start.linkTo(parent.start)
+                                    top.linkTo(parent.top)
+                                },
+                            )
+                        } else {
+                            Text(
+                                text = currentValueText,
+                                style = MaterialTheme.typography.displayLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = heroContentColor,
+                                modifier = Modifier.constrainAs(valueRef) {
+                                    start.linkTo(parent.start)
+                                    top.linkTo(parent.top)
+                                },
+                            )
+                        }
                         Text(
                             text = unitText,
                             modifier = Modifier.constrainAs(unitRef) {
@@ -372,15 +511,20 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        MainE2RangeStatusPill(
-                            iconDrawableRes = rangeStatusIconDrawableRes,
-                            label = rangeStatusLabel,
+                        SkeletonOverlay(
+                            active = showSkeleton,
+                            shape = CircleShape,
                             modifier = Modifier.constrainAs(rangeStatusRef) {
                                 start.linkTo(unitRef.end, margin = 8.dp)
                                 top.linkTo(unitRef.top)
                                 bottom.linkTo(unitRef.bottom)
-                            }
-                        )
+                            },
+                        ) {
+                            MainE2RangeStatusPill(
+                                iconDrawableRes = rangeStatusIconDrawableRes,
+                                label = rangeStatusLabel,
+                            )
+                        }
                     }
 
                     FlowRow(
@@ -388,38 +532,43 @@ internal fun MainE2HeroCard(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Surface(
+                        SkeletonOverlay(
+                            active = showSkeleton,
                             shape = CircleShape,
-                            color = heroPillContainerColor,
-                            contentColor = heroSupportingColor
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Surface(
+                                shape = CircleShape,
+                                color = heroPillContainerColor,
+                                contentColor = heroSupportingColor
                             ) {
-                                Icon(
-                                    imageVector = trendIcon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(13.dp),
-                                    tint = heroSupportingColor
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = trendIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(13.dp),
+                                        tint = heroSupportingColor
+                                    )
 
-                                val sinceYesterdayText = if (isTrendDeltaDisplayZero) {
-                                    stringResource(R.string.main_e2_no_change_since_yesterday)
-                                } else {
-                                    stringResource(
-                                        R.string.main_e2_change_since_yesterday,
-                                        trendDeltaLabel
+                                    val sinceYesterdayText = if (effectiveIsTrendDeltaDisplayZero) {
+                                        stringResource(R.string.main_e2_no_change_since_yesterday)
+                                    } else {
+                                        stringResource(
+                                            R.string.main_e2_change_since_yesterday,
+                                            trendDeltaLabel
+                                        )
+                                    }
+                                    Text(
+                                        text = sinceYesterdayText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = heroSupportingColor,
+                                        modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayText)
                                     )
                                 }
-                                Text(
-                                    text = sinceYesterdayText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = heroSupportingColor,
-                                    modifier = Modifier.padding(end = 2.dp).cjkTextOffset(sinceYesterdayText)
-                                )
                             }
                         }
 
@@ -494,8 +643,82 @@ internal fun MainE2ChartCard(
     displayUnit: BloodUnitKey,
     targetRangeLow: Double,
     targetRangeHigh: Double,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trendReady: Boolean = true,
 ) {
+    if (!trendReady) {
+        Surface(
+            modifier = modifier,
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .testTag(MainE2ChartSkeletonTestTag)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(bottom = 6.dp),
+            ) {
+                MainE2ChartCardHeader(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    targetRangeLow = targetRangeLow,
+                    targetRangeHigh = targetRangeHigh,
+                    displayUnit = displayUnit,
+                    unit = unit,
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(MainE2ChartPlotHeight)
+                    ) {
+                        SkeletonShimmerBlock(
+                            modifier = Modifier.fillMaxSize(),
+                            shape = MaterialTheme.shapes.large,
+                        )
+                    }
+                    // Mirror MainE2ChartMinimap's vertical structure with
+                    // transparent stand-ins so the row claims its real
+                    // intrinsic height (canvas 48dp + labelMedium date row +
+                    // bottom padding), then cover everything with a single
+                    // shimmer overlay. Avoids drift from font/locale changes.
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(bottom = 4.dp)) {
+                            Spacer(modifier = Modifier.height(MainE2ChartMinimapHeight))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp)
+                                    .padding(bottom = 4.dp, end = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "—",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.Transparent,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Spacer(
+                                    modifier = Modifier.size(
+                                        width = MainE2ChartMinimapResetButtonSize,
+                                        height = 16.dp,
+                                    ),
+                                )
+                            }
+                        }
+                        SkeletonShimmerBlock(
+                            modifier = Modifier.matchParentSize(),
+                            shape = MaterialTheme.shapes.large,
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
     val modelProducer = remember { CartesianChartModelProducer() }
     val hasConsumedInitialChartAnimation = rememberSaveable { mutableStateOf(false) }
     val chartAnimationsEnabled = remember {
@@ -855,6 +1078,7 @@ internal fun MainE2ChartCard(
                     ) {
                         Box(
                             modifier = Modifier
+                                .testTag(MainE2ChartContentTestTag)
                                 .fillMaxWidth()
                                 .height(MainE2ChartPlotHeight)
                                 .padding(MainE2ChartContentPadding)
@@ -3222,11 +3446,19 @@ private fun MainE2HeroCardPreview() {
     val uiState = buildMainContentPreviewUiState()
 
     MainContentComponentPreviewContainer {
-        MainE2HeroCard(
-            section = uiState.e2Hero,
-            now = uiState.now,
-            displayUnit = uiState.homeE2DisplayUnit,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MainE2HeroCard(
+                section = uiState.e2Hero,
+                now = uiState.now,
+                displayUnit = uiState.homeE2DisplayUnit,
+            )
+            MainE2HeroCard(
+                section = uiState.e2Hero,
+                now = uiState.now,
+                displayUnit = uiState.homeE2DisplayUnit,
+                trendReady = false,
+            )
+        }
     }
 }
 
@@ -3236,15 +3468,27 @@ private fun MainE2ChartCardPreview() {
     val uiState = buildMainContentPreviewUiState()
 
     MainContentComponentPreviewContainer {
-        MainE2ChartCard(
-            section = uiState.e2Chart,
-            now = uiState.now,
-            appLocale = Locale.US,
-            unit = uiState.e2Hero.unit,
-            displayUnit = uiState.homeE2DisplayUnit,
-            targetRangeLow = uiState.e2Hero.targetMin,
-            targetRangeHigh = uiState.e2Hero.targetMax,
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MainE2ChartCard(
+                section = uiState.e2Chart,
+                now = uiState.now,
+                appLocale = Locale.US,
+                unit = uiState.e2Hero.unit,
+                displayUnit = uiState.homeE2DisplayUnit,
+                targetRangeLow = uiState.e2Hero.targetMin,
+                targetRangeHigh = uiState.e2Hero.targetMax,
+            )
+            MainE2ChartCard(
+                section = uiState.e2Chart,
+                now = uiState.now,
+                appLocale = Locale.US,
+                unit = uiState.e2Hero.unit,
+                displayUnit = uiState.homeE2DisplayUnit,
+                targetRangeLow = uiState.e2Hero.targetMin,
+                targetRangeHigh = uiState.e2Hero.targetMax,
+                trendReady = false,
+            )
+        }
     }
 }
 

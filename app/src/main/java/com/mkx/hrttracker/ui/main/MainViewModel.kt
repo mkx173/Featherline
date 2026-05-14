@@ -133,6 +133,13 @@ class MainViewModel @Inject constructor(
 
         return MainUiState(
             homeDataReady = true,
+            // SNAPSHOT path carries no `estradiolPkEntries`, so when its cached
+            // projection is invalid the trend falls back to simulating over an
+            // empty list — a misleading "no data" curve. Mark the trend as not
+            // ready in that window so the E2 hero & chart show a skeleton until
+            // the ROOM emission arrives with real entries.
+            e2TrendReady = freshProjection != null ||
+                inputs.source == HomeInputSource.ROOM,
             homeSource = inputs.source,
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
@@ -177,6 +184,7 @@ class MainViewModel @Inject constructor(
 
 data class MainUiState(
     val homeDataReady: Boolean = false,
+    val e2TrendReady: Boolean = false,
     val homeSource: HomeInputSource? = null,
     val now: LocalDateTime = LocalDateTime.now(),
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,

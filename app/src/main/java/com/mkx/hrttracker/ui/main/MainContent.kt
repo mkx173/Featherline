@@ -83,6 +83,7 @@ fun MainContent(
                 section = uiState.e2Hero,
                 now = uiState.now,
                 displayUnit = uiState.homeE2DisplayUnit,
+                trendReady = uiState.e2TrendReady,
             )
         }
 
@@ -96,6 +97,7 @@ fun MainContent(
                 displayUnit = uiState.homeE2DisplayUnit,
                 targetRangeLow = uiState.e2Hero.targetMin,
                 targetRangeHigh = uiState.e2Hero.targetMax,
+                trendReady = uiState.e2TrendReady,
             )
         }
 
