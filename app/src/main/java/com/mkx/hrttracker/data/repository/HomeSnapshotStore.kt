@@ -151,6 +151,7 @@ data class HomePkProjectionRecord(
 data class HomePkProjectionDoseMarkerRecord(
     val timeH: Double,
     val concentration: Double,
+    val isPlanned: Boolean = false,
 )
 
 internal data class HomeSnapshotState(
@@ -253,6 +254,7 @@ internal object HomeSnapshotCodec {
         writeList(record.doseMarkers) { marker ->
             writeDouble(marker.timeH)
             writeDouble(marker.concentration)
+            writeBoolean(marker.isPlanned)
         }
         writeMedicationLogEntry(record.latestEstradiolEntry)
     }
@@ -272,6 +274,7 @@ internal object HomeSnapshotCodec {
                 HomePkProjectionDoseMarkerRecord(
                     timeH = readDouble(),
                     concentration = readDouble(),
+                    isPlanned = readBoolean(),
                 )
             },
             latestEstradiolEntry = readMedicationLogEntry(),
@@ -628,7 +631,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 6
+private const val SNAPSHOT_CODEC_VERSION = 7
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

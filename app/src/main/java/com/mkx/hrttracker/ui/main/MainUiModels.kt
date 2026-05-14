@@ -73,6 +73,7 @@ data class MainE2ChartUiState(
 data class MainE2DoseMarkerUiState(
     val xHours: Double,
     val concentration: Float,
+    val isPlanned: Boolean = false,
 )
 
 data class MainE2ChartYAxisSpec(
@@ -256,6 +257,7 @@ internal fun buildMainE2Chart(
                         sourceUnit = trendResult.concentrationUnit,
                         displayUnit = displayUnit,
                     ).toFloat(),
+                    isPlanned = marker.isPlanned,
                 )
             }
             ?: emptyList(),

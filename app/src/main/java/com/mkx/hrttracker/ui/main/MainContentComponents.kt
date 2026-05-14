@@ -174,6 +174,10 @@ private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
+// Sentinel x-coordinate for an empty dose-marker series, placed outside the
+// chart's x range (which starts at 0) so Vico clips the placeholder point
+// while keeping the index-based LineProvider style mapping stable.
+private const val OffAxisDoseMarkerSentinelXHours = -1.0
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
 private val MainE2ChartPointSpacing = 32.dp
@@ -525,6 +529,23 @@ internal fun MainE2ChartCard(
             predictedStartXHours = 0.0,
         )
     }
+    // Split markers into logged (real entries, primary color) and planned
+    // (synthesized future-schedule slots, secondary color). A real entry that
+    // fulfills a planned slot drops it back into the logged bucket via
+    // PkDoseMarker.isPlanned, so the marker color flips back to primary as
+    // soon as the user records the dose.
+    val doseMarkerLoggedXHours = remember(section.doseMarkers) {
+        section.doseMarkers.filterNot { it.isPlanned }.map { it.xHours }
+    }
+    val doseMarkerLoggedConcentrations = remember(section.doseMarkers) {
+        section.doseMarkers.filterNot { it.isPlanned }.map { it.concentration }
+    }
+    val doseMarkerPlannedXHours = remember(section.doseMarkers) {
+        section.doseMarkers.filter { it.isPlanned }.map { it.xHours }
+    }
+    val doseMarkerPlannedConcentrations = remember(section.doseMarkers) {
+        section.doseMarkers.filter { it.isPlanned }.map { it.concentration }
+    }
     val doseMarkerXHours = remember(section.doseMarkers) {
         section.doseMarkers.map { marker -> marker.xHours }
     }
@@ -651,8 +672,10 @@ internal fun MainE2ChartCard(
 
     LaunchedEffect(
         splitChartSeries,
-        doseMarkerXHours,
-        doseMarkerConcentrations,
+        doseMarkerLoggedXHours,
+        doseMarkerLoggedConcentrations,
+        doseMarkerPlannedXHours,
+        doseMarkerPlannedConcentrations,
         currentTimeXHours,
         currentTimeConcentration,
     ) {
@@ -677,10 +700,22 @@ internal fun MainE2ChartCard(
                     x = listOf(currentTimeXHours),
                     y = listOf(currentTimeConcentration),
                 )
-                if (doseMarkerXHours.isNotEmpty()) {
+                // Logged dose markers (primary color) and planned ones
+                // (secondary color) live in separate slots so they can use
+                // different point styles. Both series are emitted whenever
+                // there is at least one marker — the absent one is padded with
+                // an out-of-axis sentinel point so the LineProvider's
+                // index-based style mapping stays stable.
+                val hasAnyMarker = doseMarkerLoggedXHours.isNotEmpty() ||
+                    doseMarkerPlannedXHours.isNotEmpty()
+                if (hasAnyMarker) {
                     series(
-                        x = doseMarkerXHours,
-                        y = doseMarkerConcentrations,
+                        x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+                        y = doseMarkerLoggedConcentrations.ifEmpty { listOf(0f) },
+                    )
+                    series(
+                        x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
+                        y = doseMarkerPlannedConcentrations.ifEmpty { listOf(0f) },
                     )
                 }
             }
@@ -711,6 +746,7 @@ internal fun MainE2ChartCard(
             ) {
                 val lineColor = MaterialTheme.colorScheme.primary
                 val doseMarkerColor = MaterialTheme.colorScheme.primary
+                val plannedDoseMarkerColor = MaterialTheme.colorScheme.secondary
                 val currentTimeColor = MaterialTheme.colorScheme.tertiary
                 val currentTimeLineColor =
                     MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
@@ -788,6 +824,17 @@ internal fun MainE2ChartCard(
                         size = 7.dp,
                     )
                 }
+                val plannedDoseMarkerPoint = remember(plannedDoseMarkerColor, markerSurfaceColor) {
+                    LineCartesianLayer.Point(
+                        component = ShapeComponent(
+                            fill = Fill(plannedDoseMarkerColor),
+                            shape = CircleShape,
+                            strokeFill = Fill(markerSurfaceColor),
+                            strokeThickness = 1.dp,
+                        ),
+                        size = 7.dp,
+                    )
+                }
                 val currentTimePoint = remember(currentTimeColor, markerSurfaceColor) {
                     LineCartesianLayer.Point(
                         component = ShapeComponent(
@@ -858,6 +905,11 @@ internal fun MainE2ChartCard(
                                                     fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
                                                     stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
                                                     pointProvider = LineCartesianLayer.PointProvider.single(doseMarkerPoint),
+                                                ),
+                                                LineCartesianLayer.rememberLine(
+                                                    fill = LineCartesianLayer.LineFill.single(Fill(Color.Transparent)),
+                                                    stroke = LineCartesianLayer.LineStroke.Continuous(thickness = 0.dp),
+                                                    pointProvider = LineCartesianLayer.PointProvider.single(plannedDoseMarkerPoint),
                                                 ),
                                             ),
                                         rangeProvider = rangeProvider,

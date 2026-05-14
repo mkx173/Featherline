@@ -200,6 +200,7 @@ class HomeSnapshotRepository @Inject constructor(
                     com.mkx.hrttracker.model.pk.PkDoseMarker(
                         timeH = marker.timeH,
                         concentration = marker.concentration,
+                        isPlanned = marker.isPlanned,
                     )
                 },
             )
@@ -360,7 +361,8 @@ class HomeSnapshotRepository @Inject constructor(
                 zoneId = zoneId,
             )
             PkMedicationSimulation.simulateMainEstradiolProjection(
-                entries = simulationEntries,
+                entries = simulationEntries.real,
+                plannedEntries = simulationEntries.planned,
                 bodyWeightKg = inputs.profile.weightKg,
                 generatedAt = now,
                 zoneId = zoneId,
@@ -383,6 +385,7 @@ class HomeSnapshotRepository @Inject constructor(
                 HomePkProjectionDoseMarkerRecord(
                     timeH = marker.timeH,
                     concentration = marker.concentration,
+                    isPlanned = marker.isPlanned,
                 )
             },
             latestEstradiolEntry = inputs.latestEstradiolEntry,
@@ -574,7 +577,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 4
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 5
 private const val TAG = "HomeSnapshotRepository"
 private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
 private const val HOME_PK_PROJECTION_FUTURE_DAYS = 14L

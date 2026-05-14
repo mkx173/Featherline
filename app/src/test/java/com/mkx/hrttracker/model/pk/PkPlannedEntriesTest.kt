@@ -33,7 +33,8 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertTrue(result.isEmpty())
+        assertTrue(result.real.isEmpty())
+        assertTrue(result.planned.isEmpty())
     }
 
     @Test
@@ -49,7 +50,8 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertEquals(real, result)
+        assertEquals(real, result.real)
+        assertTrue(result.planned.isEmpty())
     }
 
     @Test
@@ -76,9 +78,10 @@ class PkPlannedEntriesTest {
             LocalDateTime.of(2026, 5, 8, 8, 0),
             LocalDateTime.of(2026, 5, 9, 8, 0),
         )
-        assertEquals(expectedSlots, result.map { it.scheduledFor })
-        assertTrue(result.all { it.sourceGroupUuid == group.uuid })
-        assertTrue(result.all { it.scheduleTimeUuid == group.schedule.timeSlots.single().uuid })
+        assertTrue(result.real.isEmpty())
+        assertEquals(expectedSlots, result.planned.map { it.scheduledFor })
+        assertTrue(result.planned.all { it.sourceGroupUuid == group.uuid })
+        assertTrue(result.planned.all { it.scheduleTimeUuid == group.schedule.timeSlots.single().uuid })
     }
 
     @Test
@@ -115,14 +118,11 @@ class PkPlannedEntriesTest {
 
         // Real entry stays, virtual for May 7 8am is suppressed, May 8 8am virtual
         // remains.
+        assertEquals(real, result.real)
         assertEquals(
-            listOf(
-                LocalDateTime.of(2026, 5, 7, 8, 0),
-                LocalDateTime.of(2026, 5, 8, 8, 0),
-            ),
-            result.map { it.scheduledFor },
+            listOf(LocalDateTime.of(2026, 5, 8, 8, 0)),
+            result.planned.map { it.scheduledFor },
         )
-        assertEquals(real.single().uuid, result.first().uuid)
     }
 
     @Test
@@ -158,9 +158,9 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertEquals(2, result.size)
-        assertTrue(result.any { it.uuid == real.single().uuid })
-        assertTrue(result.any { it.scheduledFor == LocalDateTime.of(2026, 5, 7, 8, 0) })
+        assertEquals(real, result.real)
+        assertEquals(1, result.planned.size)
+        assertEquals(LocalDateTime.of(2026, 5, 7, 8, 0), result.planned.single().scheduledFor)
     }
 
     @Test
@@ -193,8 +193,9 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertEquals(2, result.size)
-        assertEquals(LocalDateTime.of(2026, 5, 7, 8, 0), result.last().scheduledFor)
+        assertEquals(real, result.real)
+        assertEquals(1, result.planned.size)
+        assertEquals(LocalDateTime.of(2026, 5, 7, 8, 0), result.planned.single().scheduledFor)
     }
 
     @Test
@@ -233,7 +234,8 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertTrue(result.isEmpty())
+        assertTrue(result.real.isEmpty())
+        assertTrue(result.planned.isEmpty())
     }
 
     @Test
@@ -280,10 +282,11 @@ class PkPlannedEntriesTest {
         )
 
         // Single future slot (May 7 8am), two medications.
-        assertEquals(2, result.size)
+        assertTrue(result.real.isEmpty())
+        assertEquals(2, result.planned.size)
         assertEquals(
             setOf(LocalDateTime.of(2026, 5, 7, 8, 0)),
-            result.map { it.scheduledFor }.toSet(),
+            result.planned.map { it.scheduledFor }.toSet(),
         )
     }
 
@@ -308,7 +311,7 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        assertEquals(first.map { it.uuid }, second.map { it.uuid })
+        assertEquals(first.planned.map { it.uuid }, second.planned.map { it.uuid })
     }
 
     @Test
@@ -330,7 +333,8 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
-            entries = simulationEntries,
+            entries = simulationEntries.real,
+            plannedEntries = simulationEntries.planned,
             bodyWeightKg = 70.0,
             generatedAt = now,
             zoneId = zoneId,
@@ -346,6 +350,73 @@ class PkPlannedEntriesTest {
         val before = projection.concentrationAtOrZero(100.0)
         val after = projection.concentrationAtOrZero(110.0)
         assertTrue("expected $after > $before", after > before)
+        // Every dose marker in the future-only scenario must be marked planned,
+        // since there are no real entries to fulfill any slot.
+        assertTrue(projection.doseMarkers.isNotEmpty())
+        assertTrue(projection.doseMarkers.all { it.isPlanned })
+    }
+
+    @Test
+    fun projection_realEntryFulfillingPlannedSlot_marksItLoggedNotPlanned() {
+        // The user pre-logs a dose for an upcoming planned slot. The dose
+        // marker at that time must be drawn as "logged" (isPlanned = false),
+        // even though it falls inside the prediction zone.
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val zoneId = ZoneId.systemDefault()
+        val group = dailyEstradiolGroup(
+            since = LocalDate.of(2026, 5, 1),
+            time = LocalTime.of(8, 0),
+        )
+        val slotUuid = group.schedule.timeSlots.single().uuid
+        val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
+        val real = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                sourceGroupUuid = group.uuid,
+                appliedAt = testInstant(fulfilledSlot),
+                scheduledFor = fulfilledSlot,
+                scheduleTimeUuid = slotUuid,
+            )
+        )
+
+        val simulationEntries = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(group),
+            now = now,
+            horizon = now.toLocalDate().plusDays(3).atStartOfDay(),
+            zoneId = zoneId,
+        )
+        val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+            entries = simulationEntries.real,
+            plannedEntries = simulationEntries.planned,
+            bodyWeightKg = 70.0,
+            generatedAt = now,
+            zoneId = zoneId,
+            futureDays = 3,
+        )
+
+        // The dose marker at the fulfilled slot's time must be logged (not planned).
+        // windowStart = May 3 0:00, fulfilled slot = May 7 8am → t = 104h.
+        val markerAtFulfilledSlot = projection.doseMarkers.minByOrNull {
+            kotlin.math.abs(it.timeH - 104.0)
+        }
+        assertTrue("marker missing", markerAtFulfilledSlot != null)
+        assertTrue(
+            "fulfilled-slot marker must be logged, not planned",
+            !markerAtFulfilledSlot!!.isPlanned,
+        )
+        // The next planned slot (May 8 8am, t = 128h) must still be marked planned.
+        val markerAtNextSlot = projection.doseMarkers.minByOrNull {
+            kotlin.math.abs(it.timeH - 128.0)
+        }
+        assertTrue(
+            "next-slot marker must remain planned",
+            markerAtNextSlot != null && markerAtNextSlot.isPlanned,
+        )
     }
 
     private fun PkProjectionResult.concentrationAtOrZero(hour: Double): Double {

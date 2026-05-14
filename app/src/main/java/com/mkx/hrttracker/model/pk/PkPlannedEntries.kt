@@ -17,15 +17,18 @@ import java.util.UUID
 // A future slot is considered fulfilled by a real entry iff that entry shares
 // the same (sourceGroupUuid, scheduleTimeUuid, scheduledFor) triple — the
 // real entry then replaces the virtual one (with its real appliedAt and dose).
+// The returned `planned` list flows through the simulator separately so the
+// resulting dose markers can be rendered with the "planned" UI treatment;
+// once a real entry occupies a slot, that marker shifts back to "logged".
 internal fun buildEstradiolPkSimulationEntries(
     realEntries: List<MedicationLogEntry>,
     activeGroups: List<MedicationGroup>,
     now: LocalDateTime,
     horizon: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
-): List<MedicationLogEntry> {
+): EstradiolPkSimulationEntries {
     if (!horizon.isAfter(now)) {
-        return realEntries
+        return EstradiolPkSimulationEntries(real = realEntries, planned = emptyList())
     }
 
     val occupied = realEntries.asSequence()
@@ -37,7 +40,7 @@ internal fun buildEstradiolPkSimulationEntries(
         }
         .toSet()
 
-    val virtual = activeGroups.asSequence()
+    val planned = activeGroups.asSequence()
         .flatMap { group ->
             group.occurrencesBetweenInPlanWindow(
                 startDate = now.toLocalDate(),
@@ -55,8 +58,13 @@ internal fun buildEstradiolPkSimulationEntries(
         }
         .toList()
 
-    return realEntries + virtual
+    return EstradiolPkSimulationEntries(real = realEntries, planned = planned)
 }
+
+internal data class EstradiolPkSimulationEntries(
+    val real: List<MedicationLogEntry>,
+    val planned: List<MedicationLogEntry>,
+)
 
 private data class SlotKey(
     val groupUuid: UUID,

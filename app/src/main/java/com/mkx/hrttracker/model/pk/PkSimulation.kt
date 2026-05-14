@@ -71,6 +71,9 @@ data class PkDoseEvent(
     val releaseRateMcgPerDay: Double? = null,
     val areaCm2: Double? = null,
     val sublingualTheta: Double? = null,
+    // True when this event came from a synthesized future-schedule slot rather
+    // than a user-logged entry. Drives the dose marker color in the UI.
+    val isPlanned: Boolean = false,
 )
 
 data class PkParams(
@@ -133,6 +136,7 @@ data class PkSimulationResult(
 data class PkDoseMarker(
     val timeH: Double,
     val concentration: Double,
+    val isPlanned: Boolean = false,
 )
 
 data class PkTrendResult(
@@ -303,6 +307,7 @@ object PkMedicationSimulation {
         bodyWeightKg: Double?,
         now: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        plannedEntries: List<MedicationLogEntry> = emptyList(),
     ): PkTrendResult? {
         val resolvedBodyWeightKg = bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
         val nowInstant = now.atZone(zoneId).toInstant()
@@ -314,18 +319,11 @@ object PkMedicationSimulation {
             .toInstant()
         val predictionStartTimeH = Duration.between(startInstant, nowInstant)
             .toMillis() / 3_600_000.0
-        val events = entries
-            .asSequence()
-            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = startInstant) }
-            .toList()
-        val doseMarkerTimeH = events
-            .asSequence()
-            .filter(PkDoseEvent::isDoseMarkerCandidate)
-            .map { event -> event.timeH.toChartXHour() }
-            .filter { timeH -> timeH.isFinite() && timeH in 0.0..MainChartWindowHours.toDouble() }
-            .distinct()
-            .sorted()
-            .toList()
+        val events = buildEstradiolEvents(
+            anchor = startInstant,
+            realEntries = entries,
+            plannedEntries = plannedEntries,
+        )
         val chartSampleTimeH = mainChartSampleTimeH(
             events = events,
             predictionStartTimeH = predictionStartTimeH,
@@ -343,14 +341,11 @@ object PkMedicationSimulation {
         val dailyConcentrations = (0..MainChartWindowDays.toInt()).map { index ->
             result.concentrationAt(index * HoursPerDay) ?: 0.0
         }
-        val doseMarkers = doseMarkerTimeH.mapNotNull { timeH ->
-            result.concentrationAt(timeH)?.let { concentration ->
-                PkDoseMarker(
-                    timeH = timeH,
-                    concentration = concentration,
-                )
-            }
-        }
+        val doseMarkers = buildDoseMarkers(
+            events = events,
+            windowEndHours = MainChartWindowHours.toDouble(),
+            concentrationAt = result::concentrationAt,
+        )
         return PkTrendResult(
             currentConcentration = result.concentrationAt(predictionStartTimeH) ?: 0.0,
             previousDayConcentration = result.concentrationAt(predictionStartTimeH - HoursPerDay) ?: 0.0,
@@ -377,6 +372,7 @@ object PkMedicationSimulation {
         generatedAt: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
         futureDays: Long = 14L,
+        plannedEntries: List<MedicationLogEntry> = emptyList(),
     ): PkProjectionResult {
         val resolvedBodyWeightKg = bodyWeightKg?.takeIf { it.isFinite() && it > 0 } ?: DefaultBodyWeightKg
         val generatedAtInstant = generatedAt.atZone(zoneId).toInstant()
@@ -396,10 +392,11 @@ object PkMedicationSimulation {
             .toMillis() / 3_600_000.0
         val generatedAtTimeH = Duration.between(windowStart, generatedAtInstant)
             .toMillis() / 3_600_000.0
-        val events = entries
-            .asSequence()
-            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = windowStart) }
-            .toList()
+        val events = buildEstradiolEvents(
+            anchor = windowStart,
+            realEntries = entries,
+            plannedEntries = plannedEntries,
+        )
         val sampleTimeH = mainProjectionSampleTimeH(
             events = events,
             windowEndHours = windowHours,
@@ -413,22 +410,11 @@ object PkMedicationSimulation {
             endTimeH = windowHours,
             numberOfSteps = ceil(windowHours).toInt().coerceAtLeast(1) + 1,
         ).run(sampleTimeH = sampleTimeH)
-        val doseMarkers = events
-            .asSequence()
-            .filter(PkDoseEvent::isDoseMarkerCandidate)
-            .map { event -> event.timeH.toChartXHour() }
-            .filter { timeH -> timeH.isFinite() && timeH in 0.0..windowHours }
-            .distinct()
-            .sorted()
-            .mapNotNull { timeH ->
-                result.concentrationAt(timeH)?.let { concentration ->
-                    PkDoseMarker(
-                        timeH = timeH,
-                        concentration = concentration,
-                    )
-                }
-            }
-            .toList()
+        val doseMarkers = buildDoseMarkers(
+            events = events,
+            windowEndHours = windowHours,
+            concentrationAt = result::concentrationAt,
+        )
 
         return PkProjectionResult(
             generatedAt = generatedAtInstant,
@@ -443,6 +429,47 @@ object PkMedicationSimulation {
 
     private fun Double.toChartXHour(): Double {
         return (this * ChartXPrecisionScale).roundToLong() / ChartXPrecisionScale
+    }
+
+    private fun buildEstradiolEvents(
+        anchor: java.time.Instant,
+        realEntries: List<MedicationLogEntry>,
+        plannedEntries: List<MedicationLogEntry>,
+    ): List<PkDoseEvent> {
+        val realEvents = realEntries.asSequence()
+            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = anchor, isPlanned = false) }
+        val plannedEvents = plannedEntries.asSequence()
+            .mapNotNull { entry -> entry.toEstradiolPkDoseEvent(anchor = anchor, isPlanned = true) }
+        return (realEvents + plannedEvents).toList()
+    }
+
+    // Groups dose-marker-candidate events by their chart-rounded time. A marker
+    // at a given instant is treated as "planned" only when every event at that
+    // instant is itself planned — so a real entry that fulfills a planned slot
+    // flips the marker color back to "logged".
+    private fun buildDoseMarkers(
+        events: List<PkDoseEvent>,
+        windowEndHours: Double,
+        concentrationAt: (Double) -> Double?,
+    ): List<PkDoseMarker> {
+        return events
+            .asSequence()
+            .filter(PkDoseEvent::isDoseMarkerCandidate)
+            .mapNotNull { event ->
+                val time = event.timeH.toChartXHour()
+                if (time.isFinite() && time in 0.0..windowEndHours) time to event else null
+            }
+            .groupBy({ (time, _) -> time }, { (_, event) -> event })
+            .toSortedMap()
+            .mapNotNull { (time, eventsAtTime) ->
+                concentrationAt(time)?.let { concentration ->
+                    PkDoseMarker(
+                        timeH = time,
+                        concentration = concentration,
+                        isPlanned = eventsAtTime.all { it.isPlanned },
+                    )
+                }
+            }
     }
 
     private fun mainChartSampleTimeH(
@@ -1022,7 +1049,10 @@ object ThreeCompartmentModel {
     }
 }
 
-private fun MedicationLogEntry.toEstradiolPkDoseEvent(anchor: Instant): PkDoseEvent? {
+private fun MedicationLogEntry.toEstradiolPkDoseEvent(
+    anchor: Instant,
+    isPlanned: Boolean = false,
+): PkDoseEvent? {
     if (category != MedicationCategory.ESTRADIOL) {
         return null
     }
@@ -1053,6 +1083,7 @@ private fun MedicationLogEntry.toEstradiolPkDoseEvent(anchor: Instant): PkDoseEv
         compound = compound,
         releaseRateMcgPerDay = releaseRateMcgPerDay,
         areaCm2 = DefaultGelAreaCm2,
+        isPlanned = isPlanned,
     )
 }
 

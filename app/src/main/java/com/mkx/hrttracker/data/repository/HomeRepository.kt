@@ -124,6 +124,7 @@ class HomeRepository @Inject constructor(
                 pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord),
                 latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry ?: inputs.latestEstradiolEntry,
                 estradiolPkEntries = inputs.estradiolPkEntries,
+                estradiolPkPlannedEntries = inputs.estradiolPkPlannedEntries,
                 source = HomeInputSource.ROOM,
                 now = now,
             )
@@ -243,7 +244,8 @@ class HomeRepository @Inject constructor(
                         zoneId = zoneId,
                     )
                     basics.copy(
-                        estradiolPkEntries = simulationEntries,
+                        estradiolPkEntries = simulationEntries.real,
+                        estradiolPkPlannedEntries = simulationEntries.planned,
                         latestEstradiolEntry = latestEstradiolEntry,
                     )
                 }
@@ -290,6 +292,7 @@ data class HomeStartupInputs(
     val profile: UserProfile,
     val settings: SettingsState,
     val estradiolPkEntries: List<MedicationLogEntry>,
+    val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
     val latestEstradiolEntry: MedicationLogEntry?,
 )
 
@@ -302,6 +305,7 @@ data class HomeInputs(
     val pkProjection: PkProjectionResult?,
     val latestEstradiolEntry: MedicationLogEntry?,
     val estradiolPkEntries: List<MedicationLogEntry>,
+    val estradiolPkPlannedEntries: List<MedicationLogEntry> = emptyList(),
     val source: HomeInputSource,
     val now: LocalDateTime,
 )

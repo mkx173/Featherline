@@ -110,6 +110,7 @@ class MainViewModel @Inject constructor(
         val trendResult = inputs.pkProjection?.toMainEstradiolTrend(now = now, zoneId = zoneId)
             ?: PkMedicationSimulation.simulateMainEstradiolTrend(
                 entries = inputs.estradiolPkEntries,
+                plannedEntries = inputs.estradiolPkPlannedEntries,
                 bodyWeightKg = inputs.profile.weightKg,
                 now = now,
                 zoneId = zoneId,
