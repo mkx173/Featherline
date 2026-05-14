@@ -171,7 +171,6 @@ import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
-import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -985,25 +984,6 @@ internal fun MainE2ChartCard(
                 val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
                     MainE2ChartCoordinateMapper()
                 }
-                val chartViewportSnapshot = chartCoordinateMapper.viewportSnapshot
-                    .collectAsState().value
-                val predictedLineBrush = remember(
-                    lineColor,
-                    currentTimeXHours,
-                    chartWindowHours,
-                    chartViewportSnapshot,
-                ) {
-                    val visibleRange = chartViewportSnapshot?.visibleRange
-                    val visibleStart = visibleRange?.start ?: 0.0
-                    val visibleEnd = visibleRange?.endInclusive ?: chartWindowHours.toDouble()
-                    mainE2ChartPredictedLineBrush(
-                        lineColor = lineColor,
-                        visibleStartXHours = visibleStart,
-                        visibleEndXHours = visibleEnd,
-                        nowXHours = currentTimeXHours,
-                        fadeEndXHours = chartWindowHours.toDouble(),
-                    )
-                }
                 val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
@@ -1123,7 +1103,7 @@ internal fun MainE2ChartCard(
                                                 ),
                                                 LineCartesianLayer.rememberLine(
                                                     fill = LineCartesianLayer.LineFill.single(
-                                                        Fill(predictedLineBrush)
+                                                        Fill(lineColor.copy(alpha = MainE2ChartPredictedAlpha))
                                                     ),
                                                     interpolator = LineCartesianLayer.Interpolator.catmullRom(),
                                                 ),
@@ -2066,51 +2046,7 @@ private class MainE2ChartCoordinateMapper {
     }
 }
 
-// Predicted-line alpha is a function of *data* x:
-//   alpha(x) = 1                                              for x ≤ now
-//   alpha(x) = floor + (1 − floor) · (1 − t)²    where
-//              t = clamp((x − now) / (fadeEnd − now), 0, 1)   for x > now
-// Compose's Brush.horizontalGradient maps stop fractions to the visible
-// canvas (= Vico's plot area = current viewport in pixels). We sample the
-// data-space alpha curve at evenly spaced visible-pixel fractions so the
-// gradient's shape is anchored to data — panning past "now" to a future-only
-// view shows the correct partially-faded alpha at the visible left edge,
-// rather than restarting the curve from full alpha there.
-private const val MainE2ChartPredictedFloorAlpha = 0.3f
-private const val MainE2ChartPredictedFadeStops = 16
-
-private fun mainE2ChartPredictedLineBrush(
-    lineColor: Color,
-    visibleStartXHours: Double,
-    visibleEndXHours: Double,
-    nowXHours: Double,
-    fadeEndXHours: Double,
-): Brush {
-    val visibleSpan = (visibleEndXHours - visibleStartXHours).coerceAtLeast(1e-6)
-    val stops = Array(MainE2ChartPredictedFadeStops + 1) { i ->
-        val fraction = i.toFloat() / MainE2ChartPredictedFadeStops
-        val dataX = visibleStartXHours + fraction.toDouble() * visibleSpan
-        val alpha = mainE2ChartPredictedAlphaAt(
-            x = dataX,
-            nowX = nowXHours,
-            fadeEndX = fadeEndXHours,
-        )
-        fraction to lineColor.copy(alpha = alpha)
-    }
-    return Brush.horizontalGradient(colorStops = stops)
-}
-
-private fun mainE2ChartPredictedAlphaAt(
-    x: Double,
-    nowX: Double,
-    fadeEndX: Double,
-): Float {
-    if (x <= nowX) return 1f
-    val fadeSpan = (fadeEndX - nowX).coerceAtLeast(1e-6)
-    val t = ((x - nowX) / fadeSpan).coerceIn(0.0, 1.0).toFloat()
-    return MainE2ChartPredictedFloorAlpha +
-        (1f - MainE2ChartPredictedFloorAlpha) * (1f - t).pow(2f)
-}
+private const val MainE2ChartPredictedAlpha = 0.5f
 
 private fun mainE2ChartConcentrationAtX(
     xHours: Double,
