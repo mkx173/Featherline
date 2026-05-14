@@ -91,6 +91,7 @@ class HomeSnapshotCodecTest {
             generatedAtEpochMillis = 10L,
             windowStartEpochMillis = 20L,
             windowEndEpochMillis = 30L,
+            pkProjectionExpiresAtEpochMillis = 25L,
             concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
             timeH = listOf(0.0, 1.0, 2.0),
             concentrations = listOf(10.0, 20.0, 30.0),

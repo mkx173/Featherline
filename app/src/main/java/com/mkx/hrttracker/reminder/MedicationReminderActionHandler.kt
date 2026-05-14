@@ -6,8 +6,8 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
-import com.mkx.hrttracker.ui.plan.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.ui.plan.isSlotFulfilled

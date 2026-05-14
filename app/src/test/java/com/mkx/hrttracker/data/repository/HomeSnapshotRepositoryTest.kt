@@ -26,6 +26,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -54,6 +56,68 @@ class HomeSnapshotRepositoryTest {
             generationState.value = nextGeneration
             nextGeneration
         }
+    }
+
+    @Test
+    fun decodeProjection_returnsNullWhenProjectionExpired() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        )
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 7, 9, 0)
+        // Expiry was set at the previous planned slot (May 7 at 08:00).
+        val expiredAt = LocalDateTime.of(2026, 5, 7, 8, 0)
+            .atZone(zoneId).toInstant().toEpochMilli()
+        val record = HomePkProjectionRecord(
+            generatedAtEpochMillis = 0L,
+            windowStartEpochMillis = 0L,
+            windowEndEpochMillis = Long.MAX_VALUE,
+            pkProjectionExpiresAtEpochMillis = expiredAt,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+            latestEstradiolEntry = null,
+        )
+
+        assertNull(repository.decodeProjection(record, now, zoneId))
+        assertTrue(repository.isPkProjectionExpired(record, now, zoneId))
+    }
+
+    @Test
+    fun decodeProjection_returnsResultWhenProjectionStillValid() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val repository = HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        )
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 7, 7, 0)
+        // Expiry is one hour in the future.
+        val expiresAt = LocalDateTime.of(2026, 5, 7, 8, 0)
+            .atZone(zoneId).toInstant().toEpochMilli()
+        val record = HomePkProjectionRecord(
+            generatedAtEpochMillis = 0L,
+            windowStartEpochMillis = 0L,
+            windowEndEpochMillis = Long.MAX_VALUE,
+            pkProjectionExpiresAtEpochMillis = expiresAt,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = emptyList(),
+            concentrations = emptyList(),
+            doseMarkers = emptyList(),
+            latestEstradiolEntry = null,
+        )
+
+        assertNotNull(repository.decodeProjection(record, now, zoneId))
+        assertFalse(repository.isPkProjectionExpired(record, now, zoneId))
     }
 
     @Test
@@ -330,6 +394,10 @@ class HomeSnapshotRepositoryTest {
                     .atStartOfDay(zoneId)
                     .toInstant()
                     .toEpochMilli(),
+                pkProjectionExpiresAtEpochMillis = anchorDate.plusDays(14)
+                    .atStartOfDay(zoneId)
+                    .toInstant()
+                    .toEpochMilli(),
                 concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
                 timeH = emptyList(),
                 concentrations = emptyList(),
@@ -487,6 +555,11 @@ class HomeSnapshotRepositoryTest {
                     .toInstant()
                     .toEpochMilli(),
                 windowEndEpochMillis = now.toLocalDate()
+                    .plusDays(14)
+                    .atStartOfDay(zoneId)
+                    .toInstant()
+                    .toEpochMilli(),
+                pkProjectionExpiresAtEpochMillis = now.toLocalDate()
                     .plusDays(14)
                     .atStartOfDay(zoneId)
                     .toInstant()

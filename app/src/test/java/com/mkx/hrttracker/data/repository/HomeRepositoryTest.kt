@@ -152,6 +152,10 @@ class HomeRepositoryTest {
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis = LocalDate.of(2026, 5, 30)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
             concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
             timeH = emptyList(),
             concentrations = emptyList(),
@@ -228,7 +232,7 @@ class HomeRepositoryTest {
         )
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
-        every { homeSnapshotRepository.decodeProjection(null) } returns null
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
         every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
 
         val inputs = HomeRepository(
@@ -303,7 +307,7 @@ class HomeRepositoryTest {
                 zoneId = any(),
             )
         } returns emptyList()
-        every { homeSnapshotRepository.decodeProjection(null) } returns null
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
 
         val emittedSources = mutableListOf<HomeInputSource>()
         val firstRoomObserved = CompletableDeferred<Unit>()

@@ -2,6 +2,7 @@ package com.mkx.hrttracker.ui.plan
 
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import org.junit.Assert.assertNotEquals

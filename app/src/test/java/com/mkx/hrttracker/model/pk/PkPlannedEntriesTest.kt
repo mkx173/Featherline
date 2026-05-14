@@ -239,7 +239,9 @@ class PkPlannedEntriesTest {
     }
 
     @Test
-    fun build_groupWithMultipleEstradiolMeds_emitsOneVirtualPerMedPerSlot() {
+    fun build_groupWithIdenticalSignatureMeds_collapsesToOneVirtualWithSummedCount() {
+        // Two MedicationGroupMedication instances with the same details merge
+        // into a single virtual entry whose count equals the summed plan.
         val now = LocalDateTime.of(2026, 5, 6, 10, 0)
         val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
         val medA = MedicationGroupMedication(
@@ -281,13 +283,79 @@ class PkPlannedEntriesTest {
             zoneId = zoneId,
         )
 
-        // Single future slot (May 7 8am), two medications.
         assertTrue(result.real.isEmpty())
-        assertEquals(2, result.planned.size)
-        assertEquals(
-            setOf(LocalDateTime.of(2026, 5, 7, 8, 0)),
-            result.planned.map { it.scheduledFor }.toSet(),
+        assertEquals(1, result.planned.size)
+        val virtual = result.planned.single()
+        assertEquals(LocalDateTime.of(2026, 5, 7, 8, 0), virtual.scheduledFor)
+        assertEquals(2, virtual.count)
+    }
+
+    @Test
+    fun build_realEntryMatchingOneSignature_leavesOtherSignatureVirtual() {
+        // A group with two different estradiol medications in the same slot:
+        // logging one must NOT suppress the planned dose for the other. This
+        // is the case the slot-only SlotKey approach got wrong.
+        val now = LocalDateTime.of(2026, 5, 6, 10, 0)
+        val horizon = LocalDateTime.of(2026, 5, 8, 0, 0)
+        val groupUuid = UUID.fromString("ccc3c8f0-1d11-4d10-9c9c-e51d9b09a000")
+        val oralMed = MedicationGroupMedication(
+            uuid = UUID.fromString("11111111-1d11-4d10-9c9c-e51d9b09a000"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.ORAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
         )
+        val sublingualMed = MedicationGroupMedication(
+            uuid = UUID.fromString("22222222-1d11-4d10-9c9c-e51d9b09a000"),
+            details = testCatalogMedicationDetails(
+                key = MedicationKey.ESTRADIOL,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+        )
+        val group = MedicationGroup(
+            uuid = groupUuid,
+            name = "Oral + sublingual",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 5, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(8, 0)),
+            ),
+            medications = listOf(oralMed, sublingualMed),
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+
+        // Log the oral dose for tomorrow's 8am slot — sublingual stays planned.
+        val slotUuid = group.schedule.timeSlots.single().uuid
+        val fulfilledSlot = LocalDateTime.of(2026, 5, 7, 8, 0)
+        val real = listOf(
+            testMedicationLogEntry(
+                details = oralMed.details,
+                sourceGroupUuid = group.uuid,
+                appliedAt = testInstant(fulfilledSlot),
+                scheduledFor = fulfilledSlot,
+                scheduleTimeUuid = slotUuid,
+            )
+        )
+
+        val result = buildEstradiolPkSimulationEntries(
+            realEntries = real,
+            activeGroups = listOf(group),
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
+
+        assertEquals(real, result.real)
+        assertEquals(1, result.planned.size)
+        val remaining = result.planned.single()
+        assertEquals(MedicationApplicationType.SUBLINGUAL, remaining.applicationType)
+        assertEquals(fulfilledSlot, remaining.scheduledFor)
+        assertEquals(1, remaining.count)
     }
 
     @Test

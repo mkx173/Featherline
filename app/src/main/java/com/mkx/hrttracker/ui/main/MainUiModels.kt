@@ -18,7 +18,7 @@ import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
 import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
-import com.mkx.hrttracker.ui.plan.MedicationSignature
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.ui.plan.isEntryFulfillingPlanSlot

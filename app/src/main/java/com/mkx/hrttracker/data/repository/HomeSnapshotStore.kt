@@ -141,6 +141,12 @@ data class HomePkProjectionRecord(
     val generatedAtEpochMillis: Long,
     val windowStartEpochMillis: Long,
     val windowEndEpochMillis: Long,
+    // Wall-clock instant past which the projection is considered stale —
+    // typically the soonest planned dose time strictly after generatedAt.
+    // Once now crosses this, consumers should treat the projection as
+    // missing and request a refresh, because the cached curve still shows
+    // doses the user may have missed.
+    val pkProjectionExpiresAtEpochMillis: Long,
     val concentrationUnit: String,
     val timeH: List<Double>,
     val concentrations: List<Double>,
@@ -248,6 +254,7 @@ internal object HomeSnapshotCodec {
         writeLong(record.generatedAtEpochMillis)
         writeLong(record.windowStartEpochMillis)
         writeLong(record.windowEndEpochMillis)
+        writeLong(record.pkProjectionExpiresAtEpochMillis)
         writeString(record.concentrationUnit)
         writeList(record.timeH) { value -> writeDouble(value) }
         writeList(record.concentrations) { value -> writeDouble(value) }
@@ -267,6 +274,7 @@ internal object HomeSnapshotCodec {
             generatedAtEpochMillis = readLong(),
             windowStartEpochMillis = readLong(),
             windowEndEpochMillis = readLong(),
+            pkProjectionExpiresAtEpochMillis = readLong(),
             concentrationUnit = readString(),
             timeH = readList { readDouble() },
             concentrations = readList { readDouble() },
@@ -631,7 +639,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 7
+private const val SNAPSHOT_CODEC_VERSION = 8
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

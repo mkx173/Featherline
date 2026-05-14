@@ -182,8 +182,20 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
-    fun decodeProjection(projectionRecord: HomePkProjectionRecord?): PkProjectionResult? {
+    fun decodeProjection(
+        projectionRecord: HomePkProjectionRecord?,
+        now: LocalDateTime,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): PkProjectionResult? {
         projectionRecord ?: return null
+        if (isPkProjectionExpired(projectionRecord, now, zoneId)) {
+            diagnosticsLogger.info(
+                TAG,
+                "home_snapshot_pk_projection_expired now=$now " +
+                    "expiresAt=${projectionRecord.pkProjectionExpiresAtEpochMillis}"
+            )
+            return null
+        }
         return runCatching {
             val unit = runCatching {
                 com.mkx.hrttracker.model.pk.PkConcentrationUnit.valueOf(projectionRecord.concentrationUnit)
@@ -205,6 +217,15 @@ class HomeSnapshotRepository @Inject constructor(
                 },
             )
         }.getOrNull()
+    }
+
+    fun isPkProjectionExpired(
+        projectionRecord: HomePkProjectionRecord,
+        now: LocalDateTime,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        val nowEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli()
+        return nowEpochMillis >= projectionRecord.pkProjectionExpiresAtEpochMillis
     }
 
     private fun snapshotUsabilityFailure(
@@ -293,11 +314,15 @@ class HomeSnapshotRepository @Inject constructor(
                     "generation=$gen " +
                     "existing=${existingSnapshot?.diagnosticSummary() ?: "none"}"
             )
+            val pkExpired = existingSnapshot?.pkProjection?.let { record ->
+                isPkProjectionExpired(record, now, zoneId)
+            } == true
             if (
                 !force &&
                 existingSnapshot != null &&
                 existingSnapshot.generation >= gen &&
-                isSnapshotUsable(existingSnapshot, now, zoneId)
+                isSnapshotUsable(existingSnapshot, now, zoneId) &&
+                !pkExpired
             ) {
                 diagnosticsLogger.info(
                     TAG,
@@ -305,6 +330,13 @@ class HomeSnapshotRepository @Inject constructor(
                         "${existingSnapshot.diagnosticSummary()} now=$now"
                 )
                 return
+            }
+            if (pkExpired) {
+                diagnosticsLogger.info(
+                    TAG,
+                    "home_snapshot_refresh_continuing reason=pk_projection_expired " +
+                        "${existingSnapshot?.diagnosticSummary() ?: "none"} now=$now"
+                )
             }
             gen
         }
@@ -352,14 +384,15 @@ class HomeSnapshotRepository @Inject constructor(
                 "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
         )
 
+        val horizon = now.toLocalDate().plusDays(HOME_PK_PROJECTION_FUTURE_DAYS).atStartOfDay()
+        val simulationEntries = buildEstradiolPkSimulationEntries(
+            realEntries = inputs.pkEntries,
+            activeGroups = inputs.activeGroups,
+            now = now,
+            horizon = horizon,
+            zoneId = zoneId,
+        )
         val projection = withContext(defaultDispatcher) {
-            val simulationEntries = buildEstradiolPkSimulationEntries(
-                realEntries = inputs.pkEntries,
-                activeGroups = inputs.activeGroups,
-                now = now,
-                horizon = now.toLocalDate().plusDays(HOME_PK_PROJECTION_FUTURE_DAYS).atStartOfDay(),
-                zoneId = zoneId,
-            )
             PkMedicationSimulation.simulateMainEstradiolProjection(
                 entries = simulationEntries.real,
                 plannedEntries = simulationEntries.planned,
@@ -369,15 +402,27 @@ class HomeSnapshotRepository @Inject constructor(
                 futureDays = HOME_PK_PROJECTION_FUTURE_DAYS,
             )
         }
+        // Expire at the soonest planned dose after generation time — the
+        // moment a slot transitions from "future" to "should be logged by now"
+        // is exactly when a cached projection starts overstating the curve.
+        // Fall back to the projection's window end when there are no future
+        // planned slots (nothing to go stale).
+        val expiresAtInstant = simulationEntries.planned.asSequence()
+            .map { entry -> entry.appliedAt }
+            .filter { instant -> instant.isAfter(projection.generatedAt) }
+            .minOrNull()
+            ?: projection.windowEnd
         diagnosticsLogger.info(
             TAG,
             "home_snapshot_refresh_projection_built generation=$refreshGeneration " +
-                "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd}"
+                "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
+                "expiresAt=$expiresAtInstant"
         )
         val pkProjectionRecord = HomePkProjectionRecord(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
             windowStartEpochMillis = projection.windowStart.toEpochMilli(),
             windowEndEpochMillis = projection.windowEnd.toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis = expiresAtInstant.toEpochMilli(),
             concentrationUnit = projection.concentrationUnit.name,
             timeH = projection.timeH,
             concentrations = projection.concentrations,
