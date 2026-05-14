@@ -62,7 +62,7 @@ internal fun buildEstradiolPkSimulationEntries(
                 zoneId = zoneId,
             ).asSequence()
                 .filter { occurrence -> occurrence.scheduledFor.isAfter(now) }
-                .filter { occurrence -> occurrence.scheduledFor.isBefore(horizon) }
+                .filter { occurrence -> !occurrence.scheduledFor.isAfter(horizon) }
                 .flatMap { occurrence ->
                     group.virtualEntriesForOccurrence(occurrence, loggedCount, zoneId)
                         .asSequence()
