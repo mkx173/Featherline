@@ -8,9 +8,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
-import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -217,7 +217,7 @@ class MedicationReminderActionHandler @Inject constructor(
             val group = groupsByUuid[slot.groupUuid] ?: return@filter false
             !isSlotFulfilled(
                 group = group,
-                slot = slot.toPlanScheduleTimeSlot(),
+                slot = slot.toMedicationGroupSlotKey(),
                 entries = entries,
             )
         }
@@ -258,7 +258,7 @@ internal fun buildMissingReminderLogEntries(
         return emptyList()
     }
 
-    val planSlot = slot.toPlanScheduleTimeSlot()
+    val planSlot = slot.toMedicationGroupSlotKey()
     val slotLogs = entries.filter { entry ->
         isEntryFulfillingPlanSlot(
             group = group,
@@ -294,8 +294,8 @@ internal fun buildMissingReminderLogEntries(
         }
 }
 
-internal fun MedicationReminderSlot.toPlanScheduleTimeSlot(): PlanScheduleTimeSlot {
-    return PlanScheduleTimeSlot(
+internal fun MedicationReminderSlot.toMedicationGroupSlotKey(): MedicationGroupSlotKey {
+    return MedicationGroupSlotKey(
         scheduleTimeUuid = scheduleTimeUuid,
         scheduledFor = scheduledAt,
     )

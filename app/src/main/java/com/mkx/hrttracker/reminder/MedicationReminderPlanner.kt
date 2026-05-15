@@ -1,11 +1,11 @@
 package com.mkx.hrttracker.reminder
 
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
-import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -35,7 +35,7 @@ internal fun buildNextMedicationReminderPlans(
                 .firstOrNull { occurrence ->
                     !isSlotFulfilled(
                         group = group,
-                        slot = PlanScheduleTimeSlot(
+                        slot = MedicationGroupSlotKey(
                             scheduleTimeUuid = occurrence.scheduleTimeUuid,
                             scheduledFor = occurrence.scheduledFor,
                         ),
