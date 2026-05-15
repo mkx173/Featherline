@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -106,34 +107,27 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setCalibrationDefaultUnit(
-        analyteKey: BloodAnalyteKey,
-        unit: BloodUnitKey,
-    ) {
-        require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
-            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-        }
-
+    suspend fun setCalibrationDefaultUnit(choice: AllowedAnalyteUnit) {
         context.dataStore.edit { preferences ->
-            val key = calibrationDefaultUnitKeys.getValue(analyteKey)
-            if (unit == BloodTestCatalog.canonicalUnitFor(analyteKey)) {
+            val key = calibrationDefaultUnitKeys.getValue(choice.analyte)
+            if (choice.unit == BloodTestCatalog.canonicalUnitFor(choice.analyte)) {
                 preferences.remove(key)
             } else {
-                preferences[key] = unit.storageValue
+                preferences[key] = choice.unit.storageValue
             }
         }
     }
 
-    suspend fun setHomeE2DisplayUnit(unit: BloodUnitKey) {
-        require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit)) {
-            "Unit ${unit.storageValue} is not allowed for home E2 display."
+    suspend fun setHomeE2DisplayUnit(choice: AllowedAnalyteUnit) {
+        require(choice.analyte == BloodAnalyteKey.E2) {
+            "Home E2 display unit must reference analyte E2; got ${choice.analyte.storageValue}."
         }
 
         context.dataStore.edit { preferences ->
-            if (unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
+            if (choice.unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
-                preferences[homeE2DisplayUnitKey] = unit.storageValue
+                preferences[homeE2DisplayUnitKey] = choice.unit.storageValue
             }
         }
     }
@@ -189,17 +183,12 @@ class SettingsRepository @Inject constructor(
         hideScreenContentEnabled: Boolean,
         onboardingCompleted: Boolean,
         appLanguageOption: AppLanguageOption,
-        calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
-        homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+        calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
+        homeE2DisplayUnit: AllowedAnalyteUnit,
         lastSeenTimeZoneId: String? = null,
     ) {
-        calibrationDefaultUnits.forEach { (analyteKey, unit) ->
-            require(BloodTestCatalog.isUnitAllowed(analyteKey, unit)) {
-                "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-            }
-        }
-        require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, homeE2DisplayUnit)) {
-            "Unit ${homeE2DisplayUnit.storageValue} is not allowed for home E2 display."
+        require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
+            "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
         }
 
         context.dataStore.edit { preferences ->
@@ -212,15 +201,15 @@ class SettingsRepository @Inject constructor(
             preferences[onboardingCompletedKey] = onboardingCompleted
 
             calibrationDefaultUnitKeys.values.forEach(preferences::remove)
-            calibrationDefaultUnits.forEach { (analyteKey, unit) ->
-                if (unit != BloodTestCatalog.canonicalUnitFor(analyteKey)) {
-                    preferences[calibrationDefaultUnitKeys.getValue(analyteKey)] = unit.storageValue
+            calibrationDefaultUnits.forEach { choice ->
+                if (choice.unit != BloodTestCatalog.canonicalUnitFor(choice.analyte)) {
+                    preferences[calibrationDefaultUnitKeys.getValue(choice.analyte)] = choice.unit.storageValue
                 }
             }
-            if (homeE2DisplayUnit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
+            if (homeE2DisplayUnit.unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
-                preferences[homeE2DisplayUnitKey] = homeE2DisplayUnit.storageValue
+                preferences[homeE2DisplayUnitKey] = homeE2DisplayUnit.unit.storageValue
             }
 
             if (lastSeenTimeZoneId == null) {

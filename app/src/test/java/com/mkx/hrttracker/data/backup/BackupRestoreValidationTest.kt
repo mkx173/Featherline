@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.backup
 
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.AppLanguageOption
@@ -168,9 +169,12 @@ class BackupRestoreValidationTest {
         assertEquals(true, validatedSnapshot.settings.hideScreenContentEnabled)
         assertEquals(true, validatedSnapshot.settings.onboardingCompleted)
         assertEquals(AppLanguageOption.SIMPLIFIED_CHINESE, validatedSnapshot.settings.appLanguageOption)
-        assertEquals(BloodUnitKey.NG_DL, validatedSnapshot.settings.homeE2DisplayUnit)
         assertEquals(
-            mapOf(BloodAnalyteKey.E2 to BloodUnitKey.PMOL_L),
+            AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.NG_DL),
+            validatedSnapshot.settings.homeE2DisplayUnit,
+        )
+        assertEquals(
+            setOf(AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)),
             validatedSnapshot.settings.calibrationDefaultUnits,
         )
 

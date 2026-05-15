@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
@@ -62,7 +63,7 @@ class CalibrationUnitsViewModel @Inject constructor(
         unit: BloodUnitKey,
     ) {
         viewModelScope.launch {
-            settingsRepository.setCalibrationDefaultUnit(analyteKey, unit)
+            settingsRepository.setCalibrationDefaultUnit(AllowedAnalyteUnit.of(analyteKey, unit))
         }
     }
 

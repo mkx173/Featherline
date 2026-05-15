@@ -7,6 +7,8 @@ import com.mkx.hrttracker.data.repository.HomeInputs
 import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.DefaultDispatcher
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
@@ -81,7 +83,7 @@ class MainViewModel @Inject constructor(
 
     fun setHomeE2DisplayUnit(unit: BloodUnitKey) {
         viewModelScope.launch {
-            settingsRepository.setHomeE2DisplayUnit(unit)
+            settingsRepository.setHomeE2DisplayUnit(AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit))
         }
     }
 

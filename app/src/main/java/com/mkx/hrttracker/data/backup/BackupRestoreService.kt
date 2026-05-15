@@ -14,6 +14,7 @@ import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
@@ -540,16 +541,14 @@ internal fun BackupSnapshot.toValidatedSnapshot(
                 val unitKey = checkNotNull(BloodUnitKey.fromStorageValue(result.unitSnapshot)) {
                     "Unsupported built-in blood unit ${result.unitSnapshot}."
                 }
-                require(BloodTestCatalog.isUnitAllowed(analyteKey, unitKey)) {
-                    "Unit ${unitKey.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-                }
-                require(seenBuiltinAnalytes.add(analyteKey.storageValue)) {
-                    "Blood test panel ${panel.uuid} contains duplicate built-in analyte ${analyteKey.storageValue}."
+                val choice = AllowedAnalyteUnit.of(analyteKey, unitKey)
+                require(seenBuiltinAnalytes.add(choice.analyte.storageValue)) {
+                    "Blood test panel ${panel.uuid} contains duplicate built-in analyte ${choice.analyte.storageValue}."
                 }
                 val expectedCanonicalValue = BloodTestCatalog.toCanonical(
-                    analyteKey = analyteKey,
+                    analyteKey = choice.analyte,
                     value = result.value,
-                    unit = unitKey,
+                    unit = choice.unit,
                 )
                 require(closeEnough(expectedCanonicalValue, result.canonicalValue)) {
                     "Blood test result ${result.uuid} has an inconsistent canonical value."
@@ -638,17 +637,12 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         val unitKey = checkNotNull(BloodUnitKey.fromStorageValue(unitStorageValue)) {
             "Unsupported calibration unit key $unitStorageValue."
         }
-        require(BloodTestCatalog.isUnitAllowed(analyteKey, unitKey)) {
-            "Unit ${unitKey.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-        }
-        analyteKey to unitKey
-    }.toMap()
+        AllowedAnalyteUnit.of(analyteKey, unitKey)
+    }.toSet()
     val homeE2DisplayUnitKey = checkNotNull(BloodUnitKey.fromStorageValue(homeE2DisplayUnit)) {
         "Unsupported home E2 display unit key $homeE2DisplayUnit."
     }
-    require(BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, homeE2DisplayUnitKey)) {
-        "Unit ${homeE2DisplayUnitKey.storageValue} is not allowed for home E2 display."
-    }
+    val homeE2Choice = AllowedAnalyteUnit.of(BloodAnalyteKey.E2, homeE2DisplayUnitKey)
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -660,7 +654,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         onboardingCompleted = onboardingCompleted,
         appLanguageOption = appLanguageOption,
         calibrationDefaultUnits = calibrationDefaultUnits,
-        homeE2DisplayUnit = homeE2DisplayUnitKey,
+        homeE2DisplayUnit = homeE2Choice,
         lastSeenTimeZoneId = lastSeenTimeZoneId,
     )
 }
@@ -776,8 +770,8 @@ internal data class ValidatedBackupSettings(
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,
     val appLanguageOption: AppLanguageOption,
-    val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey>,
-    val homeE2DisplayUnit: BloodUnitKey,
+    val calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
+    val homeE2DisplayUnit: AllowedAnalyteUnit,
     val lastSeenTimeZoneId: String?,
 )
 

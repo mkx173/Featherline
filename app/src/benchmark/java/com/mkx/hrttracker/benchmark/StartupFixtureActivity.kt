@@ -17,6 +17,8 @@ import com.mkx.hrttracker.data.local.UserProfileEntity
 import com.mkx.hrttracker.data.repository.EstradiolEquivalentCalculator
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -114,8 +116,8 @@ class StartupFixtureActivity : AppCompatActivity() {
             hideScreenContentEnabled = false,
             onboardingCompleted = true,
             appLanguageOption = AppLanguageOption.ENGLISH,
-            calibrationDefaultUnits = emptyMap(),
-            homeE2DisplayUnit = BloodUnitKey.PG_ML,
+            calibrationDefaultUnits = emptySet(),
+            homeE2DisplayUnit = AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PG_ML),
         )
         settingsRepository.setScreenLockProtectionEnabled(false)
 
