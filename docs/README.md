@@ -1,3 +1,37 @@
-# Documentation
+# HRTTracker docs
 
-Public documentation for HRTTracker lives here. This index will be filled in as docs are added.
+Developer documentation. For the project overview, screenshots, and
+download links, see the [repo README](../README.md).
+
+## Project overview
+
+- [Architecture](architecture.md) — layer map, module boundaries, DI,
+  Compose navigation, known limitations.
+- [Data model](data-model.md) — Room entities, schema relationships,
+  encryption, migration policy.
+
+## Domain deep-dives
+
+- [Reminders](reminders.md) — AlarmManager pipeline, notification
+  channels, snooze, exact-alarm permission handling.
+- [PK differences](pk-differences.md) — upstream PK reference and the
+  specific differences in HRTTracker.
+- [Blood tests](blood-tests.md) — analyte catalog, unit-conversion
+  factor table, validation pattern.
+- [Backup format](backup-format.md) — v3 compressed backup spec,
+  restore validation, forward-compatibility policy.
+
+## Operations
+
+- [Building](building.md) — prereqs, gradle commands, flavors.
+- [Release process](release-process.md) — versionCode derivation,
+  flavor purpose, changelog discipline.
+- [Testing](testing.md) — test suite layout, conventions, benchmark
+  and baseline-profile usage.
+
+## User-facing & legal
+
+- [Privacy](privacy.md) — what is stored, where, what leaves the
+  device, permissions used.
+- [Safety](safety.md) — medical disclaimer, PK model limits, when to
+  consult a clinician.
