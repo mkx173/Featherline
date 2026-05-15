@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
@@ -179,7 +180,7 @@ internal fun buildNextOccurrencesByGroup(
             .filterNot { occurrence ->
                 isSlotFulfilled(
                     group = group,
-                    slot = PlanScheduleTimeSlot(
+                    slot = MedicationGroupSlotKey(
                         scheduleTimeUuid = occurrence.scheduleTimeUuid,
                         scheduledFor = occurrence.scheduledFor,
                     ),

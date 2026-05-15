@@ -155,7 +155,7 @@ internal fun MedicationGroup.scheduledTimesInPlanWindow(
     date: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
 ): List<LocalTime> {
-    return scheduledSlotsInPlanWindow(date, zoneId).map(PlanScheduleTimeSlot::time)
+    return scheduledSlotsInPlanWindow(date, zoneId).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledTimesForPlanDay(
@@ -171,15 +171,15 @@ internal fun MedicationGroup.scheduledTimesForPlanDay(
         zoneId = zoneId,
         includeUnloggedArchivedSlots = includeUnloggedArchivedSlots,
         unloggedArchivedSlotCutoff = unloggedArchivedSlotCutoff,
-    ).map(PlanScheduleTimeSlot::time)
+    ).map(MedicationGroupSlotKey::time)
 }
 
 internal fun MedicationGroup.scheduledSlotsInPlanWindow(
     date: LocalDate,
     zoneId: ZoneId = ZoneId.systemDefault(),
-): List<PlanScheduleTimeSlot> {
+): List<MedicationGroupSlotKey> {
     return occurrencesBetweenInPlanWindow(date, date, zoneId).map { occurrence ->
-        occurrence.toPlanScheduleTimeSlot()
+        occurrence.toMedicationGroupSlotKey()
     }
 }
 
@@ -189,7 +189,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
     zoneId: ZoneId = ZoneId.systemDefault(),
     includeUnloggedArchivedSlots: Boolean = true,
     unloggedArchivedSlotCutoff: LocalDateTime? = null,
-): List<PlanScheduleTimeSlot> {
+): List<MedicationGroupSlotKey> {
     val visibleSlots = scheduledSlotsInPlanWindow(date, zoneId).filter { slot ->
         isArchivedUnloggedPlanSlotVisible(
             slotDateTime = slot.scheduledFor,
@@ -211,7 +211,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
             ) {
                 return@mapNotNull null
             }
-            PlanScheduleTimeSlot(
+            MedicationGroupSlotKey(
                 scheduleTimeUuid = entry.scheduleTimeUuid,
                 scheduledFor = scheduledFor,
             )
@@ -221,7 +221,7 @@ internal fun MedicationGroup.scheduledSlotsForPlanDay(
     }
 
     return (visibleSlots + loggedSlots)
-        .distinctBy(PlanScheduleTimeSlot::scheduledFor)
+        .distinctBy(MedicationGroupSlotKey::scheduledFor)
         .sortedBy { slot -> slot.scheduledFor }
 }
 
@@ -242,8 +242,8 @@ private fun MedicationGroup.hasMedicationSignatureFor(entry: MedicationLogEntry)
     return MedicationSignature.fromLogEntry(entry) in requiredSignatures
 }
 
-private fun MedicationGroupSlotOccurrence.toPlanScheduleTimeSlot(): PlanScheduleTimeSlot {
-    return PlanScheduleTimeSlot(
+private fun MedicationGroupSlotOccurrence.toMedicationGroupSlotKey(): MedicationGroupSlotKey {
+    return MedicationGroupSlotKey(
         scheduleTimeUuid = scheduleTimeUuid,
         scheduledFor = scheduledFor,
     )

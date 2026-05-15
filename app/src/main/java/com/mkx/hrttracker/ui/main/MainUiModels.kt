@@ -19,7 +19,7 @@ import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
 import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
 import com.mkx.hrttracker.model.medication.MedicationSignature
-import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
@@ -782,7 +782,7 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
         .asSequence()
         .firstNotNullOfOrNull { occurrence ->
             val scheduledAt = occurrence.scheduledFor
-            val slot = PlanScheduleTimeSlot(
+            val slot = MedicationGroupSlotKey(
                 scheduleTimeUuid = occurrence.scheduleTimeUuid,
                 scheduledFor = scheduledAt,
             )
