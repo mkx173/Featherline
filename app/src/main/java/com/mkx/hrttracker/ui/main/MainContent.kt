@@ -1,16 +1,16 @@
 package com.mkx.hrttracker.ui.main
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Public
@@ -48,7 +48,7 @@ import java.util.Locale
 fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
-    listState: LazyListState,
+    scrollState: ScrollState,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     onDismissTimeZoneChangeNotice: () -> Unit = { },
@@ -62,75 +62,54 @@ fun MainContent(
         medicationGroupScheduleDateFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(dimensionResource(R.dimen.padding_medium)),
     ) {
         uiState.timeZoneChangeNotice?.let { notice ->
-            item(key = "timezone-change-notice") {
-                MainTimeZoneChangeNoticeBanner(
-                    notice = notice,
-                    appLocale = appLocale,
-                    onDismiss = onDismissTimeZoneChangeNotice,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
-
-        item(key = "e2-hero") {
-            MainE2HeroCard(
-                section = uiState.e2Hero,
-                now = uiState.now,
-                displayUnit = uiState.homeE2DisplayUnit,
-                trendReady = uiState.e2TrendReady,
-            )
-        }
-
-        item(key = "e2-chart") {
-            Spacer(modifier = Modifier.height(8.dp))
-            MainE2ChartCard(
-                section = uiState.e2Chart,
-                now = uiState.now,
+            MainTimeZoneChangeNoticeBanner(
+                notice = notice,
                 appLocale = appLocale,
-                unit = uiState.e2Hero.unit,
-                displayUnit = uiState.homeE2DisplayUnit,
-                targetRangeLow = uiState.e2Hero.targetMin,
-                targetRangeHigh = uiState.e2Hero.targetMax,
-                trendReady = uiState.e2TrendReady,
+                onDismiss = onDismissTimeZoneChangeNotice,
             )
+            Spacer(modifier = Modifier.height(8.dp))
         }
+
+        MainE2HeroCard(
+            section = uiState.e2Hero,
+            now = uiState.now,
+            displayUnit = uiState.homeE2DisplayUnit,
+            trendReady = uiState.e2TrendReady,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        MainE2ChartCard(
+            section = uiState.e2Chart,
+            now = uiState.now,
+            appLocale = appLocale,
+            unit = uiState.e2Hero.unit,
+            displayUnit = uiState.homeE2DisplayUnit,
+            targetRangeLow = uiState.e2Hero.targetMin,
+            targetRangeHigh = uiState.e2Hero.targetMax,
+            trendReady = uiState.e2TrendReady,
+        )
 
         if (uiState.antiandrogenCards.isNotEmpty()) {
-            item(key = "antiandrogens") {
-                Spacer(modifier = Modifier.height(8.dp))
-                MainAntiandrogenCard(
-                    cards = uiState.antiandrogenCards,
-                    now = uiState.now,
-                    dateFormatter = dateFormatter,
-                    timeFormatter = timeFormatter,
-                )
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            MainAntiandrogenCard(
+                cards = uiState.antiandrogenCards,
+                now = uiState.now,
+                dateFormatter = dateFormatter,
+                timeFormatter = timeFormatter,
+            )
         }
 
         if (uiState.lastNightSection.rows.isNotEmpty()) {
-            item(key = "last-night") {
-                Spacer(modifier = Modifier.height(16.dp))
-                MainLastNightSection(
-                    section = uiState.lastNightSection,
-                    now = uiState.now,
-                    dateFormatter = dayHeaderDateFormatter,
-                    timeFormatter = timeFormatter,
-                    onQuickLogDoseClick = onQuickLogDoseClick,
-                    onEntryClick = onEntryClick
-                )
-            }
-        }
-
-        item(key = "today") {
             Spacer(modifier = Modifier.height(16.dp))
-            MainTodaySection(
-                section = uiState.todaySection,
+            MainLastNightSection(
+                section = uiState.lastNightSection,
                 now = uiState.now,
                 dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter,
@@ -139,19 +118,25 @@ fun MainContent(
             )
         }
 
-        item(key = "upcoming") {
-            Spacer(modifier = Modifier.height(16.dp))
-            MainUpcomingSection(
-                section = uiState.upcomingSection,
-                dateFormatter = dayHeaderDateFormatter,
-                timeFormatter = timeFormatter
-            )
-        }
+        Spacer(modifier = Modifier.height(16.dp))
+        MainTodaySection(
+            section = uiState.todaySection,
+            now = uiState.now,
+            dateFormatter = dayHeaderDateFormatter,
+            timeFormatter = timeFormatter,
+            onQuickLogDoseClick = onQuickLogDoseClick,
+            onEntryClick = onEntryClick
+        )
 
-        item(key = "medical-disclaimer") {
-            Spacer(modifier = Modifier.height(16.dp))
-            MedicalDisclaimerText(kinds = MedicalDisclaimerSets.home)
-        }
+        Spacer(modifier = Modifier.height(16.dp))
+        MainUpcomingSection(
+            section = uiState.upcomingSection,
+            dateFormatter = dayHeaderDateFormatter,
+            timeFormatter = timeFormatter
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        MedicalDisclaimerText(kinds = MedicalDisclaimerSets.home)
     }
 }
 
@@ -223,7 +208,7 @@ private fun MainContentPreview() {
                 uiState = buildMainContentPreviewUiState().copy(
                     timeZoneChangeNotice = PreviewTimeZoneChangeNotice,
                 ),
-                listState = rememberLazyListState(),
+                scrollState = rememberScrollState(),
                 onQuickLogDoseClick = { },
                 onEntryClick = { },
             )

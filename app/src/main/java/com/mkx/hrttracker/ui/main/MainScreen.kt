@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -80,17 +80,16 @@ fun MainScreen(
             null -> Unit
         }
     }
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(
-        lazyListState = listState,
         state = topAppBarState
     )
     val initialScrollToTopSignal = remember { scrollToTopSignal }
 
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal != initialScrollToTopSignal) {
-            listState.animateScrollToItem(0)
+            scrollState.animateScrollTo(0)
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
         }
@@ -103,7 +102,7 @@ fun MainScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 modifier = Modifier.topAppBarScrollToTop(scrollBehavior) {
-                    listState.animateScrollToItem(0)
+                    scrollState.animateScrollTo(0)
                 },
                 title = {
                     val title = stringResource(R.string.tab_main)
@@ -130,7 +129,7 @@ fun MainScreen(
     ) { innerPadding ->
         MainContent(
             uiState = uiState,
-            listState = listState,
+            scrollState = scrollState,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick,
             onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,

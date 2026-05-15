@@ -1,12 +1,10 @@
 package com.mkx.hrttracker.ui.main
 
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.platform.app.InstrumentationRegistry
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -34,18 +32,15 @@ class MainContentSkeletonTest {
                         homeDataReady = false,
                         now = LocalDateTime.of(2026, 5, 5, 10, 30),
                     ),
-                    listState = rememberLazyListState(),
+                    scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },
                     onEntryClick = { },
                 )
             }
         }
 
-        val homeList = composeRule.onNode(hasScrollAction())
         composeRule.onNodeWithText(estradiolTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
-        homeList.performScrollToIndex(2)
         composeRule.onNodeWithText(todayTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
-        homeList.performScrollToIndex(3)
         composeRule.onNodeWithText(upcomingTitle, ignoreCase = true, useUnmergedTree = true).assertExists()
     }
 
@@ -58,7 +53,7 @@ class MainContentSkeletonTest {
                         homeDataReady = false,
                         now = LocalDateTime.of(2026, 5, 5, 10, 30),
                     ),
-                    listState = rememberLazyListState(),
+                    scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },
                     onEntryClick = { },
                 )
@@ -78,7 +73,7 @@ class MainContentSkeletonTest {
                         homeDataReady = true,
                         e2TrendReady = true,
                     ),
-                    listState = rememberLazyListState(),
+                    scrollState = rememberScrollState(),
                     onQuickLogDoseClick = { },
                     onEntryClick = { },
                 )
