@@ -115,6 +115,22 @@ class MedicationReminderActionHandler @Inject constructor(
         }
 
         val unfulfilledSlots = currentlyUnfulfilledSlots(normalizedSlots)
+        if (unfulfilledSlots.isEmpty()) {
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_remind_later_no_unfulfilled_slots slots=${normalizedSlots.size}"
+            )
+            medicationReminderSnoozeScheduler.clearSnoozesForSlots(normalizedSlots)
+            reminderNotificationManager.showDoseReminderNothingToAddToast()
+            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
+            diagnosticsLogger.info(
+                TAG,
+                "reminder_action_remind_later_complete slots=${normalizedSlots.size} " +
+                    "unfulfilledSlots=0 snoozes=0"
+            )
+            return
+        }
+
         val scheduledSnoozes = medicationReminderSnoozeScheduler.snoozeSlots(
             slots = unfulfilledSlots,
             now = now,

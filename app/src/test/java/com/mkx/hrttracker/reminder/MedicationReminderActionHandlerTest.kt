@@ -189,6 +189,40 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
+    fun remindLater_shows_already_logged_toast_when_all_slots_are_fulfilled() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("de07063d-0914-4e68-beba-b0e6d3ca0b0f"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 2,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns listOf(
+            scheduledEntry(
+                group = group,
+                appliedAt = scheduledAt.plusMinutes(1),
+                scheduledFor = scheduledAt,
+                count = 2,
+            )
+        )
+
+        actionHandler.remindLater(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(1),
+        )
+
+        verify { notificationManager.showDoseReminderNothingToAddToast() }
+        verify(exactly = 0) { notificationManager.showDoseReminderSnoozedToast(any()) }
+        verify { notificationManager.cancelDoseReminderNotification("bundle-tag") }
+        coVerify(exactly = 0) { snoozeScheduler.snoozeSlots(any(), any()) }
+        coVerify { snoozeScheduler.clearSnoozesForSlots(listOf(slot)) }
+    }
+
+    @Test
     fun showSnoozedReminder_skips_notification_when_master_switch_off() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val slot = MedicationReminderSlot(
