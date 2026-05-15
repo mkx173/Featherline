@@ -34,8 +34,17 @@ enum class BloodUnitKey(val storageValue: String) {
 
 data class BloodAnalyteDefinition(
     val canonicalUnit: BloodUnitKey,
-    val allowedUnits: Set<BloodUnitKey>,
-)
+    val factorsToCanonical: Map<BloodUnitKey, Double>,
+) {
+    val allowedUnits: Set<BloodUnitKey> get() = factorsToCanonical.keys
+
+    init {
+        val canonicalFactor = factorsToCanonical[canonicalUnit]
+        require(canonicalFactor == 1.0) {
+            "Canonical unit $canonicalUnit must be present with factor 1.0; got $canonicalFactor."
+        }
+    }
+}
 
 object BloodTestCatalog {
     private const val E2_PMOL_L_PER_PG_ML = 3.671
@@ -48,27 +57,47 @@ object BloodTestCatalog {
     private val definitions: Map<BloodAnalyteKey, BloodAnalyteDefinition> = mapOf(
         BloodAnalyteKey.E2 to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.PG_ML,
-            allowedUnits = setOf(BloodUnitKey.PG_ML, BloodUnitKey.PMOL_L, BloodUnitKey.NG_DL)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.PG_ML to 1.0,
+                BloodUnitKey.PMOL_L to 1.0 / E2_PMOL_L_PER_PG_ML,
+                BloodUnitKey.NG_DL to PG_ML_PER_NG_DL,
+            ),
         ),
         BloodAnalyteKey.T to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_DL,
-            allowedUnits = setOf(BloodUnitKey.NG_DL, BloodUnitKey.NMOL_L, BloodUnitKey.NG_ML)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.NG_DL to 1.0,
+                BloodUnitKey.NMOL_L to 1.0 / T_NMOL_L_PER_NG_DL,
+                BloodUnitKey.NG_ML to NG_DL_PER_NG_ML,
+            ),
         ),
         BloodAnalyteKey.PROG to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_ML,
-            allowedUnits = setOf(BloodUnitKey.NG_ML, BloodUnitKey.NMOL_L)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.NG_ML to 1.0,
+                BloodUnitKey.NMOL_L to 1.0 / PROG_NMOL_L_PER_NG_ML,
+            ),
         ),
         BloodAnalyteKey.PRL to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.NG_ML,
-            allowedUnits = setOf(BloodUnitKey.NG_ML, BloodUnitKey.MIU_L)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.NG_ML to 1.0,
+                BloodUnitKey.MIU_L to 1.0 / PRL_MIU_L_PER_NG_ML,
+            ),
         ),
         BloodAnalyteKey.FSH to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.MIU_ML,
-            allowedUnits = setOf(BloodUnitKey.MIU_ML, BloodUnitKey.IU_L)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.MIU_ML to 1.0,
+                BloodUnitKey.IU_L to 1.0,
+            ),
         ),
         BloodAnalyteKey.LH to BloodAnalyteDefinition(
             canonicalUnit = BloodUnitKey.MIU_ML,
-            allowedUnits = setOf(BloodUnitKey.MIU_ML, BloodUnitKey.IU_L)
+            factorsToCanonical = mapOf(
+                BloodUnitKey.MIU_ML to 1.0,
+                BloodUnitKey.IU_L to 1.0,
+            ),
         ),
     )
 
@@ -92,47 +121,7 @@ object BloodTestCatalog {
         unit: BloodUnitKey,
     ): Double {
         require(value.isFinite()) { "Blood test value must be finite." }
-        require(isUnitAllowed(analyteKey, unit)) {
-            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-        }
-
-        return when (analyteKey) {
-            BloodAnalyteKey.E2 -> when (unit) {
-                BloodUnitKey.PG_ML -> value
-                BloodUnitKey.PMOL_L -> value / E2_PMOL_L_PER_PG_ML
-                BloodUnitKey.NG_DL -> value * PG_ML_PER_NG_DL
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.T -> when (unit) {
-                BloodUnitKey.NG_DL -> value
-                BloodUnitKey.NMOL_L -> value / T_NMOL_L_PER_NG_DL
-                BloodUnitKey.NG_ML -> value * NG_DL_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.PROG -> when (unit) {
-                BloodUnitKey.NG_ML -> value
-                BloodUnitKey.NMOL_L -> value / PROG_NMOL_L_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.PRL -> when (unit) {
-                BloodUnitKey.NG_ML -> value
-                BloodUnitKey.MIU_L -> value / PRL_MIU_L_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.FSH,
-            BloodAnalyteKey.LH,
-            -> when (unit) {
-                BloodUnitKey.MIU_ML,
-                BloodUnitKey.IU_L,
-                -> value
-
-                else -> unreachableUnit(analyteKey, unit)
-            }
-        }
+        return value * factorToCanonical(analyteKey, unit)
     }
 
     fun fromCanonical(
@@ -141,53 +130,15 @@ object BloodTestCatalog {
         unit: BloodUnitKey,
     ): Double {
         require(canonicalValue.isFinite()) { "Blood test value must be finite." }
-        require(isUnitAllowed(analyteKey, unit)) {
-            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
-        }
-
-        return when (analyteKey) {
-            BloodAnalyteKey.E2 -> when (unit) {
-                BloodUnitKey.PG_ML -> canonicalValue
-                BloodUnitKey.PMOL_L -> canonicalValue * E2_PMOL_L_PER_PG_ML
-                BloodUnitKey.NG_DL -> canonicalValue / PG_ML_PER_NG_DL
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.T -> when (unit) {
-                BloodUnitKey.NG_DL -> canonicalValue
-                BloodUnitKey.NMOL_L -> canonicalValue * T_NMOL_L_PER_NG_DL
-                BloodUnitKey.NG_ML -> canonicalValue / NG_DL_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.PROG -> when (unit) {
-                BloodUnitKey.NG_ML -> canonicalValue
-                BloodUnitKey.NMOL_L -> canonicalValue * PROG_NMOL_L_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.PRL -> when (unit) {
-                BloodUnitKey.NG_ML -> canonicalValue
-                BloodUnitKey.MIU_L -> canonicalValue * PRL_MIU_L_PER_NG_ML
-                else -> unreachableUnit(analyteKey, unit)
-            }
-
-            BloodAnalyteKey.FSH,
-            BloodAnalyteKey.LH,
-            -> when (unit) {
-                BloodUnitKey.MIU_ML,
-                BloodUnitKey.IU_L,
-                -> canonicalValue
-
-                else -> unreachableUnit(analyteKey, unit)
-            }
-        }
+        return canonicalValue / factorToCanonical(analyteKey, unit)
     }
 
-    private fun unreachableUnit(
+    private fun factorToCanonical(
         analyteKey: BloodAnalyteKey,
         unit: BloodUnitKey,
-    ): Nothing {
-        error("Unexpected unit ${unit.storageValue} for analyte ${analyteKey.storageValue}.")
+    ): Double {
+        return requireNotNull(definitionFor(analyteKey).factorsToCanonical[unit]) {
+            "Unit ${unit.storageValue} is not allowed for analyte ${analyteKey.storageValue}."
+        }
     }
 }

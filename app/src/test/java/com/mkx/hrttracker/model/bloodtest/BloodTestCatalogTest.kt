@@ -105,4 +105,41 @@ class BloodTestCatalogTest {
             BloodTestCatalog.definitionFor(BloodAnalyteKey.PRL).allowedUnits
         )
     }
+
+    @Test
+    fun fromCanonical_inverts_toCanonical_for_every_analyte_and_allowed_unit() {
+        val probe = 42.0
+        BloodAnalyteKey.entries.forEach { analyte ->
+            BloodTestCatalog.definitionFor(analyte).allowedUnits.forEach { unit ->
+                val canonical = BloodTestCatalog.toCanonical(analyte, probe, unit)
+                val roundtrip = BloodTestCatalog.fromCanonical(analyte, canonical, unit)
+                assertEquals(
+                    "Roundtrip failed for analyte=$analyte unit=$unit",
+                    probe,
+                    roundtrip,
+                    1e-9,
+                )
+            }
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun definition_rejects_canonical_unit_with_non_identity_factor() {
+        BloodAnalyteDefinition(
+            canonicalUnit = BloodUnitKey.PG_ML,
+            factorsToCanonical = mapOf(
+                BloodUnitKey.PG_ML to 2.0,
+            ),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun definition_rejects_canonical_unit_missing_from_factors() {
+        BloodAnalyteDefinition(
+            canonicalUnit = BloodUnitKey.PG_ML,
+            factorsToCanonical = mapOf(
+                BloodUnitKey.PMOL_L to 0.272,
+            ),
+        )
+    }
 }
