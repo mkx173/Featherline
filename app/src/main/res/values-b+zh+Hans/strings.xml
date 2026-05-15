@@ -435,9 +435,8 @@
     <string name="settings_about">关于</string>
     <string name="settings_about_privacy_policy">隐私政策</string>
     <string name="settings_about_model">关于模型</string>
-    <string name="settings_about_model_summary">HRT-Recorder-PKcomponent-Test</string>
+    <string name="settings_github_repo">GitHub 仓库</string>
     <string name="settings_about_contact_developer">联系开发者</string>
-    <string name="settings_about_contact_developer_summary">\@mikanmkx</string>
     <string name="settings_about_feedback">反馈与建议</string>
     <string name="settings_about_feedback_summary">通过邮件发送反馈</string>
     <string name="settings_about_feedback_subject">%1$s 反馈与建议</string>

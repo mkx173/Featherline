@@ -13,6 +13,7 @@ import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -572,6 +573,7 @@ private fun SettingsScreenContent(
     var pendingWeightMutationCompletionToken by rememberSaveable { mutableStateOf<Long?>(null) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
@@ -604,6 +606,10 @@ private fun SettingsScreenContent(
     )
     val feedbackChooserTitle = stringResource(R.string.settings_about_feedback_chooser_title)
     val feedbackNoEmailAppMessage = stringResource(R.string.settings_about_feedback_no_email_app)
+    fun showExternalLinkDialog(url: String, @StringRes titleRes: Int) {
+        pendingExternalUrl = url
+        pendingExternalLinkTitleRes = titleRes
+    }
     val scrollState = rememberScrollState()
     val weightSummary = formatWeightSummary(uiState.userProfile)
 
@@ -1064,7 +1070,12 @@ private fun SettingsScreenContent(
                     title = stringResource(R.string.settings_about_privacy_policy),
                     index = 0,
                     count = 5,
-                    onClick = { pendingExternalUrl = privacyPolicyUrl },
+                    onClick = {
+                        showExternalLinkDialog(
+                            url = privacyPolicyUrl,
+                            titleRes = R.string.settings_about_privacy_policy
+                        )
+                    },
                     leadingContent = {
                         SettingsLeadingIconSlot(
                             painter = painterResource(R.drawable.ic_privacy_tip)
@@ -1077,10 +1088,39 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_model),
-                    supportingText = stringResource(R.string.settings_about_model_summary),
                     index = 1,
                     count = 5,
-                    onClick = { pendingExternalUrl = MODEL_REPOSITORY_URL },
+                    onClick = {
+                        showExternalLinkDialog(
+                            url = MODEL_REPOSITORY_URL,
+                            titleRes = R.string.settings_about_model
+                        )
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_quick_reference),
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        SettingsLinkTrailingIcon()
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_github_repo),
+                    index = 1,
+                    count = 5,
+                    onClick = {
+                        showExternalLinkDialog(
+                            url = APP_REPOSITORY_URL,
+                            titleRes = R.string.settings_github_repo
+                        )
+                    },
                     leadingContent = {
                         Box(
                             modifier = Modifier.size(24.dp),
@@ -1099,10 +1139,14 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_contact_developer),
-                    supportingText = stringResource(R.string.settings_about_contact_developer_summary),
                     index = 2,
                     count = 5,
-                    onClick = { pendingExternalUrl = DEVELOPER_X_URL },
+                    onClick = {
+                        showExternalLinkDialog(
+                            url = DEVELOPER_X_URL,
+                            titleRes = R.string.settings_about_contact_developer
+                        )
+                    },
                     leadingContent = {
                         Box(
                             modifier = Modifier.size(24.dp),
@@ -1131,8 +1175,7 @@ private fun SettingsScreenContent(
                             contentAlignment = Alignment.Center
                         ) {
                             SettingsLeadingIconSlot(
-                                painter = painterResource(R.drawable.ic_feedback),
-                                modifier = Modifier.size(22.dp)
+                                painter = painterResource(R.drawable.ic_contact_support),
                             )
                         }
 
@@ -1200,12 +1243,18 @@ private fun SettingsScreenContent(
 
     val externalUrl = pendingExternalUrl
     if (externalUrl != null || showFeedbackEmailDialog) {
+        @StringRes val dialogTitleRes = when {
+            externalUrl != null -> pendingExternalLinkTitleRes
+            showFeedbackEmailDialog -> R.string.settings_about_feedback
+            else -> null
+        } ?: R.string.settings_about_open_link_title
         AlertDialog(
             onDismissRequest = {
                 pendingExternalUrl = null
+                pendingExternalLinkTitleRes = null
                 showFeedbackEmailDialog = false
             },
-            title = { Text(text = stringResource(R.string.settings_about_open_link_title)) },
+            title = { Text(text = stringResource(dialogTitleRes)) },
             text = { Text(text = stringResource(R.string.settings_about_open_link_message)) },
             confirmButton = {
                 TextButton(
@@ -1226,6 +1275,7 @@ private fun SettingsScreenContent(
                             }
                         }
                         pendingExternalUrl = null
+                        pendingExternalLinkTitleRes = null
                         showFeedbackEmailDialog = false
                     }
                 ) {
@@ -1236,6 +1286,7 @@ private fun SettingsScreenContent(
                 TextButton(
                     onClick = {
                         pendingExternalUrl = null
+                        pendingExternalLinkTitleRes = null
                         showFeedbackEmailDialog = false
                     }
                 ) {
@@ -1531,6 +1582,9 @@ private fun launchFeedbackEmail(
 private const val FEEDBACK_EMAIL_URI = "mailto:support@asterismlabs.io"
 private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
+
+private const val APP_REPOSITORY_URL =
+    "https://github.com/mkx173/HRTTracker"
 private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"
 private const val VERSION_COPY_THROTTLE_MS = 2_000L
 private const val VERSION_EASTER_EGG_TAP_COUNT = 5
