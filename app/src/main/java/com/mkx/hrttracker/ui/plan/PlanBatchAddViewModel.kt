@@ -315,7 +315,7 @@ internal fun buildPlanBatchAddEntryPlan(
             slot.time == occurrence.toLocalTime()
         } ?: return@forEach
         val isBeforePlanStart = occurrence.toLocalDate().isBefore(group.schedule.since)
-        if (!isBeforePlanStart && !group.ownsUnloggedOccurrence(scheduleTime, occurrence, zoneId)) {
+        if (!isBeforePlanStart && !group.ownsUnloggedOccurrence(scheduleTime, occurrence)) {
             return@forEach
         }
 

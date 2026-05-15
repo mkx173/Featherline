@@ -102,7 +102,7 @@ fun MedicationGroup.occurrencesBetweenInPlanWindow(
         if (schedule.isScheduledOn(currentDate)) {
             sortedTimeSlots.forEach { slot ->
                 val occurrence = LocalDateTime.of(currentDate, slot.time)
-                if (ownsUnloggedOccurrence(slot, occurrence, zoneId)) {
+                if (ownsUnloggedOccurrence(slot, occurrence)) {
                     result += MedicationGroupSlotOccurrence(
                         groupUuid = uuid,
                         scheduleTimeUuid = slot.uuid,
@@ -140,7 +140,6 @@ fun MedicationGroup.nextOccurrencesInPlanWindowFrom(
 fun MedicationGroup.ownsUnloggedOccurrence(
     scheduleTime: MedicationGroupScheduleTime,
     scheduledFor: LocalDateTime,
-    @Suppress("UNUSED_PARAMETER") zoneId: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     if (scheduledFor.isBefore(scheduleTime.effectiveFrom)) {
         return false
