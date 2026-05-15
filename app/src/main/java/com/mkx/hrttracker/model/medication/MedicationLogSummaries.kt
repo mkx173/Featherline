@@ -13,3 +13,12 @@ internal fun findLastEstradiolEntry(
         }
         .maxByOrNull(MedicationLogEntry::appliedAt)
 }
+
+internal fun timeSinceEntryMillis(
+    target: Instant,
+    entry: MedicationLogEntry?,
+): Long? {
+    return entry?.let {
+        (target.toEpochMilli() - it.appliedAt.toEpochMilli()).coerceAtLeast(0L)
+    }
+}

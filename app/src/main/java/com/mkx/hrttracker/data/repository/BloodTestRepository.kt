@@ -15,7 +15,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodTestTrendPoint
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
-import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -351,12 +351,10 @@ class BloodTestRepository @Inject constructor(
     private suspend fun resolveTimeSinceLastEstradiolDoseMillis(
         collectedAt: Instant,
     ): Long? {
-        val lastEstradiolEntry = findLastEstradiolEntry(
-            entries = medicationLogRepository.getEntries(),
-            onOrBefore = collectedAt,
-        ) ?: return null
-        return (collectedAt.toEpochMilli() - lastEstradiolEntry.appliedAt.toEpochMilli())
-            .coerceAtLeast(0L)
+        return timeSinceEntryMillis(
+            target = collectedAt,
+            entry = medicationLogRepository.getLatestEstradiolEntryOnOrBefore(collectedAt),
+        )
     }
 
     private fun normalizeCustomField(

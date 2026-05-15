@@ -14,7 +14,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
-import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.displayZoneOf
@@ -80,10 +80,7 @@ class CalibrationEditorViewModel @Inject constructor(
                     val lookup = medicationLogRepository.getObservedLatestEstradiolEntryOnOrBefore(collectedAt)
                 ) {
                     is ObservedEstradiolEntryLookup.Loaded ->
-                        resolveTimeSinceLastEstradiolDoseMillis(
-                            lastEntry = lookup.entry,
-                            targetCollectedAt = collectedAt,
-                        )
+                        timeSinceEntryMillis(target = collectedAt, entry = lookup.entry)
 
                     ObservedEstradiolEntryLookup.NotLoaded -> null
                 },
@@ -439,9 +436,9 @@ class CalibrationEditorViewModel @Inject constructor(
             is ObservedEstradiolEntryLookup.Loaded -> {
                 updateTimeSinceLastEstradiolDose(
                     targetCollectedAt = targetCollectedAt,
-                    elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
-                        lastEntry = lookup.entry,
-                        targetCollectedAt = targetCollectedAt,
+                    elapsedMillis = timeSinceEntryMillis(
+                        target = targetCollectedAt,
+                        entry = lookup.entry,
                     ),
                 )
                 return
@@ -451,10 +448,10 @@ class CalibrationEditorViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val elapsedMillis = resolveTimeSinceLastEstradiolDoseMillis(
-                lastEntry = medicationLogRepository
+            val elapsedMillis = timeSinceEntryMillis(
+                target = targetCollectedAt,
+                entry = medicationLogRepository
                     .getLatestEstradiolEntryOnOrBefore(targetCollectedAt),
-                targetCollectedAt = targetCollectedAt,
             )
             updateTimeSinceLastEstradiolDose(
                 targetCollectedAt = targetCollectedAt,
@@ -473,16 +470,6 @@ class CalibrationEditorViewModel @Inject constructor(
             } else {
                 state.copy(timeSinceLastEstradiolDoseMillis = elapsedMillis)
             }
-        }
-    }
-
-    private fun resolveTimeSinceLastEstradiolDoseMillis(
-        lastEntry: MedicationLogEntry?,
-        targetCollectedAt: Instant,
-    ): Long? {
-        return lastEntry?.let { entry ->
-            (targetCollectedAt.toEpochMilli() - entry.appliedAt.toEpochMilli())
-                .coerceAtLeast(0L)
         }
     }
 

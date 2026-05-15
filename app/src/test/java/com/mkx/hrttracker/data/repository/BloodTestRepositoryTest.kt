@@ -53,7 +53,7 @@ class BloodTestRepositoryTest {
         val panelSlot = slot<BloodTestPanelEntity>()
         val resultsSlot = slot<List<BloodTestResultEntity>>()
         val customAnalyteUuid = UUID.randomUUID()
-        coEvery { medicationLogRepository.getEntries() } returns listOf(
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns
             testMedicationLogEntry(
                 details = testCatalogMedicationDetails(
                     key = MedicationKey.ESTRADIOL,
@@ -63,7 +63,6 @@ class BloodTestRepositoryTest {
                 sourceGroupUuid = null,
                 appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
             )
-        )
         coEvery { dao.getCustomAnalytesByIds(listOf(customAnalyteUuid.toString())) } returns listOf(
             customAnalyte(
                 uuid = customAnalyteUuid,
@@ -133,7 +132,7 @@ class BloodTestRepositoryTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun savePanel_rejects_empty_results() = runTest {
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         repository.savePanel(
             uuid = null,
             collectedAt = Instant.ofEpochMilli(1L),
@@ -146,7 +145,7 @@ class BloodTestRepositoryTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun savePanel_rejects_duplicate_builtin_analytes() = runTest {
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         repository.savePanel(
             uuid = null,
             collectedAt = Instant.ofEpochMilli(1L),
@@ -307,7 +306,7 @@ class BloodTestRepositoryTest {
                 notes = "updated",
             )
         )
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         coEvery { dao.upsertPanelWithResults(any(), any()) } returns Unit
 
         repository.observePanels().first()
@@ -502,7 +501,7 @@ class BloodTestRepositoryTest {
     @Test
     fun savePanel_persists_null_when_no_prior_estradiol_dose_exists() = runTest {
         val panelSlot = slot<BloodTestPanelEntity>()
-        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         coEvery { dao.upsertPanelWithResults(capture(panelSlot), any()) } returns Unit
 
         repository.savePanel(
