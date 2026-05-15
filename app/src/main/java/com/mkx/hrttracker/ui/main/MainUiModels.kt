@@ -21,7 +21,7 @@ import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
 import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.Duration
 import java.time.Instant
@@ -820,30 +820,6 @@ private fun MedicationGroup.nextMainAntiandrogenDueSlot(
                 }
             }
         }
-}
-
-private fun isSlotFulfilledForMedication(
-    group: MedicationGroup,
-    slot: PlanScheduleTimeSlot,
-    medication: MedicationGroupMedication,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId,
-): Boolean {
-    val signature = MedicationSignature.fromGroupMedication(medication)
-    val loggedCount = entries
-        .asSequence()
-        .filter { entry -> MedicationSignature.fromLogEntry(entry) == signature }
-        .filter { entry ->
-            isEntryFulfillingPlanSlot(
-                group = group,
-                slot = slot,
-                entry = entry,
-                zoneId = zoneId,
-            )
-        }
-        .sumOf { entry -> entry.count }
-
-    return loggedCount >= medication.count
 }
 
 private fun Double.toVicoXHour(): Double {

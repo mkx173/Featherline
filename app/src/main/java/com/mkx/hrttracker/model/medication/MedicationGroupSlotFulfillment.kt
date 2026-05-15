@@ -180,3 +180,27 @@ internal fun hasMatchingSlotRecord(
 
     return requiredSignatures.any(loggedSignatures::contains)
 }
+
+internal fun isSlotFulfilledForMedication(
+    group: MedicationGroup,
+    slot: MedicationGroupSlotKey,
+    medication: MedicationGroupMedication,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    val signature = MedicationSignature.fromGroupMedication(medication)
+    val loggedCount = entries
+        .asSequence()
+        .filter { entry -> MedicationSignature.fromLogEntry(entry) == signature }
+        .filter { entry ->
+            isEntryFulfillingPlanSlot(
+                group = group,
+                slot = slot,
+                entry = entry,
+                zoneId = zoneId,
+            )
+        }
+        .sumOf { entry -> entry.count }
+
+    return loggedCount >= medication.count
+}
