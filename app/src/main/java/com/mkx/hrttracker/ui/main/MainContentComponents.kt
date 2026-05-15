@@ -185,6 +185,10 @@ private const val MainScheduleGraceMinutes = 60L
 private val MainScheduleGracePeriod = Duration.ofMinutes(MainScheduleGraceMinutes)
 private const val MainE2ChartInitialAnimationMillis = 500
 private const val MainE2ChartAnimationSettleDelayMillis = 50L
+// Process-scoped so the chart's initial fade-in plays exactly once per
+// app launch, not on every re-composition (tab switch, scroll re-entry,
+// etc.) that would otherwise re-arm a rememberSaveable flag.
+private var mainE2ChartInitialAnimationConsumed = false
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
 // Sentinel x-coordinate for an empty dose-marker series, placed outside the
@@ -719,9 +723,8 @@ internal fun MainE2ChartCard(
         return
     }
     val modelProducer = remember { CartesianChartModelProducer() }
-    val hasConsumedInitialChartAnimation = rememberSaveable { mutableStateOf(false) }
     val chartAnimationsEnabled = remember {
-        mutableStateOf(!hasConsumedInitialChartAnimation.value)
+        mutableStateOf(!mainE2ChartInitialAnimationConsumed)
     }
     val pointXHours = remember(section.points, section.pointXHours) {
         section.pointXHours
@@ -892,8 +895,8 @@ internal fun MainE2ChartCard(
     }
 
     LaunchedEffect(Unit) {
-        if (!hasConsumedInitialChartAnimation.value) {
-            hasConsumedInitialChartAnimation.value = true
+        if (!mainE2ChartInitialAnimationConsumed) {
+            mainE2ChartInitialAnimationConsumed = true
             delay(MainE2ChartInitialAnimationMillis + MainE2ChartAnimationSettleDelayMillis)
             chartAnimationsEnabled.value = false
         }
