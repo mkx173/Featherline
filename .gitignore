@@ -36,15 +36,11 @@ google-services.json
 # Claude
 .claude/
 
-# Claude design
-hrt-tracker/
-
 # Personal notes (in-progress design docs, screenshots seed, etc.)
 notes/
 
-# Backups
-hrttracker-backup*
+# Backups (local app-exported backup files)
+featherline-backup*
 keystore.properties
 
-# F Apple
 .DS_Store
