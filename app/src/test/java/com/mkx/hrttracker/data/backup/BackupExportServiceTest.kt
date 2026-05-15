@@ -386,13 +386,14 @@ class BackupExportServiceTest {
         assertEquals("ng/dL", customResult.unitSnapshot)
         assertEquals(12.0, customResult.canonicalValue, 1e-9)
 
-        assertContains(json, "\"medicationKey\": null")
-        assertContains(json, "\"doseValuePercent\": null")
-        assertContains(json, "\"doseWeightGrams\": null")
-        assertContains(json, "\"doseReleaseRateMcgPerDay\": null")
-        assertContains(json, "\"timeSinceLastTestosteroneDoseMillis\": null")
-        assertContains(json, "\"customAnalyteUuid\": null")
+        assertContains(json, "\"medicationKey\":null")
+        assertContains(json, "\"doseValuePercent\":null")
+        assertContains(json, "\"doseWeightGrams\":null")
+        assertContains(json, "\"doseReleaseRateMcgPerDay\":null")
+        assertContains(json, "\"timeSinceLastTestosteroneDoseMillis\":null")
+        assertContains(json, "\"customAnalyteUuid\":null")
         assertTrue(!json.contains("\"screenLockProtectionEnabled\""))
+        assertFalse("Backup JSON should not be pretty-printed.", json.contains('\n'))
     }
 
     @Test

@@ -2,12 +2,16 @@ package com.mkx.hrttracker.data.backup
 
 import com.lambdapioneer.argon2kt.Argon2Kt
 import com.lambdapioneer.argon2kt.Argon2Mode
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -72,25 +76,31 @@ class BackupCrypto internal constructor(
         secureRandom.nextBytes(salt)
         secureRandom.nextBytes(nonce)
 
-        val header = buildArgon2Header(
-            parameters = argon2Parameters,
-            salt = salt,
-            nonce = nonce,
-        )
-        val key = deriveSecretKey(
-            password = password,
-            salt = salt,
-            argon2Parameters = argon2Parameters,
-        )
+        val compressedPlaintext = gzip(plaintext)
         return try {
-            encryptWithAesGcm(
-                plaintext = plaintext,
+            val header = buildArgon2Header(
+                parameters = argon2Parameters,
+                salt = salt,
                 nonce = nonce,
-                header = header,
-                key = key,
+                uncompressedLengthBytes = plaintext.size.toLong(),
             )
+            val key = deriveSecretKey(
+                password = password,
+                salt = salt,
+                argon2Parameters = argon2Parameters,
+            )
+            try {
+                encryptWithAesGcm(
+                    plaintext = compressedPlaintext,
+                    nonce = nonce,
+                    header = header,
+                    key = key,
+                )
+            } finally {
+                header.fill(0)
+            }
         } finally {
-            header.fill(0)
+            compressedPlaintext.fill(0)
             salt.fill(0)
             nonce.fill(0)
         }
@@ -114,7 +124,23 @@ class BackupCrypto internal constructor(
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, parsedContainer.nonce),
             )
             cipher.updateAAD(parsedContainer.header)
-            cipher.doFinal(parsedContainer.ciphertext)
+            val decryptedPayload = cipher.doFinal(parsedContainer.ciphertext)
+            try {
+                when (parsedContainer.compressionType) {
+                    COMPRESSION_NONE -> decryptedPayload
+                    COMPRESSION_GZIP -> gunzip(
+                        compressedPayload = decryptedPayload,
+                        expectedUncompressedLengthBytes = checkNotNull(
+                            parsedContainer.uncompressedLengthBytes
+                        ),
+                    )
+                    else -> error("Unexpected backup compression: ${parsedContainer.compressionType}.")
+                }
+            } finally {
+                if (parsedContainer.compressionType != COMPRESSION_NONE) {
+                    decryptedPayload.fill(0)
+                }
+            }
         } catch (error: GeneralSecurityException) {
             throw IOException("Unable to decrypt the selected backup file.", error)
         } finally {
@@ -177,12 +203,15 @@ class BackupCrypto internal constructor(
         parameters: BackupArgon2Parameters,
         salt: ByteArray,
         nonce: ByteArray,
+        uncompressedLengthBytes: Long,
     ): ByteArray {
-        return ByteBuffer.allocate(FIXED_HEADER_LENGTH_V2 + salt.size + nonce.size)
+        return ByteBuffer.allocate(FIXED_HEADER_LENGTH_V3 + salt.size + nonce.size)
             .put(MAGIC_BYTES)
             .put(CURRENT_BACKUP_CONTAINER_VERSION.toByte())
             .put(KDF_ARGON2_ID.toByte())
             .put(CIPHER_AES_256_GCM.toByte())
+            .put(COMPRESSION_GZIP.toByte())
+            .putLong(uncompressedLengthBytes)
             .putInt(parameters.timeCostInIterations)
             .putInt(parameters.memoryCostInKibibyte)
             .putInt(parameters.parallelism)
@@ -209,21 +238,25 @@ class BackupCrypto internal constructor(
         }
 
         val backupVersion = buffer.get().toInt() and BYTE_MASK
-        require(backupVersion == CURRENT_BACKUP_CONTAINER_VERSION) {
-            "Unsupported backup file version: $backupVersion."
+        val fixedHeaderLength = when (backupVersion) {
+            LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V2
+            CURRENT_BACKUP_CONTAINER_VERSION -> FIXED_HEADER_LENGTH_V3
+            else -> throw IllegalArgumentException("Unsupported backup file version: $backupVersion.")
         }
-        require(encryptedBytes.size >= FIXED_HEADER_LENGTH_V2) {
+        require(encryptedBytes.size >= fixedHeaderLength) {
             "Backup file header is truncated."
         }
         return parseArgon2Container(
             encryptedBytes = encryptedBytes,
             buffer = buffer,
+            backupVersion = backupVersion,
         )
     }
 
     private fun parseArgon2Container(
         encryptedBytes: ByteArray,
         buffer: ByteBuffer,
+        backupVersion: Int,
     ): ParsedBackupContainer {
         val kdfType = buffer.get().toInt() and BYTE_MASK
         require(kdfType == KDF_ARGON2_ID) {
@@ -232,6 +265,27 @@ class BackupCrypto internal constructor(
         val cipherType = buffer.get().toInt() and BYTE_MASK
         require(cipherType == CIPHER_AES_256_GCM) {
             "Unsupported backup cipher: $cipherType."
+        }
+        val compressionType = when (backupVersion) {
+            LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION -> COMPRESSION_NONE
+            CURRENT_BACKUP_CONTAINER_VERSION -> buffer.get().toInt() and BYTE_MASK
+            else -> error("Unexpected backup file version: $backupVersion.")
+        }
+        require(compressionType in SUPPORTED_COMPRESSION_TYPES) {
+            "Unsupported backup compression: $compressionType."
+        }
+        val uncompressedLengthBytes = when (backupVersion) {
+            LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION -> null
+            CURRENT_BACKUP_CONTAINER_VERSION -> buffer.long
+            else -> error("Unexpected backup file version: $backupVersion.")
+        }
+        if (uncompressedLengthBytes != null) {
+            require(uncompressedLengthBytes >= 0L) {
+                "Backup file declares an invalid uncompressed payload length."
+            }
+            require(uncompressedLengthBytes <= MAX_BACKUP_JSON_BYTES) {
+                "Backup file exceeds the maximum supported restore size."
+            }
         }
 
         val argon2Parameters = BackupArgon2Parameters(
@@ -257,6 +311,8 @@ class BackupCrypto internal constructor(
             encryptedBytes = encryptedBytes,
             buffer = buffer,
             argon2Parameters = argon2Parameters,
+            compressionType = compressionType,
+            uncompressedLengthBytes = uncompressedLengthBytes,
         )
     }
 
@@ -264,6 +320,8 @@ class BackupCrypto internal constructor(
         encryptedBytes: ByteArray,
         buffer: ByteBuffer,
         argon2Parameters: BackupArgon2Parameters,
+        compressionType: Int,
+        uncompressedLengthBytes: Long?,
     ): ParsedBackupContainer {
         val saltLength = buffer.get().toInt() and BYTE_MASK
         val nonceLength = buffer.get().toInt() and BYTE_MASK
@@ -290,14 +348,55 @@ class BackupCrypto internal constructor(
         return ParsedBackupContainer(
             header = encryptedBytes.copyOfRange(0, headerLength),
             argon2Parameters = argon2Parameters,
+            compressionType = compressionType,
+            uncompressedLengthBytes = uncompressedLengthBytes,
             salt = salt,
             nonce = nonce,
             ciphertext = encryptedBytes.copyOfRange(headerLength, encryptedBytes.size),
         )
     }
 
+    private fun gzip(plaintext: ByteArray): ByteArray {
+        val outputStream = ByteArrayOutputStream()
+        GZIPOutputStream(outputStream).use { gzipStream ->
+            gzipStream.write(plaintext)
+        }
+        return outputStream.toByteArray()
+    }
+
+    private fun gunzip(
+        compressedPayload: ByteArray,
+        expectedUncompressedLengthBytes: Long,
+    ): ByteArray {
+        return try {
+            GZIPInputStream(ByteArrayInputStream(compressedPayload)).use { gzipStream ->
+                val outputStream = ByteArrayOutputStream()
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var totalBytes = 0L
+                while (true) {
+                    val bytesRead = gzipStream.read(buffer)
+                    if (bytesRead == -1) break
+                    totalBytes += bytesRead.toLong()
+                    if (totalBytes > MAX_BACKUP_JSON_BYTES) {
+                        throw IOException("Backup file exceeds the maximum supported restore size.")
+                    }
+                    if (totalBytes > expectedUncompressedLengthBytes) {
+                        throw IOException("Backup file does not match its declared payload length.")
+                    }
+                    outputStream.write(buffer, 0, bytesRead)
+                }
+                if (totalBytes != expectedUncompressedLengthBytes) {
+                    throw IOException("Backup file does not match its declared payload length.")
+                }
+                outputStream.toByteArray()
+            }
+        } catch (error: IOException) {
+            throw IOException("Unable to decompress the selected backup file.", error)
+        }
+    }
+
     companion object {
-        internal const val CURRENT_BACKUP_CONTAINER_VERSION = 2
+        internal const val CURRENT_BACKUP_CONTAINER_VERSION = 3
         internal val DEFAULT_ARGON2_PARAMETERS = BackupArgon2Parameters(
             timeCostInIterations = 3,
             memoryCostInKibibyte = 65_536,
@@ -306,9 +405,15 @@ class BackupCrypto internal constructor(
         )
         internal val MAGIC_BYTES: ByteArray = "HRTBKP1".encodeToByteArray()
 
+        private const val LEGACY_UNCOMPRESSED_BACKUP_CONTAINER_VERSION = 2
         private const val KDF_ARGON2_ID = 2
         private const val CIPHER_AES_256_GCM = 1
+        private const val COMPRESSION_NONE = 0
+        private const val COMPRESSION_GZIP = 1
+        private val SUPPORTED_COMPRESSION_TYPES = setOf(COMPRESSION_NONE, COMPRESSION_GZIP)
         private const val FIXED_HEADER_LENGTH_V2 = 28
+        private const val FIXED_HEADER_LENGTH_V3 = 37
+        private const val MAX_BACKUP_JSON_BYTES = 128L * 1024L * 1024L
         private const val SALT_LENGTH_BYTES = 16
         private const val NONCE_LENGTH_BYTES = 12
         private const val GCM_TAG_LENGTH_BITS = 128
@@ -337,6 +442,8 @@ internal data class BackupArgon2Parameters(
 private data class ParsedBackupContainer(
     val header: ByteArray,
     val argon2Parameters: BackupArgon2Parameters,
+    val compressionType: Int,
+    val uncompressedLengthBytes: Long?,
     val salt: ByteArray,
     val nonce: ByteArray,
     val ciphertext: ByteArray,
