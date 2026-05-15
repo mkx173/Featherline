@@ -71,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -939,7 +940,7 @@ internal fun MainE2ChartCard(
                 // an out-of-axis sentinel point so the LineProvider's
                 // index-based style mapping stays stable.
                 val hasAnyMarker = doseMarkerLoggedXHours.isNotEmpty() ||
-                    doseMarkerPlannedXHours.isNotEmpty()
+                        doseMarkerPlannedXHours.isNotEmpty()
                 if (hasAnyMarker) {
                     series(
                         x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
@@ -1242,10 +1243,10 @@ internal fun canResetMainE2ChartMinimap(
     hasPendingReset: Boolean,
 ): Boolean {
     return !hasPendingReset &&
-        mainE2ChartMinimapIsZoomed(
-            visibleRange = visibleRange,
-            chartWindowHours = chartWindowHours,
-        )
+            mainE2ChartMinimapIsZoomed(
+                visibleRange = visibleRange,
+                chartWindowHours = chartWindowHours,
+            )
 }
 
 internal fun resolveMainE2ChartMinimapDateLabelRange(
@@ -1277,7 +1278,7 @@ private fun mainE2ChartMinimapIsZoomed(
     val start = visibleRange.start.coerceIn(0.0, fullHours)
     val end = visibleRange.endInclusive.coerceIn(0.0, fullHours)
     return start > MainE2ChartMinimapRangeEpsilonHours ||
-        end < fullHours - MainE2ChartMinimapRangeEpsilonHours
+            end < fullHours - MainE2ChartMinimapRangeEpsilonHours
 }
 
 private fun mainE2ChartMinimapFullVisibleRange(chartWindowHours: Int): MainE2ChartVisibleXRange {
@@ -1419,7 +1420,7 @@ private fun MainE2ChartMinimap(
         val leftFraction = minOf(startFraction, endFraction)
         val rightFraction = maxOf(startFraction, endFraction)
         return minimapHorizontalInsetPx + leftFraction * plotWidth to
-            ((rightFraction - leftFraction) * plotWidth).coerceIn(0f, plotWidth)
+                ((rightFraction - leftFraction) * plotWidth).coerceIn(0f, plotWidth)
     }
 
     fun dateLabelViewportMetrics(canvasWidth: Float): Pair<Float, Float> {
@@ -1452,7 +1453,7 @@ private fun MainE2ChartMinimap(
                         .weight(1f)
                         .fillMaxSize(),
                 ) {
-                    Canvas(
+                    Spacer(
                         modifier = Modifier
                             .matchParentSize()
                             .onSizeChanged { minimapCanvasSize.value = it }
@@ -1461,203 +1462,233 @@ private fun MainE2ChartMinimap(
                                 minimapHorizontalInsetPx,
                                 onViewportScrollFractionChanged,
                             ) {
-                        var dragPointerOffsetFromViewportStartPx = 0f
-                        var dragViewportWidthPx = 0f
+                                var dragPointerOffsetFromViewportStartPx = 0f
+                                var dragViewportWidthPx = 0f
 
-                        fun viewportMetrics(): Pair<Float, Float> {
-                            val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
-                            val plotWidth =
-                                (size.width.toFloat() - minimapHorizontalInsetPx * 2)
-                                    .coerceAtLeast(1f)
-                            val maxScroll = scrollState.maxValue
-                            if (maxScroll <= 0f) return 0f to plotWidth
-                            val visibleRange = coordinateMapper.rawVisibleXRange()
-                                ?: MainE2ChartVisibleXRange(0.0, fullHours)
-                            val visibleSpan = (visibleRange.endInclusive - visibleRange.start)
-                                .coerceIn(0.0, fullHours)
-                            val viewportWidth = (visibleSpan / fullHours).toFloat()
-                                .times(plotWidth)
-                                .coerceIn(0f, plotWidth)
-                            val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
-                            val viewportLeft = (scrollState.value / maxScroll)
-                                .coerceIn(0f, 1f) * scrollablePlotWidth
-                            return viewportLeft to viewportWidth
-                        }
-
-                        fun scrollFractionFor(pointerX: Float): Float {
-                            val plotWidth =
-                                (size.width.toFloat() - minimapHorizontalInsetPx * 2)
-                                    .coerceAtLeast(1f)
-                            val scrollablePlotWidth =
-                                (plotWidth - dragViewportWidthPx).coerceAtLeast(0f)
-                            if (scrollablePlotWidth <= 0f) return 0f
-                            val pointerPlotX =
-                                (pointerX - minimapHorizontalInsetPx).coerceIn(0f, plotWidth)
-                            return ((pointerPlotX - dragPointerOffsetFromViewportStartPx) /
-                                scrollablePlotWidth).coerceIn(0f, 1f)
-                        }
-
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                val (viewportLeft, viewportWidth) = viewportMetrics()
-                                dragViewportWidthPx = viewportWidth
-                                val plotWidth =
-                                    (size.width.toFloat() - minimapHorizontalInsetPx * 2)
-                                        .coerceAtLeast(1f)
-                                val pointerPlotX =
-                                    (offset.x - minimapHorizontalInsetPx)
+                                fun viewportMetrics(): Pair<Float, Float> {
+                                    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+                                    val plotWidth =
+                                        (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                            .coerceAtLeast(1f)
+                                    val maxScroll = scrollState.maxValue
+                                    if (maxScroll <= 0f) return 0f to plotWidth
+                                    val visibleRange = coordinateMapper.rawVisibleXRange()
+                                        ?: MainE2ChartVisibleXRange(0.0, fullHours)
+                                    val visibleSpan = (visibleRange.endInclusive - visibleRange.start)
+                                        .coerceIn(0.0, fullHours)
+                                    val viewportWidth = (visibleSpan / fullHours).toFloat()
+                                        .times(plotWidth)
                                         .coerceIn(0f, plotWidth)
-                                dragPointerOffsetFromViewportStartPx =
-                                    if (pointerPlotX in viewportLeft..(viewportLeft + viewportWidth)) {
-                                        pointerPlotX - viewportLeft
-                                    } else {
-                                        viewportWidth / 2f
-                                    }
-                                onViewportScrollFractionChanged(scrollFractionFor(offset.x))
-                            },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                onViewportScrollFractionChanged(
-                                    scrollFractionFor(change.position.x)
+                                    val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                                    val viewportLeft = (scrollState.value / maxScroll)
+                                        .coerceIn(0f, 1f) * scrollablePlotWidth
+                                    return viewportLeft to viewportWidth
+                                }
+
+                                fun scrollFractionFor(pointerX: Float): Float {
+                                    val plotWidth =
+                                        (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                            .coerceAtLeast(1f)
+                                    val scrollablePlotWidth =
+                                        (plotWidth - dragViewportWidthPx).coerceAtLeast(0f)
+                                    if (scrollablePlotWidth <= 0f) return 0f
+                                    val pointerPlotX =
+                                        (pointerX - minimapHorizontalInsetPx).coerceIn(0f, plotWidth)
+                                    return ((pointerPlotX - dragPointerOffsetFromViewportStartPx) /
+                                            scrollablePlotWidth).coerceIn(0f, 1f)
+                                }
+
+                                detectDragGestures(
+                                    onDragStart = { offset ->
+                                        val (viewportLeft, viewportWidth) = viewportMetrics()
+                                        dragViewportWidthPx = viewportWidth
+                                        val plotWidth =
+                                            (size.width.toFloat() - minimapHorizontalInsetPx * 2)
+                                                .coerceAtLeast(1f)
+                                        val pointerPlotX =
+                                            (offset.x - minimapHorizontalInsetPx)
+                                                .coerceIn(0f, plotWidth)
+                                        dragPointerOffsetFromViewportStartPx =
+                                            if (pointerPlotX in viewportLeft..(viewportLeft + viewportWidth)) {
+                                                pointerPlotX - viewportLeft
+                                            } else {
+                                                viewportWidth / 2f
+                                            }
+                                        onViewportScrollFractionChanged(scrollFractionFor(offset.x))
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        onViewportScrollFractionChanged(
+                                            scrollFractionFor(change.position.x)
+                                        )
+                                    },
                                 )
-                            },
-                        )
-                    }
-                    .semantics { contentDescription = overviewDescription }
-                ) {
-                val scrollValue = scrollState.value
-                val zoomValue = zoomState.value
-                if (!scrollValue.isFinite() || !zoomValue.isFinite()) {
-                    return@Canvas
-                }
+                            }
+                            .drawWithCache {
+                                // Pre-compute everything that depends only on size, points,
+                                // currentTimeXHours, maxY, chartWindowHours and colors.
+                                // The polyline collapses from N drawLine calls into a single
+                                // Path so the per-frame draw is one drawPath instead of ~84
+                                // separate draw ops at our default sampling rate.
+                                val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+                                val yMax = maxY.coerceAtLeast(1.0)
+                                val horizontalInset = minimapHorizontalInsetPx
+                                val verticalInset = 6.dp.toPx()
+                                val plotWidth = (size.width - horizontalInset * 2).coerceAtLeast(1f)
+                                val plotHeight = (size.height - verticalInset * 2).coerceAtLeast(1f)
+                                val plotTop = verticalInset
+                                val plotBottom = plotTop + plotHeight
+                                val plotTopLeft = Offset(horizontalInset, plotTop)
+                                val plotSize = Size(plotWidth, plotHeight)
+                                val cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                                val trackPath = Path().apply {
+                                    addRoundRect(
+                                        RoundRect(
+                                            rect = Rect(offset = plotTopLeft, size = plotSize),
+                                            cornerRadius = cornerRadius,
+                                        )
+                                    )
+                                }
 
-                val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
-                val rawVisibleRange = coordinateMapper.rawVisibleXRange()
-                    ?: MainE2ChartVisibleXRange(0.0, fullHours)
-                val horizontalInset = minimapHorizontalInsetPx
-                val verticalInset = 6.dp.toPx()
-                val plotWidth = (size.width - horizontalInset * 2).coerceAtLeast(1f)
-                val plotHeight = (size.height - verticalInset * 2).coerceAtLeast(1f)
-                val plotTop = verticalInset
-                val plotBottom = plotTop + plotHeight
-                val plotTopLeft = Offset(horizontalInset, plotTop)
-                val plotSize = Size(plotWidth, plotHeight)
-                val cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                val trackPath = Path().apply {
-                    addRoundRect(
-                        RoundRect(
-                            rect = Rect(
-                                offset = plotTopLeft,
-                                size = plotSize,
-                            ),
-                            cornerRadius = cornerRadius,
-                        )
+                                fun xToCanvas(xHours: Double): Float {
+                                    return horizontalInset +
+                                            (xHours.coerceIn(0.0, fullHours) / fullHours).toFloat() * plotWidth
+                                }
+
+                                fun yToCanvas(value: Float): Float {
+                                    return plotBottom -
+                                            (value.toDouble().coerceIn(0.0, yMax) / yMax).toFloat() * plotHeight
+                                }
+
+                                val finitePoints = pointXHours
+                                    .zip(points)
+                                    .filter { (x, y) -> x.isFinite() && y.isFinite() }
+                                    .sortedBy { (x, _) -> x }
+                                val seriesPath: Path?
+                                val singlePointCenter: Offset?
+                                when {
+                                    finitePoints.isEmpty() -> {
+                                        seriesPath = null
+                                        singlePointCenter = null
+                                    }
+                                    finitePoints.size == 1 -> {
+                                        val (x, y) = finitePoints.first()
+                                        seriesPath = null
+                                        singlePointCenter = Offset(xToCanvas(x), yToCanvas(y))
+                                    }
+                                    else -> {
+                                        seriesPath = Path().apply {
+                                            finitePoints.forEachIndexed { index, (x, y) ->
+                                                val cx = xToCanvas(x)
+                                                val cy = yToCanvas(y)
+                                                if (index == 0) moveTo(cx, cy) else lineTo(cx, cy)
+                                            }
+                                        }
+                                        singlePointCenter = null
+                                    }
+                                }
+                                val seriesColor = lineColor.copy(alpha = 0.72f)
+                                val currentX = xToCanvas(currentTimeXHours)
+                                val seriesStrokeWidth = 1.5.dp.toPx()
+                                val pointRadius = 2.dp.toPx()
+                                val currentTimeStrokeWidth = 1.dp.toPx()
+                                val baselineStrokeWidth = 1.dp.toPx()
+                                val viewportStrokeWidth = 1.25.dp.toPx()
+                                val viewportStrokeInset = viewportStrokeWidth / 2f
+                                val viewportStrokeCornerRadius = CornerRadius(
+                                    x = (cornerRadius.x - viewportStrokeInset).coerceAtLeast(0f),
+                                    y = (cornerRadius.y - viewportStrokeInset).coerceAtLeast(0f),
+                                )
+                                val minViewportWidth = 4.dp.toPx()
+
+                                onDrawBehind {
+                                    val scrollValue = scrollState.value
+                                    val zoomValue = zoomState.value
+                                    if (!scrollValue.isFinite() || !zoomValue.isFinite()) {
+                                        return@onDrawBehind
+                                    }
+
+                                    drawRoundRect(
+                                        color = trackColor,
+                                        topLeft = plotTopLeft,
+                                        size = plotSize,
+                                        cornerRadius = cornerRadius,
+                                    )
+
+                                    val rawVisibleRange = coordinateMapper.rawVisibleXRange()
+                                        ?: MainE2ChartVisibleXRange(0.0, fullHours)
+                                    val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
+                                        .coerceIn(0.0, fullHours)
+                                    val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
+                                    val viewportWidth = if (scrollState.maxValue <= 0f) {
+                                        plotWidth
+                                    } else if (rawViewportWidth < minViewportWidth) {
+                                        minViewportWidth
+                                    } else {
+                                        rawViewportWidth
+                                    }
+                                    val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
+                                    val viewportLeft = if (scrollState.maxValue <= 0f) {
+                                        horizontalInset
+                                    } else {
+                                        horizontalInset +
+                                                (scrollValue / scrollState.maxValue).coerceIn(0f, 1f) *
+                                                scrollablePlotWidth
+                                    }
+
+                                    clipPath(trackPath) {
+                                        drawRoundRect(
+                                            color = viewportColor,
+                                            topLeft = Offset(viewportLeft, plotTop),
+                                            size = Size(viewportWidth, plotHeight),
+                                            cornerRadius = cornerRadius,
+                                        )
+
+                                        if (singlePointCenter != null) {
+                                            drawCircle(
+                                                color = seriesColor,
+                                                radius = pointRadius,
+                                                center = singlePointCenter,
+                                            )
+                                        } else if (seriesPath != null) {
+                                            drawPath(
+                                                path = seriesPath,
+                                                color = seriesColor,
+                                                style = Stroke(width = seriesStrokeWidth),
+                                            )
+                                        }
+
+                                        drawLine(
+                                            color = currentTimeLineColor,
+                                            start = Offset(currentX, plotTop),
+                                            end = Offset(currentX, plotBottom),
+                                            strokeWidth = currentTimeStrokeWidth,
+                                        )
+
+                                        drawRoundRect(
+                                            color = viewportStrokeColor,
+                                            topLeft = Offset(
+                                                x = viewportLeft + viewportStrokeInset,
+                                                y = plotTop + viewportStrokeInset,
+                                            ),
+                                            size = Size(
+                                                width = (viewportWidth - viewportStrokeWidth).coerceAtLeast(0f),
+                                                height = (plotHeight - viewportStrokeWidth).coerceAtLeast(0f),
+                                            ),
+                                            cornerRadius = viewportStrokeCornerRadius,
+                                            style = Stroke(width = viewportStrokeWidth),
+                                        )
+                                        drawLine(
+                                            color = subtleLineColor,
+                                            start = Offset(horizontalInset, plotBottom),
+                                            end = Offset(horizontalInset + plotWidth, plotBottom),
+                                            strokeWidth = baselineStrokeWidth,
+                                        )
+                                    }
+                                }
+                            }
+                            .semantics { contentDescription = overviewDescription }
                     )
-                }
-
-                fun xToCanvas(xHours: Double): Float {
-                    return horizontalInset +
-                        (xHours.coerceIn(0.0, fullHours) / fullHours).toFloat() * plotWidth
-                }
-
-                fun yToCanvas(value: Float): Float {
-                    val yMax = maxY.coerceAtLeast(1.0)
-                    return plotBottom -
-                        (value.toDouble().coerceIn(0.0, yMax) / yMax).toFloat() * plotHeight
-                }
-
-                drawRoundRect(
-                    color = trackColor,
-                    topLeft = plotTopLeft,
-                    size = plotSize,
-                    cornerRadius = cornerRadius,
-                )
-
-                val minViewportWidth = 4.dp.toPx()
-                val visibleSpan = (rawVisibleRange.endInclusive - rawVisibleRange.start)
-                    .coerceIn(0.0, fullHours)
-                val rawViewportWidth = (visibleSpan / fullHours).toFloat() * plotWidth
-                val viewportWidth = if (scrollState.maxValue <= 0f) {
-                    plotWidth
-                } else if (rawViewportWidth < minViewportWidth) {
-                    minViewportWidth
-                } else {
-                    rawViewportWidth
-                }
-                val scrollablePlotWidth = (plotWidth - viewportWidth).coerceAtLeast(0f)
-                val viewportLeft = if (scrollState.maxValue <= 0f) {
-                    horizontalInset
-                } else {
-                    horizontalInset +
-                        (scrollValue / scrollState.maxValue).coerceIn(0f, 1f) *
-                        scrollablePlotWidth
-                }
-                val viewportStrokeWidth = 1.25.dp.toPx()
-                val viewportStrokeInset = viewportStrokeWidth / 2f
-                val viewportStrokeCornerRadius = CornerRadius(
-                    x = (cornerRadius.x - viewportStrokeInset).coerceAtLeast(0f),
-                    y = (cornerRadius.y - viewportStrokeInset).coerceAtLeast(0f),
-                )
-
-                clipPath(trackPath) {
-                    drawRoundRect(
-                        color = viewportColor,
-                        topLeft = Offset(viewportLeft, plotTop),
-                        size = Size(viewportWidth, plotHeight),
-                        cornerRadius = cornerRadius,
-                    )
-
-                    val finitePoints = pointXHours
-                        .zip(points)
-                        .filter { (x, y) -> x.isFinite() && y.isFinite() }
-                        .sortedBy { (x, _) -> x }
-                    if (finitePoints.size == 1) {
-                        val (x, y) = finitePoints.first()
-                        drawCircle(
-                            color = lineColor.copy(alpha = 0.72f),
-                            radius = 2.dp.toPx(),
-                            center = Offset(xToCanvas(x), yToCanvas(y)),
-                        )
-                    } else {
-                        finitePoints.zipWithNext().forEach { (left, right) ->
-                            drawLine(
-                                color = lineColor.copy(alpha = 0.72f),
-                                start = Offset(xToCanvas(left.first), yToCanvas(left.second)),
-                                end = Offset(xToCanvas(right.first), yToCanvas(right.second)),
-                                strokeWidth = 1.5.dp.toPx(),
-                            )
-                        }
-                    }
-
-                    val currentX = xToCanvas(currentTimeXHours)
-                    drawLine(
-                        color = currentTimeLineColor,
-                        start = Offset(currentX, plotTop),
-                        end = Offset(currentX, plotBottom),
-                        strokeWidth = 1.dp.toPx(),
-                    )
-
-                    drawRoundRect(
-                        color = viewportStrokeColor,
-                        topLeft = Offset(
-                            x = viewportLeft + viewportStrokeInset,
-                            y = plotTop + viewportStrokeInset,
-                        ),
-                        size = Size(
-                            width = (viewportWidth - viewportStrokeWidth).coerceAtLeast(0f),
-                            height = (plotHeight - viewportStrokeWidth).coerceAtLeast(0f),
-                        ),
-                        cornerRadius = viewportStrokeCornerRadius,
-                        style = Stroke(width = viewportStrokeWidth),
-                    )
-                    drawLine(
-                        color = subtleLineColor,
-                        start = Offset(horizontalInset, plotBottom),
-                        end = Offset(horizontalInset + plotWidth, plotBottom),
-                        strokeWidth = 1.dp.toPx(),
-                    )
-                }
-                    }
                 }
 
                 Surface(
@@ -1718,9 +1749,9 @@ private fun MainE2ChartMinimap(
                                     minimapCanvasSize.value.width.toFloat()
                                 )
                                 val maxX = (
-                                    minimapCanvasSize.value.width -
-                                        startDateLabelSize.value.width
-                                    ).coerceAtLeast(0)
+                                        minimapCanvasSize.value.width -
+                                                startDateLabelSize.value.width
+                                        ).coerceAtLeast(0)
                                 IntOffset(
                                     x = viewportLeft.roundToInt().coerceIn(0, maxX),
                                     y = 0,
@@ -1741,11 +1772,11 @@ private fun MainE2ChartMinimap(
                                     minimapCanvasSize.value.width.toFloat()
                                 )
                                 val maxX = (
-                                    minimapCanvasSize.value.width -
-                                        endDateLabelSize.value.width
-                                    ).coerceAtLeast(0)
+                                        minimapCanvasSize.value.width -
+                                                endDateLabelSize.value.width
+                                        ).coerceAtLeast(0)
                                 val x = (viewportLeft + viewportWidth).roundToInt() -
-                                    endDateLabelSize.value.width
+                                        endDateLabelSize.value.width
                                 IntOffset(
                                     x = x.coerceIn(0, maxX),
                                     y = 0,
@@ -1849,9 +1880,9 @@ private fun rememberEdgeAlignedLineCartesianLayer(
     val drawingModelKey = remember { ExtraStore.Key<LineCartesianLayerDrawingModel>() }
     val drawingModelInterpolator = remember {
         CartesianLayerDrawingModelInterpolator.default<
-            LineCartesianLayerDrawingModel.Entry,
-            LineCartesianLayerDrawingModel,
-            >()
+                LineCartesianLayerDrawingModel.Entry,
+                LineCartesianLayerDrawingModel,
+                >()
     }
     return remember(lineProvider, rangeProvider, pointSpacing) {
         EdgeAlignedLineCartesianLayer(
@@ -1869,9 +1900,9 @@ private class EdgeAlignedLineCartesianLayer(
     pointSpacing: Dp,
     rangeProvider: CartesianLayerRangeProvider,
     drawingModelInterpolator: CartesianLayerDrawingModelInterpolator<
-        LineCartesianLayerDrawingModel.Entry,
-        LineCartesianLayerDrawingModel,
-        >,
+            LineCartesianLayerDrawingModel.Entry,
+            LineCartesianLayerDrawingModel,
+            >,
     drawingModelKey: ExtraStore.Key<LineCartesianLayerDrawingModel>,
 ) : LineCartesianLayer(
     lineProvider = lineProvider,
@@ -1958,8 +1989,8 @@ private class MainE2ChartCoordinateMapper {
     fun update(context: CartesianDrawingContext) {
         with(context) {
             drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
-                layoutDirectionMultiplier * layerDimensions.startPadding -
-                scroll
+                    layoutDirectionMultiplier * layerDimensions.startPadding -
+                    scroll
             layerLeft = layerBounds.left
             layerRight = layerBounds.right
             layerTop = layerBounds.top
@@ -1987,9 +2018,9 @@ private class MainE2ChartCoordinateMapper {
     fun canvasXForXHours(xHours: Double): Float? {
         if (!hasUsableMapping()) return null
         val canvasX = drawingStart +
-            layoutDirectionMultiplier *
-            xSpacing *
-            ((xHours.coerceIn(minX, maxX) - minX) / xStep).toFloat()
+                layoutDirectionMultiplier *
+                xSpacing *
+                ((xHours.coerceIn(minX, maxX) - minX) / xStep).toFloat()
         return canvasX.coerceIn(layerLeft, layerRight)
     }
 
@@ -2023,9 +2054,9 @@ private class MainE2ChartCoordinateMapper {
     private fun rawXHoursForCanvasX(canvasX: Float): Double? {
         if (!hasUsableMapping()) return null
         return minX +
-            (canvasX - drawingStart) /
-            (layoutDirectionMultiplier * xSpacing) *
-            xStep
+                (canvasX - drawingStart) /
+                (layoutDirectionMultiplier * xSpacing) *
+                xStep
     }
 
     private fun hasUsableMapping(): Boolean {
@@ -2197,12 +2228,12 @@ private class VerticalLineDecoration(
         }
 
         val drawingStart = (if (isLtr) layerBounds.left else layerBounds.right) +
-            layoutDirectionMultiplier * layerDimensions.startPadding -
-            scroll
+                layoutDirectionMultiplier * layerDimensions.startPadding -
+                scroll
         val canvasX = drawingStart +
-            layoutDirectionMultiplier *
-            layerDimensions.xSpacing *
-            ((x - ranges.minX) / ranges.xStep).toFloat()
+                layoutDirectionMultiplier *
+                layerDimensions.xSpacing *
+                ((x - ranges.minX) / ranges.xStep).toFloat()
         if (clampToLayerBounds) {
             return canvasX.coerceIn(layerBounds.left, layerBounds.right)
         }
@@ -2702,9 +2733,9 @@ private fun MainTodayDoseRow(
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
     val hasOnlyOutsideScheduleWindowLog = row.loggedAt == null &&
-        row.outsideScheduleWindowLoggedAt != null
+            row.outsideScheduleWindowLoggedAt != null
     val routeIconOutlined = hasOnlyOutsideScheduleWindowLog ||
-        (row.loggedAt == null && row.status == MainTodayDoseStatus.OVERDUE)
+            (row.loggedAt == null && row.status == MainTodayDoseStatus.OVERDUE)
     val quickLogGroupUuid = row.groupUuid
     val onQuickLogClick = {
         if (quickLogGroupUuid != null) {
