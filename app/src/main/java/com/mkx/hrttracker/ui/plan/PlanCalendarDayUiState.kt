@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotOccurrence
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
@@ -44,13 +45,10 @@ data class PlanCalendarDayUiState(
         }
 }
 
-internal data class PlanScheduleTimeSlot(
-    val scheduleTimeUuid: UUID?,
-    val scheduledFor: LocalDateTime,
-) {
-    val time: LocalTime
-        get() = scheduledFor.toLocalTime()
-}
+internal typealias PlanScheduleTimeSlot = MedicationGroupSlotKey
+
+internal val PlanScheduleTimeSlot.time: LocalTime
+    get() = scheduledFor.toLocalTime()
 
 fun buildPlanCalendarDayUiState(
     groups: List<MedicationGroup>,
