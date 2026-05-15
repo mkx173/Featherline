@@ -1,7 +1,9 @@
 package com.mkx.hrttracker.model.medication
 
 import com.mkx.hrttracker.util.displayZoneOf
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 
@@ -83,4 +85,53 @@ internal fun isEntryWithinScheduleFulfillmentWindow(
         previousScheduledFor = group.previousScheduledForBefore(scheduledFor, zoneId = appliedAtZoneId),
         nextScheduledFor = group.nextScheduledForAfter(scheduledFor, zoneId = appliedAtZoneId)
     )
+}
+
+internal fun isSlotFulfilled(
+    group: MedicationGroup,
+    date: LocalDate,
+    time: LocalTime,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    return isSlotFulfilled(
+        group = group,
+        slot = MedicationGroupSlotKey(
+            scheduleTimeUuid = group.schedule.timeSlots
+                .firstOrNull { slot -> slot.time == time }
+                ?.uuid,
+            scheduledFor = LocalDateTime.of(date, time),
+        ),
+        entries = entries,
+        zoneId = zoneId,
+    )
+}
+
+internal fun isSlotFulfilled(
+    group: MedicationGroup,
+    slot: MedicationGroupSlotKey,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    if (group.medications.isEmpty()) {
+        return false
+    }
+
+    val slotLogs = slotRecords(group, slot, entries, zoneId)
+    if (slotLogs.isEmpty()) {
+        return false
+    }
+
+    val requiredCounts = group.medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .mapValues { (_, medications) -> medications.sumOf { medication -> medication.count } }
+    val loggedCounts = slotLogs
+        .groupBy(MedicationSignature::fromLogEntry)
+        .mapValues { (_, entriesForSignature) ->
+            entriesForSignature.sumOf { entry -> entry.count }
+        }
+
+    return requiredCounts.all { (signature, requiredCount) ->
+        loggedCounts.getOrDefault(signature, 0) >= requiredCount
+    }
 }

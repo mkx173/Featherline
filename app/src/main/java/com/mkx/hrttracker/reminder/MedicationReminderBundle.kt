@@ -4,9 +4,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
-import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.util.UUID

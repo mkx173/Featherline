@@ -3,9 +3,9 @@ package com.mkx.hrttracker.reminder
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
-import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import java.time.LocalDateTime
 import java.util.UUID
 

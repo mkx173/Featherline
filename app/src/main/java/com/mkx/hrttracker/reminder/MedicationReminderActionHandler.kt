@@ -9,8 +9,8 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.ui.plan.PlanScheduleTimeSlot
-import com.mkx.hrttracker.ui.plan.isSlotFulfilled
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
