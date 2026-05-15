@@ -38,10 +38,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at
-GitHub Security Advisories at
-https://github.com/mkx173/HRTTracker/security/advisories/new (mark as
-confidential), or by contacting [@mkx173](https://github.com/mkx173)
-directly on GitHub. All complaints will be reviewed and investigated promptly and fairly.
+[@mkx173](https://github.com/mkx173) on GitHub. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 
