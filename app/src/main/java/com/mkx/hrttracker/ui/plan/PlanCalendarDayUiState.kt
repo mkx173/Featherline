@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.hasMatchingSlotRecord
 import com.mkx.hrttracker.model.medication.isScheduledOn
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.time
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -42,11 +43,6 @@ data class PlanCalendarDayUiState(
             else -> PlanCalendarDayStatus.FULFILLED
         }
 }
-
-internal typealias PlanScheduleTimeSlot = MedicationGroupSlotKey
-
-internal val PlanScheduleTimeSlot.time: LocalTime
-    get() = scheduledFor.toLocalTime()
 
 fun buildPlanCalendarDayUiState(
     groups: List<MedicationGroup>,

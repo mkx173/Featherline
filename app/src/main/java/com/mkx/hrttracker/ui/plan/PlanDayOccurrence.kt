@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.isEntryWithinScheduleFulfillmentWindow
+import com.mkx.hrttracker.model.medication.time
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration

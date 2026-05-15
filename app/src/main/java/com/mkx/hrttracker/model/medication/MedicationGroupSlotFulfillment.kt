@@ -21,6 +21,9 @@ internal data class MedicationGroupSlotKey(
     val scheduledFor: LocalDateTime,
 )
 
+internal val MedicationGroupSlotKey.time: LocalTime
+    get() = scheduledFor.toLocalTime()
+
 internal fun slotRecords(
     group: MedicationGroup,
     slot: MedicationGroupSlotKey,
