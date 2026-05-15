@@ -9,12 +9,9 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotOccurrence
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.isScheduledOn
-import com.mkx.hrttracker.model.medication.isWithinScheduleFulfillmentWindow
-import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
-import com.mkx.hrttracker.model.medication.previousScheduledForBefore
+import com.mkx.hrttracker.model.medication.slotRecords
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
-import com.mkx.hrttracker.util.displayZoneOf
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -345,89 +342,4 @@ internal fun hasMatchingSlotRecord(
     return requiredSignatures.any(loggedSignatures::contains)
 }
 
-private fun slotRecords(
-    group: MedicationGroup,
-    date: LocalDate,
-    time: LocalTime,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): List<MedicationLogEntry> {
-    return slotRecords(
-        group = group,
-        slot = PlanScheduleTimeSlot(
-            scheduleTimeUuid = group.schedule.timeSlots
-                .firstOrNull { slot -> slot.time == time }
-                ?.uuid,
-            scheduledFor = LocalDateTime.of(date, time),
-        ),
-        entries = entries,
-        zoneId = zoneId,
-    )
-}
-
-private fun slotRecords(
-    group: MedicationGroup,
-    slot: PlanScheduleTimeSlot,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): List<MedicationLogEntry> {
-    return entries.filter { entry ->
-        isEntryFulfillingPlanSlot(
-            group = group,
-            slot = slot,
-            entry = entry,
-            zoneId = zoneId,
-        )
-    }
-}
-
-internal fun isEntryFulfillingPlanSlot(
-    group: MedicationGroup,
-    slot: PlanScheduleTimeSlot,
-    entry: MedicationLogEntry,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    return isEntryForPlanSlot(
-        group = group,
-        slot = slot,
-        entry = entry,
-    ) && isEntryWithinScheduleFulfillmentWindow(
-        group = group,
-        entry = entry,
-        zoneId = zoneId
-    )
-}
-
-internal fun isEntryForPlanSlot(
-    group: MedicationGroup,
-    slot: PlanScheduleTimeSlot,
-    entry: MedicationLogEntry,
-): Boolean {
-    val scheduledFor = entry.scheduledFor ?: return false
-    if (entry.sourceGroupUuid != group.uuid) {
-        return false
-    }
-    return if (slot.scheduleTimeUuid != null && entry.scheduleTimeUuid != null) {
-        entry.scheduleTimeUuid == slot.scheduleTimeUuid &&
-            scheduledFor.toLocalDate() == slot.scheduledFor.toLocalDate()
-    } else {
-        scheduledFor == slot.scheduledFor
-    }
-}
-
-internal fun isEntryWithinScheduleFulfillmentWindow(
-    group: MedicationGroup,
-    entry: MedicationLogEntry,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    val scheduledFor = entry.scheduledFor ?: return false
-    val appliedAtZoneId = displayZoneOf(entry.appliedAtTimeZoneId, zoneId)
-    val appliedAt = entry.appliedAt.atZone(appliedAtZoneId).toLocalDateTime()
-    return isWithinScheduleFulfillmentWindow(
-        scheduledFor = scheduledFor,
-        appliedAt = appliedAt,
-        previousScheduledFor = group.previousScheduledForBefore(scheduledFor, zoneId = appliedAtZoneId),
-        nextScheduledFor = group.nextScheduledForAfter(scheduledFor, zoneId = appliedAtZoneId)
-    )
-}
 
