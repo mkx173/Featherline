@@ -8,10 +8,10 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotOccurrence
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.hasMatchingSlotRecord
 import com.mkx.hrttracker.model.medication.isScheduledOn
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
-import com.mkx.hrttracker.model.medication.slotRecords
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -249,49 +249,5 @@ private fun MedicationGroupSlotOccurrence.toPlanScheduleTimeSlot(): PlanSchedule
     )
 }
 
-internal fun hasMatchingSlotRecord(
-    group: MedicationGroup,
-    date: LocalDate,
-    time: LocalTime,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    return hasMatchingSlotRecord(
-        group = group,
-        slot = PlanScheduleTimeSlot(
-            scheduleTimeUuid = group.schedule.timeSlots
-                .firstOrNull { slot -> slot.time == time }
-                ?.uuid,
-            scheduledFor = LocalDateTime.of(date, time),
-        ),
-        entries = entries,
-        zoneId = zoneId,
-    )
-}
-
-internal fun hasMatchingSlotRecord(
-    group: MedicationGroup,
-    slot: PlanScheduleTimeSlot,
-    entries: List<MedicationLogEntry>,
-    zoneId: ZoneId = ZoneId.systemDefault(),
-): Boolean {
-    if (group.medications.isEmpty()) {
-        return false
-    }
-
-    val slotLogs = slotRecords(group, slot, entries, zoneId)
-    if (slotLogs.isEmpty()) {
-        return false
-    }
-
-    val requiredSignatures = group.medications
-        .groupBy(MedicationSignature::fromGroupMedication)
-        .keys
-    val loggedSignatures = slotLogs
-        .map(MedicationSignature::fromLogEntry)
-        .toSet()
-
-    return requiredSignatures.any(loggedSignatures::contains)
-}
 
 

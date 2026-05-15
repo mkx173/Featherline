@@ -135,3 +135,48 @@ internal fun isSlotFulfilled(
         loggedCounts.getOrDefault(signature, 0) >= requiredCount
     }
 }
+
+internal fun hasMatchingSlotRecord(
+    group: MedicationGroup,
+    date: LocalDate,
+    time: LocalTime,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    return hasMatchingSlotRecord(
+        group = group,
+        slot = MedicationGroupSlotKey(
+            scheduleTimeUuid = group.schedule.timeSlots
+                .firstOrNull { slot -> slot.time == time }
+                ?.uuid,
+            scheduledFor = LocalDateTime.of(date, time),
+        ),
+        entries = entries,
+        zoneId = zoneId,
+    )
+}
+
+internal fun hasMatchingSlotRecord(
+    group: MedicationGroup,
+    slot: MedicationGroupSlotKey,
+    entries: List<MedicationLogEntry>,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): Boolean {
+    if (group.medications.isEmpty()) {
+        return false
+    }
+
+    val slotLogs = slotRecords(group, slot, entries, zoneId)
+    if (slotLogs.isEmpty()) {
+        return false
+    }
+
+    val requiredSignatures = group.medications
+        .groupBy(MedicationSignature::fromGroupMedication)
+        .keys
+    val loggedSignatures = slotLogs
+        .map(MedicationSignature::fromLogEntry)
+        .toSet()
+
+    return requiredSignatures.any(loggedSignatures::contains)
+}
