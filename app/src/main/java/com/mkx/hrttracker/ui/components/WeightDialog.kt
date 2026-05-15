@@ -36,6 +36,7 @@ fun WeightDialog(
     onClear: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    isInProgress: Boolean = false,
 ) {
     var valueText by remember {
         mutableStateOf(profile.weightOriginalValue?.let { formatWeightForInput(it) }.orEmpty())
@@ -43,17 +44,19 @@ fun WeightDialog(
     var selectedUnit by remember { mutableStateOf(profile.weightOriginalUnit) }
     var showValidationError by remember { mutableStateOf(false) }
     val submit = {
-        val parsed = valueText.trim().replace(',', '.').toDoubleOrNull()
-        if (parsed == null || parsed <= 0.0) {
-            showValidationError = true
-        } else {
-            onSave(parsed, selectedUnit)
+        if (!isInProgress) {
+            val parsed = valueText.trim().replace(',', '.').toDoubleOrNull()
+            if (parsed == null || parsed <= 0.0) {
+                showValidationError = true
+            } else {
+                onSave(parsed, selectedUnit)
+            }
         }
     }
 
     AlertDialog(
         modifier = modifier,
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isInProgress) onDismiss() },
         title = { Text(text = stringResource(R.string.personalization_weight_dialog_title)) },
         text = {
             Column(
@@ -74,6 +77,7 @@ fun WeightDialog(
                     label = {
                         Text(text = stringResource(R.string.personalization_weight_dialog_value_label))
                     },
+                    enabled = !isInProgress,
                     suffix = {
                         Text(text = stringResource(selectedUnit.shortLabelRes))
                     },
@@ -101,6 +105,7 @@ fun WeightDialog(
                         selectedOption = selectedUnit,
                         optionLabel = { unit -> stringResource(unit.shortLabelRes) },
                         onOptionSelected = { selectedUnit = it },
+                        enabled = !isInProgress,
                         layout = ConnectedButtonGroupLayout.ROW,
                         colors = ToggleButtonDefaults.toggleButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -117,17 +122,22 @@ fun WeightDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 if (profile.weightOriginalValue != null) {
-                    TextButton(onClick = onClear) {
+                    TextButton(
+                        enabled = !isInProgress,
+                        onClick = onClear
+                    ) {
                         Text(text = stringResource(R.string.personalization_weight_dialog_clear))
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(
+                    enabled = !isInProgress,
                     onClick = onDismiss,
                 ) {
                     Text(text = stringResource(R.string.cancel))
                 }
                 TextButton(
+                    enabled = !isInProgress,
                     onClick = { submit() },
                 ) {
                     Text(text = stringResource(R.string.personalization_weight_dialog_save))

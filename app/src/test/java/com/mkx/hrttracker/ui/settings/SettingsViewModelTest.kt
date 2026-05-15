@@ -6,6 +6,7 @@ import com.mkx.hrttracker.data.backup.BackupRestoreService
 import com.mkx.hrttracker.data.repository.BloodTestRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -28,13 +29,16 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -143,7 +147,57 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun requestBackupRestore_clearsPendingRequestImmediatelyWhileRestoreIsInFlight() = runTest {
+    fun setWeight_marksWeightMutationInProgressUntilRepositoryWriteCompletes() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val writeStarted = CompletableDeferred<Unit>()
+        val allowWriteToFinish = CompletableDeferred<Unit>()
+        coEvery {
+            userProfileRepository.setWeight(72.0, WeightUnit.KILOGRAMS, any())
+        } coAnswers {
+            writeStarted.complete(Unit)
+            allowWriteToFinish.await()
+        }
+
+        viewModel.setWeight(72.0, WeightUnit.KILOGRAMS)
+        runCurrent()
+        writeStarted.await()
+
+        assertTrue(viewModel.uiState.value.isWeightMutationInProgress)
+
+        allowWriteToFinish.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun clearWeight_marksWeightMutationInProgressUntilRepositoryWriteCompletes() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val writeStarted = CompletableDeferred<Unit>()
+        val allowWriteToFinish = CompletableDeferred<Unit>()
+        coEvery {
+            userProfileRepository.clearWeight(any())
+        } coAnswers {
+            writeStarted.complete(Unit)
+            allowWriteToFinish.await()
+        }
+
+        viewModel.clearWeight()
+        runCurrent()
+        writeStarted.await()
+
+        assertTrue(viewModel.uiState.value.isWeightMutationInProgress)
+
+        allowWriteToFinish.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isWeightMutationInProgress)
+    }
+
+    @Test
+    fun requestBackupRestore_keepsPendingRequestWhileRestoreIsInFlight() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
         val uri = mockk<Uri>()
@@ -167,10 +221,14 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         restoreStarted.await()
 
-        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertNotNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertTrue(viewModel.uiState.value.isBackupRestoreInProgress)
 
         allowRestoreToFinish.complete(Unit)
         advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.pendingRestoreRequest)
+        assertFalse(viewModel.uiState.value.isBackupRestoreInProgress)
     }
 
     @Test

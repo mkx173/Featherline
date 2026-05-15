@@ -58,6 +58,8 @@ class SettingsViewModel @Inject constructor(
     private val pendingRestoreRequest = MutableStateFlow<PendingBackupRestoreRequest?>(null)
     private val isBackupExportInProgress = MutableStateFlow(false)
     private val isBackupRestoreInProgress = MutableStateFlow(false)
+    private val isWeightMutationInProgress = MutableStateFlow(false)
+    private val weightMutationCompletionToken = MutableStateFlow(0L)
     // Replay the most recent result so the UI still sees it after a config
     // change recreates the collector. The restore itself sets the app locale,
     // which triggers an activity recreate; without replay the success/failure
@@ -77,6 +79,8 @@ class SettingsViewModel @Inject constructor(
         pendingRestoreRequest,
         isBackupExportInProgress,
         isBackupRestoreInProgress,
+        isWeightMutationInProgress,
+        weightMutationCompletionToken,
     ) { values ->
         val settingsState = values[0] as SettingsState
         val profile = values[1] as UserProfile?
@@ -86,6 +90,8 @@ class SettingsViewModel @Inject constructor(
         val restoreRequest = values[5] as PendingBackupRestoreRequest?
         val exportInProgress = values[6] as Boolean
         val restoreInProgress = values[7] as Boolean
+        val weightInProgress = values[8] as Boolean
+        val weightCompletionToken = values[9] as Long
         SettingsUiState(
             settingsState = settingsState,
             userProfile = profile ?: UserProfile(),
@@ -95,6 +101,8 @@ class SettingsViewModel @Inject constructor(
             pendingRestoreRequest = restoreRequest,
             isBackupExportInProgress = exportInProgress,
             isBackupRestoreInProgress = restoreInProgress,
+            isWeightMutationInProgress = weightInProgress,
+            weightMutationCompletionToken = weightCompletionToken,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -107,14 +115,27 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setWeight(value: Double, unit: WeightUnit) {
-        viewModelScope.launch {
+        launchWeightMutation {
             userProfileRepository.setWeight(value, unit)
         }
     }
 
     fun clearWeight() {
-        viewModelScope.launch {
+        launchWeightMutation {
             userProfileRepository.clearWeight()
+        }
+    }
+
+    private fun launchWeightMutation(block: suspend () -> Unit) {
+        if (isWeightMutationInProgress.value) return
+        isWeightMutationInProgress.value = true
+        viewModelScope.launch {
+            try {
+                block()
+            } finally {
+                weightMutationCompletionToken.value += 1L
+                isWeightMutationInProgress.value = false
+            }
         }
     }
 
@@ -313,12 +334,9 @@ class SettingsViewModel @Inject constructor(
         // a second click that lands before the coroutine runs sees it
         // and short-circuits at the guard above.
         setBackupRestoreInProgress(true)
-        // Transfer ownership of the encrypted bytes out of the pending
-        // request so a mid-flight dialog dismiss (which still calls
-        // clearPendingRestoreRequest) can't zero the array we're actively
-        // decrypting from. Clear the request immediately so an activity
-        // recreate caused by restored settings has no dialog to re-render.
-        pendingRestoreRequest.value = null
+        // Keep the pending request in state while the restore is active so
+        // the password dialog stays rendered and locked across a slow Room
+        // open or the activity recreate caused by restored settings.
         viewModelScope.launch {
             try {
                 backupRestoreService.restoreBackupBytes(
@@ -448,6 +466,8 @@ data class SettingsUiState(
     val pendingRestoreRequest: PendingBackupRestoreRequest? = null,
     val isBackupExportInProgress: Boolean = false,
     val isBackupRestoreInProgress: Boolean = false,
+    val isWeightMutationInProgress: Boolean = false,
+    val weightMutationCompletionToken: Long = 0L,
 )
 
 data class PendingPreparedBackupExport(

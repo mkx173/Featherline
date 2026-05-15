@@ -441,7 +441,7 @@ fun SettingsScreen(
                 }
             }
         },
-        isBackupExportInProgress = isBackupExportInProgress || isBackupFlowPending,
+        isBackupActionBlocked = isBackupActionBlocked,
         showDiagnosticsExport = BuildConfig.DEBUG,
         isDiagnosticsExportInProgress = isDiagnosticsExportInProgress,
         onExportDiagnosticLogsClick = {
@@ -559,7 +559,7 @@ private fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
-    isBackupExportInProgress: Boolean,
+    isBackupActionBlocked: Boolean,
     showDiagnosticsExport: Boolean,
     isDiagnosticsExportInProgress: Boolean,
     onExportDiagnosticLogsClick: () -> Unit,
@@ -569,6 +569,7 @@ private fun SettingsScreenContent(
     val settingsState = uiState.settingsState
     val context = LocalContext.current
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingWeightMutationCompletionToken by rememberSaveable { mutableStateOf<Long?>(null) }
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
@@ -619,6 +620,23 @@ private fun SettingsScreenContent(
             scrollState.animateScrollTo(0)
             topAppBarState.contentOffset = 0f
             topAppBarState.heightOffset = 0f
+        }
+    }
+
+    LaunchedEffect(
+        showWeightDialog,
+        pendingWeightMutationCompletionToken,
+        uiState.isWeightMutationInProgress,
+        uiState.weightMutationCompletionToken,
+    ) {
+        val pendingToken = pendingWeightMutationCompletionToken ?: return@LaunchedEffect
+        if (
+            showWeightDialog &&
+            !uiState.isWeightMutationInProgress &&
+            uiState.weightMutationCompletionToken > pendingToken
+        ) {
+            pendingWeightMutationCompletionToken = null
+            showWeightDialog = false
         }
     }
 
@@ -970,7 +988,7 @@ private fun SettingsScreenContent(
             ) {
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_backup_to_file),
-                    enabled = !isBackupExportInProgress,
+                    enabled = !isBackupActionBlocked,
                     index = 0,
                     count = 2,
                     onClick = onBackupToFileClick,
@@ -986,7 +1004,7 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_restore_from_file),
-                    enabled = !isBackupExportInProgress,
+                    enabled = !isBackupActionBlocked,
                     index = 1,
                     count = 2,
                     onClick = onRestoreFromFileClick,
@@ -1231,14 +1249,20 @@ private fun SettingsScreenContent(
         WeightDialog(
             profile = uiState.userProfile,
             onSave = { value, unit ->
+                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
                 onWeightSave(value, unit)
-                showWeightDialog = false
             },
             onClear = {
+                pendingWeightMutationCompletionToken = uiState.weightMutationCompletionToken
                 onWeightClear()
-                showWeightDialog = false
             },
-            onDismiss = { showWeightDialog = false }
+            onDismiss = {
+                if (!uiState.isWeightMutationInProgress) {
+                    pendingWeightMutationCompletionToken = null
+                    showWeightDialog = false
+                }
+            },
+            isInProgress = uiState.isWeightMutationInProgress,
         )
     }
 }
@@ -1553,7 +1577,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
-            isBackupExportInProgress = false,
+            isBackupActionBlocked = false,
             showDiagnosticsExport = true,
             isDiagnosticsExportInProgress = false,
             onExportDiagnosticLogsClick = { },
