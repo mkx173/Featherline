@@ -37,9 +37,20 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## Screenshots
 
-| Home | Plan | History | Calibration |
-| --- | --- | --- | --- |
-| ![Home screen](.github/screenshots/home.png) | ![Plan view](.github/screenshots/plan.png) | ![History log](.github/screenshots/history.png) | ![Calibration screen](.github/screenshots/calibration.png) |
+<table>
+  <tr>
+    <td width="25%"><img src=".github/screenshots/home.png" alt="Home screen"></td>
+    <td width="25%"><img src=".github/screenshots/plan.png" alt="Plan view"></td>
+    <td width="25%"><img src=".github/screenshots/history.png" alt="History log"></td>
+    <td width="25%"><img src=".github/screenshots/calibration.png" alt="Calibration screen"></td>
+  </tr>
+  <tr>
+    <td align="center">Home</td>
+    <td align="center">Plan</td>
+    <td align="center">History</td>
+    <td align="center">Calibration</td>
+  </tr>
+</table>
 
 ## How it works
 
