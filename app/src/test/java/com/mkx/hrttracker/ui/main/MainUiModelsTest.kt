@@ -181,7 +181,7 @@ class MainUiModelsTest {
             mainE2ChartYAxisSpec(points = listOf(128f, 174f))
         )
         assertEquals(
-            MainE2ChartYAxisSpec(maxY = 1000.0, tickStep = 200.0),
+            MainE2ChartYAxisSpec(maxY = 1000.0, tickStep = 250.0),
             mainE2ChartYAxisSpec(
                 points = listOf(410f),
                 doseMarkers = listOf(MainE2DoseMarkerUiState(xHours = 12.0, concentration = 860f))
@@ -196,6 +196,16 @@ class MainUiModelsTest {
         assertEquals(
             MainE2ChartYAxisSpec(maxY = 80.0, tickStep = 20.0),
             mainE2ChartYAxisSpec(points = listOf(60f, 75f))
+        )
+    }
+
+    @Test
+    fun mainE2ChartYAxisSpec_prefers_larger_step_when_multiple_steps_yield_same_maxY() {
+        // Peak ≈80 produces maxY=100 from both step=20 and step=25; prefer
+        // step=25 so ticks read 0/25/50/75/100 instead of 0/20/40/60/80/100.
+        assertEquals(
+            MainE2ChartYAxisSpec(maxY = 100.0, tickStep = 25.0),
+            mainE2ChartYAxisSpec(points = listOf(60f, 80f))
         )
     }
 

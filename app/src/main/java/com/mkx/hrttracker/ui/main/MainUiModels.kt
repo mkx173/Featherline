@@ -360,10 +360,22 @@ internal fun mainE2ChartYAxisSpec(
         ?: 0.0
     // Headroom for Catmull-Rom overshoot between sample points; otherwise a
     // sample flush with the top tick clips the rendered curve and minimap.
-    val maxValue = rawMax * MainE2YAxisHeadroomMultiplier
-    val step = MainE2YAxisTickSteps.firstOrNull { candidate ->
-        ceil(maxValue.coerceAtLeast(1.0) / candidate) <= MainE2YAxisMaxTickIntervals
-    } ?: fallbackMainE2YAxisStep(maxValue)
+    val maxValue = (rawMax * MainE2YAxisHeadroomMultiplier).coerceAtLeast(1.0)
+    val candidates = MainE2YAxisTickSteps.filter { candidate ->
+        ceil(maxValue / candidate) <= MainE2YAxisMaxTickIntervals
+    }
+    val step = if (candidates.isEmpty()) {
+        fallbackMainE2YAxisStep(maxValue)
+    } else {
+        // Among ties on maxY, prefer the largest step so tick labels stay clean
+        // (e.g., 0/25/50/75/100 over 0/20/40/60/80/100), but keep enough
+        // intervals that the axis doesn't collapse to 0/100.
+        val smallestMaxY = candidates.minOf { ceil(maxValue / it) * it }
+        val tied = candidates.filter { ceil(maxValue / it) * it == smallestMaxY }
+        tied.filter { ceil(maxValue / it) >= MainE2YAxisMinPreferredTickIntervals }
+            .maxOrNull()
+            ?: tied.min()
+    }
     val maxY = ceil(maxValue / step)
         .coerceAtLeast(1.0) * step
 
@@ -841,6 +853,7 @@ private val MainLastNightStartTime = LocalTime.of(18, 0)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L
 private const val MainE2YAxisMaxTickIntervals = 5
+private const val MainE2YAxisMinPreferredTickIntervals = 3
 private const val MainE2YAxisHeadroomMultiplier = 1.05
 private const val EmptyE2ChartSampleIntervalHours = 24
 private const val EmptyE2ChartWindowHours = 7 * 24
