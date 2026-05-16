@@ -1,4 +1,4 @@
-# HRTTracker
+# Featherline
 
 HRT medication tracker for Android with PK projections and lab tracking. On-device, encrypted, no account required.
 
@@ -8,9 +8,9 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 ![minSdk](https://img.shields.io/badge/minSdk-31-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
-HRTTracker logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
+Featherline logs doses across injection, patch, gel, oral, and sublingual routes; projects estradiol levels from your dose history using a three-compartment pharmacokinetic model; and tracks blood test results with automatic unit conversion across canonical and clinical units. Everything stays in an encrypted local database — no accounts, no telemetry, no network calls. Backups are encrypted and compressed. Available in English and Simplified Chinese.
 
-> ⚠️ **Not medical advice.** HRTTracker is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
+> ⚠️ **Not medical advice.** Featherline is a tracking tool, not a medical device, and using it does not establish a clinician relationship. The pharmacokinetic projection is a rough population-average estimate from your logged doses — it is not a substitute for blood tests or for a clinician's interpretation, and you should not use it to make dosing changes. See [docs/safety.md](docs/safety.md) for the full disclaimer.
 
 ## Get the app
 
@@ -40,7 +40,7 @@ HRTTracker logs doses across injection, patch, gel, oral, and sublingual routes;
 
 ## How it works
 
-HRTTracker is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
+Featherline is a single-module Android app written in Kotlin with Jetpack Compose. Doses, reminders, and lab results live in a SQLCipher-encrypted Room database. The pharmacokinetic engine is a three-compartment model that converts every logged dose into an estradiol contribution over time, then sums contributions across all routes to produce a projected curve. Reminders use AlarmManager with exact-alarm permission handling and snooze support; notifications survive reboots and time changes through a reconciliation layer. The blood test catalog defines analytes with bidirectional unit conversion via a canonical factor table. Backups are encrypted, compressed, and use a versioned format with full restore validation.
 
 The full architecture, data model, and reminder pipeline are documented in [docs/architecture.md](docs/architecture.md).
 
@@ -68,11 +68,11 @@ Contributions are welcome. Read the [Code of Conduct](CODE_OF_CONDUCT.md) first,
 
 ## Privacy
 
-HRTTracker stores everything on your device in an encrypted database. There are no accounts, no telemetry, and no network calls. See [docs/privacy.md](docs/privacy.md) for the full data-handling description.
+Featherline stores everything on your device in an encrypted database. There are no accounts, no telemetry, and no network calls. See [docs/privacy.md](docs/privacy.md) for the full data-handling description.
 
 ## License
 
-HRTTracker is released under the GNU General Public License, version 3.0. See [LICENSE](LICENSE) for the full text.
+Featherline is released under the GNU General Public License, version 3.0. See [LICENSE](LICENSE) for the full text.
 
 ## Acknowledgments
 

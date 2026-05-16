@@ -1,6 +1,6 @@
 # Building
 
-How to build HRTTracker from source. Two Gradle modules (`:app`, `:macrobenchmark`) under one root project `Featherline`.
+How to build Featherline from source. Two Gradle modules (`:app`, `:macrobenchmark`) under one root project `Featherline`.
 
 ## Prerequisites
 

@@ -1,6 +1,6 @@
 # Release process
 
-How HRTTracker releases get built, versioned, and published.
+How Featherline releases get built, versioned, and published.
 
 ## Version scheme
 

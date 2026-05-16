@@ -1,6 +1,6 @@
 # PK differences
 
-HRTTracker's pharmacokinetic math borrows the model shape and many
+Featherline's pharmacokinetic math borrows the model shape and many
 parameter values from
 [`LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test`](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test).
 This page lists what's the same, what's different, and why; it does
@@ -19,7 +19,7 @@ trace back to that reference. Anyone wanting the math itself —
 compartment equations, parameter provenance, literature anchors —
 should read the upstream README and its `pk_research/` workspace.
 
-## What HRTTracker reuses
+## What Featherline reuses
 
 - **Model shape.** Two parallel depots → esterase hydrolysis →
   clearance for injections; first-order Bateman absorption for oral,
@@ -39,11 +39,11 @@ should read the upstream README and its `pk_research/` workspace.
   sublingual θ, and the per-compound `k1Fast` / `k1Slow` / `k2` /
   formation fractions are taken from upstream's anchored parameters.
 
-## What HRTTracker changes
+## What Featherline changes
 
 - **Single-hormone simulation runtime.** Upstream's catalog and
   simulator drive both estradiol and testosterone end-to-end.
-  HRTTracker keeps the testosterone constants in
+  Featherline keeps the testosterone constants in
   [`PkCatalog`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1203)
   for parity but wires only the estradiol path through
   [`toEstradiolPkDoseEvent`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1069),
@@ -52,7 +52,7 @@ should read the upstream README and its `pk_research/` workspace.
   the testosterone surface stays dormant until the planned PK engine
   swap lands.
 - **Planned-dose projection.** Upstream simulates the doses you give
-  it. HRTTracker synthesizes virtual future-dose events for
+  it. Featherline synthesizes virtual future-dose events for
   unfulfilled scheduled slots via
   [`buildEstradiolPkSimulationEntries`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkPlannedEntries.kt#L25)
   so the home chart can show a "if you take everything on schedule"
@@ -61,7 +61,7 @@ should read the upstream README and its `pk_research/` workspace.
   projected doses.
 - **Adaptive chart-sample placement.** Upstream's `SimulationEngine`
   is a math reference, not a chart engine, so it samples on a single
-  fixed step. HRTTracker drives a seven-day chart, so it samples the
+  fixed step. Featherline drives a seven-day chart, so it samples the
   window on a dense backbone
   (`MainChartDenseSampleIntervalHours = 0.1 h`) and pins exact samples
   at the prediction instant, the previous-day instant, and every
@@ -92,7 +92,7 @@ should read the upstream README and its `pk_research/` workspace.
   Upstream has no equivalent because it has no persistent home
   snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
-  events directly inside its simulator. HRTTracker keeps the active-mg
+  events directly inside its simulator. Featherline keeps the active-mg
   conversion in `toEstradiolPkDoseEvent` and `activeEstradiolDoseMg`,
   pulling per-compound `activeFactor` from `PkCatalog.compounds`
   (active-vs-prodrug molecular-weight ratios) and passing already-mg-as-E2
@@ -114,7 +114,7 @@ should read the upstream README and its `pk_research/` workspace.
   the planned PK engine.
 - **Default gel application area baked in.** `DefaultGelAreaCm2 =
   750.0` is set at the dose-event factory; upstream's catalog exposes
-  area-related parameters per event. HRTTracker doesn't expose this in
+  area-related parameters per event. Featherline doesn't expose this in
   the UI because the current gel model doesn't read `areaCm2` —
   `PkParameterResolver`'s `GEL` branch uses `core.gelK1` and
   `core.gelFMax` directly. The field is kept so a future skin-depot
@@ -123,7 +123,7 @@ should read the upstream README and its `pk_research/` workspace.
 - **Sublingual θ is fixed, not user-settable.** Upstream lets the user
   configure the sublingual θ — the fraction of a sublingual dose
   absorbed through the buccal mucosa (fast pathway) versus swallowed
-  and absorbed orally (slow pathway). HRTTracker's
+  and absorbed orally (slow pathway). Featherline's
   [`PkDoseEvent`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L73)
   carries an optional `sublingualTheta: Double?` field for parity, but
   nothing in the UI ever sets it. The
@@ -131,9 +131,9 @@ should read the upstream README and its `pk_research/` workspace.
   branch always falls back to the catalog default
   [`PkCatalog.standardSublingualTheta = 0.11`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1204).
   Real per-person variation in mucosal-vs-swallowed fraction can be
-  substantial; HRTTracker does not currently expose it for tuning.
+  substantial; Featherline does not currently expose it for tuning.
 
-## What HRTTracker plans to change
+## What Featherline plans to change
 
 The PK engine swap gates three deferred refactors, all enumerated in
 [`architecture.md#known-limitations-and-planned-refactors`](architecture.md#known-limitations-and-planned-refactors):

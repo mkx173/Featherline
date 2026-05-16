@@ -1,6 +1,6 @@
 # Blood tests
 
-How HRTTracker models lab analytes, converts between units without
+How Featherline models lab analytes, converts between units without
 drift, and validates unit choices at the layer boundary.
 The whole subsystem lives in
 [`model/bloodtest/`](https://github.com/mkx173/HRTTracker/tree/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/model/bloodtest)

@@ -1,4 +1,4 @@
-# Contributing to HRTTracker
+# Contributing to Featherline
 
 Thanks for considering a contribution. Here's how to get involved.
 
@@ -20,7 +20,7 @@ Open a GitHub issue with:
 - What you expected to happen vs. what actually happened.
 - A screenshot or recording if the bug is visual.
 
-**HRTTracker is not a medical advice tool.** If you have a concern about your own health, that is not a bug report — see [`docs/safety.md`](docs/safety.md) for the framing and consult a clinician.
+**Featherline is not a medical advice tool.** If you have a concern about your own health, that is not a bug report — see [`docs/safety.md`](docs/safety.md) for the framing and consult a clinician.
 
 ## Proposing changes
 
@@ -61,4 +61,4 @@ Keep the subject line under ~72 characters. Use the body to explain *why* the ch
 
 ## License
 
-HRTTracker is released under [GPL-3.0](LICENSE). By opening a pull request, you confirm that you have the right to license your changes under GPL-3.0 and that you intend to do so. No CLA, no copyright assignment.
+Featherline is released under [GPL-3.0](LICENSE). By opening a pull request, you confirm that you have the right to license your changes under GPL-3.0 and that you intend to do so. No CLA, no copyright assignment.

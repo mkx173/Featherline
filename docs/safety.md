@@ -1,22 +1,22 @@
 # Safety and Disclaimer
 
-This document is the canonical statement of what HRTTracker is, what it is not, and how to read its pharmacokinetic projection. The short banner in the README links here. If anything in the README and this document conflict, this document is the source of truth.
+This document is the canonical statement of what Featherline is, what it is not, and how to read its pharmacokinetic projection. The short banner in the README links here. If anything in the README and this document conflict, this document is the source of truth.
 
 ## Not medical advice
 
-HRTTracker is a tracking tool. It is not a medical device, and installing or using it does not create a clinician–patient relationship between you and the app's developers, contributors, or distributors.
+Featherline is a tracking tool. It is not a medical device, and installing or using it does not create a clinician–patient relationship between you and the app's developers, contributors, or distributors.
 
 The app does not diagnose any condition. It does not prescribe, recommend, or contraindicate any medication or dose. It does not treat any condition. Decisions about your hormone therapy — whether to start, change, pause, or stop a regimen — are between you and a clinician you trust.
 
 ## Not a medical device
 
-HRTTracker is not approved, registered, cleared, or certified as a medical device under any regulatory regime — including the U.S. FDA, the UK MHRA, the EU MDR (CE marking), Japan's PMDA, China's NMPA, or any equivalent authority elsewhere.
+Featherline is not approved, registered, cleared, or certified as a medical device under any regulatory regime — including the U.S. FDA, the UK MHRA, the EU MDR (CE marking), Japan's PMDA, China's NMPA, or any equivalent authority elsewhere.
 
-It is not subject to medical-device quality controls, clinical validation, or post-market surveillance. If your jurisdiction regulates health-related apps, HRTTracker should be treated as a personal log — equivalent in regulatory status to a paper notebook with arithmetic in it — and nothing more.
+It is not subject to medical-device quality controls, clinical validation, or post-market surveillance. If your jurisdiction regulates health-related apps, Featherline should be treated as a personal log — equivalent in regulatory status to a paper notebook with arithmetic in it — and nothing more.
 
 ## How to read the pharmacokinetic projection
 
-The estradiol curve HRTTracker shows is a **model estimate**, not a measurement.
+The estradiol curve Featherline shows is a **model estimate**, not a measurement.
 
 The model uses population-average parameters: absorption rates, distribution volumes, elimination half-lives, and metabolic constants drawn from published studies. Your body's actual absorption, distribution, metabolism, and clearance may differ substantially from those averages — sometimes by a factor of two or more in either direction.
 
@@ -35,7 +35,7 @@ Things you should **not** use the projection for:
 
 Blood tests, drawn at the appropriate time relative to your dosing and interpreted by a clinician, remain the source of truth for what your levels actually are.
 
-## What HRTTracker does NOT do
+## What Featherline does NOT do
 
 - It does not recommend doses.
 - It does not interpret lab results.
@@ -50,7 +50,7 @@ If a feature looks like it might do one of these things, it doesn't — read the
 
 Decisions about your therapy are yours.
 
-HRTTracker is useful as a log and a projector even when you do not have regular clinician or lab access. That is a real situation many people on HRT live with — through gatekeeping, cost, geography, or systemic discrimination — and this app does not pretend otherwise. Tracking what you take and modeling what you'd expect is valuable on its own.
+Featherline is useful as a log and a projector even when you do not have regular clinician or lab access. That is a real situation many people on HRT live with — through gatekeeping, cost, geography, or systemic discrimination — and this app does not pretend otherwise. Tracking what you take and modeling what you'd expect is valuable on its own.
 
 That said, a clinician's interpretation remains the only reliable way to:
 
@@ -63,6 +63,6 @@ In an emergency, contact your local emergency services. The app, its maintainers
 
 ## No warranty
 
-HRTTracker is released under the GNU General Public License, version 3.0. Sections 15 and 16 of GPL-3.0 disclaim all warranty and limit liability, and those disclaimers apply in full.
+Featherline is released under the GNU General Public License, version 3.0. Sections 15 and 16 of GPL-3.0 disclaim all warranty and limit liability, and those disclaimers apply in full.
 
 The maintainer is not liable for any decision made with the app's help, for any divergence between the model and reality, or for any harm — direct or indirect — arising from use or inability to use the app.

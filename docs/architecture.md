@@ -1,6 +1,6 @@
 # Architecture
 
-This page is the structural overview of the HRTTracker codebase: where
+This page is the structural overview of the Featherline codebase: where
 the layers sit, what each top-level package owns, how dependency
 injection and navigation are wired, and one representative read path
 through every layer. Use it together with [data-model.md](data-model.md)

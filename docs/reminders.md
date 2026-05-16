@@ -1,6 +1,6 @@
 # Reminders
 
-How HRTTracker turns a medication schedule into a dose-reminder
+How Featherline turns a medication schedule into a dose-reminder
 notification at the right wall-clock time, and how that pipeline
 survives reboots, time zone changes, and revoked permissions. The
 whole subsystem lives in

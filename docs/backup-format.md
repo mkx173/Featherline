@@ -1,6 +1,6 @@
 # Backup format
 
-How HRTTracker exports user data to a single encrypted file and how
+How Featherline exports user data to a single encrypted file and how
 that file is read back. The whole subsystem lives in
 [`data/backup/`](https://github.com/mkx173/HRTTracker/tree/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup)
 (five files, ~2 100 LOC).

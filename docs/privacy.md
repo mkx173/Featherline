@@ -4,7 +4,7 @@ The contributor-facing technical companion to the Play Store privacy policy. Exp
 
 ## Canonical policy is authoritative
 
-The legally-binding privacy policy for HRTTracker lives at <https://asterismlabs.io/featherline/privacy/>. That document controls in any conflict. This page does not restate the legal commitments — it documents how those commitments are enforced in code, manifest, and resource files, so an auditor or contributor can verify each claim against source.
+The legally-binding privacy policy for Featherline lives at <https://asterismlabs.io/featherline/privacy/>. That document controls in any conflict. This page does not restate the legal commitments — it documents how those commitments are enforced in code, manifest, and resource files, so an auditor or contributor can verify each claim against source.
 
 ## What's stored on device
 

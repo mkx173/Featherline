@@ -1,4 +1,4 @@
-# HRTTracker docs
+# Featherline docs
 
 Developer documentation. For the project overview, screenshots, and
 download links, see the [repo README](../README.md).
@@ -15,7 +15,7 @@ download links, see the [repo README](../README.md).
 - [Reminders](reminders.md) — AlarmManager pipeline, notification
   channels, snooze, exact-alarm permission handling.
 - [PK differences](pk-differences.md) — upstream PK reference and the
-  specific differences in HRTTracker.
+  specific differences in Featherline.
 - [Blood tests](blood-tests.md) — analyte catalog, unit-conversion
   factor table, validation pattern.
 - [Backup format](backup-format.md) — v3 compressed backup spec,
