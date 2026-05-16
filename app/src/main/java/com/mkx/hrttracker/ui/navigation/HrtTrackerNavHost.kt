@@ -180,12 +180,12 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
 }
 
-private data class NavigationItemContent(
+internal data class NavigationItemContent(
     val screen: Screen,
     @param:DrawableRes val icon: Int,
 )
 
-private val bottomNavItems = listOf(
+internal val topLevelNavigationItems = listOf(
     NavigationItemContent(Screen.Main, R.drawable.ic_home),
     NavigationItemContent(Screen.Plan, R.drawable.ic_calendar_month),
     NavigationItemContent(Screen.Settings, R.drawable.ic_settings)
@@ -265,7 +265,7 @@ fun HrtTrackerNavHost(
 
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)
-            ?: bottomNavItems.firstOrNull { navItem ->
+            ?: topLevelNavigationItems.firstOrNull { navItem ->
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
@@ -286,7 +286,7 @@ fun HrtTrackerNavHost(
         modifier = modifier,
         bottomBar = {
             ShortNavigationBar {
-                bottomNavItems.forEach { navItem ->
+                topLevelNavigationItems.forEach { navItem ->
                     ShortNavigationBarItem(
                         selected = selectedBottomScreen == navItem.screen,
                         onClick = {
