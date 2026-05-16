@@ -35,6 +35,7 @@ google-services.json
 
 # Claude
 .claude/
+AGENTS.md
 
 # Personal notes (in-progress design docs, screenshots seed, etc.)
 notes/

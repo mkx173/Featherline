@@ -1585,7 +1585,7 @@ private const val MODEL_REPOSITORY_URL =
     "https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test"
 
 private const val APP_REPOSITORY_URL =
-    "https://github.com/mkx173/HRTTracker"
+    "https://github.com/mkx173/Featherline"
 private const val DEVELOPER_X_URL = "https://x.com/mikanmkx"
 private const val VERSION_COPY_THROTTLE_MS = 2_000L
 private const val VERSION_EASTER_EGG_TAP_COUNT = 5
