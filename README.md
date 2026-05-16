@@ -4,7 +4,7 @@ HRT medication tracker for Android with PK projections and lab tracking. On-devi
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Play Store](https://img.shields.io/badge/Play_Store-available-success)](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
-[![Build](https://github.com/mkx173/HRTTracker/actions/workflows/android-release.yml/badge.svg)](https://github.com/mkx173/HRTTracker/actions/workflows/android-release.yml)
+[![Build](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml/badge.svg)](https://github.com/mkx173/Featherline/actions/workflows/android-release.yml)
 ![minSdk](https://img.shields.io/badge/minSdk-31-blue.svg)
 ![targetSdk](https://img.shields.io/badge/targetSdk-37-blue.svg)
 
@@ -15,7 +15,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 ## Get the app
 
 - **Play Store** (primary): [Link](https://play.google.com/store/apps/details?id=com.mkx.hrttracker)
-- **GitHub Releases** (signed APK for sideload): [releases page](https://github.com/mkx173/HRTTracker/releases)
+- **GitHub Releases** (signed APK for sideload): [releases page](https://github.com/mkx173/Featherline/releases)
 - Or build from source: see [docs/building.md](docs/building.md)
 
 ## Features

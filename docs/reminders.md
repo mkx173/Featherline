@@ -4,7 +4,7 @@ How Featherline turns a medication schedule into a dose-reminder
 notification at the right wall-clock time, and how that pipeline
 survives reboots, time zone changes, and revoked permissions. The
 whole subsystem lives in
-[`reminder/`](https://github.com/mkx173/HRTTracker/tree/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder)
+[`reminder/`](https://github.com/mkx173/Featherline/tree/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder)
 (17 files, ~2 000 LOC). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
@@ -35,7 +35,7 @@ sequenceDiagram
 The diagram covers the primary path. Snooze re-entry takes a parallel
 route described under [Snooze](#snooze): a separate `AlarmManager`
 alarm fires
-[`MedicationReminderActionReceiver`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
+[`MedicationReminderActionReceiver`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
 with `ACTION_MEDICATION_REMINDER_SNOOZE_ALARM`, which calls
 `MedicationReminderActionHandler.showSnoozedReminder` to re-post.
 
@@ -43,7 +43,7 @@ with `ACTION_MEDICATION_REMINDER_SNOOZE_ALARM`, which calls
 
 ### Plan
 
-[`MedicationReminderPlanner.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderPlanner.kt)
+[`MedicationReminderPlanner.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderPlanner.kt)
 exposes one pure function, `buildNextMedicationReminderPlans`. It takes
 the active medication groups, recent scheduled log entries, and the
 current `LocalDateTime`. For each non-archived group with
@@ -60,7 +60,7 @@ default.
 
 ### Schedule
 
-[`MedicationReminderScheduler.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt)
+[`MedicationReminderScheduler.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt)
 is the single seat for setting and cancelling alarms. Three entry
 points all funnel through the same `scheduleReminder` worker:
 
@@ -74,14 +74,14 @@ points all funnel through the same `scheduleReminder` worker:
   reminder fires or a group is edited.
 
 The alarm itself is set with
-[`AlarmManager.setExactAndAllowWhileIdle`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt#L221)
+[`AlarmManager.setExactAndAllowWhileIdle`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt#L221)
 on `RTC_WAKEUP` when the OS reports `canScheduleExactAlarms() = true`.
 On API 31+ that requires the `SCHEDULE_EXACT_ALARM` permission, which
 is declared in the manifest. If the runtime call raises
 `SecurityException` (the OS can revoke the permission between the
 capability check and the set call — a TOCTOU window), the scheduler
 catches it and falls back to
-[`setAndAllowWhileIdle`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt#L237)
+[`setAndAllowWhileIdle`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderScheduler.kt#L237)
 so the alarm still fires (with reduced precision) instead of
 propagating an exception out of a `BroadcastReceiver`. When
 `canScheduleExactAlarms()` returns `false` up front, the inexact path
@@ -95,32 +95,32 @@ equivalent `PendingIntent` and hands it to `alarmManager.cancel`.
 
 After each reschedule cycle, the scheduler writes the set of currently
 scheduled group UUIDs to
-[`ReminderScheduleStore`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderScheduleStore.kt)
+[`ReminderScheduleStore`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderScheduleStore.kt)
 so the next reschedule can cancel any orphans whose owning group has
 since been deleted.
 
 ### Receive
 
 The three broadcast receivers are registered in
-[`AndroidManifest.xml`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/AndroidManifest.xml).
+[`AndroidManifest.xml`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/AndroidManifest.xml).
 Each calls `goAsync()` and launches work on the application-scope
 `CoroutineScope` injected via Hilt.
 
-- [`MedicationReminderReceiver`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderReceiver.kt)
+- [`MedicationReminderReceiver`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderReceiver.kt)
   — fires on the scheduled alarm itself (`ACTION_MEDICATION_REMINDER`,
   not-exported). Reads the `EXTRA_GROUP_UUID` and `EXTRA_SCHEDULED_AT`
   extras, builds the bundle of unfulfilled slots at that exact
   `scheduledAt`, posts the notification, and then asks the scheduler to
   reschedule the same group one second after the fired time so the
   next occurrence is queued without a race.
-- [`MedicationReminderActionReceiver`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
+- [`MedicationReminderActionReceiver`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionReceiver.kt)
   — fires for user actions (`ACTION_MEDICATION_REMINDER_LOG_NOW`,
   `ACTION_MEDICATION_REMINDER_REMIND_LATER`) and for the snooze-fire
   alarm (`ACTION_MEDICATION_REMINDER_SNOOZE_ALARM`). All three actions
   carry the same `EXTRA_REMINDER_SLOTS` + `EXTRA_NOTIFICATION_TAG`
   shape and dispatch to a method on
   `MedicationReminderActionHandler`. Not-exported.
-- [`MedicationReminderRescheduleReceiver`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderRescheduleReceiver.kt)
+- [`MedicationReminderRescheduleReceiver`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderRescheduleReceiver.kt)
   — fires for five system broadcasts: `BOOT_COMPLETED`,
   `MY_PACKAGE_REPLACED`, `TIME_SET` (also known as
   `Intent.ACTION_TIME_CHANGED`), `TIMEZONE_CHANGED`, and
@@ -133,7 +133,7 @@ Each calls `goAsync()` and launches work on the application-scope
 
 ### Act
 
-[`MedicationReminderActionHandler.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionHandler.kt)
+[`MedicationReminderActionHandler.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderActionHandler.kt)
 implements the three user-facing actions:
 
 - `logNow(slots, notificationTag)` — re-checks fulfillment, writes
@@ -150,7 +150,7 @@ implements the three user-facing actions:
 - `showSnoozedReminder(slots, notificationTag)` — fired by the snooze
   alarm. Reloads the affected groups, drops any slot already fulfilled
   since snooze, builds a fresh
-  [`MedicationReminderBundle`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderBundle.kt),
+  [`MedicationReminderBundle`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderBundle.kt),
   and re-posts. `canSnooze` is computed from each slot's snooze count
   against `MAX_REMINDER_SNOOZE_COUNT = 4`, so the "Remind later" action
   disappears once a slot has been snoozed four times.
@@ -162,9 +162,9 @@ cancel the notification.
 
 ### Notify
 
-[`ReminderNotificationManager.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationManager.kt)
+[`ReminderNotificationManager.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationManager.kt)
 owns one notification channel:
-[`REMINDER_CHANNEL_ID = "dose_reminders"`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationManager.kt#L294)
+[`REMINDER_CHANNEL_ID = "dose_reminders"`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationManager.kt#L294)
 at `IMPORTANCE_HIGH`. `createNotificationChannel(languageTag)` is
 called lazily before each post and also from the locale-change path so
 the channel name and description re-render in the new language; the
@@ -193,7 +193,7 @@ stale state.
 
 Three files cooperate:
 
-- [`MedicationReminderSnoozeScheduler.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeScheduler.kt)
+- [`MedicationReminderSnoozeScheduler.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeScheduler.kt)
   owns the alarms. `snoozeSlots(slots, now)` advances each slot's snooze
   count, persists the new
   `MedicationReminderSnoozeRecord(slot, snoozeAt, snoozeCount)` set,
@@ -203,13 +203,13 @@ Three files cooperate:
   sharing the same `snoozeAt` collapse into one alarm; the
   `PendingIntent` data URI hashes the slot set so each bundle gets a
   stable identity.
-- [`MedicationReminderSnoozeStore.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeStore.kt)
+- [`MedicationReminderSnoozeStore.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeStore.kt)
   persists the records via Preferences DataStore (`name =
   "medication_reminder_snoozes"`) as a set of strings, with each
   record encoded as `slot U+001F snoozeAt U+001F snoozeCount` (`U+001F` is the
   ASCII unit separator). `ReplaceFileCorruptionHandler` recovers a
   corrupt file to an empty store.
-- [`MedicationReminderSnoozeModels.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeModels.kt)
+- [`MedicationReminderSnoozeModels.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeModels.kt)
   defines `MedicationReminderSnoozeRecord`,
   `buildNextSnoozeRecords` (the count increment / cap enforcement
   helper), `MAX_REMINDER_SNOOZE_COUNT = 4`, and
@@ -228,17 +228,17 @@ user moved the dose time after snoozing).
 The capability tier reflects two OS-controlled booleans into app state:
 notification-post permission and exact-alarm permission.
 
-- [`NotificationPermissions.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/NotificationPermissions.kt)
+- [`NotificationPermissions.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/NotificationPermissions.kt)
   exposes pure functions `canPostNotifications(context)` and
   `canScheduleExactAlarms(context)`. Both swallow `Throwable` on the
   preview/test code paths where the system services aren't available;
   `canScheduleExactAlarms` defaults to `false` so the scheduler takes
   the inexact path rather than risking `SecurityException` on a real
   device.
-- [`ReminderCapabilityState.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityState.kt)
+- [`ReminderCapabilityState.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityState.kt)
   is the data class
   `ReminderCapabilityState(hasNotificationAccess, hasExactAlarmAccess)`.
-- [`ReminderCapabilityReconciler.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityReconciler.kt)
+- [`ReminderCapabilityReconciler.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityReconciler.kt)
   holds the `StateFlow<ReminderCapabilityState>` consumed by Compose.
   `reconcile(reason)` re-reads both booleans, updates the flow, flips
   the master `remindersEnabled` setting off if notification access is
@@ -246,7 +246,7 @@ notification-post permission and exact-alarm permission.
   `medicationReminderScheduler.rescheduleAll()` and
   `medicationReminderSnoozeScheduler.rescheduleAll()`. Every receiver
   and every settings-screen capability action funnels here.
-- [`ReminderCapabilityCompose.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityCompose.kt)
+- [`ReminderCapabilityCompose.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderCapabilityCompose.kt)
   is a Hilt `EntryPoint` plus `rememberReminderCapabilityReconciler`
   `@Composable`. It's the seam that lets settings screens grab the
   singleton reconciler without ViewModel plumbing.
@@ -257,7 +257,7 @@ Both reminder stores are Preferences DataStores; both use
 `ReplaceFileCorruptionHandler { emptyPreferences() }` so a corrupt
 file degrades to "no scheduled alarms" rather than crashing on read.
 
-- [`ReminderScheduleStore.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderScheduleStore.kt)
+- [`ReminderScheduleStore.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderScheduleStore.kt)
   (`name = "reminder_schedule"`) holds the set of group UUIDs that
   currently have an alarm scheduled. The scheduler reads it at the
   start of every reschedule cycle to cancel orphans — alarms whose
@@ -274,7 +274,7 @@ exist solely so the scheduler knows what to cancel.
 
 ### Notification text
 
-- [`MedicationReminderBundle.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderBundle.kt)
+- [`MedicationReminderBundle.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderBundle.kt)
   defines the slot vocabulary used across the pipeline:
   `MedicationReminderSlot(groupUuid, scheduledAt, scheduleTimeUuid)`,
   `MedicationReminderBundleItem`, and `MedicationReminderBundle`. It
@@ -285,7 +285,7 @@ exist solely so the scheduler knows what to cancel.
   sorted slot list into a stable notification tag of the form
   `medication-reminder/<scheduledAt>/<bundleUuid>`. Two re-posts of
   the same bundle therefore land on the same notification slot.
-- [`ReminderNotificationText.kt`](https://github.com/mkx173/HRTTracker/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationText.kt)
+- [`ReminderNotificationText.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/ReminderNotificationText.kt)
   builds the localised title and body from the bundle: single group
   gets the group name; two groups get a "A and B" template; three or
   more get "A, B and N more" via a plural resource. The output is a

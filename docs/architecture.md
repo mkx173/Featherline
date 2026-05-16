@@ -38,34 +38,34 @@ The rules:
 Everything lives under `com.mkx.hrttracker`. The top-level packages,
 in the order they appear on disk:
 
-- [`model`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
+- [`model`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model) — pure-Kotlin domain.
   Five sub-packages.
-- [`data`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
+- [`data`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data) — Room, DataStore, backup
   codec. Three sub-packages; `data/repository` holds 8 repositories
   plus the `MedicationEntityMappers` helper and
   `EstradiolEquivalentCalculator`.
-- [`ui`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Nine feature
+- [`ui`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui) — Compose UI. Nine feature
   sub-packages plus `components`, `navigation`, `theme`.
-- [`di`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
-- [`reminder`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
+- [`di`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di) — Hilt modules. Two files.
+- [`reminder`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/reminder) — AlarmManager pipeline,
   capability reconciliation, notification text and channels. 17 files;
   documented in detail in [reminders.md](reminders.md).
-- [`startup`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/startup) — Hilt-eager startup
+- [`startup`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/startup) — Hilt-eager startup
   preloader and timing instrumentation. Two files.
-- [`util`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/util) — app-wide helpers
+- [`util`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/util) — app-wide helpers
   (formatters, lock manager, time source, diagnostics, toast). Not a
   catch-all "lib"; entries earn their place by being used in two or
   more features.
 
 Two files sit at the package root, outside any sub-package:
-[`HrtTrackerApplication.kt`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
+[`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
 (the Hilt `@HiltAndroidApp` entry point) and
-[`MainActivity.kt`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/MainActivity.kt)
+[`MainActivity.kt`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/MainActivity.kt)
 (the single Activity that hosts `HrtTrackerNavHost`).
 
 ## Within `data/`
 
-[`data/repository`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository)
+[`data/repository`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository)
 holds 8 repositories — `BloodTestRepository`, `HomeRepository`,
 `HomeSnapshotRepository` (gates all home-data mutations and currently
 bundles the PK projection — see [Home snapshot and PK projection
@@ -78,13 +78,13 @@ supporting files: the `MedicationEntityMappers` helper and the
 `EstradiolEquivalentCalculator`. Only repositories are exposed across
 the layer boundary; DAOs and entities stay inside `data/`.
 
-[`data/local`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/local)
+[`data/local`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/local)
 holds the Room database, the 9 `@Entity` data classes, the 5 DAOs, the
 migration objects, and the SQLCipher passphrase provider. The current
 schema is version 29. See [data-model.md](data-model.md) for the
 per-entity breakdown.
 
-[`data/backup`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/backup)
+[`data/backup`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/backup)
 holds `BackupExportService`, `BackupRestoreService`, `BackupCrypto`,
 `BackupSnapshot`, and `BackupSnapshotJsonCodec` — the v3 compressed,
 password-encrypted backup format used for manual user-driven backups.
@@ -92,55 +92,55 @@ Detailed in [backup-format.md](backup-format.md).
 
 ## Within `model/`
 
-- [`model/medication`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/medication) — group, schedule, slot, and log
+- [`model/medication`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/medication) — group, schedule, slot, and log
   domain types; the medication catalog; occurrence generation; slot
   fulfillment math; dose formatting; signature/equivalence helpers.
-- [`model/bloodtest`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/bloodtest) — analyte catalog
+- [`model/bloodtest`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/bloodtest) — analyte catalog
   (`BloodTestCatalog`), unit-conversion factor table, and the
   `AllowedAnalyteUnit` validation pattern. Detailed in
   [blood-tests.md](blood-tests.md).
-- [`model/pk`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/pk) — pharmacokinetic constants
+- [`model/pk`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/pk) — pharmacokinetic constants
   (`PkCatalog`), the three-compartment simulation, and planned-entry
   generation. Detailed in [pk-differences.md](pk-differences.md).
-- [`model/personalization`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/personalization) — `UserProfile`, the
+- [`model/personalization`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/personalization) — `UserProfile`, the
   user-tunable inputs feeding PK simulation (currently body weight and
   weight-unit preference).
-- [`model/settings`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/settings) — settings value types
+- [`model/settings`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/settings) — settings value types
   consumed by `SettingsRepository`.
 
 ## Within `ui/`
 
 Feature sub-packages, one screen tree each:
 
-- [`ui/main`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/main) — the home tab:
+- [`ui/main`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/main) — the home tab:
   E2 hero card, PK trend chart, today/last-night/upcoming sections,
   antiandrogen status cards.
-- [`ui/plan`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/plan) — the plan tab: medication-group
+- [`ui/plan`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/plan) — the plan tab: medication-group
   list, the group editor, the batch-add flow, the archived-groups
   screen.
-- [`ui/history`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/history) — the log-entries history
+- [`ui/history`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/history) — the log-entries history
   screen.
-- [`ui/calibration`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/calibration) — blood-test panel list, panel
+- [`ui/calibration`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/calibration) — blood-test panel list, panel
   editor, per-unit settings.
-- [`ui/settings`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/settings) — the settings tab.
-- [`ui/security`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/security) — the app-lock screen and
+- [`ui/settings`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/settings) — the settings tab.
+- [`ui/security`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/security) — the app-lock screen and
   authentication prompt.
-- [`ui/onboarding`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/onboarding) — the first-run onboarding flow.
-- [`ui/medication`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/medication) — medication-picker sheets,
+- [`ui/onboarding`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/onboarding) — the first-run onboarding flow.
+- [`ui/medication`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/medication) — medication-picker sheets,
   application-type icons, and shared medication UI text. Used from
   both `plan` and `log`.
-- [`ui/log`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/log) — the add-entry bottom sheet
+- [`ui/log`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/log) — the add-entry bottom sheet
   (single-entry log, batch quick-log, edit-existing-entry).
 
 Shared sub-packages:
 
-- [`ui/components`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/components) — Compose primitives reused across
+- [`ui/components`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/components) — Compose primitives reused across
   features: buttons, dropdowns, dialogs, segmented list items, the
   medication card, the medical-disclaimer banner.
-- [`ui/navigation`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation) — the `HrtTrackerNavHost`, the
+- [`ui/navigation`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation) — the `HrtTrackerNavHost`, the
   `Screen` sealed class, and the navigation-transition specs. See
   the section below.
-- [`ui/theme`](https://github.com/mkx173/HRTTracker/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/theme) — Material 3 color scheme, typography,
+- [`ui/theme`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/theme) — Material 3 color scheme, typography,
   shapes.
 
 ## Dependency injection
@@ -148,12 +148,12 @@ Shared sub-packages:
 Hilt is the DI framework. The application has two top-level modules,
 both installed in `SingletonComponent`:
 
-- [`AppCoroutineModule`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppCoroutineModule.kt)
+- [`AppCoroutineModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppCoroutineModule.kt)
   — provides `@DefaultDispatcher CoroutineDispatcher`
   (`Dispatchers.Default`) and `@AppScope CoroutineScope` (a
   `SupervisorJob` on the default dispatcher). The two qualifiers
   (`@DefaultDispatcher`, `@AppScope`) are declared in the same file.
-- [`AppTimeModule`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
+- [`AppTimeModule`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/di/AppTimeModule.kt)
   — provides a `java.time.Clock` (system UTC) and an `AppTimeSource`
   that wraps the clock to support tickable test seams and per-minute
   observation.
@@ -165,7 +165,7 @@ and stores are `@Singleton` and constructor-injected.
 ## Compose navigation
 
 Navigation is single-Activity, single-NavHost. The entry point is
-[`HrtTrackerNavHost`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
+[`HrtTrackerNavHost`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation/HrtTrackerNavHost.kt),
 which routes between Compose destinations declared via a `Screen`
 sealed class. At time of writing the app exposes 10 top-level
 destinations, grouped by feature area: `Main`, `Plan` (plus
@@ -177,7 +177,7 @@ rest are reached via in-screen actions and tracked back to their
 top-level parent via the `topLevelParent` nav-argument.
 
 Transition motion is centralized in
-[`NavigationTransitions`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
+[`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
 The four `NavHost` transition slots
 (`enterTransition`, `exitTransition`, `popEnterTransition`,
 `popExitTransition`) and the `sizeTransform` are wired once at the
@@ -224,13 +224,13 @@ wires together.
 The home screen has two cached layers, both observed by
 `MainViewModel` through `HomeRepository`:
 
-- [`HomeSnapshotRepository`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotRepository.kt)
+- [`HomeSnapshotRepository`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotRepository.kt)
   owns the plan-and-fulfillment cache for the home screen.
   Every home-related mutation (a dose log, a schedule edit, a profile
   update) routes through `runHomeDataMutation`, which holds a mutex,
   bumps the durable generation counter via `HomeSnapshotGenerationStore`,
   runs the mutation, and then asynchronously refreshes the snapshot.
-- [`HomeSnapshotStore`](https://github.com/mkx173/HRTTracker/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
+- [`HomeSnapshotStore`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/data/repository/HomeSnapshotStore.kt)
   persists the snapshot as an encrypted DataStore file
   (`home_snapshot.pb`) so the home screen paints from cache on cold
   start before live Room observation catches up. The persisted record
