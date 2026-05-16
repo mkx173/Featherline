@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/app-icon.png" alt="Featherline icon" width="120" />
+</p>
+
 # Featherline
 
 HRT medication tracker for Android with PK projections and lab tracking. On-device, encrypted, no account required.
@@ -33,10 +37,9 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 
 ## Screenshots
 
-|     |     |
-| --- | --- |
-| ![Home screen](.github/screenshots/home.png) | ![Plan view](.github/screenshots/plan.png) |
-| ![History log](.github/screenshots/history.png) | ![Calibration screen](.github/screenshots/calibration.png) |
+| Home | Plan | History | Calibration |
+| --- | --- | --- | --- |
+| ![Home screen](.github/screenshots/home.png) | ![Plan view](.github/screenshots/plan.png) | ![History log](.github/screenshots/history.png) | ![Calibration screen](.github/screenshots/calibration.png) |
 
 ## How it works
 
