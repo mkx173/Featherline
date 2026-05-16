@@ -61,16 +61,15 @@ should read the upstream README and its `pk_research/` workspace.
   projected doses.
 - **Adaptive chart-sample placement.** Upstream's `SimulationEngine`
   is a math reference, not a chart engine, so it samples on a single
-  fixed step. HRTTracker drives a seven-day chart, so it mixes a dense
-  backbone (`MainChartDenseSampleIntervalHours = 0.1 h`) with exact
-  samples at the prediction instant, the previous-day instant, every
-  logged-event instant, and ten post-dose offsets
-  (`MainChartPostDoseSampleOffsetsHours`: 0.25 / 0.5 / 1 / 2 / 4 / 6 /
-  8 / 12 / 24 / 48 hours).
+  fixed step. HRTTracker drives a seven-day chart, so it samples the
+  window on a dense backbone
+  (`MainChartDenseSampleIntervalHours = 0.1 h`) and pins exact samples
+  at the prediction instant, the previous-day instant, and every
+  logged-event instant.
 
-  The result is a non-uniform sampling that resolves the post-dose
-  peak without paying for dense sampling across the full seven-day
-  window. The trend
+  The dense backbone resolves the post-dose absorption peak at
+  six-minute resolution, and the exact pins anchor the instants the
+  UI reads from for tooltips and dose markers. The trend
   ([`mainChartSampleTimeH`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L490))
   and projection
   ([`mainProjectionSampleTimeH`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L533))

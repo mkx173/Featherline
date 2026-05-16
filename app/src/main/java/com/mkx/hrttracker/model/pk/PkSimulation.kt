@@ -292,18 +292,6 @@ object PkMedicationSimulation {
     private const val MainChartDenseSampleIntervalHours = 0.1
     private const val DefaultBodyWeightKg = 70.0
     private const val ChartXPrecisionScale = 10_000.0
-    private val MainChartPostDoseSampleOffsetsHours = listOf(
-        0.25,
-        0.5,
-        1.0,
-        2.0,
-        4.0,
-        6.0,
-        8.0,
-        12.0,
-        24.0,
-        48.0,
-    )
 
     internal const val hoursPerDay = HoursPerDay
     internal const val mainChartWindowDays = MainChartWindowDays
@@ -513,18 +501,8 @@ object PkMedicationSimulation {
                 loggedEventTimeH
             )
             .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
-        val postDoseSampleTimeH = events
-            .asSequence()
-            .filter(PkDoseEvent::isDoseMarkerCandidate)
-            .flatMap { event ->
-                MainChartPostDoseSampleOffsetsHours.asSequence().map { offsetHours ->
-                    (event.timeH + offsetHours).toChartXHour()
-                }
-            }
-            .filter { timeH -> timeH.isFinite() && timeH in windowStart..windowEndHours }
-            .toList()
 
-        return (denseSampleTimeH + exactSampleTimeH + postDoseSampleTimeH)
+        return (denseSampleTimeH + exactSampleTimeH)
             .map { timeH -> timeH.toChartXHour() }
             .distinct()
             .sorted()
@@ -549,18 +527,8 @@ object PkMedicationSimulation {
             .map { event -> event.timeH.toChartXHour() }
             .filter { timeH -> timeH.isFinite() && timeH in 0.0..windowEndHours }
             .toList()
-        val postDoseSampleTimeH = events
-            .asSequence()
-            .filter(PkDoseEvent::isDoseMarkerCandidate)
-            .flatMap { event ->
-                MainChartPostDoseSampleOffsetsHours.asSequence().map { offsetHours ->
-                    (event.timeH + offsetHours).toChartXHour()
-                }
-            }
-            .filter { timeH -> timeH.isFinite() && timeH in 0.0..windowEndHours }
-            .toList()
 
-        return (denseSampleTimeH + exactSampleTimeH + loggedEventTimeH + postDoseSampleTimeH)
+        return (denseSampleTimeH + exactSampleTimeH + loggedEventTimeH)
             .map { timeH -> timeH.toChartXHour() }
             .distinct()
             .sorted()

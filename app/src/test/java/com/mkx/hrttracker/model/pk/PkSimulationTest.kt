@@ -140,7 +140,7 @@ class PkSimulationTest {
         val trend = checkNotNull(result)
         assertEquals(PkConcentrationUnit.PG_PER_ML, trend.concentrationUnit)
         assertEquals(8, trend.dailyConcentrations.size)
-        assertEquals(1692, trend.chartConcentrations.size)
+        assertEquals(1682, trend.chartConcentrations.size)
         assertEquals(trend.chartTimeH.size, trend.chartConcentrations.size)
         assertEquals(1, trend.chartSampleIntervalHours)
         assertEquals(168, trend.chartWindowHours)
@@ -148,8 +148,6 @@ class PkSimulationTest {
         assertTrue(trend.chartTimeH.contains(82.0))
         assertTrue(trend.chartTimeH.contains(82.5))
         assertTrue(trend.chartTimeH.contains(82.5034))
-        assertTrue(trend.chartTimeH.contains(82.7534))
-        assertTrue(trend.chartTimeH.contains(83.0034))
         assertEquals(
             225,
             trend.chartTimeH.count { timeH -> timeH > 60.0 && timeH < 82.5034 }
