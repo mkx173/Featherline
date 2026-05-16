@@ -19,7 +19,7 @@ Three test source roots and one build-type override set:
 
 # Single test class or method
 ./gradlew testPlayDebugUnitTest --tests "BloodTestCatalogTest"
-./gradlew testPlayDebugUnitTest --tests "BloodTestCatalogTest.factorTablePerAnalyteIsBidirectional"
+./gradlew testPlayDebugUnitTest --tests "BloodTestCatalogTest.fromCanonical_inverts_toCanonical_for_every_analyte_and_allowed_unit"
 
 # Instrumented tests (needs a connected device or emulator)
 ./gradlew connectedPlayDebugAndroidTest
@@ -49,7 +49,7 @@ Open the report HTML directly in a browser; the failure stack trace there is mor
 - **BroadcastReceiver / Service / AlarmManager tests** → `app/src/androidTest/`. Robolectric is not configured; instrumentation is the only path that exercises the Android system services these classes integrate with (`AlarmManager.setExactAndAllowWhileIdle`, `NotificationManager.createNotificationChannel`, etc.).
 - **Benchmark or startup-cost regressions** → `macrobenchmark/`. Macrobenchmarks need a release-shaped build (the `benchmark` build type of `:app`) and a connected device.
 
-Test class naming follows `<ClassUnderTest>Test` — for example, `BloodTestCatalogTest`, `MedicationGroupScheduleFulfillmentTest`, `BackupRestoreValidationTest`. Unit tests use JUnit 4 (`@Test`), [mockk](https://github.com/mkx173/HRTTracker/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/gradle/libs.versions.toml#L25) for mocks, [`kotlinx-coroutines-test`](https://github.com/mkx173/HRTTracker/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/gradle/libs.versions.toml#L26) for coroutine dispatchers.
+Test class naming follows `<ClassUnderTest>Test` — for example, `BloodTestCatalogTest`, `MedicationGroupSlotFulfillmentTest`, `BackupRestoreValidationTest`. Unit tests use JUnit 4 (`@Test`), [mockk](https://github.com/mkx173/HRTTracker/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/gradle/libs.versions.toml#L25) for mocks, [`kotlinx-coroutines-test`](https://github.com/mkx173/HRTTracker/blob/096ce12612596e7968dd8314bd18b3566b2c2ed1/gradle/libs.versions.toml#L26) for coroutine dispatchers.
 
 ## Tests in CI
 
