@@ -3,17 +3,9 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.exclude
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.ShortNavigationBar
-import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -282,63 +274,59 @@ fun HrtTrackerNavHost(
         )
     }
 
-    Scaffold(
+    NavigationSuiteScaffold(
         modifier = modifier,
-        bottomBar = {
-            ShortNavigationBar {
-                topLevelNavigationItems.forEach { navItem ->
-                    ShortNavigationBarItem(
-                        selected = selectedBottomScreen == navItem.screen,
-                        onClick = {
-                            when (
-                                topLevelNavigationTapAction(
-                                    tappedScreen = navItem.screen,
-                                    selectedBottomScreen = selectedBottomScreen,
-                                    currentRoute = currentRoute,
-                                )
-                            ) {
-                                TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                    navController.popBackStack(navItem.screen.route, false)
-                                }
-
-                                TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
-                                    when (navItem.screen) {
-                                        Screen.Main -> mainScrollToTopSignal++
-                                        Screen.Plan -> planScrollToTopSignal++
-                                        Screen.Settings -> settingsScrollToTopSignal++
-                                        else -> Unit
-                                    }
-                                }
-
-                                TopLevelNavigationTapAction.NAVIGATE -> {
-                                    navController.navigateToTopLevelScreen(
-                                        targetScreen = navItem.screen,
-                                        selectedBottomScreen = selectedBottomScreen,
-                                    )
-                                }
-
-                                TopLevelNavigationTapAction.NONE -> Unit
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(navItem.icon),
-                                contentDescription = stringResource(navItem.screen.label)
+        navigationSuiteItems = {
+            topLevelNavigationItems.forEach { navItem ->
+                item(
+                    selected = selectedBottomScreen == navItem.screen,
+                    onClick = {
+                        when (
+                            topLevelNavigationTapAction(
+                                tappedScreen = navItem.screen,
+                                selectedBottomScreen = selectedBottomScreen,
+                                currentRoute = currentRoute,
                             )
-                        },
-                        label = {
-                            Text(text = stringResource(navItem.screen.label))
+                        ) {
+                            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+                                navController.popBackStack(navItem.screen.route, false)
+                            }
+
+                            TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
+                                when (navItem.screen) {
+                                    Screen.Main -> mainScrollToTopSignal++
+                                    Screen.Plan -> planScrollToTopSignal++
+                                    Screen.Settings -> settingsScrollToTopSignal++
+                                    else -> Unit
+                                }
+                            }
+
+                            TopLevelNavigationTapAction.NAVIGATE -> {
+                                navController.navigateToTopLevelScreen(
+                                    targetScreen = navItem.screen,
+                                    selectedBottomScreen = selectedBottomScreen,
+                                )
+                            }
+
+                            TopLevelNavigationTapAction.NONE -> Unit
                         }
-                    )
-                }
+                    },
+                    icon = {
+                        Icon(
+                            painter = painterResource(navItem.icon),
+                            contentDescription = stringResource(navItem.screen.label)
+                        )
+                    },
+                    label = {
+                        Text(text = stringResource(navItem.screen.label))
+                    }
+                )
             }
-        },
-        contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.statusBars)
-    ) { innerPadding ->
+        }
+    ) {
         NavHost(
             navController = navController,
             startDestination = Screen.Main.route,
-            modifier = Modifier.consumeWindowInsets(innerPadding),
             enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
             exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
             popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
@@ -346,7 +334,7 @@ fun HrtTrackerNavHost(
         ) {
             composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
                 MainScreen(
-                    modifier.padding(innerPadding),
+                    modifier,
                     scrollToTopSignal = mainScrollToTopSignal,
                     onEntryClick = { request ->
                         addEntrySheetRequest = AddEntrySheetRequest(
@@ -378,7 +366,7 @@ fun HrtTrackerNavHost(
             }
             composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
                 PlanScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     scrollToTopSignal = planScrollToTopSignal,
                     onGroupClick = { groupId ->
                         navController.navigate(
@@ -441,7 +429,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 PlanBatchAddScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
@@ -456,7 +444,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 ArchivedMedicationGroupsScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                     onGroupClick = { groupId ->
                         navController.navigate(
@@ -480,7 +468,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 HistoryScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                     onEntryClick = { entryIds ->
                         addEntrySheetRequest = AddEntrySheetRequest(
@@ -491,7 +479,7 @@ fun HrtTrackerNavHost(
             }
             composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
                 SettingsScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     scrollToTopSignal = settingsScrollToTopSignal,
                     onCalibrationClick = {
                         navController.navigate(
@@ -511,7 +499,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                     onUnitsClick = {
                         navController.navigate(
@@ -544,7 +532,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationUnitsScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
@@ -564,7 +552,7 @@ fun HrtTrackerNavHost(
                 sizeTransform = hrtSizeTransform,
             ) {
                 CalibrationEditorScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                     onSaved = { navController.popBackStack() }
                 )
@@ -592,7 +580,7 @@ fun HrtTrackerNavHost(
                     backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
                         MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
                 MedicationGroupEditorScreen(
-                    modifier = modifier.padding(innerPadding),
+                    modifier = modifier,
                     onNavigateBack = { navController.popBackStack() },
                     onGroupSaved = { navController.popBackStack() },
                     onGroupSavedToPlan = {
