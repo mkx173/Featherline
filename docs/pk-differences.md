@@ -121,6 +121,18 @@ should read the upstream README and its `pk_research/` workspace.
   `core.gelFMax` directly. The field is kept so a future skin-depot
   gel model has somewhere to put per-event area without a data-class
   bump.
+- **Sublingual θ is fixed, not user-settable.** Upstream lets the user
+  configure the sublingual θ — the fraction of a sublingual dose
+  absorbed through the buccal mucosa (fast pathway) versus swallowed
+  and absorbed orally (slow pathway). HRTTracker's
+  [`PkDoseEvent`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L73)
+  carries an optional `sublingualTheta: Double?` field for parity, but
+  nothing in the UI ever sets it. The
+  [`PkParameterResolver.SUBLINGUAL`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L820)
+  branch always falls back to the catalog default
+  [`PkCatalog.standardSublingualTheta = 0.11`](https://github.com/mkx173/HRTTracker/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1204).
+  Real per-person variation in mucosal-vs-swallowed fraction can be
+  substantial; HRTTracker does not currently expose it for tuning.
 
 ## What HRTTracker plans to change
 
