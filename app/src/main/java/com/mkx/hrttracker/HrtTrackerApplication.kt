@@ -96,8 +96,18 @@ class HrtTrackerApplication : Application() {
     }
 
     private fun applyDarkMode(option: DarkModeOption) {
-        AppCompatDelegate.setDefaultNightMode(option.appCompatNightMode)
-        getSystemService(UiModeManager::class.java).setApplicationNightMode(option.applicationNightMode)
+        val appCompatNightMode = when (option) {
+            DarkModeOption.FOLLOW_SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            DarkModeOption.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            DarkModeOption.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+        }
+        val applicationNightMode = when (option) {
+            DarkModeOption.FOLLOW_SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+            DarkModeOption.LIGHT -> UiModeManager.MODE_NIGHT_NO
+            DarkModeOption.DARK -> UiModeManager.MODE_NIGHT_YES
+        }
+        AppCompatDelegate.setDefaultNightMode(appCompatNightMode)
+        getSystemService(UiModeManager::class.java).setApplicationNightMode(applicationNightMode)
     }
 
     private companion object {

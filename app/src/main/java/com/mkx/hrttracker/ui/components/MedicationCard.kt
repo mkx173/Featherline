@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.ui.medication.labelRes
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey

@@ -104,6 +104,7 @@ import com.kizitonwose.calendar.core.OutDateStyle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.ui.medication.labelRes
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey

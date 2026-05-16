@@ -92,6 +92,7 @@ import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast

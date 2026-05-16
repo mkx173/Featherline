@@ -90,6 +90,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem

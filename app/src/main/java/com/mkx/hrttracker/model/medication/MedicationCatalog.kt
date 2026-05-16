@@ -1,13 +1,10 @@
 package com.mkx.hrttracker.model.medication
 
-import androidx.annotation.StringRes
-import com.mkx.hrttracker.R
-
-enum class MedicationCategory(@get:StringRes val labelRes: Int) {
-    ESTRADIOL(R.string.medication_category_estradiol),
-    TESTOSTERONE(R.string.medication_category_testosterone),
-    ANTIANDROGEN(R.string.medication_category_antiandrogen),
-    CUSTOM(R.string.medication_category_custom);
+enum class MedicationCategory {
+    ESTRADIOL,
+    TESTOSTERONE,
+    ANTIANDROGEN,
+    CUSTOM;
 
     companion object {
         fun fromStorageValue(value: String?): MedicationCategory {
@@ -16,13 +13,13 @@ enum class MedicationCategory(@get:StringRes val labelRes: Int) {
     }
 }
 
-enum class MedicationApplicationType(@get:StringRes val labelRes: Int) {
-    ORAL(R.string.medication_application_oral),
-    SUBLINGUAL(R.string.medication_application_sublingual),
-    INJECTION(R.string.medication_application_injection),
-    GEL(R.string.medication_application_gel),
-    PATCH_ON(R.string.medication_application_patch_on),
-    PATCH_OFF(R.string.medication_application_patch_off);
+enum class MedicationApplicationType {
+    ORAL,
+    SUBLINGUAL,
+    INJECTION,
+    GEL,
+    PATCH_ON,
+    PATCH_OFF;
 
     companion object {
         fun fromStorageValue(value: String?): MedicationApplicationType {
@@ -31,8 +28,8 @@ enum class MedicationApplicationType(@get:StringRes val labelRes: Int) {
     }
 }
 
-enum class MedicationGelApplicationArea(@get:StringRes val labelRes: Int) {
-    DEFAULT(R.string.medication_gel_application_area_default);
+enum class MedicationGelApplicationArea {
+    DEFAULT;
 
     companion object {
         fun fromStorageValue(value: String?): MedicationGelApplicationArea {
@@ -68,10 +65,10 @@ enum class MedicationDoseKind {
 }
 
 // Append-only: persisted storage values are enum names.
-enum class MedicationDoseUnit(@get:StringRes val shortLabelRes: Int) {
-    MG(R.string.unit_mg),
-    MCG(R.string.unit_mcg),
-    G(R.string.unit_grams);
+enum class MedicationDoseUnit {
+    MG,
+    MCG,
+    G;
 
     val storageValue: String
         get() = name
@@ -83,50 +80,17 @@ enum class MedicationDoseUnit(@get:StringRes val shortLabelRes: Int) {
     }
 }
 
-enum class MedicationKey(
-    val category: MedicationCategory,
-    @get:StringRes val labelRes: Int,
-) {
-    SPIRONOLACTONE(
-        category = MedicationCategory.ANTIANDROGEN,
-        labelRes = R.string.medication_name_spironolactone,
-    ),
-    CYPROTERONE_ACETATE(
-        category = MedicationCategory.ANTIANDROGEN,
-        labelRes = R.string.medication_name_cyproterone_acetate,
-    ),
-    BICALUTAMIDE(
-        category = MedicationCategory.ANTIANDROGEN,
-        labelRes = R.string.medication_name_bicalutamide,
-    ),
-    ESTRADIOL(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol,
-    ),
-    ESTRADIOL_VALERATE(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_valerate,
-    ),
-    ESTRADIOL_BENZOATE(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_benzoate,
-    ),
-    ESTRADIOL_CYPIONATE(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_cypionate,
-    ),
-    ESTRADIOL_ENANTHATE(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_enanthate,
-    ),
-    ESTRADIOL_GEL(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_gel,
-    ),
-    ESTRADIOL_PATCH(
-        category = MedicationCategory.ESTRADIOL,
-        labelRes = R.string.medication_name_estradiol_patch,
-    );
+enum class MedicationKey(val category: MedicationCategory) {
+    SPIRONOLACTONE(category = MedicationCategory.ANTIANDROGEN),
+    CYPROTERONE_ACETATE(category = MedicationCategory.ANTIANDROGEN),
+    BICALUTAMIDE(category = MedicationCategory.ANTIANDROGEN),
+    ESTRADIOL(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_VALERATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_BENZOATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_CYPIONATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_ENANTHATE(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_GEL(category = MedicationCategory.ESTRADIOL),
+    ESTRADIOL_PATCH(category = MedicationCategory.ESTRADIOL);
 
     companion object {
         fun fromStorageValue(value: String?): MedicationKey? {
