@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
+import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
@@ -66,7 +67,7 @@ fun MainContent(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(dimensionResource(R.dimen.padding_medium)),
+            .padding(appContentPaddingValues()),
     ) {
         uiState.timeZoneChangeNotice?.let { notice ->
             MainTimeZoneChangeNoticeBanner(

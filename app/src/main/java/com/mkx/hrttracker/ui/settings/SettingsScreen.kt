@@ -103,6 +103,7 @@ import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
+import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.security.AppAuthenticationPromptEffect
@@ -670,7 +671,7 @@ private fun SettingsScreenContent(
             Column(
                 modifier = Modifier
                     .verticalScroll(scrollState)
-                    .padding(dimensionResource(R.dimen.padding_medium)),
+                    .padding(appContentPaddingValues()),
             ) {
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_personalization)

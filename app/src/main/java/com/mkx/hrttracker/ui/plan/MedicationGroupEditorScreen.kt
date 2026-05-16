@@ -127,6 +127,7 @@ import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
@@ -1205,10 +1206,7 @@ private fun MedicationGroupEditorScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .imePadding(),
-                contentPadding = PaddingValues(
-                    start = contentPadding,
-                    top = contentPadding,
-                    end = contentPadding,
+                contentPadding = appContentPaddingValues(
                     bottom = contentPadding + navigationBarBottomPadding,
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)

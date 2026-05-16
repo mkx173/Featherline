@@ -72,6 +72,7 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.TimePickerModal
+import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
@@ -378,7 +379,7 @@ private fun CalibrationEditorScreenContent(
                         .fillMaxSize()
                         .imePadding()
                         .verticalScroll(scrollState)
-                        .padding(dimensionResource(R.dimen.padding_medium)),
+                        .padding(appContentPaddingValues()),
                 ) {
                 val deviceZone = remember { ZoneId.systemDefault() }
                 val itemLocale = rememberAppLocale()

@@ -3,10 +3,17 @@ package com.mkx.hrttracker.ui.navigation
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -40,6 +48,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorScreen
+import com.mkx.hrttracker.ui.components.LocalAppContentBottomInset
 import com.mkx.hrttracker.ui.calibration.CalibrationEditorViewModel
 import com.mkx.hrttracker.ui.calibration.CalibrationScreen
 import com.mkx.hrttracker.ui.calibration.CalibrationUnitsScreen
@@ -274,8 +283,22 @@ fun HrtTrackerNavHost(
         )
     }
 
+    val navigationSuiteType =
+        NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
+    val rawNavigationBarBottomInset = with(LocalDensity.current) {
+        WindowInsets.navigationBars.getBottom(this).toDp()
+    }
+    val appContentBottomInset =
+        if (navigationSuiteType == NavigationSuiteType.ShortNavigationBarCompact) {
+            0.dp
+        } else {
+            rawNavigationBarBottomInset
+        }
+
+    CompositionLocalProvider(LocalAppContentBottomInset provides appContentBottomInset) {
     NavigationSuiteScaffold(
         modifier = modifier,
+        layoutType = navigationSuiteType,
         navigationSuiteItems = {
             topLevelNavigationItems.forEach { navItem ->
                 item(
@@ -327,6 +350,7 @@ fun HrtTrackerNavHost(
         NavHost(
             navController = navController,
             startDestination = Screen.Main.route,
+            modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
             enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
             exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
             popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
@@ -594,6 +618,7 @@ fun HrtTrackerNavHost(
                 )
             }
         }
+    }
     }
 
     addEntrySheetRequest?.let { request ->
