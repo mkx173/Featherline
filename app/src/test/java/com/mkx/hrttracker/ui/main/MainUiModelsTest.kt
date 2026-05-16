@@ -173,7 +173,7 @@ class MainUiModelsTest {
     @Test
     fun mainE2ChartYAxisSpec_uses_consistent_nice_steps() {
         assertEquals(
-            MainE2ChartYAxisSpec(maxY = 75.0, tickStep = 25.0),
+            MainE2ChartYAxisSpec(maxY = 80.0, tickStep = 20.0),
             mainE2ChartYAxisSpec(points = listOf(0f, 63f, 72f))
         )
         assertEquals(
@@ -181,11 +181,21 @@ class MainUiModelsTest {
             mainE2ChartYAxisSpec(points = listOf(128f, 174f))
         )
         assertEquals(
-            MainE2ChartYAxisSpec(maxY = 1000.0, tickStep = 250.0),
+            MainE2ChartYAxisSpec(maxY = 1000.0, tickStep = 200.0),
             mainE2ChartYAxisSpec(
                 points = listOf(410f),
                 doseMarkers = listOf(MainE2DoseMarkerUiState(xHours = 12.0, concentration = 860f))
             )
+        )
+    }
+
+    @Test
+    fun mainE2ChartYAxisSpec_bumps_when_sample_is_flush_with_tick_boundary() {
+        // Catmull-Rom interpolation overshoots between samples; a peak sitting
+        // exactly on the top tick would clip in the rendered curve and minimap.
+        assertEquals(
+            MainE2ChartYAxisSpec(maxY = 80.0, tickStep = 20.0),
+            mainE2ChartYAxisSpec(points = listOf(60f, 75f))
         )
     }
 

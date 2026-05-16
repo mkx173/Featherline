@@ -351,13 +351,16 @@ internal fun mainE2ChartYAxisSpec(
     points: List<Float>,
     doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
 ): MainE2ChartYAxisSpec {
-    val maxValue = (
+    val rawMax = (
         points.asSequence().map(Float::toDouble) +
             doseMarkers.asSequence().map { marker -> marker.concentration.toDouble() }
         )
         .filter { value -> value.isFinite() && value > 0.0 }
         .maxOrNull()
         ?: 0.0
+    // Headroom for Catmull-Rom overshoot between sample points; otherwise a
+    // sample flush with the top tick clips the rendered curve and minimap.
+    val maxValue = rawMax * MainE2YAxisHeadroomMultiplier
     val step = MainE2YAxisTickSteps.firstOrNull { candidate ->
         ceil(maxValue.coerceAtLeast(1.0) / candidate) <= MainE2YAxisMaxTickIntervals
     } ?: fallbackMainE2YAxisStep(maxValue)
@@ -838,6 +841,7 @@ private val MainLastNightStartTime = LocalTime.of(18, 0)
 private const val VicoXPrecisionScale = 10_000.0
 internal const val MainE2ChartPastDays = 3L
 private const val MainE2YAxisMaxTickIntervals = 5
+private const val MainE2YAxisHeadroomMultiplier = 1.05
 private const val EmptyE2ChartSampleIntervalHours = 24
 private const val EmptyE2ChartWindowHours = 7 * 24
 private const val EmptyE2ChartPredictionStartXHours = 3 * 24.0
@@ -847,12 +851,15 @@ private val MainE2YAxisTickSteps = listOf(
     2.0,
     5.0,
     10.0,
+    20.0,
     25.0,
     50.0,
     100.0,
+    200.0,
     250.0,
     500.0,
     1000.0,
+    2000.0,
     2500.0,
     5000.0
 )
