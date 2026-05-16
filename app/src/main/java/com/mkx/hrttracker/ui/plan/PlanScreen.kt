@@ -86,6 +86,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -338,24 +339,21 @@ private fun PlanScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                LoadingIndicator()
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
             }
-            return@Scaffold
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            ) {
             item(key = "week-calendar") {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -482,6 +480,7 @@ private fun PlanScreenContent(
                     icon = Icons.Rounded.Add,
                 )
             }
+        }
         }
     }
 

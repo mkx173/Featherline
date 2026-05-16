@@ -57,6 +57,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
@@ -260,24 +261,21 @@ private fun PlanBatchAddScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingIndicator()
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
             }
-            return@Scaffold
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            ) {
             item(key = "group-heading") {
                 Text(
                     text = stringResource(R.string.plan_batch_add_select_group).uppercase(),
@@ -334,6 +332,7 @@ private fun PlanBatchAddScreenContent(
                     onConfirmClick = { isConfirmationVisible = true },
                 )
             }
+        }
         }
     }
 }

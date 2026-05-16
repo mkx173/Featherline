@@ -36,6 +36,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
@@ -116,25 +117,22 @@ private fun ArchivedMedicationGroupsScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                LoadingIndicator()
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
             }
-            return@Scaffold
-        }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            ) {
             item(key = "archived-heading") {
                 Text(
                     text = stringResource(R.string.plan_archived_groups).uppercase(),
@@ -168,6 +166,7 @@ private fun ArchivedMedicationGroupsScreenContent(
                     }
                 }
             }
+        }
         }
     }
 }

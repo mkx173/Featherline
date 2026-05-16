@@ -48,6 +48,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.calibration.calibrationAllowedUnitsFor
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 
@@ -127,16 +128,16 @@ fun MainScreen(
             )
         }
     ) { innerPadding ->
-        MainContent(
-            uiState = uiState,
-            scrollState = scrollState,
-            onQuickLogDoseClick = onQuickLogDoseClick,
-            onEntryClick = onEntryClick,
-            onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        )
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            MainContent(
+                uiState = uiState,
+                scrollState = scrollState,
+                onQuickLogDoseClick = onQuickLogDoseClick,
+                onEntryClick = onEntryClick,
+                onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 

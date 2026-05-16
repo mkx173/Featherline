@@ -96,6 +96,7 @@ import com.mkx.hrttracker.ui.components.shortLabelRes
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
@@ -665,12 +666,12 @@ private fun SettingsScreenContent(
             )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .verticalScroll(scrollState)
-                .padding(innerPadding)
-                .padding(dimensionResource(R.dimen.padding_medium)),
-        ) {
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(scrollState)
+                    .padding(dimensionResource(R.dimen.padding_medium)),
+            ) {
             SettingsSectionTitle(
                 text = stringResource(R.string.settings_personalization)
             )
@@ -1229,6 +1230,7 @@ private fun SettingsScreenContent(
                     }
                 )
             }
+        }
         }
     }
 

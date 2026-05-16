@@ -116,6 +116,7 @@ import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
@@ -1188,32 +1189,30 @@ private fun MedicationGroupEditorScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoadingGroupForEditing) {
-            Box(
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoadingGroupForEditing) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
+            }
+
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
+                    .imePadding(),
+                contentPadding = PaddingValues(
+                    start = contentPadding,
+                    top = contentPadding,
+                    end = contentPadding,
+                    bottom = contentPadding + navigationBarBottomPadding,
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                LoadingIndicator()
-            }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .imePadding(),
-            contentPadding = PaddingValues(
-                start = contentPadding,
-                top = contentPadding,
-                end = contentPadding,
-                bottom = contentPadding + navigationBarBottomPadding,
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
             if (shouldRenderLockedState) {
                 item {
                     SupportMessageListItem(
@@ -1600,6 +1599,7 @@ private fun MedicationGroupEditorScreenContent(
                     }
                 }
             }
+        }
         }
     }
 

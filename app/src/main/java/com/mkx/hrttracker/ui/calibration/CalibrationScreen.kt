@@ -78,6 +78,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResult
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
@@ -262,24 +263,21 @@ private fun CalibrationScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingIndicator()
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
             }
-            return@Scaffold
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            ) {
             item(key = "calibration-info") {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(
@@ -337,6 +335,7 @@ private fun CalibrationScreenContent(
                     }
                 }
             }
+        }
         }
     }
 

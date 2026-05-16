@@ -72,6 +72,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -204,24 +205,21 @@ private fun CalibrationUnitsScreenContent(
             )
         }
     ) { innerPadding ->
-        if (uiState.isLoadingCustomAnalytes) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingIndicator()
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoadingCustomAnalytes) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
             }
-            return@Scaffold
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
-        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(dimensionResource(R.dimen.padding_medium)),
+            ) {
             item(key = "builtin-header") {
                 CalibrationSettingsSectionHeader(
                     title = stringResource(R.string.settings_calibration_builtin_analytes),
@@ -294,6 +292,7 @@ private fun CalibrationUnitsScreenContent(
                     compact = true,
                 )
             }
+        }
         }
     }
 

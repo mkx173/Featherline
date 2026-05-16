@@ -64,6 +64,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
@@ -363,24 +364,22 @@ private fun CalibrationEditorScreenContent(
             )
         },
     ) { innerPadding ->
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingIndicator()
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .imePadding()
-                    .verticalScroll(scrollState)
-                    .padding(dimensionResource(R.dimen.padding_medium)),
-            ) {
+        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator()
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .verticalScroll(scrollState)
+                        .padding(dimensionResource(R.dimen.padding_medium)),
+                ) {
                 val deviceZone = remember { ZoneId.systemDefault() }
                 val itemLocale = rememberAppLocale()
                 val crossZoneLabel = remember(
@@ -547,6 +546,7 @@ private fun CalibrationEditorScreenContent(
                 Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
             }
+        }
         }
     }
 }
