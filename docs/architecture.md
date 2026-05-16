@@ -171,10 +171,22 @@ sealed class. At time of writing the app exposes 10 top-level
 destinations, grouped by feature area: `Main`, `Plan` (plus
 `PlanBatchAdd`, `PlanArchivedGroups`), `History`, `Settings` (plus
 `SettingsCalibration`, `SettingsCalibrationUnits`,
-`SettingsCalibrationEntry`), and `EditMedicationGroup`. The bottom
-navigation bar surfaces three of them (Main, Plan, Settings); the
-rest are reached via in-screen actions and tracked back to their
-top-level parent via the `topLevelParent` nav-argument.
+`SettingsCalibrationEntry`), and `EditMedicationGroup`. The host wraps
+the `NavHost` in `NavigationSuiteScaffold`, which adapts to width
+class — a `NavigationBar` on phones (compact, <600dp), a
+`NavigationRail` on small tablets (medium, 600–839dp), and a
+`PermanentNavigationDrawer` on large tablets (expanded, ≥840dp). The
+suite surfaces three of the destinations (Main, Plan, Settings) from
+the `topLevelNavigationItems` list; the rest are reached via in-screen
+actions and tracked back to their top-level parent via the
+`topLevelParent` nav-argument.
+
+Routed-screen body content is capped at 640dp by
+[`AppContentContainer`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/components/AppContentContainer.kt),
+applied inside each screen's own `Scaffold` body. The top app bar
+stays full-width — only the scrollable content centers within the cap.
+This avoids scroll-elevation color seams at the top-bar edges while
+keeping cards and charts at a comfortable reading width on tablets.
 
 Transition motion is centralized in
 [`NavigationTransitions`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/navigation/NavigationTransitions.kt).
