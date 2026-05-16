@@ -128,8 +128,8 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
     data object SettingsCalibrationEntry : Screen(
         "settings_calibration_entry?" +
-            "${CalibrationEditorViewModel.PANEL_ID_ARG}={${CalibrationEditorViewModel.PANEL_ID_ARG}}" +
-            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+                "${CalibrationEditorViewModel.PANEL_ID_ARG}={${CalibrationEditorViewModel.PANEL_ID_ARG}}" +
+                "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
         R.string.settings_calibration_add_result
     ) {
         const val baseRoute = "settings_calibration_entry"
@@ -148,9 +148,9 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
 
     data object EditMedicationGroup : Screen(
         "edit_medication_group?" +
-            "${MedicationGroupEditorViewModel.GROUP_ID_ARG}={${MedicationGroupEditorViewModel.GROUP_ID_ARG}}" +
-            "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}" +
-            "&$MEDICATION_GROUP_EDITOR_SOURCE_ARG={$MEDICATION_GROUP_EDITOR_SOURCE_ARG}",
+                "${MedicationGroupEditorViewModel.GROUP_ID_ARG}={${MedicationGroupEditorViewModel.GROUP_ID_ARG}}" +
+                "&$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}" +
+                "&$MEDICATION_GROUP_EDITOR_SOURCE_ARG={$MEDICATION_GROUP_EDITOR_SOURCE_ARG}",
         R.string.add_medication_group
     ) {
         const val baseRoute = "edit_medication_group"
@@ -211,8 +211,8 @@ internal fun topLevelNavigationTapAction(
 ): TopLevelNavigationTapAction {
     val isOnChildOfSelectedTopLevel =
         selectedBottomScreen == tappedScreen &&
-            currentRoute != null &&
-            currentRoute != tappedScreen.route
+                currentRoute != null &&
+                currentRoute != tappedScreen.route
 
     return when {
         isOnChildOfSelectedTopLevel -> TopLevelNavigationTapAction.POP_TO_TOP_LEVEL
@@ -296,329 +296,329 @@ fun HrtTrackerNavHost(
         }
 
     CompositionLocalProvider(LocalAppContentBottomInset provides appContentBottomInset) {
-    NavigationSuiteScaffold(
-        modifier = modifier,
-        layoutType = navigationSuiteType,
-        navigationSuiteItems = {
-            topLevelNavigationItems.forEach { navItem ->
-                item(
-                    selected = selectedBottomScreen == navItem.screen,
-                    onClick = {
-                        when (
-                            topLevelNavigationTapAction(
-                                tappedScreen = navItem.screen,
-                                selectedBottomScreen = selectedBottomScreen,
-                                currentRoute = currentRoute,
-                            )
-                        ) {
-                            TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                navController.popBackStack(navItem.screen.route, false)
-                            }
-
-                            TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
-                                when (navItem.screen) {
-                                    Screen.Main -> mainScrollToTopSignal++
-                                    Screen.Plan -> planScrollToTopSignal++
-                                    Screen.Settings -> settingsScrollToTopSignal++
-                                    else -> Unit
-                                }
-                            }
-
-                            TopLevelNavigationTapAction.NAVIGATE -> {
-                                navController.navigateToTopLevelScreen(
-                                    targetScreen = navItem.screen,
+        NavigationSuiteScaffold(
+            modifier = modifier,
+            layoutType = navigationSuiteType,
+            navigationSuiteItems = {
+                topLevelNavigationItems.forEach { navItem ->
+                    item(
+                        selected = selectedBottomScreen == navItem.screen,
+                        onClick = {
+                            when (
+                                topLevelNavigationTapAction(
+                                    tappedScreen = navItem.screen,
                                     selectedBottomScreen = selectedBottomScreen,
+                                    currentRoute = currentRoute,
+                                )
+                            ) {
+                                TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
+                                    navController.popBackStack(navItem.screen.route, false)
+                                }
+
+                                TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
+                                    when (navItem.screen) {
+                                        Screen.Main -> mainScrollToTopSignal++
+                                        Screen.Plan -> planScrollToTopSignal++
+                                        Screen.Settings -> settingsScrollToTopSignal++
+                                        else -> Unit
+                                    }
+                                }
+
+                                TopLevelNavigationTapAction.NAVIGATE -> {
+                                    navController.navigateToTopLevelScreen(
+                                        targetScreen = navItem.screen,
+                                        selectedBottomScreen = selectedBottomScreen,
+                                    )
+                                }
+
+                                TopLevelNavigationTapAction.NONE -> Unit
+                            }
+                        },
+                        icon = {
+                            Icon(
+                                painter = painterResource(navItem.icon),
+                                contentDescription = stringResource(navItem.screen.label)
+                            )
+                        },
+                        label = {
+                            Text(text = stringResource(navItem.screen.label))
+                        }
+                    )
+                }
+            }
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Main.route,
+                modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
+                enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
+                exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
+                popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
+                popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
+            ) {
+                composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
+                    MainScreen(
+                        modifier,
+                        scrollToTopSignal = mainScrollToTopSignal,
+                        onEntryClick = { request ->
+                            addEntrySheetRequest = AddEntrySheetRequest(
+                                entryIds = request.entryUuids.map(UUID::toString),
+                                editSnapshot = request.toAddEntryEditSnapshot(),
+                            )
+                        },
+                        onAddEntryClick = {
+                            addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
+                        },
+                        onQuickLogDoseClick = { request ->
+                            if (request.medicationCount > 0) {
+                                addEntrySheetRequest = AddEntrySheetRequest(
+                                    quickLogRequest = AddEntryQuickLogRequest(
+                                        groupId = request.groupUuid,
+                                        scheduleTimeUuid = request.scheduleTimeUuid,
+                                        scheduledFor = request.scheduledAt,
+                                        medicationDetails = request.medicationDetails,
+                                        medicationCount = request.medicationCount,
+                                        sourceGroupName = request.sourceGroupName,
+                                        sourceGroupColorKey = request.sourceGroupColorKey,
+                                        sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
+                                        sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
+                                    )
                                 )
                             }
-
-                            TopLevelNavigationTapAction.NONE -> Unit
                         }
-                    },
-                    icon = {
-                        Icon(
-                            painter = painterResource(navItem.icon),
-                            contentDescription = stringResource(navItem.screen.label)
-                        )
-                    },
-                    label = {
-                        Text(text = stringResource(navItem.screen.label))
-                    }
-                )
-            }
-        }
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Main.route,
-            modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars),
-            enterTransition = { hrtNavHostEnterTransition(density, layoutDirection) },
-            exitTransition = { hrtNavHostExitTransition(density, layoutDirection) },
-            popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
-            popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
-        ) {
-            composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
-                MainScreen(
-                    modifier,
-                    scrollToTopSignal = mainScrollToTopSignal,
-                    onEntryClick = { request ->
-                        addEntrySheetRequest = AddEntrySheetRequest(
-                            entryIds = request.entryUuids.map(UUID::toString),
-                            editSnapshot = request.toAddEntryEditSnapshot(),
-                        )
-                    },
-                    onAddEntryClick = {
-                        addEntrySheetRequest = AddEntrySheetRequest(entryIds = emptyList())
-                    },
-                    onQuickLogDoseClick = { request ->
-                        if (request.medicationCount > 0) {
-                            addEntrySheetRequest = AddEntrySheetRequest(
-                                quickLogRequest = AddEntryQuickLogRequest(
-                                    groupId = request.groupUuid,
-                                    scheduleTimeUuid = request.scheduleTimeUuid,
-                                    scheduledFor = request.scheduledAt,
-                                    medicationDetails = request.medicationDetails,
-                                    medicationCount = request.medicationCount,
-                                    sourceGroupName = request.sourceGroupName,
-                                    sourceGroupColorKey = request.sourceGroupColorKey,
-                                    sourceGroupPreviousScheduledFor = request.sourceGroupPreviousScheduledFor,
-                                    sourceGroupNextScheduledFor = request.sourceGroupNextScheduledFor,
+                    )
+                }
+                composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
+                    PlanScreen(
+                        modifier = modifier,
+                        scrollToTopSignal = planScrollToTopSignal,
+                        onGroupClick = { groupId ->
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route,
+                                    groupId = groupId.toString()
                                 )
                             )
-                        }
-                    }
-                )
-            }
-            composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
-                PlanScreen(
-                    modifier = modifier,
-                    scrollToTopSignal = planScrollToTopSignal,
-                    onGroupClick = { groupId ->
-                        navController.navigate(
-                            Screen.EditMedicationGroup.createRoute(
-                                topLevelParentRoute = Screen.Plan.route,
-                                groupId = groupId.toString()
-                            )
-                        )
-                    },
-                    onEntryClick = { entryIds ->
-                        addEntrySheetRequest = AddEntrySheetRequest(
-                            entryIds = entryIds.map(UUID::toString)
-                        )
-                    },
-                    onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medicationDetails, medicationCount ->
-                        if (medicationCount > 0) {
+                        },
+                        onEntryClick = { entryIds ->
                             addEntrySheetRequest = AddEntrySheetRequest(
-                                quickLogRequest = AddEntryQuickLogRequest(
-                                    groupId = groupId,
-                                    scheduleTimeUuid = scheduleTimeUuid,
-                                    scheduledFor = scheduledAt,
-                                    medicationDetails = medicationDetails,
-                                    medicationCount = medicationCount
+                                entryIds = entryIds.map(UUID::toString)
+                            )
+                        },
+                        onQuickLogClick = { groupId, scheduleTimeUuid, scheduledAt, medicationDetails, medicationCount ->
+                            if (medicationCount > 0) {
+                                addEntrySheetRequest = AddEntrySheetRequest(
+                                    quickLogRequest = AddEntryQuickLogRequest(
+                                        groupId = groupId,
+                                        scheduleTimeUuid = scheduleTimeUuid,
+                                        scheduledFor = scheduledAt,
+                                        medicationDetails = medicationDetails,
+                                        medicationCount = medicationCount
+                                    )
+                                )
+                            }
+                        },
+                        onAddGroupClick = {
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route
                                 )
                             )
-                        }
-                    },
-                    onAddGroupClick = {
-                        navController.navigate(
-                            Screen.EditMedicationGroup.createRoute(
-                                topLevelParentRoute = Screen.Plan.route
-                            )
-                        )
-                    },
-                    onHistoryClick = {
-                        navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onBatchAddClick = {
-                        navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
-                            launchSingleTop = true
-                        }
-                    },
-                    onArchivedGroupsClick = {
-                        navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
-            composable(
-                route = Screen.PlanBatchAdd.route,
-                arguments = listOf(
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Plan.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                PlanBatchAddScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                )
-            }
-            composable(
-                route = Screen.PlanArchivedGroups.route,
-                arguments = listOf(
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Plan.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                ArchivedMedicationGroupsScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                    onGroupClick = { groupId ->
-                        navController.navigate(
-                            Screen.EditMedicationGroup.createRoute(
-                                topLevelParentRoute = Screen.Plan.route,
-                                groupId = groupId.toString(),
-                                source = MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS,
-                            )
-                        )
-                    }
-                )
-            }
-            composable(
-                route = Screen.History.route,
-                arguments = listOf(
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Plan.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                HistoryScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                    onEntryClick = { entryIds ->
-                        addEntrySheetRequest = AddEntrySheetRequest(
-                            entryIds = entryIds.map(UUID::toString)
-                        )
-                    }
-                )
-            }
-            composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
-                SettingsScreen(
-                    modifier = modifier,
-                    scrollToTopSignal = settingsScrollToTopSignal,
-                    onCalibrationClick = {
-                        navController.navigate(
-                            Screen.SettingsCalibration.createRoute(Screen.Settings.route)
-                        )
-                    }
-                )
-            }
-            composable(
-                route = Screen.SettingsCalibration.route,
-                arguments = listOf(
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Settings.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                CalibrationScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                    onUnitsClick = {
-                        navController.navigate(
-                            Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
-                        )
-                    },
-                    onAddClick = {
-                        navController.navigate(
-                            Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
-                        )
-                    },
-                    onPanelClick = { panelUuid ->
-                        navController.navigate(
-                            Screen.SettingsCalibrationEntry.createRoute(
-                                topLevelParentRoute = Screen.Settings.route,
-                                panelId = panelUuid.toString()
-                            )
-                        )
-                    }
-                )
-            }
-            composable(
-                route = Screen.SettingsCalibrationUnits.route,
-                arguments = listOf(
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Settings.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                CalibrationUnitsScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                )
-            }
-            composable(
-                route = Screen.SettingsCalibrationEntry.route,
-                arguments = listOf(
-                    navArgument(CalibrationEditorViewModel.PANEL_ID_ARG) {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Settings.route
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) {
-                CalibrationEditorScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = Screen.EditMedicationGroup.route,
-                arguments = listOf(
-                    navArgument(MedicationGroupEditorViewModel.GROUP_ID_ARG) {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument(TOP_LEVEL_PARENT_ARG) {
-                        type = NavType.StringType
-                        defaultValue = Screen.Plan.route
-                    },
-                    navArgument(MEDICATION_GROUP_EDITOR_SOURCE_ARG) {
-                        type = NavType.StringType
-                        defaultValue = ""
-                    }
-                ),
-                sizeTransform = hrtSizeTransform,
-            ) { backStackEntry ->
-                val openedFromArchivedGroupsPage =
-                    backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
-                        MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
-                MedicationGroupEditorScreen(
-                    modifier = modifier,
-                    onNavigateBack = { navController.popBackStack() },
-                    onGroupSaved = { navController.popBackStack() },
-                    onGroupSavedToPlan = {
-                        if (!navController.popBackStack(Screen.Plan.route, inclusive = false)) {
-                            navController.navigate(Screen.Plan.route) {
+                        },
+                        onHistoryClick = {
+                            navController.navigate(Screen.History.createRoute(Screen.Plan.route)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onBatchAddClick = {
+                            navController.navigate(Screen.PlanBatchAdd.createRoute(Screen.Plan.route)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onArchivedGroupsClick = {
+                            navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
                                 launchSingleTop = true
                             }
                         }
-                    },
-                    openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
-                )
+                    )
+                }
+                composable(
+                    route = Screen.PlanBatchAdd.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    PlanBatchAddScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = Screen.PlanArchivedGroups.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    ArchivedMedicationGroupsScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onGroupClick = { groupId ->
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route,
+                                    groupId = groupId.toString(),
+                                    source = MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS,
+                                )
+                            )
+                        }
+                    )
+                }
+                composable(
+                    route = Screen.History.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    HistoryScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onEntryClick = { entryIds ->
+                            addEntrySheetRequest = AddEntrySheetRequest(
+                                entryIds = entryIds.map(UUID::toString)
+                            )
+                        }
+                    )
+                }
+                composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
+                    SettingsScreen(
+                        modifier = modifier,
+                        scrollToTopSignal = settingsScrollToTopSignal,
+                        onCalibrationClick = {
+                            navController.navigate(
+                                Screen.SettingsCalibration.createRoute(Screen.Settings.route)
+                            )
+                        }
+                    )
+                }
+                composable(
+                    route = Screen.SettingsCalibration.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    CalibrationScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onUnitsClick = {
+                            navController.navigate(
+                                Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
+                            )
+                        },
+                        onAddClick = {
+                            navController.navigate(
+                                Screen.SettingsCalibrationEntry.createRoute(Screen.Settings.route)
+                            )
+                        },
+                        onPanelClick = { panelUuid ->
+                            navController.navigate(
+                                Screen.SettingsCalibrationEntry.createRoute(
+                                    topLevelParentRoute = Screen.Settings.route,
+                                    panelId = panelUuid.toString()
+                                )
+                            )
+                        }
+                    )
+                }
+                composable(
+                    route = Screen.SettingsCalibrationUnits.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    CalibrationUnitsScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = Screen.SettingsCalibrationEntry.route,
+                    arguments = listOf(
+                        navArgument(CalibrationEditorViewModel.PANEL_ID_ARG) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Settings.route
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) {
+                    CalibrationEditorScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onSaved = { navController.popBackStack() }
+                    )
+                }
+                composable(
+                    route = Screen.EditMedicationGroup.route,
+                    arguments = listOf(
+                        navArgument(MedicationGroupEditorViewModel.GROUP_ID_ARG) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        },
+                        navArgument(MEDICATION_GROUP_EDITOR_SOURCE_ARG) {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        }
+                    ),
+                    sizeTransform = hrtSizeTransform,
+                ) { backStackEntry ->
+                    val openedFromArchivedGroupsPage =
+                        backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
+                                MEDICATION_GROUP_EDITOR_SOURCE_ARCHIVED_GROUPS
+                    MedicationGroupEditorScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onGroupSaved = { navController.popBackStack() },
+                        onGroupSavedToPlan = {
+                            if (!navController.popBackStack(Screen.Plan.route, inclusive = false)) {
+                                navController.navigate(Screen.Plan.route) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        },
+                        openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
+                    )
+                }
             }
         }
-    }
     }
 
     addEntrySheetRequest?.let { request ->

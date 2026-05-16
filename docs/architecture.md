@@ -172,10 +172,9 @@ destinations, grouped by feature area: `Main`, `Plan` (plus
 `PlanBatchAdd`, `PlanArchivedGroups`), `History`, `Settings` (plus
 `SettingsCalibration`, `SettingsCalibrationUnits`,
 `SettingsCalibrationEntry`), and `EditMedicationGroup`. The host wraps
-the `NavHost` in `NavigationSuiteScaffold`, which adapts to width
-class — a `NavigationBar` on phones (compact, <600dp), a
-`NavigationRail` on small tablets (medium, 600–839dp), and a
-`PermanentNavigationDrawer` on large tablets (expanded, ≥840dp). The
+the `NavHost` in `NavigationSuiteScaffold`, which adapts its navigation
+component to the current window width class so the layout works across
+phones and tablets. The
 suite surfaces three of the destinations (Main, Plan, Settings) from
 the `topLevelNavigationItems` list; the rest are reached via in-screen
 actions and tracked back to their top-level parent via the
