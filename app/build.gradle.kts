@@ -163,6 +163,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout.compose)
     implementation(libs.material)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material3.adaptive.navigation.suite)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.appcompat)
