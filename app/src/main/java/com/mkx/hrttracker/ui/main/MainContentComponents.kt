@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import android.text.format.DateFormat
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
@@ -379,6 +380,9 @@ internal fun MainE2HeroCard(
     val estimateInfoTooltipText = stringResource(mainE2EstimateInfoToastRes())
     val estimateInfoTooltipState = rememberTooltipState(isPersistent = true)
     val estimateInfoTooltipScope = rememberCoroutineScope()
+    BackHandler(enabled = estimateInfoTooltipState.isVisible) {
+        estimateInfoTooltipState.dismiss()
+    }
     val currentValueText = formatMainE2ConcentrationValue(section.currentValue, displayUnit)
     val unitText = section.unit
     // When the trend isn't ready, we pin the pill to "in range" so the slot

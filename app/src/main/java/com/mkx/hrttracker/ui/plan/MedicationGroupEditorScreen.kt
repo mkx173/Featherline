@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -2057,6 +2058,9 @@ private fun MedicationGroupColorPickerLeadingIcon(
     val scope = rememberCoroutineScope()
     val pickerActionDescription = stringResource(R.string.group_color_picker_action)
     val pickerTitle = stringResource(R.string.group_color_picker_title)
+    BackHandler(enabled = tooltipState.isVisible) {
+        tooltipState.dismiss()
+    }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberTooltipPositionProvider(
             TooltipAnchorPosition.Below,
