@@ -135,8 +135,10 @@ Each row carries either `builtinAnalyteKey` or `customAnalyteUuid`
 value and the unit it was entered in) plus `canonicalValue` — the
 same value pre-converted to the analyte's canonical unit so trend
 queries can sort across panels without re-running conversion. Indexed
-on `panelUuid`, on each analyte key, and on `(panelUuid, displayOrder)`
-uniquely (to enforce per-panel ordering).
+on `panelUuid`, on each analyte key, and on three unique composite
+indices: `(panelUuid, displayOrder)` enforces per-panel ordering, and
+`(panelUuid, builtinAnalyteKey)` plus `(panelUuid, customAnalyteUuid)`
+enforce one-row-per-analyte within a panel.
 
 ### `CustomBloodAnalyteEntity`
 
@@ -164,9 +166,10 @@ types:
 - `BloodTestPanelWithResultsEntity` — `@Embedded` panel plus a
   `@Relation` list of results. Used by `BloodTestDao` for the panel
   detail view.
-- `BloodTestTrendPointEntity` — flat projection (panel-collected
-  instant, result value, unit snapshot, canonical value) returned by
-  the chart-trend queries. Not a row class; not joinable.
+- `BloodTestTrendPointEntity` — flat projection returned by the
+  chart-trend queries. Carries `panelUuid`, `resultUuid`,
+  `collectedAtInstantEpochMillis`, `collectedAtTimeZoneId`, `value`,
+  `unitSnapshot`, and `canonicalValue`. Not a row class; not joinable.
 
 ## Cross-cutting types
 
