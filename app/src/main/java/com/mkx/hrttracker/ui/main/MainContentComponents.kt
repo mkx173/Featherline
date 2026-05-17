@@ -2470,7 +2470,6 @@ private fun MainE2ChartCardHeader(
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ShowChart,
@@ -2478,7 +2477,7 @@ private fun MainE2ChartCardHeader(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
-
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = mainE2ChartTitleText,
                 style = MaterialTheme.typography.labelLarge,
@@ -2488,7 +2487,7 @@ private fun MainE2ChartCardHeader(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.cjkTextOffset(mainE2ChartTitleText)
             )
-
+            Spacer(modifier = Modifier.width(4.dp))
             IconButton(
                 onClick = {
                     val next = when (chartWindowOption) {
