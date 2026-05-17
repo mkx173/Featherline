@@ -239,10 +239,14 @@ internal fun mainE2ChartMaxZoomXRangeHours(
 }
 
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
-// Sentinel x-coordinate for an empty dose-marker series, placed outside the
-// chart's x range (which starts at 0) so Vico clips the placeholder point
-// while keeping the index-based LineProvider style mapping stable.
+// Sentinel coordinates for an empty dose-marker series. The x is placed just
+// outside the chart's x range (which starts at 0). The y is a large negative
+// value so the circle center is far below the chart canvas — necessary because
+// Vico renders the circle at the actual pixel position and the left edge of the
+// chart clips only the horizontal overhang, leaving the top-right quarter of a
+// y=0 sentinel visible as a partial dot on the x-axis.
 private const val OffAxisDoseMarkerSentinelXHours = -1.0
+private const val OffAxisDoseMarkerSentinelConcentration = -1_000_000f
 private val MainE2ChartContentPadding = 8.dp
 private val MainE2ChartMarkerLabelGap = 6.dp
 private val MainE2ChartPointSpacing = 32.dp
@@ -1044,11 +1048,11 @@ internal fun MainE2ChartCard(
                 if (hasAnyMarker) {
                     series(
                         x = doseMarkerLoggedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerLoggedConcentrations.ifEmpty { listOf(0f) },
+                        y = doseMarkerLoggedConcentrations.ifEmpty { listOf(OffAxisDoseMarkerSentinelConcentration) },
                     )
                     series(
                         x = doseMarkerPlannedXHours.ifEmpty { listOf(OffAxisDoseMarkerSentinelXHours) },
-                        y = doseMarkerPlannedConcentrations.ifEmpty { listOf(0f) },
+                        y = doseMarkerPlannedConcentrations.ifEmpty { listOf(OffAxisDoseMarkerSentinelConcentration) },
                     )
                 }
             }
