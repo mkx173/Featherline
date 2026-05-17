@@ -175,6 +175,7 @@ import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -208,6 +209,8 @@ private const val MainE2ChartFallbackPixelWidth = 400
 private const val MainE2ChartThirtyDayProjectionSpanHours: Double = 40.0 * 24.0
 private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
 
+private const val MainE2ChartZoomFloorRoundingHours = 24.0
+
 internal fun mainE2ChartZoomFloorHours(
     projectionSpanHours: Double,
     segmentCount: Int,
@@ -215,7 +218,12 @@ internal fun mainE2ChartZoomFloorHours(
 ): Double {
     val width = chartPixelWidthPx.takeIf { it > 0 } ?: MainE2ChartFallbackPixelWidth
     val safeSegmentCount = segmentCount.coerceAtLeast(1)
-    return MainE2ChartZoomDensityFactor * (projectionSpanHours / safeSegmentCount) * width
+    val raw = MainE2ChartZoomDensityFactor * (projectionSpanHours / safeSegmentCount) * width
+    // Snap the max-zoom span down to a whole number of days so the
+    // deepest-zoom edge lines up with the chart's day-aligned ticks. Never
+    // drop below one full day even on very narrow widths.
+    return (floor(raw / MainE2ChartZoomFloorRoundingHours) * MainE2ChartZoomFloorRoundingHours)
+        .coerceAtLeast(MainE2ChartZoomFloorRoundingHours)
 }
 
 internal fun mainE2ChartMaxZoomXRangeHours(

@@ -244,6 +244,31 @@ class MainContentComponentsTest {
     }
 
     @Test
+    fun mainE2ChartZoomFloorHours_floorsToWholeDay() {
+        // 1160 px raw = 0.42 * (960/2240) * 1160 = 208.8 h; flooring to a
+        // whole-day boundary keeps the max-zoom edge aligned with the
+        // chart's day ticks. floor(208.8 / 24) * 24 = 192 h = 8 d.
+        val floor = mainE2ChartZoomFloorHours(
+            projectionSpanHours = 960.0,
+            segmentCount = 2240,
+            chartPixelWidthPx = 1160,
+        )
+        assertEquals(192.0, floor, 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartZoomFloorHours_minimumIsOneDay() {
+        // A very narrow chart would compute a raw floor below 24 h; the
+        // clamp guarantees the max-zoom span never goes below one full day.
+        val floor = mainE2ChartZoomFloorHours(
+            projectionSpanHours = 960.0,
+            segmentCount = 2240,
+            chartPixelWidthPx = 100,
+        )
+        assertEquals(24.0, floor, 1e-9)
+    }
+
+    @Test
     fun mainE2ChartMaxZoomXRangeHours_keepsSevenDayFloorAt48Hours() {
         // 7-day mode is the pre-feature behaviour. Width is irrelevant.
         for (width in intArrayOf(0, 400, 800)) {
