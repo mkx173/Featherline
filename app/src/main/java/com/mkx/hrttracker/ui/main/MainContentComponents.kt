@@ -1451,26 +1451,33 @@ private fun MainE2ChartMinimap(
     val startDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
     val endDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
     val viewportSnapshot = coordinateMapper.viewportSnapshot.collectAsState().value
-    // Date labels, reset-enabled state, and the fallback full range all
-    // derive from the spec the coordinate mapper captured on Vico's last
-    // draw. On a chart-window toggle the mapper still holds the previous
-    // spec until Vico processes the new transaction, so labels and the
-    // reset button stay on the old window for one frame instead of
-    // flashing the new chartWindowStart against the still-old visible
-    // range. LIVE params are used only as a first-frame fallback before
-    // any model has been dispatched.
-    val displayWindowStart = viewportSnapshot?.spec?.chartWindowStart ?: chartWindowStart
-    val displayWindowHours = viewportSnapshot?.spec?.chartWindowHours ?: chartWindowHours
-    val fullHours = displayWindowHours.toDouble().coerceAtLeast(1.0)
-    val fullVisibleRange = remember(displayWindowHours) {
-        mainE2ChartMinimapFullVisibleRange(displayWindowHours)
+    // chartWindowStart and chartWindowHours come from MainE2ChartCard's
+    // LIVE values, which are deterministic from `now` and pastDays, so
+    // date labels and reset state can update in the same frame as the
+    // minimap canvas — no need to wait for Vico's draw. The snapshot is
+    // still useful for the *visible range* (zoom/scroll), but its spec
+    // lags Vico's render by a frame, so on a chart-window toggle the
+    // snapshot's visible range is briefly stale and would label the new
+    // window through the old visible portion. Treat the snapshot as
+    // stale whenever its spec disagrees with the LIVE window and fall
+    // back to the full new range, which is also where a toggle resets
+    // scroll/zoom to anyway.
+    val snapshotMatchesLiveWindow =
+        viewportSnapshot?.spec?.chartWindowHours == chartWindowHours
+    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
+    val fullVisibleRange = remember(chartWindowHours) {
+        mainE2ChartMinimapFullVisibleRange(chartWindowHours)
     }
-    val pendingResetDateLabelRange = remember(displayWindowHours) {
+    val pendingResetDateLabelRange = remember(chartWindowHours) {
         mutableStateOf<MainE2ChartVisibleXRange?>(null)
     }
-    val rawVisibleRange = viewportSnapshot?.rawVisibleRange
+    val rawVisibleRange = viewportSnapshot
+        ?.takeIf { snapshotMatchesLiveWindow }
+        ?.rawVisibleRange
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
-    val visibleRange = viewportSnapshot?.visibleRange
+    val visibleRange = viewportSnapshot
+        ?.takeIf { snapshotMatchesLiveWindow }
+        ?.visibleRange
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
     val pendingResetRange = pendingResetDateLabelRange.value
     LaunchedEffect(visibleRange, pendingResetRange) {
@@ -1478,7 +1485,7 @@ private fun MainE2ChartMinimap(
             pendingResetRange != null &&
             !mainE2ChartMinimapIsZoomed(
                 visibleRange = visibleRange,
-                chartWindowHours = displayWindowHours,
+                chartWindowHours = chartWindowHours,
             )
         ) {
             pendingResetDateLabelRange.value = null
@@ -1490,35 +1497,35 @@ private fun MainE2ChartMinimap(
     )
     val resetEnabled = canResetMainE2ChartMinimap(
         visibleRange = visibleRange,
-        chartWindowHours = displayWindowHours,
+        chartWindowHours = chartWindowHours,
         hasPendingReset = pendingResetRange != null,
     )
     val startDateLabel = remember(
-        displayWindowStart,
-        displayWindowHours,
+        chartWindowStart,
+        chartWindowHours,
         dateFormatter,
         dateLabelVisibleRange.start,
     ) {
         dateFormatter(
             mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = displayWindowStart,
+                chartWindowStart = chartWindowStart,
                 xHours = dateLabelVisibleRange.start,
-                chartWindowHours = displayWindowHours,
+                chartWindowHours = chartWindowHours,
             )
                 .toLocalDate()
         )
     }
     val endDateLabel = remember(
-        displayWindowStart,
-        displayWindowHours,
+        chartWindowStart,
+        chartWindowHours,
         dateFormatter,
         dateLabelVisibleRange.endInclusive,
     ) {
         dateFormatter(
             mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = displayWindowStart,
+                chartWindowStart = chartWindowStart,
                 xHours = dateLabelVisibleRange.endInclusive,
-                chartWindowHours = displayWindowHours,
+                chartWindowHours = chartWindowHours,
             )
                 .toLocalDate()
         )
