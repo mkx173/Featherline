@@ -135,6 +135,7 @@ fun MainScreen(
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick,
                 onDismissTimeZoneChangeNotice = viewModel::dismissTimeZoneChangeNotice,
+                onE2ChartWindowOptionSelected = viewModel::setHomeE2ChartWindowOption,
                 modifier = Modifier.fillMaxSize(),
             )
         }

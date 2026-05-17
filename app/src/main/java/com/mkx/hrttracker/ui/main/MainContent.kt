@@ -31,6 +31,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
@@ -54,6 +55,7 @@ fun MainContent(
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     onDismissTimeZoneChangeNotice: () -> Unit = { },
+    onE2ChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
 ) {
     val appLocale = rememberAppLocale()
     val today = uiState.now.toLocalDate()
@@ -98,6 +100,7 @@ fun MainContent(
             targetRangeHigh = uiState.e2Hero.targetMax,
             trendReady = uiState.e2TrendReady,
             hideReferenceRanges = uiState.hideReferenceRanges,
+            onChartWindowOptionSelected = onE2ChartWindowOptionSelected,
         )
 
         if (uiState.antiandrogenCards.isNotEmpty()) {

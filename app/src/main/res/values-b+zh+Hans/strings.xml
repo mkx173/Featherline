@@ -32,6 +32,9 @@
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_estimate_info">显示雌二醇估算说明</string>
     <string name="main_e2_chart_title">7 天趋势</string>
+    <string name="main_e2_chart_title_seven_days">7 天趋势</string>
+    <string name="main_e2_chart_title_thirty_days">30 天趋势</string>
+    <string name="main_e2_chart_window_toggle_cd">切换图表窗口</string>
     <string name="main_e2_chart_target">目标 %1$s–%2$s %3$s</string>
     <string name="main_e2_chart_overview">图表概览</string>
     <string name="main_e2_chart_reset_view">重置图表视图</string>

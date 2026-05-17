@@ -112,6 +112,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.ui.medication.labelRes
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -192,7 +193,39 @@ private const val MainE2ChartAnimationSettleDelayMillis = 50L
 // app launch, not on every re-composition (tab switch, scroll re-entry,
 // etc.) that would otherwise re-arm a rememberSaveable flag.
 private var mainE2ChartInitialAnimationConsumed = false
+// SEVEN_DAYS keeps the original fixed 48 h floor — 2 d on a phone-width
+// chart, derived empirically from the 0.1 h sampler. THIRTY_DAYS instead
+// derives its floor from the measured plot width and budget grid so the
+// 30-day chart never zooms past ~0.7 samples/pixel and so tablets get a
+// wider floor than phones.
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
+private const val MainE2ChartZoomDensityFactor = 0.7
+private const val MainE2ChartFallbackPixelWidth = 400
+private const val MainE2ChartThirtyDayProjectionSpanHours: Double = 40.0 * 24.0
+private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
+
+internal fun mainE2ChartZoomFloorHours(
+    projectionSpanHours: Double,
+    segmentCount: Int,
+    chartPixelWidthPx: Int,
+): Double {
+    val width = chartPixelWidthPx.takeIf { it > 0 } ?: MainE2ChartFallbackPixelWidth
+    val safeSegmentCount = segmentCount.coerceAtLeast(1)
+    return MainE2ChartZoomDensityFactor * (projectionSpanHours / safeSegmentCount) * width
+}
+
+internal fun mainE2ChartMaxZoomXRangeHours(
+    option: HomeE2ChartWindowOption,
+    chartPixelWidthPx: Int,
+): Double = when (option) {
+    HomeE2ChartWindowOption.SEVEN_DAYS -> MainE2ChartMaxZoomXRangeHours
+    HomeE2ChartWindowOption.THIRTY_DAYS -> mainE2ChartZoomFloorHours(
+        projectionSpanHours = MainE2ChartThirtyDayProjectionSpanHours,
+        segmentCount = MainE2ChartThirtyDaySegmentCount,
+        chartPixelWidthPx = chartPixelWidthPx,
+    )
+}
+
 private const val MainE2ChartMinimapRangeEpsilonHours = 1e-3
 // Sentinel x-coordinate for an empty dose-marker series, placed outside the
 // chart's x range (which starts at 0) so Vico clips the placeholder point
@@ -658,6 +691,7 @@ internal fun MainE2ChartCard(
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
     hideReferenceRanges: Boolean = false,
+    onChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
 ) {
     if (!trendReady) {
         Surface(
@@ -679,6 +713,8 @@ internal fun MainE2ChartCard(
                     displayUnit = displayUnit,
                     unit = unit,
                     hideReferenceRanges = hideReferenceRanges,
+                    chartWindowOption = section.chartWindowOption,
+                    onChartWindowOptionSelected = onChartWindowOptionSelected,
                 )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -887,14 +923,28 @@ internal fun MainE2ChartCard(
             maxY = yAxisSpec.maxY,
         )
     }
-    val maxChartZoom = remember {
+    // Hoisted up so maxChartZoom can recompute against the measured plot
+    // width once .onSizeChanged fires; rememberVicoZoomState is keyed on
+    // option + width so the floor reflects the live form factor.
+    val chartSize = remember { mutableStateOf(IntSize.Zero) }
+    val measuredChartWidthPx = chartSize.value.width
+    val maxChartZoom = remember(section.chartWindowOption, measuredChartWidthPx) {
         Zoom.max(
             Zoom.Content,
-            Zoom.x(MainE2ChartMaxZoomXRangeHours),
+            Zoom.x(
+                mainE2ChartMaxZoomXRangeHours(
+                    option = section.chartWindowOption,
+                    chartPixelWidthPx = measuredChartWidthPx,
+                )
+            ),
         )
     }
     val chartViewportResetVersion = rememberSaveable { mutableIntStateOf(0) }
-    val (chartScrollState, chartZoomState) = key(chartViewportResetVersion.intValue) {
+    val (chartScrollState, chartZoomState) = key(
+        chartViewportResetVersion.intValue,
+        section.chartWindowOption,
+        measuredChartWidthPx,
+    ) {
         rememberVicoScrollState(scrollEnabled = true) to rememberVicoZoomState(
             zoomEnabled = true,
             initialZoom = Zoom.Content,
@@ -986,6 +1036,8 @@ internal fun MainE2ChartCard(
                 displayUnit = displayUnit,
                 unit = unit,
                 hideReferenceRanges = hideReferenceRanges,
+                chartWindowOption = section.chartWindowOption,
+                onChartWindowOptionSelected = onChartWindowOptionSelected,
             )
 
             Column(
@@ -1003,7 +1055,6 @@ internal fun MainE2ChartCard(
                 val chartCoordinateMapper = remember(chartViewportResetVersion.intValue) {
                     MainE2ChartCoordinateMapper()
                 }
-                val chartSize = remember { mutableStateOf(IntSize.Zero) }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
                     currentTimeXHours,
@@ -2266,14 +2317,37 @@ private fun MainE2ChartCardHeader(
     displayUnit: BloodUnitKey,
     unit: String,
     hideReferenceRanges: Boolean = false,
+    chartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+    onChartWindowOptionSelected: (HomeE2ChartWindowOption) -> Unit = { },
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val mainE2ChartTitleText = stringResource(
+            when (chartWindowOption) {
+                HomeE2ChartWindowOption.SEVEN_DAYS -> R.string.main_e2_chart_title_seven_days
+                HomeE2ChartWindowOption.THIRTY_DAYS -> R.string.main_e2_chart_title_thirty_days
+            }
+        )
+        val toggleContentDescription = stringResource(R.string.main_e2_chart_window_toggle_cd)
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .clip(MaterialTheme.shapes.small)
+                .clickable(
+                    onClick = {
+                        val next = when (chartWindowOption) {
+                            HomeE2ChartWindowOption.SEVEN_DAYS -> HomeE2ChartWindowOption.THIRTY_DAYS
+                            HomeE2ChartWindowOption.THIRTY_DAYS -> HomeE2ChartWindowOption.SEVEN_DAYS
+                        }
+                        onChartWindowOptionSelected(next)
+                    },
+                    onClickLabel = toggleContentDescription,
+                    role = Role.Button,
+                )
+                .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2284,7 +2358,6 @@ private fun MainE2ChartCardHeader(
                 modifier = Modifier.size(18.dp)
             )
 
-            val mainE2ChartTitleText = stringResource(R.string.main_e2_chart_title)
             Text(
                 text = mainE2ChartTitleText,
                 style = MaterialTheme.typography.labelLarge,

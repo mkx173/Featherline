@@ -34,6 +34,9 @@
     <string name="main_e2_title">Estradiol · estimated</string>
     <string name="main_e2_estimate_info">Show estradiol estimate information</string>
     <string name="main_e2_chart_title">7-day trend</string>
+    <string name="main_e2_chart_title_seven_days">7-day trend</string>
+    <string name="main_e2_chart_title_thirty_days">30-day trend</string>
+    <string name="main_e2_chart_window_toggle_cd">Switch chart window</string>
     <string name="main_e2_chart_target">Target %1$s–%2$s %3$s</string>
     <string name="main_e2_chart_overview">Chart overview</string>
     <string name="main_e2_chart_reset_view">Reset chart view</string>

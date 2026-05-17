@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -200,6 +201,80 @@ class MainContentComponentsTest {
                 xHours = 168.0,
                 chartWindowHours = 168,
             )
+        )
+    }
+
+    @Test
+    fun mainE2ChartZoomFloorHours_landsAtFiveDaysOnPhoneWidth() {
+        // THIRTY_DAYS spans 40 d = 960 h with 2240 budget segments. At the
+        // 400 px phone-portrait reference width and the 0.7 density factor,
+        // the floor is 0.7 * (960 / 2240) * 400 = 120 h = 5 d exactly.
+        val floor = mainE2ChartZoomFloorHours(
+            projectionSpanHours = 960.0,
+            segmentCount = 2240,
+            chartPixelWidthPx = 400,
+        )
+        assertEquals(120.0, floor, 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartZoomFloorHours_scalesWithMeasuredWidth() {
+        // Tablets get a wider floor (~10 d) at the same samples-per-pixel
+        // target. Locking to the 400 px fallback would let tablets zoom past
+        // the linearisation slack — twice the density the design accepts.
+        val floor = mainE2ChartZoomFloorHours(
+            projectionSpanHours = 960.0,
+            segmentCount = 2240,
+            chartPixelWidthPx = 800,
+        )
+        assertEquals(240.0, floor, 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartZoomFloorHours_fallsBackToReferenceWidthBeforeLayout() {
+        // Compose has not reported a size yet; the formula uses the 400 px
+        // fallback so the chart starts at a sensible max-zoom before the
+        // first .onSizeChanged.
+        val floor = mainE2ChartZoomFloorHours(
+            projectionSpanHours = 960.0,
+            segmentCount = 2240,
+            chartPixelWidthPx = 0,
+        )
+        assertEquals(120.0, floor, 1e-9)
+    }
+
+    @Test
+    fun mainE2ChartMaxZoomXRangeHours_keepsSevenDayFloorAt48Hours() {
+        // 7-day mode is the pre-feature behaviour. Width is irrelevant.
+        for (width in intArrayOf(0, 400, 800)) {
+            assertEquals(
+                48.0,
+                mainE2ChartMaxZoomXRangeHours(
+                    option = HomeE2ChartWindowOption.SEVEN_DAYS,
+                    chartPixelWidthPx = width,
+                ),
+                1e-9,
+            )
+        }
+    }
+
+    @Test
+    fun mainE2ChartMaxZoomXRangeHours_thirtyDayUsesMeasuredWidthFormula() {
+        assertEquals(
+            120.0,
+            mainE2ChartMaxZoomXRangeHours(
+                option = HomeE2ChartWindowOption.THIRTY_DAYS,
+                chartPixelWidthPx = 400,
+            ),
+            1e-9,
+        )
+        assertEquals(
+            240.0,
+            mainE2ChartMaxZoomXRangeHours(
+                option = HomeE2ChartWindowOption.THIRTY_DAYS,
+                chartPixelWidthPx = 800,
+            ),
+            1e-9,
         )
     }
 }
