@@ -3,9 +3,10 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
-import com.mkx.hrttracker.model.pk.PkMedicationSimulation
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
+import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -63,39 +65,51 @@ class HomeRepository @Inject constructor(
 
     fun observeHomeSnapshotInputs(now: LocalDateTime): Flow<HomeInputs> {
         val zoneId = ZoneId.systemDefault()
+        // homeE2ChartWindowOptionFlow is the raw DataStore-backed flow that
+        // bypasses settingsState's eager initialValue, so the first emission
+        // here carries the persisted option rather than the SEVEN_DAYS
+        // placeholder. Validating downstream of that emission keeps a
+        // THIRTY_DAYS-fingerprinted snapshot from being rejected on cold start
+        // just because settingsState hasn't loaded yet.
         return combine(
-            homeSnapshotRepository.observeHomeSnapshot()
-                .mapNotNull { snapshot ->
-                    snapshot?.takeIf {
-                        homeSnapshotRepository.isSnapshotUsable(
-                            snapshot = it,
-                            now = now,
-                            zoneId = zoneId,
-                        )
-                    }
-                },
+            homeSnapshotRepository.observeHomeSnapshot(),
+            settingsRepository.homeE2ChartWindowOptionFlow,
             settingsRepository.settingsState,
-        ) { snapshot, settingsState ->
-            val pkProjectionRecord = snapshot.pkProjection
-            HomeInputs(
-                activeGroups = snapshot.activeGroups,
-                scheduleEntries = homeSnapshotRepository.scheduleEntriesForHome(
-                    snapshot = snapshot,
-                    now = now,
-                    zoneId = zoneId,
-                ),
-                antiandrogenHistoryEntries = snapshot.antiandrogenHistoryEntries,
-                profile = UserProfile(),
-                settings = settingsState,
-                pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
-                pkProjectionExpiresAt = pkProjectionRecord
-                    ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
-                latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
-                estradiolPkEntries = emptyList(),
-                source = HomeInputSource.SNAPSHOT,
-                now = now,
-            )
+        ) { snapshot, option, settingsState ->
+            Triple(snapshot, option, settingsState)
         }
+            .mapNotNull { (snapshot, option, settingsState) ->
+                val usable = snapshot?.takeIf {
+                    homeSnapshotRepository.isSnapshotUsable(
+                        snapshot = it,
+                        now = now,
+                        zoneId = zoneId,
+                        option = option,
+                    )
+                } ?: return@mapNotNull null
+                val pkProjectionRecord = usable.pkProjection
+                HomeInputs(
+                    activeGroups = usable.activeGroups,
+                    scheduleEntries = homeSnapshotRepository.scheduleEntriesForHome(
+                        snapshot = usable,
+                        now = now,
+                        zoneId = zoneId,
+                    ),
+                    antiandrogenHistoryEntries = usable.antiandrogenHistoryEntries,
+                    profile = UserProfile(),
+                    // settingsState's eager placeholder could disagree with the raw
+                    // option flow on cold start; copy the raw value in so projection
+                    // consumers downstream see the same option the validator approved.
+                    settings = settingsState.copy(homeE2ChartWindowOption = option),
+                    pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
+                    pkProjectionExpiresAt = pkProjectionRecord
+                        ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
+                    latestEstradiolEntry = pkProjectionRecord?.latestEstradiolEntry,
+                    estradiolPkEntries = emptyList(),
+                    source = HomeInputSource.SNAPSHOT,
+                    now = now,
+                )
+            }
             .catch { throwable ->
                 diagnosticsLogger.warning(TAG, "home_snapshot_inputs_failed", throwable)
             }
@@ -108,13 +122,15 @@ class HomeRepository @Inject constructor(
         return combine(
             roomBasicsFlow,
             homeSnapshotRepository.observeHomeSnapshot(),
-        ) { inputs, snapshot ->
+            settingsRepository.homeE2ChartWindowOptionFlow,
+        ) { inputs, snapshot, option ->
             val pkProjectionRecord = snapshot
                 ?.takeIf {
                     homeSnapshotRepository.isSnapshotUsable(
                         snapshot = it,
                         now = now,
                         zoneId = zoneId,
+                        option = option,
                     )
                 }
                 ?.pkProjection
@@ -185,78 +201,91 @@ class HomeRepository @Inject constructor(
             .toInstant()
             .toEpochMilli()
         val endOfTodayInclusiveEpochMillis = manualEndEpochMillis - 1L
-        val pkStartEpochMillis = today
-            .atStartOfDay()
-            .minusDays(PkMedicationSimulation.mainChartPastDays + HOME_PK_FALLBACK_LOOKBACK_DAYS)
-            .atZone(zoneId)
-            .toInstant()
-            .toEpochMilli()
-        val pkHorizon = today.plusDays(HOME_PK_FALLBACK_FUTURE_DAYS).atStartOfDay()
-        val pkEndEpochMillis = pkHorizon.atZone(zoneId).toInstant().toEpochMilli()
 
-        return flow {
-            val homeDao = databaseHolder.get().homeDao()
-            val basicsFlow = combine(
-                homeDao.observeActiveGroups()
-                    .map { groups -> groups.map { it.toMedicationGroupModel() } },
-                homeDao.observeScheduleEntries(
-                    scheduledStartIso = scheduledStartIso,
-                    scheduledEndIso = scheduledEndIso,
-                    manualStartEpochMillis = manualStartEpochMillis,
-                    manualEndEpochMillis = manualEndEpochMillis,
-                ).map { entries ->
-                    entries.map { it.toMedicationLogEntryModel() }
-                },
-                homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                    onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                ).map { entries ->
-                    entries.map { it.toMedicationLogEntryModel() }
-                },
-                homeDao.observeProfile().map { profile ->
-                    profile?.toUserProfileModel() ?: UserProfile()
-                },
-                settingsRepository.settingsState,
-            ) { activeGroups, scheduleEntries, antiandrogenHistoryEntries, profile, settingsState ->
-                HomeStartupInputs(
-                    activeGroups = activeGroups,
-                    scheduleEntries = scheduleEntries,
-                    antiandrogenHistoryEntries = antiandrogenHistoryEntries,
-                    profile = profile,
-                    settings = settingsState,
-                    estradiolPkEntries = emptyList(),
-                    latestEstradiolEntry = null,
-                )
-            }
-            emitAll(
-                combine(
-                    basicsFlow,
-                    homeDao.observeEstradiolPkEntries(
-                        startEpochMillis = pkStartEpochMillis,
-                        endEpochMillis = pkEndEpochMillis,
-                    ).map { entries ->
-                        entries.map { it.toMedicationLogEntryModel() }
-                    },
-                    homeDao.observeLatestEstradiolEntryOnOrBefore(
-                        onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                    ).map { entry ->
-                        entry?.toMedicationLogEntryModel()
-                    },
-                ) { basics, realPkEntries, latestEstradiolEntry ->
-                    val simulationEntries = buildEstradiolPkSimulationEntries(
-                        realEntries = realPkEntries,
-                        activeGroups = basics.activeGroups,
-                        now = now,
-                        horizon = pkHorizon,
-                        zoneId = zoneId,
-                    )
-                    basics.copy(
-                        estradiolPkEntries = simulationEntries.real,
-                        estradiolPkPlannedEntries = simulationEntries.planned,
-                        latestEstradiolEntry = latestEstradiolEntry,
+        // PK lookback and horizon depend on the selected chart-window option;
+        // flatMapLatest re-subscribes the Room PK query when the user toggles
+        // 7-day/30-day so the Room fallback sees the same dose horizon the
+        // snapshot path simulates over.
+        return settingsRepository.homeE2ChartWindowOptionFlow
+            .flatMapLatest { option ->
+                val pkStartEpochMillis = today
+                    .atStartOfDay()
+                    .minusDays(option.pastDays + HOME_PK_FALLBACK_LOOKBACK_DAYS)
+                    .atZone(zoneId)
+                    .toInstant()
+                    .toEpochMilli()
+                val pkHorizon = today
+                    .plusDays(option.projectionFutureDays())
+                    .atStartOfDay()
+                val pkEndEpochMillis = pkHorizon.atZone(zoneId).toInstant().toEpochMilli()
+
+                flow {
+                    val homeDao = databaseHolder.get().homeDao()
+                    val basicsFlow = combine(
+                        homeDao.observeActiveGroups()
+                            .map { groups -> groups.map { it.toMedicationGroupModel() } },
+                        homeDao.observeScheduleEntries(
+                            scheduledStartIso = scheduledStartIso,
+                            scheduledEndIso = scheduledEndIso,
+                            manualStartEpochMillis = manualStartEpochMillis,
+                            manualEndEpochMillis = manualEndEpochMillis,
+                        ).map { entries ->
+                            entries.map { it.toMedicationLogEntryModel() }
+                        },
+                        homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
+                            onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                        ).map { entries ->
+                            entries.map { it.toMedicationLogEntryModel() }
+                        },
+                        homeDao.observeProfile().map { profile ->
+                            profile?.toUserProfileModel() ?: UserProfile()
+                        },
+                        settingsRepository.settingsState,
+                    ) { activeGroups, scheduleEntries, antiandrogenHistoryEntries, profile, settingsState ->
+                        HomeStartupInputs(
+                            activeGroups = activeGroups,
+                            scheduleEntries = scheduleEntries,
+                            antiandrogenHistoryEntries = antiandrogenHistoryEntries,
+                            profile = profile,
+                            // Copy the raw option in so consumers downstream see the
+                            // persisted choice even before settingsState's eager
+                            // SEVEN_DAYS placeholder has resolved on cold start.
+                            settings = settingsState.copy(homeE2ChartWindowOption = option),
+                            estradiolPkEntries = emptyList(),
+                            latestEstradiolEntry = null,
+                        )
+                    }
+                    emitAll(
+                        combine(
+                            basicsFlow,
+                            homeDao.observeEstradiolPkEntries(
+                                startEpochMillis = pkStartEpochMillis,
+                                endEpochMillis = pkEndEpochMillis,
+                            ).map { entries ->
+                                entries.map { it.toMedicationLogEntryModel() }
+                            },
+                            homeDao.observeLatestEstradiolEntryOnOrBefore(
+                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                            ).map { entry ->
+                                entry?.toMedicationLogEntryModel()
+                            },
+                        ) { basics, realPkEntries, latestEstradiolEntry ->
+                            val simulationEntries = buildEstradiolPkSimulationEntries(
+                                realEntries = realPkEntries,
+                                activeGroups = basics.activeGroups,
+                                now = now,
+                                horizon = pkHorizon,
+                                zoneId = zoneId,
+                            )
+                            basics.copy(
+                                estradiolPkEntries = simulationEntries.real,
+                                estradiolPkPlannedEntries = simulationEntries.planned,
+                                latestEstradiolEntry = latestEstradiolEntry,
+                            )
+                        }
                     )
                 }
-            )
-        }
+            }
             .catch { throwable ->
                 diagnosticsLogger.warning(TAG, "home_startup_inputs_failed", throwable)
                 emit(
@@ -284,10 +313,11 @@ class HomeRepository @Inject constructor(
     private companion object {
         const val TAG = "HomeRepository"
         const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
+        // 180 d is enough back-history for steady-state PK regardless of the
+        // selected chart window. The forward horizon is owned by
+        // HomeE2ChartWindowOption.projectionFutureDays() so the Room fallback
+        // and the cached snapshot share the same prediction span.
         const val HOME_PK_FALLBACK_LOOKBACK_DAYS = 180L
-        // Matches HOME_PK_PROJECTION_FUTURE_DAYS in HomeSnapshotRepository so the
-        // fallback path and the cached snapshot path show the same prediction window.
-        const val HOME_PK_FALLBACK_FUTURE_DAYS = 14L
     }
 }
 

@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
+import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import kotlinx.coroutines.CancellationException
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,12 +38,37 @@ class HomeSnapshotRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotStore: HomeSnapshotStore,
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
+    private val settingsRepository: SettingsRepository,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val refreshMutex = Mutex()
     private val snapshotMutationMutex = Mutex()
+
+    init {
+        // Observe option changes (not the initial value) and force a rebuild
+        // when the user toggles 7-day/30-day. The first emission is the
+        // persisted value at process start, not a user change, so it is
+        // ignored. Refresh and validation paths resolve the option directly
+        // from settingsRepository.homeE2ChartWindowOptionFlow at use-time;
+        // they do not depend on this observer having run first.
+        appScope.launch {
+            var previous: HomeE2ChartWindowOption? = null
+            settingsRepository.homeE2ChartWindowOptionFlow.collect { option ->
+                val old = previous
+                previous = option
+                if (old != null && old != option) {
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_option_changed previous=$old current=$option"
+                    )
+                    invalidateHomeSnapshot()
+                    refreshHomeSnapshotAsync(force = true)
+                }
+            }
+        }
+    }
 
     fun observeHomeSnapshot(): Flow<HomeSnapshotRecord?> {
         return combine(
@@ -118,11 +145,13 @@ class HomeSnapshotRepository @Inject constructor(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime,
         zoneId: ZoneId = ZoneId.systemDefault(),
+        option: HomeE2ChartWindowOption,
     ): Boolean {
         return snapshotUsabilityFailure(
             snapshot = snapshot,
             now = now,
             zoneId = zoneId,
+            option = option,
         ) == null
     }
 
@@ -143,10 +172,15 @@ class HomeSnapshotRepository @Inject constructor(
             return null
         }
         val zoneId = ZoneId.systemDefault()
+        // Self-resolving so startup and reminder callers (which don't have the
+        // option in hand) still validate against the user's persisted choice
+        // rather than the eager SEVEN_DAYS default.
+        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
         val usabilityFailure = snapshotUsabilityFailure(
             snapshot = snapshot,
             now = now,
             zoneId = zoneId,
+            option = option,
         )
         if (usabilityFailure != null) {
             diagnosticsLogger.info(
@@ -233,6 +267,7 @@ class HomeSnapshotRepository @Inject constructor(
         snapshot: HomeSnapshotRecord,
         now: LocalDateTime,
         zoneId: ZoneId,
+        option: HomeE2ChartWindowOption,
     ): String? {
         if (snapshot.schemaVersion != HOME_SNAPSHOT_SCHEMA_VERSION) {
             return "schema_version expected=$HOME_SNAPSHOT_SCHEMA_VERSION actual=${snapshot.schemaVersion}"
@@ -247,7 +282,7 @@ class HomeSnapshotRepository @Inject constructor(
             return "date_window anchorDate=$anchorDate validUntil=$validUntil today=$today"
         }
         val pkProjection = snapshot.pkProjection ?: return "missing_pk_projection"
-        val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId)
+        val chartWindow = HomePkChartWindow.forNow(now = now, zoneId = zoneId, option = option)
         if (
             pkProjection.windowStartEpochMillis > chartWindow.windowStartEpochMillis ||
             pkProjection.windowEndEpochMillis < chartWindow.windowEndEpochMillis
@@ -257,6 +292,23 @@ class HomeSnapshotRepository @Inject constructor(
                 "projectionEnd=${pkProjection.windowEndEpochMillis} " +
                 "requiredStart=${chartWindow.windowStartEpochMillis} " +
                 "requiredEnd=${chartWindow.windowEndEpochMillis}"
+        }
+        val expectedChartWindowHours = option.chartWindowHours.toInt()
+        if (pkProjection.chartWindowHours != expectedChartWindowHours) {
+            return "pk_projection_chart_window_hours " +
+                "expected=$expectedChartWindowHours " +
+                "actual=${pkProjection.chartWindowHours}"
+        }
+        val expectedDensePolicy = option.densePolicy.toRecord()
+        if (pkProjection.densePolicy != expectedDensePolicy) {
+            return "pk_projection_dense_policy " +
+                "expected=$expectedDensePolicy " +
+                "actual=${pkProjection.densePolicy}"
+        }
+        if (pkProjection.includesPostDoseOffsets != option.includesPostDoseOffsets) {
+            return "pk_projection_post_dose_offsets " +
+                "expected=${option.includesPostDoseOffsets} " +
+                "actual=${pkProjection.includesPostDoseOffsets}"
         }
         return null
     }
@@ -294,7 +346,10 @@ class HomeSnapshotRepository @Inject constructor(
     ) {
         diagnosticsLogger.info(TAG, "home_snapshot_refresh_start force=$force now=$now")
         val zoneId = ZoneId.systemDefault()
-        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId)
+        // Suspends on first call until the observer has captured the raw
+        // DataStore value; subsequent calls return immediately.
+        val option = settingsRepository.homeE2ChartWindowOptionFlow.first()
+        val cacheWindow = HomePkProjectionWindow.forNow(now = now, zoneId = zoneId, option = option)
         val snapshotWindow = HomeSnapshotWindow.forNow(now = now, zoneId = zoneId)
 
         // refreshMutex is held only across the skip-check so concurrent refresh
@@ -322,7 +377,7 @@ class HomeSnapshotRepository @Inject constructor(
                 !force &&
                 existingSnapshot != null &&
                 existingSnapshot.generation >= gen &&
-                isSnapshotUsable(existingSnapshot, now, zoneId) &&
+                isSnapshotUsable(existingSnapshot, now, zoneId, option) &&
                 !pkExpired
             ) {
                 diagnosticsLogger.info(
@@ -385,7 +440,7 @@ class HomeSnapshotRepository @Inject constructor(
                 "hasLatestEstradiol=${inputs.latestEstradiolEntry != null}"
         )
 
-        val horizon = now.toLocalDate().plusDays(HOME_PK_PROJECTION_FUTURE_DAYS).atStartOfDay()
+        val horizon = now.toLocalDate().plusDays(option.projectionFutureDays()).atStartOfDay()
         val simulationEntries = buildEstradiolPkSimulationEntries(
             realEntries = inputs.pkEntries,
             activeGroups = inputs.activeGroups,
@@ -400,7 +455,7 @@ class HomeSnapshotRepository @Inject constructor(
                 bodyWeightKg = inputs.profile.weightKg,
                 generatedAt = now,
                 zoneId = zoneId,
-                futureDays = HOME_PK_PROJECTION_FUTURE_DAYS,
+                option = option,
             )
         }
         // Expire at the soonest planned dose after generation time — the
@@ -419,7 +474,6 @@ class HomeSnapshotRepository @Inject constructor(
                 "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
                 "expiresAt=$expiresAtInstant"
         )
-        val resolvedOption = HomeE2ChartWindowOption.SEVEN_DAYS
         val pkProjectionRecord = HomePkProjectionRecord(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
             windowStartEpochMillis = projection.windowStart.toEpochMilli(),
@@ -436,9 +490,9 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             },
             latestEstradiolEntry = inputs.latestEstradiolEntry,
-            chartWindowHours = resolvedOption.chartWindowHours.toInt(),
-            densePolicy = resolvedOption.densePolicy.toRecord(),
-            includesPostDoseOffsets = resolvedOption.includesPostDoseOffsets,
+            chartWindowHours = option.chartWindowHours.toInt(),
+            densePolicy = option.densePolicy.toRecord(),
+            includesPostDoseOffsets = option.includesPostDoseOffsets,
         )
         val snapshotRecord = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
@@ -488,6 +542,9 @@ class HomeSnapshotRepository @Inject constructor(
         val profile: UserProfile,
     )
 
+    // Full projection-cache window: past-days back from today's midnight, plus
+    // option.futureDays + MainChartProjectionFutureBufferDays of forward span.
+    // Used by the refresh path to size simulator bounds and Room input queries.
     private data class HomePkProjectionWindow(
         val generatedAtEpochMillis: Long,
         val windowStartEpochMillis: Long,
@@ -498,17 +555,18 @@ class HomeSnapshotRepository @Inject constructor(
             fun forNow(
                 now: LocalDateTime,
                 zoneId: ZoneId,
+                option: HomeE2ChartWindowOption,
             ): HomePkProjectionWindow {
                 val generatedAt = now.atZone(zoneId).toInstant()
                 val windowStart = now
                     .toLocalDate()
                     .atStartOfDay()
-                    .minusDays(PkMedicationSimulation.mainChartPastDays)
+                    .minusDays(option.pastDays)
                     .atZone(zoneId)
                     .toInstant()
                 val windowEnd = now
                     .toLocalDate()
-                    .plusDays(HOME_PK_PROJECTION_FUTURE_DAYS)
+                    .plusDays(option.projectionFutureDays())
                     .atStartOfDay()
                     .atZone(zoneId)
                     .toInstant()
@@ -524,6 +582,10 @@ class HomeSnapshotRepository @Inject constructor(
         }
     }
 
+    // Visible chart window the projection must cover for the selected option.
+    // Used by validation; intentionally narrower than HomePkProjectionWindow so
+    // a snapshot whose end is past the chart end (but inside the cache buffer)
+    // is still usable.
     private data class HomePkChartWindow(
         val windowStartEpochMillis: Long,
         val windowEndEpochMillis: Long,
@@ -532,15 +594,16 @@ class HomeSnapshotRepository @Inject constructor(
             fun forNow(
                 now: LocalDateTime,
                 zoneId: ZoneId,
+                option: HomeE2ChartWindowOption,
             ): HomePkChartWindow {
                 val windowStart = now
                     .toLocalDate()
                     .atStartOfDay()
-                    .minusDays(PkMedicationSimulation.mainChartPastDays)
+                    .minusDays(option.pastDays)
                     .atZone(zoneId)
                     .toInstant()
                 val windowEnd = windowStart.plus(
-                    Duration.ofHours(PkMedicationSimulation.mainChartWindowHours)
+                    Duration.ofHours(option.chartWindowHours)
                 )
                 return HomePkChartWindow(
                     windowStartEpochMillis = windowStart.toEpochMilli(),
@@ -628,9 +691,13 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
 }
 
 internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 5
+
+// Cache-input lookback past the visible chart window. 180 d is enough for
+// steady-state PK history regardless of option; the forward span is owned
+// by HomeE2ChartWindowOption.projectionFutureDays() and dropped its own
+// constant.
 private const val TAG = "HomeSnapshotRepository"
 private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
-private const val HOME_PK_PROJECTION_FUTURE_DAYS = 14L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
 private const val HOME_SNAPSHOT_VALIDITY_DAYS = 10L
 private const val HOME_SNAPSHOT_PAST_BUFFER_DAYS = 1L

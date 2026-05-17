@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
 import io.mockk.coEvery
@@ -104,6 +105,9 @@ class HomeRepositoryTest {
             )
         )
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
 
         val inputs = HomeRepository(
             databaseHolder = databaseHolder,
@@ -180,11 +184,15 @@ class HomeRepositoryTest {
         every { homeSnapshotGenerationStore.observeGeneration() } returns MutableStateFlow(0L)
         coEvery { homeSnapshotGenerationStore.readGeneration() } returns 0L
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         val dispatcher = StandardTestDispatcher(testScheduler)
         val snapshotRepository = HomeSnapshotRepository(
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -234,6 +242,9 @@ class HomeRepositoryTest {
             )
         )
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
         every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
         every { homeSnapshotRepository.refreshHomeSnapshotAsync(any(), any()) } returns Unit
@@ -292,6 +303,9 @@ class HomeRepositoryTest {
             )
         )
         every { settingsRepository.settingsState } returns MutableStateFlow(settings)
+        every {
+            settingsRepository.homeE2ChartWindowOptionFlow
+        } returns MutableStateFlow(settings.homeE2ChartWindowOption)
         every { homeSnapshotRepository.observeHomeSnapshot() } returnsMany listOf(
             snapshotRecords,
             roomSnapshotRecords,
@@ -301,6 +315,7 @@ class HomeRepositoryTest {
                 snapshot = any(),
                 now = any(),
                 zoneId = any(),
+                option = any(),
             )
         } returns true
         every {

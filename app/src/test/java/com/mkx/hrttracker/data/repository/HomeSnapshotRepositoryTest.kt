@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
@@ -41,12 +42,15 @@ class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
+    private val settingsRepository: SettingsRepository = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
+    private val chartWindowOptionState = MutableStateFlow(HomeE2ChartWindowOption.SEVEN_DAYS)
 
     @Before
     fun setUp() {
         generationState.value = 0L
+        chartWindowOptionState.value = HomeE2ChartWindowOption.SEVEN_DAYS
         every { homeSnapshotGenerationStore.observeGeneration() } returns generationState
         coEvery { homeSnapshotGenerationStore.readGeneration() } coAnswers {
             generationState.value
@@ -56,6 +60,7 @@ class HomeSnapshotRepositoryTest {
             generationState.value = nextGeneration
             nextGeneration
         }
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns chartWindowOptionState
     }
 
     @Test
@@ -65,6 +70,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -99,6 +105,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -134,6 +141,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -174,6 +182,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher + SupervisorJob()),
             defaultDispatcher = dispatcher,
         )
@@ -210,6 +219,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -255,6 +265,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(appDispatcher),
             defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
@@ -284,6 +295,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -304,6 +316,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
@@ -323,6 +336,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
             diagnosticsLogger = diagnosticsLogger,
@@ -356,6 +370,7 @@ class HomeSnapshotRepositoryTest {
                     failures += throwable
                 }
             ),
+            settingsRepository = settingsRepository,
             defaultDispatcher = dispatcher,
         )
         coEvery { homeSnapshotStore.readSnapshot() } throws IOException("read failed")
@@ -375,6 +390,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(StandardTestDispatcher(testScheduler)),
             defaultDispatcher = StandardTestDispatcher(testScheduler),
         )
@@ -418,7 +434,14 @@ class HomeSnapshotRepositoryTest {
             antiandrogenHistoryEntries = emptyList(),
         )
 
-        assertTrue(repository.isSnapshotUsable(snapshot = snapshot, now = now, zoneId = zoneId))
+        assertTrue(
+            repository.isSnapshotUsable(
+                snapshot = snapshot,
+                now = now,
+                zoneId = zoneId,
+                option = HomeE2ChartWindowOption.SEVEN_DAYS,
+            )
+        )
     }
 
     @Test
@@ -463,6 +486,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         ).refreshHomeSnapshotIfNeeded(now = now, force = true)
@@ -520,6 +544,7 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
         )
