@@ -178,6 +178,7 @@ class BackupExportService @Inject constructor(
                 onboardingCompleted = onboardingCompleted,
                 appLanguageOption = settings.appLanguageOption.name,
                 homeE2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
+                homeE2ChartWindow = settings.homeE2ChartWindowOption.name,
                 calibrationDefaultUnits = settings.calibrationDefaultUnits.entries
                     .associate { (analyteKey, unitKey) ->
                         analyteKey.storageValue to unitKey.storageValue

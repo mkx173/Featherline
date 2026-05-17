@@ -28,6 +28,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
+import com.mkx.hrttracker.model.pk.DenseSamplePolicy
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
@@ -152,6 +153,12 @@ data class HomePkProjectionRecord(
     val concentrations: List<Double>,
     val doseMarkers: List<HomePkProjectionDoseMarkerRecord>,
     val latestEstradiolEntry: MedicationLogEntry?,
+    // Sampling fingerprint: validator compares these against the resolved
+    // HomeE2ChartWindowOption rather than the enum name, so option renames
+    // do not invalidate caches whose sampling recipe is unchanged.
+    val chartWindowHours: Int,
+    val densePolicy: HomePkDenseSamplePolicyRecord,
+    val includesPostDoseOffsets: Boolean,
 )
 
 data class HomePkProjectionDoseMarkerRecord(
@@ -159,6 +166,16 @@ data class HomePkProjectionDoseMarkerRecord(
     val concentration: Double,
     val isPlanned: Boolean = false,
 )
+
+sealed interface HomePkDenseSamplePolicyRecord {
+    data class Interval(val hours: Double) : HomePkDenseSamplePolicyRecord
+    data class Budget(val segmentCount: Int) : HomePkDenseSamplePolicyRecord
+}
+
+fun DenseSamplePolicy.toRecord(): HomePkDenseSamplePolicyRecord = when (this) {
+    is DenseSamplePolicy.Interval -> HomePkDenseSamplePolicyRecord.Interval(hours = hours)
+    is DenseSamplePolicy.Budget -> HomePkDenseSamplePolicyRecord.Budget(segmentCount = segmentCount)
+}
 
 internal data class HomeSnapshotState(
     val record: HomeSnapshotRecord?,
@@ -264,6 +281,30 @@ internal object HomeSnapshotCodec {
             writeBoolean(marker.isPlanned)
         }
         writeMedicationLogEntry(record.latestEstradiolEntry)
+        writeInt(record.chartWindowHours)
+        writeDenseSamplePolicy(record.densePolicy)
+        writeBoolean(record.includesPostDoseOffsets)
+    }
+
+    private fun DataOutputStream.writeDenseSamplePolicy(policy: HomePkDenseSamplePolicyRecord) {
+        when (policy) {
+            is HomePkDenseSamplePolicyRecord.Interval -> {
+                writeByte(POLICY_DISCRIMINATOR_INTERVAL)
+                writeDouble(policy.hours)
+            }
+            is HomePkDenseSamplePolicyRecord.Budget -> {
+                writeByte(POLICY_DISCRIMINATOR_BUDGET)
+                writeInt(policy.segmentCount)
+            }
+        }
+    }
+
+    private fun DataInputStream.readDenseSamplePolicy(): HomePkDenseSamplePolicyRecord {
+        return when (val discriminator = readByte().toInt()) {
+            POLICY_DISCRIMINATOR_INTERVAL -> HomePkDenseSamplePolicyRecord.Interval(hours = readDouble())
+            POLICY_DISCRIMINATOR_BUDGET -> HomePkDenseSamplePolicyRecord.Budget(segmentCount = readInt())
+            else -> error("Unknown dense sample policy discriminator: $discriminator")
+        }
     }
 
     private fun DataInputStream.readHomePkProjectionRecord(): HomePkProjectionRecord? {
@@ -286,6 +327,9 @@ internal object HomeSnapshotCodec {
                 )
             },
             latestEstradiolEntry = readMedicationLogEntry(),
+            chartWindowHours = readInt(),
+            densePolicy = readDenseSamplePolicy(),
+            includesPostDoseOffsets = readBoolean(),
         )
     }
 
@@ -639,7 +683,9 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 8
+private const val SNAPSHOT_CODEC_VERSION = 9
+private const val POLICY_DISCRIMINATOR_INTERVAL = 0
+private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

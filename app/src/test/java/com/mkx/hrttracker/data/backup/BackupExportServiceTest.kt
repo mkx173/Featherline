@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
@@ -112,6 +113,7 @@ class BackupExportServiceTest {
                 BloodAnalyteKey.T to BloodUnitKey.NMOL_L,
             ),
             homeE2DisplayUnit = BloodUnitKey.NG_DL,
+            homeE2ChartWindowOption = HomeE2ChartWindowOption.THIRTY_DAYS,
             remindersEnabled = false,
             screenLockProtectionEnabled = true,
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
@@ -253,6 +255,7 @@ class BackupExportServiceTest {
         assertEquals(true, snapshot.settings.onboardingCompleted)
         assertEquals("SIMPLIFIED_CHINESE", snapshot.settings.appLanguageOption)
         assertEquals("ng_dl", snapshot.settings.homeE2DisplayUnit)
+        assertEquals("THIRTY_DAYS", snapshot.settings.homeE2ChartWindow)
         assertEquals(
             mapOf("e2" to "pmol_l", "t" to "nmol_l"),
             snapshot.settings.calibrationDefaultUnits,

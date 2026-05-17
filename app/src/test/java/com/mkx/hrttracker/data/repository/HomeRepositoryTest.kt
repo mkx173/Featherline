@@ -161,6 +161,9 @@ class HomeRepositoryTest {
             concentrations = emptyList(),
             doseMarkers = emptyList(),
             latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(),
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
         )
         val snapshot = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,

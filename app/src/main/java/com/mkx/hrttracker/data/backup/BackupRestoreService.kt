@@ -25,6 +25,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -192,6 +193,7 @@ class BackupRestoreService @Inject constructor(
             appLanguageOption = validatedSnapshot.settings.appLanguageOption,
             calibrationDefaultUnits = validatedSnapshot.settings.calibrationDefaultUnits,
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
+            homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
         )
 
@@ -644,6 +646,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         "Unsupported home E2 display unit key $homeE2DisplayUnit."
     }
     val homeE2Choice = AllowedAnalyteUnit.of(BloodAnalyteKey.E2, homeE2DisplayUnitKey)
+    val homeE2ChartWindowOption = requireEnumName<HomeE2ChartWindowOption>(
+        homeE2ChartWindow,
+        "home E2 chart window",
+    )
 
     return ValidatedBackupSettings(
         darkModeOption = darkModeOption,
@@ -657,6 +663,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         appLanguageOption = appLanguageOption,
         calibrationDefaultUnits = calibrationDefaultUnits,
         homeE2DisplayUnit = homeE2Choice,
+        homeE2ChartWindowOption = homeE2ChartWindowOption,
         lastSeenTimeZoneId = lastSeenTimeZoneId,
     )
 }
@@ -775,6 +782,7 @@ internal data class ValidatedBackupSettings(
     val appLanguageOption: AppLanguageOption,
     val calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
     val homeE2DisplayUnit: AllowedAnalyteUnit,
+    val homeE2ChartWindowOption: HomeE2ChartWindowOption,
     val lastSeenTimeZoneId: String?,
 )
 

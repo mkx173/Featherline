@@ -3,6 +3,7 @@ package com.mkx.hrttracker.data.backup
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -40,6 +41,7 @@ class BackupRestoreValidationTest {
                 onboardingCompleted = true,
                 appLanguageOption = "SIMPLIFIED_CHINESE",
                 homeE2DisplayUnit = BloodUnitKey.NG_DL.storageValue,
+                homeE2ChartWindow = HomeE2ChartWindowOption.THIRTY_DAYS.name,
                 calibrationDefaultUnits = mapOf(
                     BloodAnalyteKey.E2.storageValue to BloodUnitKey.PMOL_L.storageValue,
                 ),
@@ -174,6 +176,10 @@ class BackupRestoreValidationTest {
             validatedSnapshot.settings.homeE2DisplayUnit,
         )
         assertEquals(
+            HomeE2ChartWindowOption.THIRTY_DAYS,
+            validatedSnapshot.settings.homeE2ChartWindowOption,
+        )
+        assertEquals(
             setOf(AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)),
             validatedSnapshot.settings.calibrationDefaultUnits,
         )
@@ -251,6 +257,42 @@ class BackupRestoreValidationTest {
 
         checkNotNull(validatedSnapshot.userProfile)
         assertEquals(exportedAt, validatedSnapshot.userProfile.updatedAtEpochMillis)
+    }
+
+    @Test
+    fun toValidatedSnapshot_legacyBackupWithoutHomeE2ChartWindow_defaultsToSevenDays() {
+        val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = exportedAt,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = BackupSettingsSnapshot(
+                darkModeOption = "FOLLOW_SYSTEM",
+                adaptiveColorEnabled = true,
+                remindersEnabled = true,
+                appLockGracePeriodOption = "IMMEDIATELY",
+                hideScreenContentEnabled = false,
+                onboardingCompleted = true,
+                appLanguageOption = "ENGLISH",
+                // homeE2ChartWindow intentionally omitted to simulate a pre-feature backup.
+                calibrationDefaultUnits = emptyMap(),
+            ),
+            userProfile = BackupUserProfileSnapshot(
+                weightKg = null,
+                weightOriginalValue = null,
+                weightOriginalUnit = "KILOGRAMS",
+            ),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertEquals(
+            HomeE2ChartWindowOption.SEVEN_DAYS,
+            validatedSnapshot.settings.homeE2ChartWindowOption,
+        )
     }
 
     @Test

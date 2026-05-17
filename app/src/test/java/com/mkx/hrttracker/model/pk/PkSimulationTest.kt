@@ -586,25 +586,126 @@ class PkSimulationTest {
     fun simulateMainEstradiolProjection_windowMatchesHomeSnapshotChartBounds() {
         val zoneId = ZoneId.of("Asia/Tokyo")
         val generatedAt = LocalDateTime.of(2026, 5, 8, 14, 27)
-        val futureDays = 14L
 
+        for (option in HomeE2ChartWindowOption.entries) {
+            val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
+                entries = emptyList(),
+                bodyWeightKg = 70.0,
+                generatedAt = generatedAt,
+                zoneId = zoneId,
+                option = option,
+            )
+
+            val expectedWindowStart = generatedAt.toLocalDate().atStartOfDay()
+                .minusDays(option.pastDays)
+                .atZone(zoneId)
+                .toInstant()
+            val expectedWindowEnd = generatedAt.toLocalDate()
+                .plusDays(option.projectionFutureDays())
+                .atStartOfDay()
+                .atZone(zoneId)
+                .toInstant()
+            assertEquals(
+                "windowStart mismatch for $option",
+                expectedWindowStart,
+                projection.windowStart,
+            )
+            assertEquals(
+                "windowEnd mismatch for $option",
+                expectedWindowEnd,
+                projection.windowEnd,
+            )
+        }
+    }
+
+    @Test
+    fun simulateMainEstradiolProjection_thirtyDays_usesBudgetSampler() {
+        // 30-day projection spans 40 d (20 past + 10 future + 10 buffer). The
+        // budget sampler emits segmentCount + 1 = 2241 dense samples; the
+        // returned timeH has more after exact anchors (windowStart, generatedAt,
+        // previousDay) are unioned in, but should not balloon to interval-style
+        // counts.
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val generatedAt = LocalDateTime.of(2026, 5, 8, 14, 27)
         val projection = PkMedicationSimulation.simulateMainEstradiolProjection(
             entries = emptyList(),
             bodyWeightKg = 70.0,
             generatedAt = generatedAt,
             zoneId = zoneId,
-            futureDays = futureDays,
+            option = HomeE2ChartWindowOption.THIRTY_DAYS,
         )
 
-        val expectedWindowStart = generatedAt.toLocalDate().atStartOfDay()
-            .minusDays(PkMedicationSimulation.mainChartPastDays)
-            .atZone(zoneId)
-            .toInstant()
-        val expectedWindowEnd = generatedAt.toLocalDate().plusDays(futureDays)
-            .atStartOfDay()
-            .atZone(zoneId)
-            .toInstant()
-        assertEquals(expectedWindowStart, projection.windowStart)
-        assertEquals(expectedWindowEnd, projection.windowEnd)
+        // 2241 budget samples plus a handful of exact anchors; cap well below
+        // the interval-grid count of (40*24/0.1)+1 = 9601.
+        assertTrue(
+            "THIRTY_DAYS dense samples grew beyond budget: ${projection.timeH.size}",
+            projection.timeH.size in 2241..2260,
+        )
+    }
+
+    @Test
+    fun simulateMainEstradiolTrend_thirtyDays_injectsPostDoseOffsets() {
+        // Oral E2 has a sub-hour Tmax, which sits between budget-sampler grid
+        // samples at 26-min spacing. THIRTY_DAYS injects post-dose offsets so
+        // the absorption phase is sampled exactly.
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val now = LocalDateTime.of(2026, 5, 17, 12, 0)
+        val doseAt = now.minusHours(72)
+        val entries = listOf(
+            testMedicationLogEntry(
+                details = testCatalogMedicationDetails(
+                    key = MedicationKey.ESTRADIOL,
+                    applicationType = MedicationApplicationType.ORAL,
+                    dose = MedicationDose.MgAsMedicine(2.0),
+                ),
+                dosageMgAsEstradiol = 2.0,
+                sourceGroupUuid = null,
+                appliedAt = doseAt.atZone(zoneId).toInstant(),
+            )
+        )
+
+        val thirtyDayResult = PkMedicationSimulation.simulateMainEstradiolTrend(
+            entries = entries,
+            bodyWeightKg = 70.0,
+            now = now,
+            zoneId = zoneId,
+            option = HomeE2ChartWindowOption.THIRTY_DAYS,
+        )
+        val sevenDayResult = PkMedicationSimulation.simulateMainEstradiolTrend(
+            entries = entries,
+            bodyWeightKg = 70.0,
+            now = now,
+            zoneId = zoneId,
+            option = HomeE2ChartWindowOption.SEVEN_DAYS,
+        )
+        assertNotNull(thirtyDayResult)
+        assertNotNull(sevenDayResult)
+
+        // The dose is 72 h before `now = midnight + 12h`, so its timeH is
+        // (pastDays * 24 + 12) − 72 = (pastDays * 24 − 60) h from the chart
+        // window start. THIRTY_DAYS adds exact post-dose offsets; SEVEN_DAYS
+        // uses the 0.1 h interval sampler, which lands on multiples of 0.1.
+        val thirtyDoseOffsetH = HomeE2ChartWindowOption.THIRTY_DAYS.pastDays * 24.0 - 60.0
+        val sevenDoseOffsetH = HomeE2ChartWindowOption.SEVEN_DAYS.pastDays * 24.0 - 60.0
+        val thirtyTimes = thirtyDayResult!!.chartTimeH.toSet()
+        val sevenTimes = sevenDayResult!!.chartTimeH.toSet()
+        for (offset in listOf(0.25, 0.5, 1.0)) {
+            val thirtyExpected = round4(thirtyDoseOffsetH + offset)
+            assertTrue(
+                "THIRTY_DAYS expected post-dose sample at $thirtyExpected h",
+                thirtyTimes.contains(thirtyExpected),
+            )
+        }
+        // Only +0.25 h is guaranteed off the SEVEN_DAYS 0.1 h interval grid.
+        val sevenContrast = round4(sevenDoseOffsetH + 0.25)
+        assertTrue(
+            "SEVEN_DAYS unexpectedly contains exact +0.25 h post-dose offset at $sevenContrast h",
+            !sevenTimes.contains(sevenContrast),
+        )
+    }
+
+    private fun round4(value: Double): Double {
+        // Mirrors PkMedicationSimulation.toChartXHour rounding scale.
+        return kotlin.math.round(value * 10_000.0) / 10_000.0
     }
 }

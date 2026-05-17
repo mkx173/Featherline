@@ -83,6 +83,9 @@ class HomeSnapshotRepositoryTest {
             concentrations = emptyList(),
             doseMarkers = emptyList(),
             latestEstradiolEntry = null,
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
         )
 
         assertNull(repository.decodeProjection(record, now, zoneId))
@@ -114,6 +117,9 @@ class HomeSnapshotRepositoryTest {
             concentrations = emptyList(),
             doseMarkers = emptyList(),
             latestEstradiolEntry = null,
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
         )
 
         assertNotNull(repository.decodeProjection(record, now, zoneId))
@@ -403,6 +409,9 @@ class HomeSnapshotRepositoryTest {
                 concentrations = emptyList(),
                 doseMarkers = emptyList(),
                 latestEstradiolEntry = null,
+                chartWindowHours = 168,
+                densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+                includesPostDoseOffsets = false,
             ),
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),
@@ -569,6 +578,9 @@ class HomeSnapshotRepositoryTest {
                 concentrations = emptyList(),
                 doseMarkers = emptyList(),
                 latestEstradiolEntry = null,
+                chartWindowHours = 168,
+                densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+                includesPostDoseOffsets = false,
             ),
             activeGroups = emptyList(),
             scheduleEntries = emptyList(),

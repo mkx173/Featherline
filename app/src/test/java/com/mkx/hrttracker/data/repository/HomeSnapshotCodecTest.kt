@@ -102,6 +102,9 @@ class HomeSnapshotCodecTest {
                 )
             ),
             latestEstradiolEntry = latestEntry,
+            chartWindowHours = 168,
+            densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
+            includesPostDoseOffsets = false,
         )
         val record = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
@@ -129,6 +132,56 @@ class HomeSnapshotCodecTest {
         }
 
         assertEquals("Unsupported Home snapshot version: 4.", exception.message)
+    }
+
+    @Test
+    fun decode_rejectsVersionEightPayloadLayout_priorToFingerprintFields() {
+        // v8 omits the chartWindowHours / densePolicy / includesPostDoseOffsets
+        // fingerprint introduced in v9. The codec rejects v8 outright so stale
+        // caches on first launch after the bump trigger a one-time rebuild
+        // rather than mis-decoding.
+        val output = ByteArrayOutputStream()
+        DataOutputStream(output).use { stream ->
+            stream.writeInt(8)
+            stream.writeInt(HOME_SNAPSHOT_SCHEMA_VERSION)
+        }
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            HomeSnapshotCodec.decode(output.toByteArray())
+        }
+        assertEquals("Unsupported Home snapshot version: 8.", exception.message)
+    }
+
+    @Test
+    fun encodeDecode_roundTripsBudgetDenseSamplePolicy() {
+        val pkRecord = HomePkProjectionRecord(
+            generatedAtEpochMillis = 10L,
+            windowStartEpochMillis = 20L,
+            windowEndEpochMillis = 30L,
+            pkProjectionExpiresAtEpochMillis = 25L,
+            concentrationUnit = PkConcentrationUnit.PG_PER_ML.name,
+            timeH = listOf(0.0),
+            concentrations = listOf(0.0),
+            doseMarkers = emptyList(),
+            latestEstradiolEntry = null,
+            chartWindowHours = 720,
+            densePolicy = HomePkDenseSamplePolicyRecord.Budget(segmentCount = 2240),
+            includesPostDoseOffsets = true,
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = pkRecord,
+            activeGroups = emptyList(),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        assertEquals(record, decoded)
     }
 
     private fun legacyVersionFourBytes(): ByteArray {

@@ -32,6 +32,7 @@ data class BackupSettingsSnapshot(
     val onboardingCompleted: Boolean,
     val appLanguageOption: String,
     val homeE2DisplayUnit: String = "pg_ml",
+    val homeE2ChartWindow: String = "SEVEN_DAYS",
     val calibrationDefaultUnits: Map<String, String>,
     val lastSeenTimeZoneId: String? = null,
 )

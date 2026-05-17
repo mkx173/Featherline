@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
@@ -52,6 +53,7 @@ class SettingsRepository @Inject constructor(
         stringPreferencesKey("calibration_default_unit_${analyteKey.storageValue}")
     }
     private val homeE2DisplayUnitKey = stringPreferencesKey("home_e2_display_unit")
+    private val homeE2ChartWindowKey = stringPreferencesKey("home_e2_chart_window")
     private val darkModeKey = stringPreferencesKey("dark_mode")
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
@@ -77,6 +79,17 @@ class SettingsRepository @Inject constructor(
 
     val onboardingCompleted: Flow<Boolean> = storedPreferences
         .map { it[onboardingCompletedKey] ?: false }
+        .distinctUntilChanged()
+
+    // Raw DataStore-backed flow that intentionally bypasses [settingsState]'s
+    // eager `initialValue` so consumers can distinguish the persisted option
+    // from the SEVEN_DAYS placeholder used while DataStore is still loading.
+    // Required by HomeSnapshotRepository's invalidation observer and by
+    // HomeRepository's snapshot/fallback flows.
+    val homeE2ChartWindowOptionFlow: Flow<HomeE2ChartWindowOption> = storedPreferences
+        .map { preferences ->
+            HomeE2ChartWindowOption.fromStorageValue(preferences[homeE2ChartWindowKey])
+        }
         .distinctUntilChanged()
 
     val settingsState: StateFlow<SettingsState> = combine(
@@ -129,6 +142,16 @@ class SettingsRepository @Inject constructor(
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
                 preferences[homeE2DisplayUnitKey] = choice.unit.storageValue
+            }
+        }
+    }
+
+    suspend fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
+        context.dataStore.edit { preferences ->
+            if (option == HomeE2ChartWindowOption.SEVEN_DAYS) {
+                preferences.remove(homeE2ChartWindowKey)
+            } else {
+                preferences[homeE2ChartWindowKey] = option.name
             }
         }
     }
@@ -193,6 +216,7 @@ class SettingsRepository @Inject constructor(
         appLanguageOption: AppLanguageOption,
         calibrationDefaultUnits: Set<AllowedAnalyteUnit>,
         homeE2DisplayUnit: AllowedAnalyteUnit,
+        homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
@@ -219,6 +243,12 @@ class SettingsRepository @Inject constructor(
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
                 preferences[homeE2DisplayUnitKey] = homeE2DisplayUnit.unit.storageValue
+            }
+
+            if (homeE2ChartWindowOption == HomeE2ChartWindowOption.SEVEN_DAYS) {
+                preferences.remove(homeE2ChartWindowKey)
+            } else {
+                preferences[homeE2ChartWindowKey] = homeE2ChartWindowOption.name
             }
 
             if (lastSeenTimeZoneId == null) {
@@ -254,6 +284,8 @@ class SettingsRepository @Inject constructor(
                 ?.let(BloodUnitKey::fromStorageValue)
                 ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit) }
                 ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            homeE2ChartWindowOption = HomeE2ChartWindowOption
+                .fromStorageValue(preferences[homeE2ChartWindowKey]),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
             hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,

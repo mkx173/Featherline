@@ -6,6 +6,7 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.personalization.UserProfile
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.model.pk.PkProjectionResult
 import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
@@ -418,6 +419,7 @@ class HomeSnapshotRepository @Inject constructor(
                 "windowStart=${projection.windowStart} windowEnd=${projection.windowEnd} " +
                 "expiresAt=$expiresAtInstant"
         )
+        val resolvedOption = HomeE2ChartWindowOption.SEVEN_DAYS
         val pkProjectionRecord = HomePkProjectionRecord(
             generatedAtEpochMillis = projection.generatedAt.toEpochMilli(),
             windowStartEpochMillis = projection.windowStart.toEpochMilli(),
@@ -434,6 +436,9 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             },
             latestEstradiolEntry = inputs.latestEstradiolEntry,
+            chartWindowHours = resolvedOption.chartWindowHours.toInt(),
+            densePolicy = resolvedOption.densePolicy.toRecord(),
+            includesPostDoseOffsets = resolvedOption.includesPostDoseOffsets,
         )
         val snapshotRecord = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,

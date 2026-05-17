@@ -3,6 +3,7 @@ package com.mkx.hrttracker.model.settings
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import java.util.Locale
 
 enum class DarkModeOption {
@@ -65,6 +66,7 @@ data class SettingsState(
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+    val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val remindersEnabled: Boolean = true,
     val showArchivedGroupRecords: Boolean = true,
     val hideReferenceRanges: Boolean = false,
