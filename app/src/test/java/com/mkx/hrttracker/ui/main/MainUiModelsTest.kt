@@ -159,9 +159,9 @@ class MainUiModelsTest {
         // ≤ 14 d (336 h) → every 2 days
         assertEquals(2L, mainE2ChartAxisTickIntervalDays(168.0 + 1e-3))
         assertEquals(2L, mainE2ChartAxisTickIntervalDays(336.0))
-        // ≤ 30 d (720 h) → every 4 days
-        assertEquals(4L, mainE2ChartAxisTickIntervalDays(336.0 + 1e-3))
-        assertEquals(4L, mainE2ChartAxisTickIntervalDays(720.0))
+        // ≤ 30 d (720 h) → every 6 days
+        assertEquals(6L, mainE2ChartAxisTickIntervalDays(336.0 + 1e-3))
+        assertEquals(6L, mainE2ChartAxisTickIntervalDays(720.0))
         // > 30 d → weekly
         assertEquals(7L, mainE2ChartAxisTickIntervalDays(720.0 + 1e-3))
         assertEquals(7L, mainE2ChartAxisTickIntervalDays(2400.0))
@@ -201,9 +201,9 @@ class MainUiModelsTest {
 
     @Test
     fun mainE2ChartAxisLabelTickHours_30DayFiveDaySpacingSkipsEdgeDays() {
-        // THIRTY_DAYS window (Apr 19–May 19): intervalDays=5.
-        // Edge-day suppression drops Apr 19 (firstDay); May 18 (lastDay) is
-        // never reached at 5-day steps. Result: 5 ticks, Apr 24–May 14.
+        // THIRTY_DAYS window (Apr 19–May 19): intervalDays=5, anchor offset=2.
+        // Anchor = Apr 21; steps land on Apr 21, 26, May 1, 6, 11, 16.
+        // Edge days Apr 19/May 18 not reached; all 6 ticks survive.
         val windowStart = mainE2ChartWindowStart(
             LocalDateTime.of(2026, 5, 5, 23, 37),
             pastDays = 16L,
@@ -215,15 +215,16 @@ class MainUiModelsTest {
             intervalDays = 5L,
         )
 
-        assertEquals(5, ticks.size)
-        assertEquals(listOf(132.0, 252.0, 372.0, 492.0, 612.0), ticks)
+        assertEquals(6, ticks.size)
+        assertEquals(listOf(60.0, 180.0, 300.0, 420.0, 540.0, 660.0), ticks)
     }
 
     @Test
-    fun mainE2ChartAxisLabelTickHours_30DayDefaultUsesFourDaySpacing() {
-        // THIRTY_DAYS at full zoom: visibleHours = 720 → intervalDays = 4.
-        // Window is Apr 19–May 19; firstDay=Apr 19 suppressed. Steps land on
-        // Apr 23, 27, May 1, 5, 9, 13, 17 — 7 ticks spanning the full range.
+    fun mainE2ChartAxisLabelTickHours_30DayDefaultUsesSixDaySpacing() {
+        // THIRTY_DAYS at full zoom: visibleHours = 720 → intervalDays = 6.
+        // Window Apr 19–May 19; anchor offset = 3 → anchor = Apr 22.
+        // Steps land on Apr 22, 28, May 4, 10, 16 — 5 ticks from day 4 to
+        // day 28, covering the range from near-start to near-end.
         val windowStart = mainE2ChartWindowStart(
             LocalDateTime.of(2026, 5, 5, 23, 37),
             pastDays = 16L,
@@ -232,11 +233,11 @@ class MainUiModelsTest {
             chartWindowStart = windowStart,
             chartWindowHours = 720,
             visibleXRange = 0.0..720.0,
-            intervalDays = 4L,
+            intervalDays = 6L,
         )
 
-        assertEquals(7, ticks.size)
-        assertEquals(listOf(108.0, 204.0, 300.0, 396.0, 492.0, 588.0, 684.0), ticks)
+        assertEquals(5, ticks.size)
+        assertEquals(listOf(84.0, 228.0, 372.0, 516.0, 660.0), ticks)
     }
 
     @Test

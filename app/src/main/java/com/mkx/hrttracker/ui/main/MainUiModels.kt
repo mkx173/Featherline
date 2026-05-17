@@ -320,17 +320,18 @@ internal fun mainE2ChartAxisTickIntervalDays(visibleHours: Double): Long {
     return when {
         visibleHours <= 168.0 -> 1L      // ≤ 7 d → daily
         visibleHours <= 336.0 -> 2L      // ≤ 14 d → every 2 days
-        visibleHours <= 720.0 -> 4L      // ≤ 30 d → every 4 days
+        visibleHours <= 720.0 -> 6L      // ≤ 30 d → every 6 days
         else -> 7L                       // > 30 d → weekly
     }
 }
 
 // Noon-tick xHours (relative to chartWindowStart) at the given interval,
 // clipped to the chart's [0, chartWindowHours] range and the visible x range.
-// Anchored on chartWindowStart's date so ticks at coarser intervals are a
-// strict subset of finer ones (no jitter when intervalDays changes due to
-// zoom). Ticks on the first and last calendar day of the window are always
-// suppressed to avoid label clipping at the canvas edges.
+// Anchored at chartWindowStart + interval/2 days so the tick series is centred
+// in the window and the first tick falls near day 4 (not day 7). Coarser
+// intervals remain supersets of finer ones (no jitter across zoom boundaries).
+// Ticks on the first and last calendar day of the window are suppressed to
+// avoid label clipping at the canvas edges.
 internal fun mainE2ChartAxisLabelTickHours(
     chartWindowStart: LocalDateTime,
     chartWindowHours: Int,
@@ -346,7 +347,7 @@ internal fun mainE2ChartAxisLabelTickHours(
         if (windowEnd == d.atStartOfDay()) d.minusDays(1) else d
     }
     val tickHours = mutableListOf<Double>()
-    var date = chartWindowStart.toLocalDate()
+    var date = chartWindowStart.toLocalDate().plusDays(safeInterval / 2L)
 
     while (!date.isAfter(endDate)) {
         val noon = LocalDateTime.of(date, LocalTime.NOON)
