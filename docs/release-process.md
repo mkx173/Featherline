@@ -48,6 +48,16 @@ The maintainer downloads the workflow artifact and creates a GitHub Release manu
 
 This convention is not enforced by tooling — adherence is by review.
 
+## License notice check
+
+Before a release:
+
+1. Run `./gradlew generateLicenseReport --no-parallel`.
+2. Review `docs/generated/` for unknown or unexpected dependency licenses.
+3. Update `docs/third-party-notices.md` when assets, design tokens, or adapted
+   code sources change.
+4. Commit the regenerated reports with the release documentation changes.
+
 ## Out of scope
 
 - Play Console upload steps (maintainer-only; varies by track).

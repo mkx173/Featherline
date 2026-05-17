@@ -15,6 +15,10 @@ val gitCommitHash = providers.exec {
     commandLine("git", "rev-parse", "--short=6", "HEAD")
 }.standardOutput.asText.get().trim()
 
+val gitFullCommitHash = providers.exec {
+    commandLine("git", "rev-parse", "HEAD")
+}.standardOutput.asText.get().trim()
+
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 
@@ -55,6 +59,12 @@ android {
         targetSdk = 37
         versionCode = gitCommitCount
         versionName = "1.0.0"
+
+        buildConfigField(
+            "String",
+            "THIRD_PARTY_NOTICES_URL",
+            "\"https://github.com/mkx173/Featherline/blob/$gitFullCommitHash/docs/third-party-notices.md\""
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

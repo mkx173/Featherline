@@ -89,9 +89,11 @@ Featherline 将一切数据加密存储在你的设备上，不需要账户、�
 ## 许可
 
 Featherline 遵循 GNU 通用公共许可证第 3.0 版（GPL-3.0）发布。许可证全文请参见 [LICENSE](LICENSE)。
+第三方依赖、素材与改编代码的声明请参见 [docs/third-party-notices.md](docs/third-party-notices.md)。
 
 ## 致谢
 
 - [Material Symbols](https://fonts.google.com/icons) 图标集
 - 药代曲线的数学参考来自 [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test)
+- 图表显示逻辑改编自 [Oyama's HRT Tracker](https://github.com/SmirnovaOyama/Oyama-s-HRT-Tracker)
 - 感谢更广泛的跨性别社区的测试、反馈，以及让这样的工具得以存在的前人工作

@@ -89,9 +89,11 @@ Featherline stores everything on your device in an encrypted database. There are
 ## License
 
 Featherline is released under the GNU General Public License, version 3.0. See [LICENSE](LICENSE) for the full text.
+Third-party dependency, asset, and adapted-code notices are listed in [docs/third-party-notices.md](docs/third-party-notices.md).
 
 ## Acknowledgments
 
 - The [Material Symbols](https://fonts.google.com/icons) icon set.
 - The pharmacokinetic projection draws on the math reference from [HRT-Recorder-PKcomponent-Test](https://github.com/LaoZhong-Mihari/HRT-Recorder-PKcomponent-Test).
+- Plot display logic was adapted from [Oyama's HRT Tracker](https://github.com/SmirnovaOyama/Oyama-s-HRT-Tracker).
 - The broader trans health community for testing, feedback, and the prior art that makes a tool like this possible.

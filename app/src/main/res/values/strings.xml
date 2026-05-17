@@ -451,10 +451,11 @@
     <string name="settings_diagnostics_export_failed">Unable to export diagnostic logs</string>
     <string name="settings_about">About</string>
     <string name="settings_about_privacy_policy">Privacy policy</string>
+    <string name="settings_about_open_source_licenses">Open source licenses</string>
     <string name="settings_about_model">About the model</string>
     <string name="settings_github_repo">GitHub repository</string>
     <string name="settings_about_contact_developer">Contact developer</string>
-    <string name="settings_about_feedback">Feedback</string>
+    <string name="settings_about_feedback">Feedback &amp; suggestions</string>
     <string name="settings_about_feedback_summary">Send feedback by email</string>
     <string name="settings_about_feedback_subject">%1$s feedback</string>
     <string name="settings_about_feedback_body">Describe your feedback or suggestion here.\n\n\n---\nVersion name: %1$s\nVersion code: %2$s</string>

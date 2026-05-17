@@ -35,3 +35,5 @@ download links, see the [repo README](../README.md).
   device, permissions used.
 - [Safety](safety.md) — medical disclaimer, PK model limits, when to
   consult a clinician.
+- [Third-party notices](third-party-notices.md) — dependency, asset, and
+  adapted-code license notices.

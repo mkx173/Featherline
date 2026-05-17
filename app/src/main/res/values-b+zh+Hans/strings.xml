@@ -439,6 +439,7 @@
     <string name="settings_diagnostics_export_failed">无法导出诊断日志</string>
     <string name="settings_about">关于</string>
     <string name="settings_about_privacy_policy">隐私政策</string>
+    <string name="settings_about_open_source_licenses">开源许可证</string>
     <string name="settings_about_model">关于模型</string>
     <string name="settings_github_repo">GitHub 仓库</string>
     <string name="settings_about_contact_developer">联系开发者</string>

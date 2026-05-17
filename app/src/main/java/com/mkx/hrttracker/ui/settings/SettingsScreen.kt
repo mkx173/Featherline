@@ -1112,7 +1112,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_privacy_policy),
                     index = 0,
-                    count = 5,
+                    count = 7,
                     onClick = {
                         showExternalLinkDialog(
                             url = privacyPolicyUrl,
@@ -1130,9 +1130,34 @@ private fun SettingsScreenContent(
                 )
 
                 SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_about_model),
+                    title = stringResource(R.string.settings_about_open_source_licenses),
                     index = 1,
-                    count = 5,
+                    count = 7,
+                    onClick = {
+                        showExternalLinkDialog(
+                            url = BuildConfig.THIRD_PARTY_NOTICES_URL,
+                            titleRes = R.string.settings_about_open_source_licenses
+                        )
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_code_blocks),
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        SettingsLinkTrailingIcon()
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_about_model),
+                    index = 2,
+                    count = 7,
                     onClick = {
                         showExternalLinkDialog(
                             url = MODEL_REPOSITORY_URL,
@@ -1156,8 +1181,8 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_github_repo),
-                    index = 1,
-                    count = 5,
+                    index = 3,
+                    count = 7,
                     onClick = {
                         showExternalLinkDialog(
                             url = APP_REPOSITORY_URL,
@@ -1182,8 +1207,8 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_contact_developer),
-                    index = 2,
-                    count = 5,
+                    index = 4,
+                    count = 7,
                     onClick = {
                         showExternalLinkDialog(
                             url = DEVELOPER_X_URL,
@@ -1209,8 +1234,8 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_about_feedback),
                     supportingText = stringResource(R.string.settings_about_feedback_summary),
-                    index = 3,
-                    count = 5,
+                    index = 5,
+                    count = 7,
                     onClick = { showFeedbackEmailDialog = true },
                     leadingContent = {
                         Box(
@@ -1231,8 +1256,8 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = appName,
                     supportingText = appInfoSummary,
-                    index = 4,
-                    count = 5,
+                    index = 6,
+                    count = 7,
                     onClick = {
                         val now = SystemClock.elapsedRealtime()
                         val isInsideTapWindow =
