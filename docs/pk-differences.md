@@ -59,29 +59,39 @@ should read the upstream README and its `pk_research/` workspace.
   curve to the right of the prediction marker. The `isPlanned` flag
   propagates to dose markers so the UI can distinguish logged from
   projected doses.
-- **Adaptive chart-sample placement.** Upstream's `SimulationEngine`
-  is a math reference, not a chart engine, so it samples on a single
-  fixed step. Featherline drives a seven-day chart, so it samples the
-  window on a dense backbone
-  (`MainChartDenseSampleIntervalHours = 0.1 h`) and pins exact samples
-  at the prediction instant, the previous-day instant, and every
-  logged-event instant.
+- **Option-aware chart-sample placement.** Upstream's
+  `SimulationEngine` is a math reference, not a chart engine, so it
+  samples on a single fixed step. Featherline drives a user-selectable
+  home chart through `HomeE2ChartWindowOption`: `SEVEN_DAYS` renders a
+  3-day-past / 4-day-future window on a 0.1 h dense interval, while
+  `THIRTY_DAYS` renders a 16-day-past / 14-day-future window on a
+  budgeted sampler (`segmentCount = 2240`) with extra post-dose
+  offsets.
 
-  The dense backbone resolves the post-dose absorption peak at
-  six-minute resolution, and the exact pins anchor the instants the
-  UI reads from for tooltips and dose markers. The trend
+  The seven-day path preserves the original six-minute resolution.
+  The 30-day path trades uniform density for a bounded sample budget
+  and then pins absorption-phase offsets after each dose (0.25 h
+  through 48 h) so fast-Tmax routes such as oral and sublingual do not
+  underplot their local peaks. Both options also pin the prediction
+  instant, the previous-day instant, and every logged-event instant.
+  The trend
   ([`mainChartSampleTimeH`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L490))
   and projection
   ([`mainProjectionSampleTimeH`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L533))
   paths share the strategy but differ in which "exact" instants they
   pin.
-- **Chart-window rounding contract.** `simulateMainEstradiolProjection`
-  rounds the window to local midnight in `zoneId` (start = today minus
-  three days at 00:00, end = today plus `futureDays` at 00:00).
+- **Option-aware chart-window rounding contract.**
+  `simulateMainEstradiolProjection` rounds the projection-cache window
+  to local midnight in `zoneId`: start = today minus `option.pastDays`
+  at 00:00, end = today plus `option.projectionFutureDays()` at
+  00:00. `projectionFutureDays()` adds a 10-day forward buffer beyond
+  the visible future span, so the 30-day chart stores a 40-day
+  projection while rendering only the 30-day visible window.
   `HomeSnapshotRepository.snapshotUsabilityFailure` independently
-  recomputes those bounds and rejects cached snapshots whose stored
-  window doesn't match. Upstream has no such contract because it has
-  no cache.
+  recomputes the visible window and rejects cached snapshots whose
+  coverage or sampling fingerprint (`chartWindowHours`, dense policy,
+  post-dose-offset flag) does not match the selected option. Upstream
+  has no such contract because it has no cache.
 - **Projection cache bundled into home snapshot.** The projection
   result is bundled into `HomeSnapshotRecord` alongside the
   plan-and-fulfillment cache, so every home-data mutation triggers a

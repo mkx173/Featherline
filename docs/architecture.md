@@ -100,8 +100,9 @@ Detailed in [backup-format.md](backup-format.md).
   `AllowedAnalyteUnit` validation pattern. Detailed in
   [blood-tests.md](blood-tests.md).
 - [`model/pk`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/pk) — pharmacokinetic constants
-  (`PkCatalog`), the three-compartment simulation, and planned-entry
-  generation. Detailed in [pk-differences.md](pk-differences.md).
+  (`PkCatalog`), the three-compartment simulation, planned-entry
+  generation, and the `HomeE2ChartWindowOption` sampling contract for
+  the home chart. Detailed in [pk-differences.md](pk-differences.md).
 - [`model/personalization`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/model/personalization) — `UserProfile`, the
   user-tunable inputs feeding PK simulation (currently body weight and
   weight-unit preference).
@@ -113,8 +114,8 @@ Detailed in [backup-format.md](backup-format.md).
 Feature sub-packages, one screen tree each:
 
 - [`ui/main`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/main) — the home tab:
-  E2 hero card, PK trend chart, today/last-night/upcoming sections,
-  antiandrogen status cards.
+  E2 hero card, 7-day/30-day PK trend chart,
+  today/last-night/upcoming sections, antiandrogen status cards.
 - [`ui/plan`](https://github.com/mkx173/Featherline/tree/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/ui/plan) — the plan tab: medication-group
   list, the group editor, the batch-add flow, the archived-groups
   screen.
@@ -212,9 +213,10 @@ an LLM can resolve every step:
   which composes inputs from two sources: a fast `SNAPSHOT` path
   reading the cached `HomeSnapshotRecord` from
   `HomeSnapshotRepository.observeHomeSnapshot()`, and a `ROOM` path
-  reading live Flows from `HomeDao`, `MedicationLogDao`, and
-  `UserProfileDao`.
-- When the cached projection in the snapshot is absent or expired,
+  reading live Flows from `HomeDao`, `MedicationLogDao`,
+  `UserProfileDao`, and the selected settings.
+- When the cached projection in the snapshot is absent, expired, or
+  fingerprinted for a different home E2 chart window,
   `MainViewModel` falls back to `PkMedicationSimulation.simulateMainEstradiolTrend()`
   directly over the observed estradiol entries.
 - The PK module reads pharmacokinetic constants from `PkCatalog`.
@@ -249,9 +251,25 @@ The home screen has two cached layers, both observed by
 
 The persisted snapshot also bundles a `HomePkProjectionRecord` — the
 result of the most recent
-`PkMedicationSimulation.simulateMainEstradiolTrend()` call, including
-its expiry instant. Bundling the PK projection into the same record
-as the plan-and-fulfillment cache is a known leaky seam:
+`PkMedicationSimulation.simulateMainEstradiolProjection()` call,
+including its expiry instant. The projection is option-aware:
+`HomeE2ChartWindowOption.SEVEN_DAYS` uses a 3-day-past /
+4-day-future visible window, while `THIRTY_DAYS` uses a 16-day-past /
+14-day-future visible window. The cache stores the selected option's
+sampling fingerprint (`chartWindowHours`, dense-sample policy, and
+post-dose-offset flag) so a 7-day cache cannot satisfy a 30-day chart
+or vice versa.
+
+Chart-window changes are settings changes, not Room mutations.
+`HomeSnapshotRepository` observes the raw DataStore-backed
+`homeE2ChartWindowOptionFlow`, invalidates the snapshot after an
+actual option change, and forces a rebuild. `HomeRepository` also uses
+that raw flow when validating snapshots and sizing fallback Room PK
+queries, so a persisted 30-day choice does not briefly behave like
+the default seven-day chart during cold start.
+
+Bundling the PK projection into the same record as the
+plan-and-fulfillment cache is a known leaky seam:
 
 - Every home-data mutation forces a PK re-simulation, even when no PK
   input changed.

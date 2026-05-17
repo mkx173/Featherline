@@ -112,9 +112,10 @@ flattened into the parent's JSON.
 - `BackupAppSnapshot` — just `packageName`; restore rejects
   cross-app files.
 - `BackupSettingsSnapshot` — flat DataStore values (dark mode,
-  adaptive color, reminders, app-lock grace period, hide-screen-
-  content, onboarding, language, home E2 display unit, per-analyte
-  calibration default units, last-seen time-zone).
+  adaptive color, reminders, archived-record visibility,
+  reference-range visibility, app-lock grace period, hide-screen-content,
+  onboarding, language, home E2 display unit, home E2 chart window,
+  per-analyte calibration default units, last-seen time-zone).
   `screenLockProtectionEnabled` is intentionally excluded — app-lock
   stays local to the device that set it.
 - `BackupUserProfileSnapshot` →
@@ -216,7 +217,9 @@ incompatible files are rejected at the cheapest detection point.
    The settings sub-pass
    [`toValidatedSettings`](https://github.com/mkx173/Featherline/blob/914a73bdf897fb80c033a83c1c5e076410094a3b/app/src/main/java/com/mkx/hrttracker/data/backup/BackupRestoreService.kt#L620)
    constructs each unit choice through `AllowedAnalyteUnit.of`, so an
-   unsupported unit fails before the database is touched.
+   unsupported unit fails before the database is touched. It also
+   parses `homeE2ChartWindow` as a `HomeE2ChartWindowOption`, so an
+   unknown chart-window name rejects the backup during validation.
 6. **Cancel visible reminders.** Any posted dose-reminder notification
    references slot UUIDs from the pre-restore database;
    `cancelAllDoseReminderNotifications` runs before any mutation so a
@@ -240,7 +243,8 @@ incompatible files are rejected at the cheapest detection point.
 **Adding fields at snapshot v1 without bumping anything.** New
 `Backup*Snapshot` fields with a Kotlin default value at the
 declaration are forward-compatible: Moshi reads missing fields as the
-default. This is how `lastSeenTimeZoneId`, `archivedAtLocalIso`,
+default. This is how `lastSeenTimeZoneId`, `hideReferenceRanges`,
+`homeE2ChartWindow`, `archivedAtLocalIso`,
 `includePastScheduledSlots`, `replacedByGroupUuid`, and
 `recreatedFromGroupUuid` shipped without a snapshot-version bump.
 Removing or renaming a field is *not* in this bucket.
