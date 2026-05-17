@@ -152,6 +152,73 @@ class MainUiModelsTest {
     }
 
     @Test
+    fun mainE2ChartAxisTickIntervalDays_ladder() {
+        // ≤ 7 d (168 h) visible → daily
+        assertEquals(1L, mainE2ChartAxisTickIntervalDays(48.0))
+        assertEquals(1L, mainE2ChartAxisTickIntervalDays(168.0))
+        // ≤ 14 d (336 h) → every 2 days
+        assertEquals(2L, mainE2ChartAxisTickIntervalDays(168.0 + 1e-3))
+        assertEquals(2L, mainE2ChartAxisTickIntervalDays(336.0))
+        // ≤ 30 d (720 h) → every 5 days
+        assertEquals(5L, mainE2ChartAxisTickIntervalDays(336.0 + 1e-3))
+        assertEquals(5L, mainE2ChartAxisTickIntervalDays(720.0))
+        // > 30 d → weekly
+        assertEquals(7L, mainE2ChartAxisTickIntervalDays(720.0 + 1e-3))
+        assertEquals(7L, mainE2ChartAxisTickIntervalDays(2400.0))
+    }
+
+    @Test
+    fun mainE2ChartAxisLabelTickHours_dailyOver7DayWindow() {
+        // Mirrors the pre-adaptive 7-day chart: 3 past + 4 future days from
+        // a 23:37 anchor lands the first noon tick 12 h after window start.
+        val windowStart = mainE2ChartWindowStart(LocalDateTime.of(2026, 5, 5, 23, 37))
+        val ticks = mainE2ChartAxisLabelTickHours(
+            chartWindowStart = windowStart,
+            chartWindowHours = 168,
+            visibleXRange = 0.0..168.0,
+            intervalDays = 1L,
+        )
+
+        assertEquals(7, ticks.size)
+        assertEquals(listOf(12.0, 36.0, 60.0, 84.0, 108.0, 132.0, 156.0), ticks)
+    }
+
+    @Test
+    fun mainE2ChartAxisLabelTickHours_filtersToVisibleRange() {
+        // Zoomed in to a 3-day window centered around day 4 of a 7-day chart:
+        // only ticks whose noon falls inside [72, 144] should survive.
+        val windowStart = mainE2ChartWindowStart(LocalDateTime.of(2026, 5, 5, 23, 37))
+        val ticks = mainE2ChartAxisLabelTickHours(
+            chartWindowStart = windowStart,
+            chartWindowHours = 168,
+            visibleXRange = 72.0..144.0,
+            intervalDays = 1L,
+        )
+
+        assertEquals(listOf(84.0, 108.0, 132.0), ticks)
+    }
+
+    @Test
+    fun mainE2ChartAxisLabelTickHours_30DayDefaultUsesFiveDaySpacing() {
+        // THIRTY_DAYS at full zoom: visibleHours = 720 → intervalDays = 5.
+        // Window is 20 past + 10 future = 30 d.
+        val windowStart = mainE2ChartWindowStart(
+            LocalDateTime.of(2026, 5, 5, 23, 37),
+            pastDays = 20L,
+        )
+        val ticks = mainE2ChartAxisLabelTickHours(
+            chartWindowStart = windowStart,
+            chartWindowHours = 720,
+            visibleXRange = 0.0..720.0,
+            intervalDays = 5L,
+        )
+
+        // 6 ticks at 5-day cadence: noon of day 0, 5, 10, 15, 20, 25.
+        assertEquals(6, ticks.size)
+        assertEquals(listOf(12.0, 132.0, 252.0, 372.0, 492.0, 612.0), ticks)
+    }
+
+    @Test
     fun splitMainE2ChartSeries_overlaps_observed_to_now_with_predicted_from_today_start() {
         // Observed series extends to "now" (x = 60), predicted starts from
         // "today start" (x = 36). The two ranges overlap on [36, 60].

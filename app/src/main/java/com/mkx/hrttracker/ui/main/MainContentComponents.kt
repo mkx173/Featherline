@@ -884,16 +884,25 @@ internal fun MainE2ChartCard(
             null
         }
     }
-    val noonTickHours = remember(chartWindowHours, now, section.chartWindowOption, section.pastDays) {
-        mainE2ChartNoonTickHours(
-            now = now,
-            windowHours = chartWindowHours,
-            pastDays = section.pastDays,
-            tickIntervalDays = section.chartWindowOption.noonTickIntervalDays(),
-        )
-    }
-    val bottomAxisItemPlacer = remember(noonTickHours) {
-        FixedHorizontalAxisItemPlacer(noonTickHours)
+    val bottomAxisItemPlacer = when (section.chartWindowOption) {
+        HomeE2ChartWindowOption.SEVEN_DAYS -> {
+            val noonTickHours = remember(chartWindowHours, now, section.pastDays) {
+                mainE2ChartNoonTickHours(
+                    now = now,
+                    windowHours = chartWindowHours,
+                    pastDays = section.pastDays,
+                )
+            }
+            remember(noonTickHours) { FixedHorizontalAxisItemPlacer(noonTickHours) }
+        }
+        HomeE2ChartWindowOption.THIRTY_DAYS -> {
+            remember(chartWindowStart, chartWindowHours) {
+                AdaptiveDateAxisItemPlacer(
+                    chartWindowStart = chartWindowStart,
+                    chartWindowHours = chartWindowHours,
+                )
+            }
+        }
     }
     val yAxisSpec = remember(section.points, section.doseMarkers) {
         mainE2ChartYAxisSpec(
@@ -907,16 +916,33 @@ internal fun MainE2ChartCard(
             shiftTopLines = false,
         )
     }
-    val bottomAxisValueFormatter = remember(chartWindowHours, now, appLocale) {
-        CartesianValueFormatter { _, value, _ ->
-            mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = chartWindowStart,
-                xHours = value,
-                chartWindowHours = chartWindowHours,
-            )
-                .toLocalDate()
-                .dayOfWeek
-                .getDisplayName(TextStyle.NARROW, appLocale)
+    val bottomAxisValueFormatter = when (section.chartWindowOption) {
+        HomeE2ChartWindowOption.SEVEN_DAYS -> {
+            remember(chartWindowHours, chartWindowStart, appLocale) {
+                CartesianValueFormatter { _, value, _ ->
+                    mainE2ChartDisplayDateTimeForXHours(
+                        chartWindowStart = chartWindowStart,
+                        xHours = value,
+                        chartWindowHours = chartWindowHours,
+                    )
+                        .toLocalDate()
+                        .dayOfWeek
+                        .getDisplayName(TextStyle.NARROW, appLocale)
+                }
+            }
+        }
+        HomeE2ChartWindowOption.THIRTY_DAYS -> {
+            remember(chartWindowHours, chartWindowStart) {
+                CartesianValueFormatter { _, value, _ ->
+                    mainE2ChartDisplayDateTimeForXHours(
+                        chartWindowStart = chartWindowStart,
+                        xHours = value,
+                        chartWindowHours = chartWindowHours,
+                    )
+                        .toLocalDate()
+                        .format(MainE2ChartAxisDateFormatter)
+                }
+            }
         }
     }
     val rangeProvider = remember(chartWindowHours, yAxisSpec) {
@@ -1865,6 +1891,17 @@ private fun MainE2ChartMinimap(
     }
 }
 
+// Locale-independent M/d. Keeps labels narrow so the adaptive placer can fit
+// more ticks even at deep zoom, and intentionally omits the year so a window
+// straddling Dec 31 → Jan 1 doesn't render mixed-year labels. Used by the
+// 30-day chart only; the 7-day chart sticks with weekday-narrow labels.
+private val MainE2ChartAxisDateFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("M/d")
+
+// Static-density placer used by the 7-day chart. Vico filters the pre-baked
+// list against the visible range, so zooming in just hides labels (no new
+// labels appear in between) — desired for the 7-day case, which already
+// shows the densest "1 label per day" cadence at full zoom.
 private class FixedHorizontalAxisItemPlacer(
     private val labelValues: List<Double>,
 ) : HorizontalAxis.ItemPlacer {
@@ -1930,6 +1967,90 @@ private class FixedHorizontalAxisItemPlacer(
         fullXRange: ClosedFloatingPointRange<Double>,
     ): List<Double> {
         return labelValues.ifEmpty { listOf(fullXRange.start) }
+    }
+}
+
+// Adapts tick density to the pinch-zoomed visible window. getLabelValues is
+// called every draw with the current visibleXRange, so re-deriving the tick
+// list per call is cheap and keeps the axis legible at any zoom level. Width
+// measurement uses the densest case (daily across the full window) so Vico
+// reserves enough horizontal space up front.
+private class AdaptiveDateAxisItemPlacer(
+    private val chartWindowStart: LocalDateTime,
+    private val chartWindowHours: Int,
+) : HorizontalAxis.ItemPlacer {
+    override fun getShiftExtremeLines(context: CartesianDrawingContext): Boolean = false
+
+    override fun getLabelValues(
+        context: CartesianDrawingContext,
+        visibleXRange: ClosedFloatingPointRange<Double>,
+        fullXRange: ClosedFloatingPointRange<Double>,
+        maxLabelWidth: Float,
+    ): List<Double> {
+        val visibleHours = visibleXRange.endInclusive - visibleXRange.start
+        return mainE2ChartAxisLabelTickHours(
+            chartWindowStart = chartWindowStart,
+            chartWindowHours = chartWindowHours,
+            visibleXRange = visibleXRange,
+            intervalDays = mainE2ChartAxisTickIntervalDays(visibleHours),
+        )
+    }
+
+    override fun getWidthMeasurementLabelValues(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        fullXRange: ClosedFloatingPointRange<Double>,
+    ): List<Double> {
+        return measurementValues(fullXRange)
+    }
+
+    override fun getHeightMeasurementLabelValues(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        fullXRange: ClosedFloatingPointRange<Double>,
+        maxLabelWidth: Float,
+    ): List<Double> {
+        return measurementValues(fullXRange)
+    }
+
+    override fun getLineValues(
+        context: CartesianDrawingContext,
+        visibleXRange: ClosedFloatingPointRange<Double>,
+        fullXRange: ClosedFloatingPointRange<Double>,
+        maxLabelWidth: Float,
+    ): List<Double> {
+        return getLabelValues(
+            context = context,
+            visibleXRange = visibleXRange,
+            fullXRange = fullXRange,
+            maxLabelWidth = maxLabelWidth,
+        )
+    }
+
+    override fun getStartLayerMargin(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        tickThickness: Float,
+        maxLabelWidth: Float,
+    ): Float = 0f
+
+    override fun getEndLayerMargin(
+        context: CartesianMeasuringContext,
+        layerDimensions: CartesianLayerDimensions,
+        tickThickness: Float,
+        maxLabelWidth: Float,
+    ): Float = 0f
+
+    private fun measurementValues(
+        fullXRange: ClosedFloatingPointRange<Double>,
+    ): List<Double> {
+        val ticks = mainE2ChartAxisLabelTickHours(
+            chartWindowStart = chartWindowStart,
+            chartWindowHours = chartWindowHours,
+            visibleXRange = fullXRange,
+            intervalDays = 1L,
+        )
+        return ticks.ifEmpty { listOf(fullXRange.start) }
     }
 }
 

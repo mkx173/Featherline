@@ -284,14 +284,15 @@ internal fun mainE2ChartWindowStart(
         .minusDays(pastDays)
 }
 
+// One noon tick per day across the chart window. Used by the 7-day chart's
+// fixed-density bottom axis (the 30-day chart uses the adaptive placer
+// below).
 internal fun mainE2ChartNoonTickHours(
     now: LocalDateTime,
     windowHours: Int,
     pastDays: Long = MainE2ChartPastDays,
-    tickIntervalDays: Long = 1L,
 ): List<Double> {
     val resolvedWindowHours = windowHours.coerceAtLeast(1)
-    val resolvedTickIntervalDays = tickIntervalDays.coerceAtLeast(1L)
     val windowStart = mainE2ChartWindowStart(now, pastDays)
     val windowEnd = windowStart.plusHours(resolvedWindowHours.toLong())
     val endDate = windowEnd.toLocalDate()
@@ -306,19 +307,58 @@ internal fun mainE2ChartNoonTickHours(
                 tickHours += hoursFromWindowStart.toVicoXHour()
             }
         }
-        date = date.plusDays(resolvedTickIntervalDays)
+        date = date.plusDays(1L)
     }
 
     return tickHours.distinct()
 }
 
-// 7-day mode gets daily noon ticks; 30-day mode falls back to a coarser 5-day
-// cadence so the bottom axis stays legible on a phone-width chart. Pinch-zoom
-// is handled separately by the chart's zoom floor; this is the rendered-at-rest
-// density only.
-internal fun HomeE2ChartWindowOption.noonTickIntervalDays(): Long = when (this) {
-    HomeE2ChartWindowOption.SEVEN_DAYS -> 1L
-    HomeE2ChartWindowOption.THIRTY_DAYS -> 5L
+// Adaptive bottom-axis tick interval, picked from the currently visible
+// chart span. Max granularity is one day; the chart never shows sub-daily
+// ticks even when pinch-zoomed past a one-day visible window.
+internal fun mainE2ChartAxisTickIntervalDays(visibleHours: Double): Long {
+    return when {
+        visibleHours <= 168.0 -> 1L      // ≤ 7 d → daily
+        visibleHours <= 336.0 -> 2L      // ≤ 14 d → every 2 days
+        visibleHours <= 720.0 -> 5L      // ≤ 30 d → every 5 days
+        else -> 7L                       // > 30 d → weekly
+    }
+}
+
+// Noon-tick xHours (relative to chartWindowStart) at the given interval,
+// clipped to the chart's [0, chartWindowHours] range and the visible x range.
+// Anchored on chartWindowStart's date so ticks at coarser intervals are a
+// strict subset of finer ones (no jitter when intervalDays changes due to
+// zoom).
+internal fun mainE2ChartAxisLabelTickHours(
+    chartWindowStart: LocalDateTime,
+    chartWindowHours: Int,
+    visibleXRange: ClosedFloatingPointRange<Double>,
+    intervalDays: Long,
+): List<Double> {
+    val safeInterval = intervalDays.coerceAtLeast(1L)
+    val resolvedWindowHours = chartWindowHours.coerceAtLeast(1)
+    val windowEnd = chartWindowStart.plusHours(resolvedWindowHours.toLong())
+    val endDate = windowEnd.toLocalDate()
+    val tickHours = mutableListOf<Double>()
+    var date = chartWindowStart.toLocalDate()
+
+    while (!date.isAfter(endDate)) {
+        val noon = LocalDateTime.of(date, LocalTime.NOON)
+        if (noon.isAfter(chartWindowStart) && noon.isBefore(windowEnd)) {
+            val hoursFromWindowStart =
+                Duration.between(chartWindowStart, noon).toMillis() / 3_600_000.0
+            if (
+                hoursFromWindowStart in 0.0..resolvedWindowHours.toDouble() &&
+                hoursFromWindowStart in visibleXRange
+            ) {
+                tickHours += hoursFromWindowStart.toVicoXHour()
+            }
+        }
+        date = date.plusDays(safeInterval)
+    }
+
+    return tickHours.distinct()
 }
 
 internal fun splitMainE2ChartSeries(
