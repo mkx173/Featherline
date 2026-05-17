@@ -847,6 +847,13 @@ internal fun MainE2ChartCard(
     }
     val interactiveMarkerXHours = remember { mutableStateOf<Double?>(null) }
     val interactiveMarkerXHoursValue = interactiveMarkerXHours.value
+    // The touch marker's x is captured in whatever coord space was active
+    // when the user tapped, so it has no meaningful position after the
+    // chart-window changes. Clear it on toggle so it doesn't paint at a
+    // stale pixel in the new window.
+    LaunchedEffect(section.chartWindowOption) {
+        interactiveMarkerXHours.value = null
+    }
     val interactionMarkerConcentration = remember(
         interactiveMarkerXHoursValue,
         pointXHours,
@@ -884,26 +891,7 @@ internal fun MainE2ChartCard(
             null
         }
     }
-    val bottomAxisItemPlacer = when (section.chartWindowOption) {
-        HomeE2ChartWindowOption.SEVEN_DAYS -> {
-            val noonTickHours = remember(chartWindowHours, now, section.pastDays) {
-                mainE2ChartNoonTickHours(
-                    now = now,
-                    windowHours = chartWindowHours,
-                    pastDays = section.pastDays,
-                )
-            }
-            remember(noonTickHours) { FixedHorizontalAxisItemPlacer(noonTickHours) }
-        }
-        HomeE2ChartWindowOption.THIRTY_DAYS -> {
-            remember(chartWindowStart, chartWindowHours) {
-                AdaptiveDateAxisItemPlacer(
-                    chartWindowStart = chartWindowStart,
-                    chartWindowHours = chartWindowHours,
-                )
-            }
-        }
-    }
+    val bottomAxisItemPlacer = remember { ExtraStoreAwareHorizontalAxisItemPlacer() }
     val yAxisSpec = remember(section.points, section.doseMarkers) {
         mainE2ChartYAxisSpec(
             points = section.points,
@@ -916,42 +904,47 @@ internal fun MainE2ChartCard(
             shiftTopLines = false,
         )
     }
-    val bottomAxisValueFormatter = when (section.chartWindowOption) {
-        HomeE2ChartWindowOption.SEVEN_DAYS -> {
-            remember(chartWindowHours, chartWindowStart, appLocale) {
-                CartesianValueFormatter { _, value, _ ->
-                    mainE2ChartDisplayDateTimeForXHours(
-                        chartWindowStart = chartWindowStart,
-                        xHours = value,
-                        chartWindowHours = chartWindowHours,
-                    )
-                        .toLocalDate()
-                        .dayOfWeek
-                        .getDisplayName(TextStyle.NARROW, appLocale)
-                }
-            }
-        }
-        HomeE2ChartWindowOption.THIRTY_DAYS -> {
-            remember(chartWindowHours, chartWindowStart) {
-                CartesianValueFormatter { _, value, _ ->
-                    mainE2ChartDisplayDateTimeForXHours(
-                        chartWindowStart = chartWindowStart,
-                        xHours = value,
-                        chartWindowHours = chartWindowHours,
-                    )
-                        .toLocalDate()
-                        .format(MainE2ChartAxisDateFormatter)
-                }
+    // Formatter reads chartWindowStart / chartWindowHours / option from the
+    // model's ExtraStore so its output matches the data Vico is currently
+    // drawing. During a chart-window toggle this means labels stay on the
+    // old format until Vico processes the new transaction; both update
+    // atomically when the new model + extras land.
+    val bottomAxisValueFormatter = remember(appLocale) {
+        CartesianValueFormatter { context, value, _ ->
+            val spec = context.model.extraStore.getOrNull(MainE2ChartViewSpecKey)
+                ?: return@CartesianValueFormatter ""
+            val date = mainE2ChartDisplayDateTimeForXHours(
+                chartWindowStart = spec.chartWindowStart,
+                xHours = value,
+                chartWindowHours = spec.chartWindowHours,
+            ).toLocalDate()
+            when (spec.chartWindowOption) {
+                HomeE2ChartWindowOption.SEVEN_DAYS ->
+                    date.dayOfWeek.getDisplayName(TextStyle.NARROW, appLocale)
+                HomeE2ChartWindowOption.THIRTY_DAYS ->
+                    date.format(MainE2ChartAxisDateFormatter)
             }
         }
     }
-    val rangeProvider = remember(chartWindowHours, yAxisSpec) {
-        CartesianLayerRangeProvider.fixed(
-            minX = 0.0,
-            maxX = chartWindowHours.toDouble(),
-            minY = 0.0,
-            maxY = yAxisSpec.maxY,
-        )
+    // X range is read from the ExtraStore so it matches the data Vico is
+    // currently drawing — on a chart-window toggle, the maxX stays on the
+    // old value until the new transaction's extras land alongside the new
+    // series, so axis labels, decorations, and minimap all stay in
+    // lockstep. Y range stays keyed on the live yAxisSpec because the
+    // user-reported toggle artifacts are X-axis only.
+    val rangeProvider = remember(yAxisSpec) {
+        object : CartesianLayerRangeProvider {
+            override fun getMinX(minX: Double, maxX: Double, extraStore: ExtraStore): Double = 0.0
+            override fun getMaxX(minX: Double, maxX: Double, extraStore: ExtraStore): Double {
+                return extraStore.getOrNull(MainE2ChartViewSpecKey)
+                    ?.chartWindowHours
+                    ?.toDouble()
+                    ?: maxX
+            }
+            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double = 0.0
+            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double =
+                yAxisSpec.maxY
+        }
     }
     // Hoisted up so maxChartZoom can recompute against the measured plot
     // width once .onSizeChanged fires; rememberVicoZoomState is keyed on
@@ -1005,6 +998,11 @@ internal fun MainE2ChartCard(
         doseMarkerPlannedConcentrations,
         currentTimeXHours,
         currentTimeConcentration,
+        section.chartWindowOption,
+        chartWindowStart,
+        chartWindowHours,
+        section.pastDays,
+        now,
     ) {
         modelProducer.runTransaction {
             lineSeries {
@@ -1045,6 +1043,16 @@ internal fun MainE2ChartCard(
                         y = doseMarkerPlannedConcentrations.ifEmpty { listOf(0f) },
                     )
                 }
+            }
+            extras { extraStore ->
+                extraStore[MainE2ChartViewSpecKey] = MainE2ChartViewSpec(
+                    chartWindowOption = section.chartWindowOption,
+                    chartWindowStart = chartWindowStart,
+                    chartWindowHours = chartWindowHours,
+                    currentTimeXHours = currentTimeXHours,
+                    pastDays = section.pastDays,
+                    now = now,
+                )
             }
         }
     }
@@ -1087,16 +1095,17 @@ internal fun MainE2ChartCard(
                 }
                 val markerLabelSize = remember { mutableStateOf(IntSize.Zero) }
                 val currentTimeDecoration = remember(
-                    currentTimeXHours,
                     currentTimeLineColor,
                     chartCoordinateMapper,
-                    chartWindowHours,
                 ) {
                     VerticalLineDecoration(
-                        x = currentTimeXHours,
+                        xProvider = { ctx ->
+                            ctx.model.extraStore
+                                .getOrNull(MainE2ChartViewSpecKey)
+                                ?.currentTimeXHours
+                        },
                         lineColor = currentTimeLineColor,
                         coordinateMapper = chartCoordinateMapper,
-                        expectedRangeMaxX = chartWindowHours.toDouble(),
                     )
                 }
                 val interactionMarkerDecoration = remember(
@@ -1106,13 +1115,12 @@ internal fun MainE2ChartCard(
                     markerSurfaceColor,
                     yAxisSpec.maxY,
                     chartCoordinateMapper,
-                    chartWindowHours,
                 ) {
                     val xHours = interactiveMarkerXHoursValue
                     val concentration = interactionMarkerConcentration
                     if (xHours != null && concentration != null) {
                         VerticalLineDecoration(
-                            x = xHours,
+                            xProvider = { _ -> xHours },
                             lineColor = interactionMarkerColor,
                             dashed = true,
                             coordinateMapper = chartCoordinateMapper,
@@ -1121,7 +1129,6 @@ internal fun MainE2ChartCard(
                             pointMaxY = yAxisSpec.maxY,
                             pointFillColor = interactionMarkerColor,
                             pointStrokeColor = markerSurfaceColor,
-                            expectedRangeMaxX = chartWindowHours.toDouble(),
                         )
                     } else {
                         null
@@ -1391,7 +1398,26 @@ private fun mainE2ChartMinimapFullVisibleRange(chartWindowHours: Int): MainE2Cha
 private data class MainE2ChartViewportSnapshot(
     val rawVisibleRange: MainE2ChartVisibleXRange,
     val visibleRange: MainE2ChartVisibleXRange,
+    val spec: MainE2ChartViewSpec?,
 )
+
+// View-side spec for the E2 chart, dispatched into the model's ExtraStore
+// alongside the series so Vico applies them atomically. Axis placer, label
+// formatter, range provider, decoration anchor, and the minimap all read this
+// from `context.model.extraStore` — so the visible spec always reflects the
+// data Vico is currently drawing. Without this, composition state changes
+// (e.g. on chart-window toggle) race ahead of Vico's model update and the
+// view spec lands one frame too early on the old data.
+private data class MainE2ChartViewSpec(
+    val chartWindowOption: HomeE2ChartWindowOption,
+    val chartWindowStart: LocalDateTime,
+    val chartWindowHours: Int,
+    val currentTimeXHours: Double,
+    val pastDays: Long,
+    val now: LocalDateTime,
+)
+
+private val MainE2ChartViewSpecKey = ExtraStore.Key<MainE2ChartViewSpec>()
 
 @Composable
 private fun MainE2ChartMinimap(
@@ -1424,14 +1450,24 @@ private fun MainE2ChartMinimap(
     val minimapCanvasSize = remember { mutableStateOf(IntSize.Zero) }
     val startDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
     val endDateLabelSize = remember { mutableStateOf(IntSize.Zero) }
-    val fullHours = chartWindowHours.toDouble().coerceAtLeast(1.0)
-    val fullVisibleRange = remember(chartWindowHours) {
-        mainE2ChartMinimapFullVisibleRange(chartWindowHours)
+    val viewportSnapshot = coordinateMapper.viewportSnapshot.collectAsState().value
+    // Date labels, reset-enabled state, and the fallback full range all
+    // derive from the spec the coordinate mapper captured on Vico's last
+    // draw. On a chart-window toggle the mapper still holds the previous
+    // spec until Vico processes the new transaction, so labels and the
+    // reset button stay on the old window for one frame instead of
+    // flashing the new chartWindowStart against the still-old visible
+    // range. LIVE params are used only as a first-frame fallback before
+    // any model has been dispatched.
+    val displayWindowStart = viewportSnapshot?.spec?.chartWindowStart ?: chartWindowStart
+    val displayWindowHours = viewportSnapshot?.spec?.chartWindowHours ?: chartWindowHours
+    val fullHours = displayWindowHours.toDouble().coerceAtLeast(1.0)
+    val fullVisibleRange = remember(displayWindowHours) {
+        mainE2ChartMinimapFullVisibleRange(displayWindowHours)
     }
-    val pendingResetDateLabelRange = remember(chartWindowHours) {
+    val pendingResetDateLabelRange = remember(displayWindowHours) {
         mutableStateOf<MainE2ChartVisibleXRange?>(null)
     }
-    val viewportSnapshot = coordinateMapper.viewportSnapshot.collectAsState().value
     val rawVisibleRange = viewportSnapshot?.rawVisibleRange
         ?: MainE2ChartVisibleXRange(0.0, fullHours)
     val visibleRange = viewportSnapshot?.visibleRange
@@ -1442,7 +1478,7 @@ private fun MainE2ChartMinimap(
             pendingResetRange != null &&
             !mainE2ChartMinimapIsZoomed(
                 visibleRange = visibleRange,
-                chartWindowHours = chartWindowHours,
+                chartWindowHours = displayWindowHours,
             )
         ) {
             pendingResetDateLabelRange.value = null
@@ -1454,35 +1490,35 @@ private fun MainE2ChartMinimap(
     )
     val resetEnabled = canResetMainE2ChartMinimap(
         visibleRange = visibleRange,
-        chartWindowHours = chartWindowHours,
+        chartWindowHours = displayWindowHours,
         hasPendingReset = pendingResetRange != null,
     )
     val startDateLabel = remember(
-        chartWindowStart,
-        chartWindowHours,
+        displayWindowStart,
+        displayWindowHours,
         dateFormatter,
         dateLabelVisibleRange.start,
     ) {
         dateFormatter(
             mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = chartWindowStart,
+                chartWindowStart = displayWindowStart,
                 xHours = dateLabelVisibleRange.start,
-                chartWindowHours = chartWindowHours,
+                chartWindowHours = displayWindowHours,
             )
                 .toLocalDate()
         )
     }
     val endDateLabel = remember(
-        chartWindowStart,
-        chartWindowHours,
+        displayWindowStart,
+        displayWindowHours,
         dateFormatter,
         dateLabelVisibleRange.endInclusive,
     ) {
         dateFormatter(
             mainE2ChartDisplayDateTimeForXHours(
-                chartWindowStart = chartWindowStart,
+                chartWindowStart = displayWindowStart,
                 xHours = dateLabelVisibleRange.endInclusive,
-                chartWindowHours = chartWindowHours,
+                chartWindowHours = displayWindowHours,
             )
                 .toLocalDate()
         )
@@ -1902,13 +1938,30 @@ private fun MainE2ChartMinimap(
 private val MainE2ChartAxisDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("M/d")
 
-// Static-density placer used by the 7-day chart. Vico filters the pre-baked
-// list against the visible range, so zooming in just hides labels (no new
-// labels appear in between) — desired for the 7-day case, which already
-// shows the densest "1 label per day" cadence at full zoom.
-private class FixedHorizontalAxisItemPlacer(
-    private val labelValues: List<Double>,
-) : HorizontalAxis.ItemPlacer {
+// Single placer for both chart-window options. The strategy (static noon
+// ticks for 7-day, adaptive day ticks for 30-day) and all anchor values are
+// read from the model's ExtraStore on every call, so the placer's behavior
+// always reflects the data Vico is currently drawing — not the LIVE Compose
+// state that may have raced ahead during a chart-window toggle. The 7-day
+// branch caches its noon-tick list across calls; the 30-day branch
+// re-derives daily because tick density depends on the visible zoom.
+private class ExtraStoreAwareHorizontalAxisItemPlacer : HorizontalAxis.ItemPlacer {
+    private var cachedNoonKey: Triple<LocalDateTime, Int, Long>? = null
+    private var cachedNoonTicks: List<Double> = emptyList()
+
+    private fun noonTicksFor(spec: MainE2ChartViewSpec): List<Double> {
+        val key = Triple(spec.now, spec.chartWindowHours, spec.pastDays)
+        if (cachedNoonKey != key) {
+            cachedNoonTicks = mainE2ChartNoonTickHours(
+                now = spec.now,
+                windowHours = spec.chartWindowHours,
+                pastDays = spec.pastDays,
+            )
+            cachedNoonKey = key
+        }
+        return cachedNoonTicks
+    }
+
     override fun getShiftExtremeLines(context: CartesianDrawingContext): Boolean = false
 
     override fun getLabelValues(
@@ -1917,8 +1970,21 @@ private class FixedHorizontalAxisItemPlacer(
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
     ): List<Double> {
-        return labelValues.filter { value ->
-            value >= visibleXRange.start && value <= visibleXRange.endInclusive
+        val spec = context.model.extraStore.getOrNull(MainE2ChartViewSpecKey)
+            ?: return emptyList()
+        return when (spec.chartWindowOption) {
+            HomeE2ChartWindowOption.SEVEN_DAYS -> noonTicksFor(spec).filter { value ->
+                value >= visibleXRange.start && value <= visibleXRange.endInclusive
+            }
+            HomeE2ChartWindowOption.THIRTY_DAYS -> {
+                val visibleHours = visibleXRange.endInclusive - visibleXRange.start
+                mainE2ChartAxisLabelTickHours(
+                    chartWindowStart = spec.chartWindowStart,
+                    chartWindowHours = spec.chartWindowHours,
+                    visibleXRange = visibleXRange,
+                    intervalDays = mainE2ChartAxisTickIntervalDays(visibleHours),
+                )
+            }
         }
     }
 
@@ -1926,32 +1992,21 @@ private class FixedHorizontalAxisItemPlacer(
         context: CartesianMeasuringContext,
         layerDimensions: CartesianLayerDimensions,
         fullXRange: ClosedFloatingPointRange<Double>,
-    ): List<Double> {
-        return measurementValues(fullXRange)
-    }
+    ): List<Double> = measurementValues(context, fullXRange)
 
     override fun getHeightMeasurementLabelValues(
         context: CartesianMeasuringContext,
         layerDimensions: CartesianLayerDimensions,
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
-    ): List<Double> {
-        return measurementValues(fullXRange)
-    }
+    ): List<Double> = measurementValues(context, fullXRange)
 
     override fun getLineValues(
         context: CartesianDrawingContext,
         visibleXRange: ClosedFloatingPointRange<Double>,
         fullXRange: ClosedFloatingPointRange<Double>,
         maxLabelWidth: Float,
-    ): List<Double> {
-        return getLabelValues(
-            context = context,
-            visibleXRange = visibleXRange,
-            fullXRange = fullXRange,
-            maxLabelWidth = maxLabelWidth,
-        )
-    }
+    ): List<Double> = getLabelValues(context, visibleXRange, fullXRange, maxLabelWidth)
 
     override fun getStartLayerMargin(
         context: CartesianMeasuringContext,
@@ -1968,92 +2023,20 @@ private class FixedHorizontalAxisItemPlacer(
     ): Float = 0f
 
     private fun measurementValues(
-        fullXRange: ClosedFloatingPointRange<Double>,
-    ): List<Double> {
-        return labelValues.ifEmpty { listOf(fullXRange.start) }
-    }
-}
-
-// Adapts tick density to the pinch-zoomed visible window. getLabelValues is
-// called every draw with the current visibleXRange, so re-deriving the tick
-// list per call is cheap and keeps the axis legible at any zoom level. Width
-// measurement uses the densest case (daily across the full window) so Vico
-// reserves enough horizontal space up front.
-private class AdaptiveDateAxisItemPlacer(
-    private val chartWindowStart: LocalDateTime,
-    private val chartWindowHours: Int,
-) : HorizontalAxis.ItemPlacer {
-    override fun getShiftExtremeLines(context: CartesianDrawingContext): Boolean = false
-
-    override fun getLabelValues(
-        context: CartesianDrawingContext,
-        visibleXRange: ClosedFloatingPointRange<Double>,
-        fullXRange: ClosedFloatingPointRange<Double>,
-        maxLabelWidth: Float,
-    ): List<Double> {
-        val visibleHours = visibleXRange.endInclusive - visibleXRange.start
-        return mainE2ChartAxisLabelTickHours(
-            chartWindowStart = chartWindowStart,
-            chartWindowHours = chartWindowHours,
-            visibleXRange = visibleXRange,
-            intervalDays = mainE2ChartAxisTickIntervalDays(visibleHours),
-        )
-    }
-
-    override fun getWidthMeasurementLabelValues(
         context: CartesianMeasuringContext,
-        layerDimensions: CartesianLayerDimensions,
         fullXRange: ClosedFloatingPointRange<Double>,
     ): List<Double> {
-        return measurementValues(fullXRange)
-    }
-
-    override fun getHeightMeasurementLabelValues(
-        context: CartesianMeasuringContext,
-        layerDimensions: CartesianLayerDimensions,
-        fullXRange: ClosedFloatingPointRange<Double>,
-        maxLabelWidth: Float,
-    ): List<Double> {
-        return measurementValues(fullXRange)
-    }
-
-    override fun getLineValues(
-        context: CartesianDrawingContext,
-        visibleXRange: ClosedFloatingPointRange<Double>,
-        fullXRange: ClosedFloatingPointRange<Double>,
-        maxLabelWidth: Float,
-    ): List<Double> {
-        return getLabelValues(
-            context = context,
-            visibleXRange = visibleXRange,
-            fullXRange = fullXRange,
-            maxLabelWidth = maxLabelWidth,
-        )
-    }
-
-    override fun getStartLayerMargin(
-        context: CartesianMeasuringContext,
-        layerDimensions: CartesianLayerDimensions,
-        tickThickness: Float,
-        maxLabelWidth: Float,
-    ): Float = 0f
-
-    override fun getEndLayerMargin(
-        context: CartesianMeasuringContext,
-        layerDimensions: CartesianLayerDimensions,
-        tickThickness: Float,
-        maxLabelWidth: Float,
-    ): Float = 0f
-
-    private fun measurementValues(
-        fullXRange: ClosedFloatingPointRange<Double>,
-    ): List<Double> {
-        val ticks = mainE2ChartAxisLabelTickHours(
-            chartWindowStart = chartWindowStart,
-            chartWindowHours = chartWindowHours,
-            visibleXRange = fullXRange,
-            intervalDays = 1L,
-        )
+        val spec = context.model.extraStore.getOrNull(MainE2ChartViewSpecKey)
+            ?: return listOf(fullXRange.start)
+        val ticks = when (spec.chartWindowOption) {
+            HomeE2ChartWindowOption.SEVEN_DAYS -> noonTicksFor(spec)
+            HomeE2ChartWindowOption.THIRTY_DAYS -> mainE2ChartAxisLabelTickHours(
+                chartWindowStart = spec.chartWindowStart,
+                chartWindowHours = spec.chartWindowHours,
+                visibleXRange = fullXRange,
+                intervalDays = 1L,
+            )
+        }
         return ticks.ifEmpty { listOf(fullXRange.start) }
     }
 }
@@ -2178,6 +2161,7 @@ private class MainE2ChartCoordinateMapper {
     private var xSpacing: Float = 0f
     private var layoutDirectionMultiplier: Int = 1
     private var hasLayerBounds: Boolean = false
+    private var spec: MainE2ChartViewSpec? = null
 
     val viewportSnapshot: StateFlow<MainE2ChartViewportSnapshot?> = _viewportSnapshot.asStateFlow()
 
@@ -2197,6 +2181,11 @@ private class MainE2ChartCoordinateMapper {
             this@MainE2ChartCoordinateMapper.layoutDirectionMultiplier =
                 layoutDirectionMultiplier
             hasLayerBounds = true
+            // Snapshotting the spec from the same context that gave us the
+            // ranges means the minimap reads the spec that matches Vico's
+            // current draw — view config and data stay locked together
+            // through a chart-window toggle.
+            spec = model.extraStore.getOrNull(MainE2ChartViewSpecKey)
         }
         updateViewportSnapshot()
     }
@@ -2265,6 +2254,7 @@ private class MainE2ChartCoordinateMapper {
             MainE2ChartViewportSnapshot(
                 rawVisibleRange = rawVisibleRange,
                 visibleRange = visibleRange,
+                spec = spec,
             )
         } else {
             null
@@ -2329,8 +2319,15 @@ private fun mainE2ChartMarkerDateFormatter(
     }
 }
 
+// xProvider is invoked per draw so the line's anchor can come from the
+// model's ExtraStore (current-time decoration) or live Compose state
+// (touch-marker decoration). Pulling currentTimeXHours from extras instead
+// of taking it at construction means the anchor moves with the data Vico
+// is currently rendering — there's no chart-window-toggle frame where the
+// new anchor is mapped through the old ranges, so no separate guard is
+// needed. xProvider returning null skips the draw.
 private class VerticalLineDecoration(
-    private val x: Double,
+    private val xProvider: (CartesianDrawingContext) -> Double?,
     private val lineColor: Color,
     private val dashed: Boolean = false,
     private val coordinateMapper: MainE2ChartCoordinateMapper? = null,
@@ -2344,20 +2341,12 @@ private class VerticalLineDecoration(
     private val pointStrokeColor: Color = Color.Transparent,
     private val pointSize: Dp = 8.dp,
     private val pointStrokeThickness: Dp = 1.dp,
-    // If set, the decoration only draws when the chart's current data range
-    // matches this width (within a 0.5-unit tolerance). Used to suppress a
-    // single-frame artifact at chart-window toggle: when the option flips,
-    // the decoration's x is recomputed in the new chart's coordinate space,
-    // but Vico is still rendering the previous model and `context.ranges`
-    // reflects the OLD maxX. Mapping the new x through the old ranges would
-    // place the line at the wrong pixel — better to skip drawing for the
-    // single frame until the new model is rendered.
-    private val expectedRangeMaxX: Double? = null,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
             coordinateMapper?.update(context)
-            val canvasX = canvasXForLine() ?: return
+            val x = xProvider(context) ?: return
+            val canvasX = canvasXForLine(x) ?: return
 
             val strokeWidth = lineWidth.pixels
             val paint = Paint().apply {
@@ -2395,7 +2384,8 @@ private class VerticalLineDecoration(
         val y = pointY ?: return
         with(context) {
             coordinateMapper?.update(context)
-            val canvasX = canvasXForLine() ?: return
+            val x = xProvider(context) ?: return
+            val canvasX = canvasXForLine(x) ?: return
             if (pointMaxY <= 0.0 || layerBounds.height <= 0f) {
                 return
             }
@@ -2426,10 +2416,7 @@ private class VerticalLineDecoration(
         }
     }
 
-    private fun CartesianDrawingContext.canvasXForLine(): Float? {
-        if (expectedRangeMaxX != null && kotlin.math.abs(ranges.maxX - expectedRangeMaxX) > 0.5) {
-            return null
-        }
+    private fun CartesianDrawingContext.canvasXForLine(x: Double): Float? {
         if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
             return null
         }
