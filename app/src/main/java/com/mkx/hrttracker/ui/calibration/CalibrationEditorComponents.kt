@@ -411,7 +411,8 @@ internal fun CalibrationAnalyteCard(
                     preferredUnit = defaultUnit,
                 )
             }
-            Row(
+            val showRangeStatusChip = !hideReferenceRanges && rangeStatus != null
+            if (defaultUnitValueLabel != null || showRangeStatusChip) Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
@@ -449,16 +450,14 @@ internal fun CalibrationAnalyteCard(
                         }
                     }
                 }
-                if (!hideReferenceRanges) {
-                    rangeStatus?.let { status ->
-                        Spacer(modifier = Modifier.width(8.dp))
-                        CalibrationRangeStatusChip(status = status)
-                    }
+                if (showRangeStatusChip) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CalibrationRangeStatusChip(status = rangeStatus)
                 }
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
@@ -601,7 +600,7 @@ internal fun CalibrationCustomAnalyteCard(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Spacer(modifier = Modifier.weight(1f))
