@@ -24,6 +24,8 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - **GitHub Releases** (signed APK for sideload): [releases page](https://github.com/mkx173/Featherline/releases)
 - Or build from source: see [docs/building.md](docs/building.md)
 
+> **Note:** The Play Store version is recommended. The app holds no internet permission, so the GitHub APK cannot check for updates — you will need to monitor the releases page manually for new versions.
+
 ## Features
 
 - Log doses across injection, patch, gel, oral, and sublingual routes

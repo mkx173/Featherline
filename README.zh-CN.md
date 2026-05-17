@@ -24,6 +24,8 @@ Featherline 支持注射、贴剂、凝胶、口服、舌下五种给药途径�
 - **GitHub Releases**（可侧载的签名 APK）：[发布页](https://github.com/mkx173/Featherline/releases)
 - 或从源码构建：参见 [docs/building.md](docs/building.md)
 
+> **提示：** 推荐使用 Play 商店版本。由于本应用不申请网络权限，GitHub APK 无法自动检查更新——如需获取新版本，请手动关注发布页。
+
 ## 功能
 
 - 记录注射、贴剂、凝胶、口服、舌下五种给药途径的剂量
