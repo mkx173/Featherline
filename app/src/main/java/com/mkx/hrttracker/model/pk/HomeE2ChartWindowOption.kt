@@ -23,8 +23,8 @@ enum class HomeE2ChartWindowOption(
         includesPostDoseOffsets = false,
     ),
     THIRTY_DAYS(
-        pastDays = 14L,
-        futureDays = 16L,
+        pastDays = 16L,
+        futureDays = 14L,
         densePolicy = DenseSamplePolicy.Budget(segmentCount = 2240),
         includesPostDoseOffsets = true,
     );
