@@ -201,10 +201,10 @@ class MainUiModelsTest {
     @Test
     fun mainE2ChartAxisLabelTickHours_30DayDefaultUsesFiveDaySpacing() {
         // THIRTY_DAYS at full zoom: visibleHours = 720 → intervalDays = 5.
-        // Window is 20 past + 10 future = 30 d.
+        // Window is 14 past + 16 future = 30 d.
         val windowStart = mainE2ChartWindowStart(
             LocalDateTime.of(2026, 5, 5, 23, 37),
-            pastDays = 20L,
+            pastDays = 14L,
         )
         val ticks = mainE2ChartAxisLabelTickHours(
             chartWindowStart = windowStart,
