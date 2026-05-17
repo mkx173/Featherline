@@ -2337,21 +2337,7 @@ private fun MainE2ChartCardHeader(
         )
         val toggleContentDescription = stringResource(R.string.main_e2_chart_window_toggle_cd)
         Row(
-            modifier = Modifier
-                .weight(1f)
-                .clip(MaterialTheme.shapes.small)
-                .clickable(
-                    onClick = {
-                        val next = when (chartWindowOption) {
-                            HomeE2ChartWindowOption.SEVEN_DAYS -> HomeE2ChartWindowOption.THIRTY_DAYS
-                            HomeE2ChartWindowOption.THIRTY_DAYS -> HomeE2ChartWindowOption.SEVEN_DAYS
-                        }
-                        onChartWindowOptionSelected(next)
-                    },
-                    onClickLabel = toggleContentDescription,
-                    role = Role.Button,
-                )
-                .padding(vertical = 2.dp),
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2371,6 +2357,24 @@ private fun MainE2ChartCardHeader(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.cjkTextOffset(mainE2ChartTitleText)
             )
+
+            IconButton(
+                onClick = {
+                    val next = when (chartWindowOption) {
+                        HomeE2ChartWindowOption.SEVEN_DAYS -> HomeE2ChartWindowOption.THIRTY_DAYS
+                        HomeE2ChartWindowOption.THIRTY_DAYS -> HomeE2ChartWindowOption.SEVEN_DAYS
+                    }
+                    onChartWindowOptionSelected(next)
+                },
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_sync_alt),
+                    contentDescription = toggleContentDescription,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
 
         if (!hideReferenceRanges) {
