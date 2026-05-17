@@ -289,7 +289,7 @@ fun HrtTrackerNavHost(
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
     val appContentBottomInset =
-        if (navigationSuiteType == NavigationSuiteType.ShortNavigationBarCompact) {
+        if (navigationSuiteType != NavigationSuiteType.WideNavigationRailCollapsed) {
             0.dp
         } else {
             rawNavigationBarBottomInset
