@@ -962,9 +962,6 @@ private fun SettingsScreenContent(
                             SettingsLeadingIconSlot(
                                 painter = painterResource(R.drawable.ic_language)
                             )
-                        },
-                        trailingContent = {
-                            SettingsTrailingPlaceHolder()
                         }
                     )
                     HrtDropdownMenu(
@@ -991,9 +988,6 @@ private fun SettingsScreenContent(
                             SettingsLeadingIconSlot(
                                 painter = painterResource(R.drawable.ic_dark_mode)
                             )
-                        },
-                        trailingContent = {
-                            SettingsTrailingPlaceHolder()
                         }
                     )
                     HrtDropdownMenu(
@@ -1274,9 +1268,6 @@ private fun SettingsScreenContent(
                                 modifier = Modifier.size(22.dp)
                             )
                         }
-                    },
-                    trailingContent = {
-                        SettingsTrailingPlaceHolder()
                     }
                 )
             }
@@ -1457,31 +1448,18 @@ private fun SettingsLeadingIconSlot(
 }
 
 @Composable
-private fun SettingsTrailingPlaceHolder() {
-    Box(
-        modifier = Modifier.size(48.dp),
-        contentAlignment = Alignment.CenterEnd
-    ) { }
-}
-
-@Composable
 private fun SettingsChevronTrailingIcon() {
-    Box(
-        modifier = Modifier.size(48.dp),
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    Icon(
+        imageVector = Icons.Rounded.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
 private fun SettingsLinkTrailingIcon() {
     Box(
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(24.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
         Icon(

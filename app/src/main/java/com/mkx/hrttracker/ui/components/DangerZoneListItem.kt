@@ -61,16 +61,11 @@ fun DangerZoneListItem(
             }
         },
         trailingContent = {
-            Box(
-                modifier = Modifier.size(48.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = contentColor,
-                )
-            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = contentColor,
+            )
         },
         supportingText = supportText,
     )

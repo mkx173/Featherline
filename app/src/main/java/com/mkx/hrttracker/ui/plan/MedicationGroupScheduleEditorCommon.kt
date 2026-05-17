@@ -408,17 +408,12 @@ internal fun ArchiveMedicationGroupCard(
             )
         },
         trailingContent = {
-            Box(
-                modifier = Modifier.size(48.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.alpha(if (enabled) 1f else 0.72f)
-                )
-            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.alpha(if (enabled) 1f else 0.72f)
+            )
         },
     )
 }

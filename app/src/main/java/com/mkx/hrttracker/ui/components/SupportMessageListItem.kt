@@ -79,17 +79,12 @@ fun SupportMessageListItem(
             },
             trailingContent = trailingContent ?: if (showChevron) {
                 {
-                    Box(
-                        modifier = Modifier.size(48.dp),
-                        contentAlignment = Alignment.CenterEnd
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = chevronTint,
-                            modifier = Modifier.size(chevronSize)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = chevronTint,
+                        modifier = Modifier.size(chevronSize)
+                    )
                 }
             } else {
                 null

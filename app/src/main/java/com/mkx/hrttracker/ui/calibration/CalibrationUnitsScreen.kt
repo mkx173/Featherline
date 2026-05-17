@@ -65,6 +65,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
@@ -356,7 +357,9 @@ private fun CalibrationUnitPreferenceItem(
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
                 applyCjkTextOffset = false,
-                textStyle = MaterialTheme.typography.labelMedium
+                textStyle = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 13.sp
+                )
             )
         },
     )
