@@ -205,29 +205,29 @@ class MainContentComponentsTest {
     }
 
     @Test
-    fun mainE2ChartZoomFloorHours_landsAtFiveDaysOnPhoneWidth() {
+    fun mainE2ChartZoomFloorHours_landsAtThreeDaysOnPhoneWidth() {
         // THIRTY_DAYS spans 40 d = 960 h with 2240 budget segments. At the
-        // 400 px phone-portrait reference width and the 0.7 density factor,
-        // the floor is 0.7 * (960 / 2240) * 400 = 120 h = 5 d exactly.
+        // 400 px phone-portrait reference width and the 0.42 density factor,
+        // the floor is 0.42 * (960 / 2240) * 400 = 72 h = 3 d.
         val floor = mainE2ChartZoomFloorHours(
             projectionSpanHours = 960.0,
             segmentCount = 2240,
             chartPixelWidthPx = 400,
         )
-        assertEquals(120.0, floor, 1e-9)
+        assertEquals(72.0, floor, 1e-9)
     }
 
     @Test
     fun mainE2ChartZoomFloorHours_scalesWithMeasuredWidth() {
-        // Tablets get a wider floor (~10 d) at the same samples-per-pixel
+        // Tablets get a wider floor (~6 d) at the same samples-per-pixel
         // target. Locking to the 400 px fallback would let tablets zoom past
-        // the linearisation slack — twice the density the design accepts.
+        // the linearisation slack the design accepts.
         val floor = mainE2ChartZoomFloorHours(
             projectionSpanHours = 960.0,
             segmentCount = 2240,
             chartPixelWidthPx = 800,
         )
-        assertEquals(240.0, floor, 1e-9)
+        assertEquals(144.0, floor, 1e-9)
     }
 
     @Test
@@ -240,7 +240,7 @@ class MainContentComponentsTest {
             segmentCount = 2240,
             chartPixelWidthPx = 0,
         )
-        assertEquals(120.0, floor, 1e-9)
+        assertEquals(72.0, floor, 1e-9)
     }
 
     @Test
@@ -261,7 +261,7 @@ class MainContentComponentsTest {
     @Test
     fun mainE2ChartMaxZoomXRangeHours_thirtyDayUsesMeasuredWidthFormula() {
         assertEquals(
-            120.0,
+            72.0,
             mainE2ChartMaxZoomXRangeHours(
                 option = HomeE2ChartWindowOption.THIRTY_DAYS,
                 chartPixelWidthPx = 400,
@@ -269,7 +269,7 @@ class MainContentComponentsTest {
             1e-9,
         )
         assertEquals(
-            240.0,
+            144.0,
             mainE2ChartMaxZoomXRangeHours(
                 option = HomeE2ChartWindowOption.THIRTY_DAYS,
                 chartPixelWidthPx = 800,

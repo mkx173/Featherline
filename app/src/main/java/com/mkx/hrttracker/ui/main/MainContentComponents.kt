@@ -195,11 +195,15 @@ private const val MainE2ChartAnimationSettleDelayMillis = 50L
 private var mainE2ChartInitialAnimationConsumed = false
 // SEVEN_DAYS keeps the original fixed 48 h floor — 2 d on a phone-width
 // chart, derived empirically from the 0.1 h sampler. THIRTY_DAYS instead
-// derives its floor from the measured plot width and budget grid so the
-// 30-day chart never zooms past ~0.7 samples/pixel and so tablets get a
-// wider floor than phones.
+// derives its floor from the measured plot width and budget grid: the
+// density factor is the target samples/pixel at maximum zoom-in. At 0.42
+// the phone-width floor lands at 3 d (≈2.4 px between dense grid samples
+// at deepest zoom) while tablets get ~6 d at the same density. The
+// elimination phase's gentle slope and the per-dose offset list pin the
+// curve at every interesting point; lower factors let users zoom further
+// at the cost of slightly visible linearisation between offsets.
 private const val MainE2ChartMaxZoomXRangeHours = 48.0
-private const val MainE2ChartZoomDensityFactor = 0.7
+private const val MainE2ChartZoomDensityFactor = 0.42
 private const val MainE2ChartFallbackPixelWidth = 400
 private const val MainE2ChartThirtyDayProjectionSpanHours: Double = 40.0 * 24.0
 private const val MainE2ChartThirtyDaySegmentCount: Int = 2240
