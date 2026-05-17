@@ -1090,11 +1090,13 @@ internal fun MainE2ChartCard(
                     currentTimeXHours,
                     currentTimeLineColor,
                     chartCoordinateMapper,
+                    chartWindowHours,
                 ) {
                     VerticalLineDecoration(
                         x = currentTimeXHours,
                         lineColor = currentTimeLineColor,
                         coordinateMapper = chartCoordinateMapper,
+                        expectedRangeMaxX = chartWindowHours.toDouble(),
                     )
                 }
                 val interactionMarkerDecoration = remember(
@@ -1104,6 +1106,7 @@ internal fun MainE2ChartCard(
                     markerSurfaceColor,
                     yAxisSpec.maxY,
                     chartCoordinateMapper,
+                    chartWindowHours,
                 ) {
                     val xHours = interactiveMarkerXHoursValue
                     val concentration = interactionMarkerConcentration
@@ -1118,6 +1121,7 @@ internal fun MainE2ChartCard(
                             pointMaxY = yAxisSpec.maxY,
                             pointFillColor = interactionMarkerColor,
                             pointStrokeColor = markerSurfaceColor,
+                            expectedRangeMaxX = chartWindowHours.toDouble(),
                         )
                     } else {
                         null
@@ -2340,6 +2344,15 @@ private class VerticalLineDecoration(
     private val pointStrokeColor: Color = Color.Transparent,
     private val pointSize: Dp = 8.dp,
     private val pointStrokeThickness: Dp = 1.dp,
+    // If set, the decoration only draws when the chart's current data range
+    // matches this width (within a 0.5-unit tolerance). Used to suppress a
+    // single-frame artifact at chart-window toggle: when the option flips,
+    // the decoration's x is recomputed in the new chart's coordinate space,
+    // but Vico is still rendering the previous model and `context.ranges`
+    // reflects the OLD maxX. Mapping the new x through the old ranges would
+    // place the line at the wrong pixel — better to skip drawing for the
+    // single frame until the new model is rendered.
+    private val expectedRangeMaxX: Double? = null,
 ) : Decoration {
     override fun drawUnderLayers(context: CartesianDrawingContext) {
         with(context) {
@@ -2414,6 +2427,9 @@ private class VerticalLineDecoration(
     }
 
     private fun CartesianDrawingContext.canvasXForLine(): Float? {
+        if (expectedRangeMaxX != null && kotlin.math.abs(ranges.maxX - expectedRangeMaxX) > 0.5) {
+            return null
+        }
         if (ranges.xLength <= 0.0 || ranges.xStep == 0.0 || x !in ranges.minX..ranges.maxX) {
             return null
         }
