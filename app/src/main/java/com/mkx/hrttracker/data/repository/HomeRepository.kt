@@ -125,6 +125,9 @@ class HomeRepository @Inject constructor(
             homeSnapshotRepository.observeHomeSnapshot(),
             settingsRepository.homeE2ChartWindowOptionFlow,
         ) { inputs, snapshot, option ->
+            if (inputs.settings.homeE2ChartWindowOption != option) {
+                return@combine null
+            }
             val pkProjectionRecord = snapshot
                 ?.takeIf {
                     homeSnapshotRepository.isSnapshotUsable(
@@ -157,6 +160,7 @@ class HomeRepository @Inject constructor(
                 now = now,
             )
         }
+            .mapNotNull { inputs -> inputs }
             .catch { throwable ->
                 diagnosticsLogger.warning(TAG, "home_room_inputs_failed", throwable)
                 // settingsRepository.settingsState is eager and may still hold

@@ -43,6 +43,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class HomeRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -350,6 +352,96 @@ class HomeRepositoryTest {
         advanceUntilIdle()
 
         assertEquals(false, emittedSources.contains(HomeInputSource.SNAPSHOT))
+        collectJob.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeHomeInputs_doesNotPairNewChartWindowWithStalePkRowsDuringOptionSwap() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val optionFlow = MutableStateFlow(HomeE2ChartWindowOption.SEVEN_DAYS)
+        val settingsState = MutableStateFlow(
+            SettingsState(homeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS)
+        )
+        val sevenDayPkEntry = logEntry(
+            uuid = UUID.fromString("4d0a97ec-e07b-4afc-a7ea-5a5b18270ff6"),
+            scheduledFor = null,
+        )
+        val thirtyDayPkEntry = logEntry(
+            uuid = UUID.fromString("a5ec219d-e419-4713-91fb-32d8b1298bbb"),
+            scheduledFor = null,
+        )
+
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { homeDao.observeActiveGroups() } returns flowOf(emptyList())
+        every { homeDao.observeScheduleEntries(any(), any(), any(), any()) } returns flowOf(emptyList())
+        every { homeDao.observeLatestAntiandrogenEntriesOnOrBefore(any()) } returns flowOf(emptyList())
+        every { homeDao.observeProfile() } returns flowOf(null)
+        every { homeDao.observeLatestEstradiolEntryOnOrBefore(any()) } returns flowOf(null)
+        every { homeDao.observeEstradiolPkEntries(any(), any()) } returnsMany listOf(
+            flowOf(listOf(sevenDayPkEntry)),
+            flowOf(listOf(thirtyDayPkEntry)),
+        )
+        every { settingsRepository.settingsState } returns settingsState
+        every { settingsRepository.homeE2ChartWindowOptionFlow } returns optionFlow
+        every { homeSnapshotRepository.observeHomeSnapshot() } returns flowOf(null)
+        every { homeSnapshotRepository.decodeProjection(null, any(), any()) } returns null
+
+        val emittedInputs = mutableListOf<HomeInputs>()
+        val firstRoomObserved = CompletableDeferred<Unit>()
+        val thirtyDayObserved = CountDownLatch(1)
+        val repository = HomeRepository(
+            databaseHolder = databaseHolder,
+            settingsRepository = settingsRepository,
+            homeSnapshotRepository = homeSnapshotRepository,
+        )
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeHomeInputs(now).collect { inputs ->
+                emittedInputs += inputs
+                if (inputs.source == HomeInputSource.ROOM) {
+                    firstRoomObserved.complete(Unit)
+                }
+                if (
+                    inputs.settings.homeE2ChartWindowOption == HomeE2ChartWindowOption.THIRTY_DAYS &&
+                    inputs.estradiolPkEntries.any { entry -> entry.uuid.toString() == thirtyDayPkEntry.uuid }
+                ) {
+                    thirtyDayObserved.countDown()
+                }
+            }
+        }
+        firstRoomObserved.await()
+        assertEquals(1, emittedInputs.size)
+        assertEquals(HomeE2ChartWindowOption.SEVEN_DAYS, emittedInputs.single().settings.homeE2ChartWindowOption)
+        assertEquals(
+            listOf(sevenDayPkEntry.uuid),
+            emittedInputs.single().estradiolPkEntries.map { entry -> entry.uuid.toString() },
+        )
+
+        optionFlow.value = HomeE2ChartWindowOption.THIRTY_DAYS
+        advanceUntilIdle()
+        assertTrue(
+            "Expected the replacement 30-day PK query to emit.",
+            thirtyDayObserved.await(1, TimeUnit.SECONDS),
+        )
+
+        val staleThirtyDayEmissions = emittedInputs
+            .filter { inputs ->
+                inputs.settings.homeE2ChartWindowOption == HomeE2ChartWindowOption.THIRTY_DAYS &&
+                    inputs.estradiolPkEntries.any { entry -> entry.uuid.toString() == sevenDayPkEntry.uuid }
+            }
+            .map { inputs -> inputs.estradiolPkEntries.map { entry -> entry.uuid.toString() } }
+        assertEquals(
+            "Room fallback must wait for the 30-day PK query before emitting THIRTY_DAYS inputs.",
+            emptyList<List<String>>(),
+            staleThirtyDayEmissions,
+        )
+        val thirtyDayEmissions = emittedInputs
+            .filter { inputs ->
+                inputs.settings.homeE2ChartWindowOption == HomeE2ChartWindowOption.THIRTY_DAYS
+            }
+            .map { inputs -> inputs.estradiolPkEntries.map { entry -> entry.uuid.toString() } }
+        assertEquals(listOf(listOf(thirtyDayPkEntry.uuid)), thirtyDayEmissions)
         collectJob.cancel()
     }
 
