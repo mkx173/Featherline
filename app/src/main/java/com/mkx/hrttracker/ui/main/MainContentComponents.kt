@@ -795,7 +795,9 @@ internal fun MainE2ChartCard(
             points = section.points,
         )
     }
-    val chartWindowStart = remember(now) { mainE2ChartWindowStart(now) }
+    val chartWindowStart = remember(now, section.pastDays) {
+        mainE2ChartWindowStart(now, section.pastDays)
+    }
     val chartTimeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
     val chartDateFormatter = remember(appLocale, now.year) {
         mainE2ChartMarkerDateFormatter(
@@ -842,10 +844,12 @@ internal fun MainE2ChartCard(
             null
         }
     }
-    val noonTickHours = remember(chartWindowHours, now) {
+    val noonTickHours = remember(chartWindowHours, now, section.chartWindowOption, section.pastDays) {
         mainE2ChartNoonTickHours(
             now = now,
             windowHours = chartWindowHours,
+            pastDays = section.pastDays,
+            tickIntervalDays = section.chartWindowOption.noonTickIntervalDays(),
         )
     }
     val bottomAxisItemPlacer = remember(noonTickHours) {

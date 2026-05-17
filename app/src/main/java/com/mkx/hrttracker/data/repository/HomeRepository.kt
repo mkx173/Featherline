@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
@@ -139,7 +140,13 @@ class HomeRepository @Inject constructor(
                 scheduleEntries = inputs.scheduleEntries,
                 antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
                 profile = inputs.profile,
-                settings = inputs.settings,
+                // The outer combine already pinned `option` to the raw flow's
+                // latest value, but `inputs.settings` came from the inner
+                // startup combine, which may briefly carry a stale option if
+                // the option flow emits before the basicsFlow re-emits. Copy
+                // the raw option in so consumers downstream cannot see the
+                // outer flow's option disagree with HomeInputs.settings.
+                settings = inputs.settings.copy(homeE2ChartWindowOption = option),
                 pkProjection = homeSnapshotRepository.decodeProjection(pkProjectionRecord, now, zoneId),
                 pkProjectionExpiresAt = pkProjectionRecord
                     ?.let { Instant.ofEpochMilli(it.pkProjectionExpiresAtEpochMillis) },
@@ -152,13 +159,26 @@ class HomeRepository @Inject constructor(
         }
             .catch { throwable ->
                 diagnosticsLogger.warning(TAG, "home_room_inputs_failed", throwable)
+                // settingsRepository.settingsState is eager and may still hold
+                // the SEVEN_DAYS placeholder on cold start, so re-read the raw
+                // option flow for the fallback emission. The catch lambda is
+                // a suspend context, so .first() is fine; wrap in try/catch so
+                // a DataStore IO failure here doesn't escalate the emit.
+                val fallbackOption: HomeE2ChartWindowOption = try {
+                    settingsRepository.homeE2ChartWindowOptionFlow.first()
+                } catch (innerThrowable: Throwable) {
+                    if (innerThrowable is kotlinx.coroutines.CancellationException) throw innerThrowable
+                    HomeE2ChartWindowOption.SEVEN_DAYS
+                }
+                val fallbackSettings = settingsRepository.settingsState.value
+                    .copy(homeE2ChartWindowOption = fallbackOption)
                 emit(
                     HomeInputs(
                         activeGroups = emptyList(),
                         scheduleEntries = emptyList(),
                         antiandrogenHistoryEntries = emptyList(),
                         profile = UserProfile(),
-                        settings = settingsRepository.settingsState.value,
+                        settings = fallbackSettings,
                         pkProjection = null,
                         pkProjectionExpiresAt = null,
                         latestEstradiolEntry = null,

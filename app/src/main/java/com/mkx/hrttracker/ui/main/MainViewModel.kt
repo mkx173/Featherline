@@ -10,6 +10,7 @@ import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.TimeZoneChangeNotice
@@ -87,6 +88,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
+        viewModelScope.launch {
+            settingsRepository.setHomeE2ChartWindowOption(option)
+        }
+    }
+
     private companion object {
         const val UI_STATE_STOP_TIMEOUT_MILLIS = 5_000L
     }
@@ -106,6 +113,7 @@ class MainViewModel @Inject constructor(
         timeZoneNotice: TimeZoneChangeNotice?,
     ): MainUiState {
         val homeE2DisplayUnit = inputs.settings.homeE2DisplayUnit
+        val chartWindowOption = inputs.settings.homeE2ChartWindowOption
         val homeEntries = (inputs.scheduleEntries + inputs.antiandrogenHistoryEntries)
             .distinctBy { entry -> entry.uuid }
             .sortedByDescending { entry -> entry.appliedAt }
@@ -124,13 +132,18 @@ class MainViewModel @Inject constructor(
         val freshPlannedEntries = inputs.estradiolPkPlannedEntries.filter { entry ->
             entry.scheduledFor?.isAfter(now) ?: false
         }
-        val trendResult = freshProjection?.toMainEstradiolTrend(now = now, zoneId = zoneId)
+        val trendResult = freshProjection?.toMainEstradiolTrend(
+            now = now,
+            zoneId = zoneId,
+            option = chartWindowOption,
+        )
             ?: PkMedicationSimulation.simulateMainEstradiolTrend(
                 entries = inputs.estradiolPkEntries,
                 plannedEntries = freshPlannedEntries,
                 bodyWeightKg = inputs.profile.weightKg,
                 now = now,
                 zoneId = zoneId,
+                option = chartWindowOption,
             )
 
         return MainUiState(
@@ -145,6 +158,7 @@ class MainViewModel @Inject constructor(
             homeSource = inputs.source,
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
+            homeE2ChartWindowOption = chartWindowOption,
             hideReferenceRanges = inputs.settings.hideReferenceRanges,
             e2Hero = buildMainE2Hero(
                 entries = listOfNotNull(inputs.latestEstradiolEntry),
@@ -155,6 +169,7 @@ class MainViewModel @Inject constructor(
             e2Chart = buildMainE2Chart(
                 trendResult = trendResult,
                 displayUnit = homeE2DisplayUnit,
+                chartWindowOption = chartWindowOption,
             ),
             antiandrogenCards = buildMainAntiandrogenCards(
                 groups = inputs.activeGroups,
@@ -191,6 +206,7 @@ data class MainUiState(
     val homeSource: HomeInputSource? = null,
     val now: LocalDateTime = LocalDateTime.now(),
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
+    val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
     val hideReferenceRanges: Boolean = false,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),

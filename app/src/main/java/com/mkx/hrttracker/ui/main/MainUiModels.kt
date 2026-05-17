@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
+import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
 import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
@@ -68,6 +69,8 @@ data class MainE2ChartUiState(
     val doseMarkers: List<MainE2DoseMarkerUiState> = emptyList(),
     val windowHours: Int = EmptyE2ChartWindowHours,
     val predictionStartXHours: Double = EmptyE2ChartPredictionStartXHours,
+    val chartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
+    val pastDays: Long = chartWindowOption.pastDays,
 )
 
 data class MainE2DoseMarkerUiState(
@@ -221,6 +224,7 @@ internal fun buildMainE2Hero(
 internal fun buildMainE2Chart(
     trendResult: PkTrendResult? = null,
     displayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+    chartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,
 ): MainE2ChartUiState {
     val chartConcentrations = trendResult
         ?.chartConcentrations
@@ -266,21 +270,29 @@ internal fun buildMainE2Chart(
             ?.predictionStartTimeH
             ?.toVicoXHour()
             ?: EmptyE2ChartPredictionStartXHours,
+        chartWindowOption = chartWindowOption,
+        pastDays = chartWindowOption.pastDays,
     )
 }
 
-internal fun mainE2ChartWindowStart(now: LocalDateTime): LocalDateTime {
+internal fun mainE2ChartWindowStart(
+    now: LocalDateTime,
+    pastDays: Long = MainE2ChartPastDays,
+): LocalDateTime {
     return now.toLocalDate()
         .atStartOfDay()
-        .minusDays(MainE2ChartPastDays)
+        .minusDays(pastDays)
 }
 
 internal fun mainE2ChartNoonTickHours(
     now: LocalDateTime,
     windowHours: Int,
+    pastDays: Long = MainE2ChartPastDays,
+    tickIntervalDays: Long = 1L,
 ): List<Double> {
     val resolvedWindowHours = windowHours.coerceAtLeast(1)
-    val windowStart = mainE2ChartWindowStart(now)
+    val resolvedTickIntervalDays = tickIntervalDays.coerceAtLeast(1L)
+    val windowStart = mainE2ChartWindowStart(now, pastDays)
     val windowEnd = windowStart.plusHours(resolvedWindowHours.toLong())
     val endDate = windowEnd.toLocalDate()
     val tickHours = mutableListOf<Double>()
@@ -294,10 +306,19 @@ internal fun mainE2ChartNoonTickHours(
                 tickHours += hoursFromWindowStart.toVicoXHour()
             }
         }
-        date = date.plusDays(1)
+        date = date.plusDays(resolvedTickIntervalDays)
     }
 
     return tickHours.distinct()
+}
+
+// 7-day mode gets daily noon ticks; 30-day mode falls back to a coarser 5-day
+// cadence so the bottom axis stays legible on a phone-width chart. Pinch-zoom
+// is handled separately by the chart's zoom floor; this is the rendered-at-rest
+// density only.
+internal fun HomeE2ChartWindowOption.noonTickIntervalDays(): Long = when (this) {
+    HomeE2ChartWindowOption.SEVEN_DAYS -> 1L
+    HomeE2ChartWindowOption.THIRTY_DAYS -> 5L
 }
 
 internal fun splitMainE2ChartSeries(
