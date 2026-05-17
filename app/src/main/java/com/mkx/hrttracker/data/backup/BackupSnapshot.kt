@@ -26,6 +26,7 @@ data class BackupSettingsSnapshot(
     val adaptiveColorEnabled: Boolean,
     val remindersEnabled: Boolean,
     val showArchivedGroupRecords: Boolean = true,
+    val hideReferenceRanges: Boolean = false,
     val appLockGracePeriodOption: String,
     val hideScreenContentEnabled: Boolean,
     val onboardingCompleted: Boolean,

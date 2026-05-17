@@ -353,6 +353,7 @@ internal fun MainE2HeroCard(
     displayUnit: BloodUnitKey,
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
+    hideReferenceRanges: Boolean = false,
 ) {
     val showSkeleton = !trendReady
     val trendDeltaLabel = mainTrendDeltaLabel(
@@ -520,19 +521,21 @@ internal fun MainE2HeroCard(
                             style = MaterialTheme.typography.titleMedium,
                             color = heroSupportingColor
                         )
-                        SkeletonOverlay(
-                            active = showSkeleton,
-                            shape = CircleShape,
-                            modifier = Modifier.constrainAs(rangeStatusRef) {
-                                start.linkTo(unitRef.end, margin = 8.dp)
-                                top.linkTo(unitRef.top)
-                                bottom.linkTo(unitRef.bottom)
-                            },
-                        ) {
-                            MainE2RangeStatusPill(
-                                iconDrawableRes = rangeStatusIconDrawableRes,
-                                label = rangeStatusLabel,
-                            )
+                        if (!hideReferenceRanges) {
+                            SkeletonOverlay(
+                                active = showSkeleton,
+                                shape = CircleShape,
+                                modifier = Modifier.constrainAs(rangeStatusRef) {
+                                    start.linkTo(unitRef.end, margin = 8.dp)
+                                    top.linkTo(unitRef.top)
+                                    bottom.linkTo(unitRef.bottom)
+                                },
+                            ) {
+                                MainE2RangeStatusPill(
+                                    iconDrawableRes = rangeStatusIconDrawableRes,
+                                    label = rangeStatusLabel,
+                                )
+                            }
                         }
                     }
 
@@ -654,6 +657,7 @@ internal fun MainE2ChartCard(
     targetRangeHigh: Double,
     modifier: Modifier = Modifier,
     trendReady: Boolean = true,
+    hideReferenceRanges: Boolean = false,
 ) {
     if (!trendReady) {
         Surface(
@@ -674,6 +678,7 @@ internal fun MainE2ChartCard(
                     targetRangeHigh = targetRangeHigh,
                     displayUnit = displayUnit,
                     unit = unit,
+                    hideReferenceRanges = hideReferenceRanges,
                 )
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -975,7 +980,8 @@ internal fun MainE2ChartCard(
                 targetRangeLow = targetRangeLow,
                 targetRangeHigh = targetRangeHigh,
                 displayUnit = displayUnit,
-                unit = unit
+                unit = unit,
+                hideReferenceRanges = hideReferenceRanges,
             )
 
             Column(
@@ -2255,6 +2261,7 @@ private fun MainE2ChartCardHeader(
     targetRangeHigh: Double,
     displayUnit: BloodUnitKey,
     unit: String,
+    hideReferenceRanges: Boolean = false,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -2285,23 +2292,25 @@ private fun MainE2ChartCardHeader(
             )
         }
 
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        ) {
-            val targetText = stringResource(
-                R.string.main_e2_chart_target,
-                formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
-                formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
-                unit
-            )
-            Text(
-                text = targetText,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).cjkTextOffset(targetText),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
+        if (!hideReferenceRanges) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            ) {
+                val targetText = stringResource(
+                    R.string.main_e2_chart_target,
+                    formatMainE2ConcentrationValue(targetRangeLow, displayUnit),
+                    formatMainE2ConcentrationValue(targetRangeHigh, displayUnit),
+                    unit
+                )
+                Text(
+                    text = targetText,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).cjkTextOffset(targetText),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
 }

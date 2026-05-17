@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
@@ -9,6 +10,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
@@ -77,12 +79,17 @@ fun SupportMessageListItem(
             },
             trailingContent = trailingContent ?: if (showChevron) {
                 {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = null,
-                        tint = chevronTint,
-                        modifier = Modifier.size(chevronSize)
-                    )
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = chevronTint,
+                            modifier = Modifier.size(chevronSize)
+                        )
+                    }
                 }
             } else {
                 null

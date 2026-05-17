@@ -145,6 +145,7 @@ class MainViewModel @Inject constructor(
             homeSource = inputs.source,
             now = now,
             homeE2DisplayUnit = homeE2DisplayUnit,
+            hideReferenceRanges = inputs.settings.hideReferenceRanges,
             e2Hero = buildMainE2Hero(
                 entries = listOfNotNull(inputs.latestEstradiolEntry),
                 trendResult = trendResult,
@@ -190,6 +191,7 @@ data class MainUiState(
     val homeSource: HomeInputSource? = null,
     val now: LocalDateTime = LocalDateTime.now(),
     val homeE2DisplayUnit: BloodUnitKey = BloodUnitKey.PG_ML,
+    val hideReferenceRanges: Boolean = false,
     val e2Hero: MainE2HeroUiState = MainE2HeroUiState(),
     val e2Chart: MainE2ChartUiState = MainE2ChartUiState(),
     val antiandrogenCards: List<MainAntiandrogenCardUiState> = emptyList(),

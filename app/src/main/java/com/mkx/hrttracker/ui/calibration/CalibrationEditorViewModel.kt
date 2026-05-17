@@ -86,6 +86,7 @@ class CalibrationEditorViewModel @Inject constructor(
                 },
                 customAnalytes = cachedCustomAnalytes.orEmpty(),
                 drafts = defaultCalibrationDrafts(latestSettingsState),
+                hideReferenceRanges = latestSettingsState.hideReferenceRanges,
             )
         }
     )
@@ -382,7 +383,10 @@ class CalibrationEditorViewModel @Inject constructor(
                             draft.resultUuid != null || draft.valueText.isNotBlank()
                         }
                     ) {
-                        state.copy(drafts = draftsWithUpdatedDefaults)
+                        state.copy(
+                            drafts = draftsWithUpdatedDefaults,
+                            hideReferenceRanges = settingsState.hideReferenceRanges,
+                        )
                     } else {
                         state.copy(
                             drafts = draftsWithUpdatedDefaults.map { draft ->
@@ -391,7 +395,8 @@ class CalibrationEditorViewModel @Inject constructor(
                                 } else {
                                     draft
                                 }
-                            }
+                            },
+                            hideReferenceRanges = settingsState.hideReferenceRanges,
                         )
                     }
                 }
@@ -533,6 +538,7 @@ class CalibrationEditorViewModel @Inject constructor(
             timeSinceLastEstradiolDoseMillis = timeSinceLastEstradiolDoseMillis,
             notes = notes.orEmpty(),
             drafts = drafts,
+            hideReferenceRanges = latestSettingsState.hideReferenceRanges,
         )
     }
 
@@ -560,6 +566,7 @@ data class CalibrationEditorUiState(
     val customAnalytes: List<CustomBloodAnalyte> = emptyList(),
     val invalidDraftKeys: Set<String> = emptySet(),
     val drafts: List<CalibrationResultDraftUiState> = defaultCalibrationDrafts(),
+    val hideReferenceRanges: Boolean = false,
 )
 
 enum class CalibrationSaveEntryResult {

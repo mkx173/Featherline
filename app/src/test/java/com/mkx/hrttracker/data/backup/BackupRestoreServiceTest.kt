@@ -75,6 +75,7 @@ class BackupRestoreServiceTest {
                 any(),
                 any(),
                 any(),
+                any(),
             )
         } just Runs
         coEvery { medicationReminderScheduler.rescheduleAll(any()) } just Runs

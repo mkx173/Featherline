@@ -56,6 +56,7 @@ class SettingsRepository @Inject constructor(
     private val adaptiveColorKey = booleanPreferencesKey("adaptive_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val showArchivedGroupRecordsKey = booleanPreferencesKey("show_archived_group_records")
+    private val hideReferenceRangesKey = booleanPreferencesKey("hide_reference_ranges")
     private val hideScreenContentKey = booleanPreferencesKey("hide_screen_content")
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
@@ -144,6 +145,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setHideReferenceRanges(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[hideReferenceRangesKey] = enabled
+        }
+    }
+
     suspend fun setScreenLockProtectionEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[screenLockProtectionKey] = enabled
@@ -179,6 +186,7 @@ class SettingsRepository @Inject constructor(
         adaptiveColorEnabled: Boolean,
         remindersEnabled: Boolean,
         showArchivedGroupRecords: Boolean,
+        hideReferenceRanges: Boolean,
         appLockGracePeriodOption: AppLockGracePeriodOption,
         hideScreenContentEnabled: Boolean,
         onboardingCompleted: Boolean,
@@ -196,6 +204,7 @@ class SettingsRepository @Inject constructor(
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[remindersEnabledKey] = remindersEnabled
             preferences[showArchivedGroupRecordsKey] = showArchivedGroupRecords
+            preferences[hideReferenceRangesKey] = hideReferenceRanges
             preferences[appLockGracePeriodKey] = appLockGracePeriodOption.name
             preferences[hideScreenContentKey] = hideScreenContentEnabled
             preferences[onboardingCompletedKey] = onboardingCompleted
@@ -247,6 +256,7 @@ class SettingsRepository @Inject constructor(
                 ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
             showArchivedGroupRecords = preferences[showArchivedGroupRecordsKey] ?: true,
+            hideReferenceRanges = preferences[hideReferenceRangesKey] ?: false,
             appLockGracePeriodOption = AppLockGracePeriodOption.fromStorageValue(
                 preferences[appLockGracePeriodKey]
             ),

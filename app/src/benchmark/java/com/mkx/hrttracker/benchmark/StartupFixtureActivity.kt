@@ -112,6 +112,7 @@ class StartupFixtureActivity : AppCompatActivity() {
             adaptiveColorEnabled = false,
             remindersEnabled = false,
             showArchivedGroupRecords = true,
+            hideReferenceRanges = false,
             appLockGracePeriodOption = AppLockGracePeriodOption.ONE_MINUTE,
             hideScreenContentEnabled = false,
             onboardingCompleted = true,

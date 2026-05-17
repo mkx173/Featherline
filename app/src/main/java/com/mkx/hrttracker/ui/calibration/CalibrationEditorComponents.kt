@@ -277,6 +277,7 @@ internal fun CalibrationAnalyteCard(
     onRemoveClick: () -> Unit,
     index: Int = 0,
     count: Int = 1,
+    hideReferenceRanges: Boolean = false,
 ) {
     CalibrationEditorCard(
         index = index,
@@ -314,7 +315,11 @@ internal fun CalibrationAnalyteCard(
                             fontWeight = FontWeight.Normal
                         )
                         val abbreviation = calibrationAnalyteLabel(analyteKey)
-                        val target = calibrationTargetLabel(analyteKey, unit)
+                        val target = if (hideReferenceRanges) {
+                            null
+                        } else {
+                            calibrationTargetLabel(analyteKey, unit)
+                        }
                         Text(
                             text = if (target != null) "$abbreviation · $target" else abbreviation,
                             style = MaterialTheme.typography.labelLarge,
@@ -444,9 +449,11 @@ internal fun CalibrationAnalyteCard(
                         }
                     }
                 }
-                rangeStatus?.let { status ->
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CalibrationRangeStatusChip(status = status)
+                if (!hideReferenceRanges) {
+                    rangeStatus?.let { status ->
+                        Spacer(modifier = Modifier.width(8.dp))
+                        CalibrationRangeStatusChip(status = status)
+                    }
                 }
             }
 

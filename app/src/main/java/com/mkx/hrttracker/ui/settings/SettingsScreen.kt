@@ -427,6 +427,7 @@ fun SettingsScreen(
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
+        onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -561,6 +562,7 @@ private fun SettingsScreenContent(
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
+    onHideReferenceRangesChange: (Boolean) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -880,6 +882,67 @@ private fun SettingsScreenContent(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
 
             SettingsSectionTitle(
+                text = stringResource(R.string.settings_display)
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.list_segment_gap)
+                )
+            ) {
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_reference_ranges),
+                    index = 0,
+                    count = 2,
+                    onClick = {
+                        onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            SettingsLeadingIconSlot(
+                                modifier = Modifier.size(22.dp),
+                                painter = painterResource(R.drawable.ic_auto_stories_off)
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.hideReferenceRanges,
+                            onCheckedChange = onHideReferenceRangesChange
+                        )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_archived_group_records),
+                    supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
+                    index = 1,
+                    count = 2,
+                    onClick = {
+                        onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_history_off)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = !settingsState.showArchivedGroupRecords,
+                            onCheckedChange = { hideArchivedGroupRecords ->
+                                onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
+                            }
+                        )
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+
+            SettingsSectionTitle(
                 text = stringResource(R.string.settings_appearance)
             )
 
@@ -893,12 +956,15 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
-                        count = 4,
+                        count = 3,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
                                 painter = painterResource(R.drawable.ic_language)
                             )
+                        },
+                        trailingContent = {
+                            SettingsTrailingPlaceHolder()
                         }
                     )
                     HrtDropdownMenu(
@@ -919,12 +985,15 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 1,
-                        count = 4,
+                        count = 3,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
                                 painter = painterResource(R.drawable.ic_dark_mode)
                             )
+                        },
+                        trailingContent = {
+                            SettingsTrailingPlaceHolder()
                         }
                     )
                     HrtDropdownMenu(
@@ -943,7 +1012,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 2,
-                    count = 4,
+                    count = 3,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -956,29 +1025,6 @@ private fun SettingsScreenContent(
                         Switch(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
-                        )
-                    }
-                )
-
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_archived_group_records),
-                    supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
-                    index = 3,
-                    count = 4,
-                    onClick = {
-                        onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_history_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = !settingsState.showArchivedGroupRecords,
-                            onCheckedChange = { hideArchivedGroupRecords ->
-                                onShowArchivedGroupRecordsChange(!hideArchivedGroupRecords)
-                            }
                         )
                     }
                 )
@@ -1228,6 +1274,9 @@ private fun SettingsScreenContent(
                                 modifier = Modifier.size(22.dp)
                             )
                         }
+                    },
+                    trailingContent = {
+                        SettingsTrailingPlaceHolder()
                     }
                 )
             }
@@ -1408,19 +1457,32 @@ private fun SettingsLeadingIconSlot(
 }
 
 @Composable
+private fun SettingsTrailingPlaceHolder() {
+    Box(
+        modifier = Modifier.size(48.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) { }
+}
+
+@Composable
 private fun SettingsChevronTrailingIcon() {
-    Icon(
-        imageVector = Icons.Rounded.ChevronRight,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    Box(
+        modifier = Modifier.size(48.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable
 private fun SettingsLinkTrailingIcon() {
     Box(
-        modifier = Modifier.size(24.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.size(48.dp),
+        contentAlignment = Alignment.CenterEnd
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_open_in_new),
@@ -1430,6 +1492,7 @@ private fun SettingsLinkTrailingIcon() {
         )
     }
 }
+
 @Composable
 private fun SettingsSegmentedListItem(
     title: String,
@@ -1633,6 +1696,7 @@ private fun SettingsScreenPreview() {
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
+            onHideReferenceRangesChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,

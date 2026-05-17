@@ -31,6 +31,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
@@ -83,6 +84,7 @@ fun MainContent(
             now = uiState.now,
             displayUnit = uiState.homeE2DisplayUnit,
             trendReady = uiState.e2TrendReady,
+            hideReferenceRanges = uiState.hideReferenceRanges,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -95,6 +97,7 @@ fun MainContent(
             targetRangeLow = uiState.e2Hero.targetMin,
             targetRangeHigh = uiState.e2Hero.targetMax,
             trendReady = uiState.e2TrendReady,
+            hideReferenceRanges = uiState.hideReferenceRanges,
         )
 
         if (uiState.antiandrogenCards.isNotEmpty()) {
@@ -137,7 +140,12 @@ fun MainContent(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-        MedicalDisclaimerText(kinds = MedicalDisclaimerSets.home)
+        val disclaimerKinds = if (uiState.hideReferenceRanges) {
+            listOf(MedicalDisclaimerKind.PLASMA_CONCENTRATION_ESTIMATES)
+        } else {
+            MedicalDisclaimerSets.home
+        }
+        MedicalDisclaimerText(kinds = disclaimerKinds)
     }
 }
 

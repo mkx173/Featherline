@@ -157,6 +157,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setHideReferenceRanges(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHideReferenceRanges(enabled)
+        }
+    }
+
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setRemindersEnabled(enabled)

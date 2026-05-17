@@ -453,6 +453,7 @@ private fun CalibrationEditorScreenContent(
                                 onBuiltinAnalyteUnitChange(analyteKey, unit)
                             },
                             onRemoveClick = { onRemoveBuiltinAnalyteClick(analyteKey) },
+                            hideReferenceRanges = uiState.hideReferenceRanges,
                         )
                     } ?: CalibrationCustomAnalyteCard(
                         focusRequester = analyteFocusRequesters.getValue(draft.draftKey),
@@ -544,8 +545,10 @@ private fun CalibrationEditorScreenContent(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
+                if (!uiState.hideReferenceRanges) {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    MedicalDisclaimerText(kinds = MedicalDisclaimerSets.calibrationEditor)
+                }
             }
         }
         }

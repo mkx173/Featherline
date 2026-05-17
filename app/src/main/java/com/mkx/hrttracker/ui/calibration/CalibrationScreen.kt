@@ -280,14 +280,23 @@ private fun CalibrationScreenContent(
                 contentPadding = appContentPaddingValues(),
             ) {
             item(key = "calibration-info") {
+                val hideReferenceRanges = uiState.settingsState.hideReferenceRanges
                 Column(
                     verticalArrangement = Arrangement.spacedBy(
                         dimensionResource(R.dimen.list_segment_gap)
                     )
                 ) {
-                    CalibrationTargetRangeCard(settingsState = uiState.settingsState)
-                    CalibrationReferenceRangeDisclaimerCard()
-                    CalibrationInfoCard(panelCount = uiState.panels.size)
+                    if (hideReferenceRanges) {
+                        CalibrationInfoCard(
+                            panelCount = uiState.panels.size,
+                            index = 0,
+                            count = 1,
+                        )
+                    } else {
+                        CalibrationTargetRangeCard(settingsState = uiState.settingsState)
+                        CalibrationReferenceRangeDisclaimerCard()
+                        CalibrationInfoCard(panelCount = uiState.panels.size)
+                    }
                 }
             }
 
@@ -386,14 +395,16 @@ private fun CalibrationScreenContent(
 private fun CalibrationInfoCard(
     panelCount: Int,
     modifier: Modifier = Modifier,
+    index: Int = 2,
+    count: Int = 3,
 ) {
     SupportMessageListItem(
 //        text = stringResource(R.string.settings_calibration_info_message),
 //        painter = painterResource(R.drawable.ic_lab_panel),
         text = stringResource(R.string.settings_calibration_under_development_message),
         painter = painterResource(R.drawable.ic_construction),
-        index = 2,
-        count = 3,
+        index = index,
+        count = count,
         modifier = modifier,
         trailingContent = {
             val totalCountLabel = pluralStringResource(
@@ -617,6 +628,7 @@ private fun CalibrationPanelRow(
                 },
                 panel = panel,
                 valueSummary = valueSummary,
+                hideReferenceRanges = settingsState.hideReferenceRanges,
                 isCrossZone = isPanelCrossZone,
             )
 
@@ -634,6 +646,7 @@ private fun CalibrationPanelRow(
             testosteroneResultSummary?.let { resultSummary ->
                 CalibrationPanelResultAdditionalSummaryRow(
                     resultSummary = resultSummary,
+                    hideReferenceRanges = settingsState.hideReferenceRanges,
                     modifier = Modifier.constrainAs(additionalSummary) {
                         start.linkTo(summaryColumn.start)
                         end.linkTo(parent.end)
@@ -688,6 +701,7 @@ private fun CalibrationPanelResultSummaryColumn(
     modifier: Modifier = Modifier,
     panel: BloodTestPanel,
     valueSummary: CalibrationPanelValueSummary,
+    hideReferenceRanges: Boolean,
     isCrossZone: Boolean = false,
 ) {
     Column(
@@ -695,7 +709,10 @@ private fun CalibrationPanelResultSummaryColumn(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         valueSummary.mainResultSummary?.let { mainResultSummary ->
-            CalibrationPanelResultSummaryRow(resultSummary = mainResultSummary)
+            CalibrationPanelResultSummaryRow(
+                resultSummary = mainResultSummary,
+                hideReferenceRanges = hideReferenceRanges,
+            )
         }
         val hasEstradiolResult = panel.results.any { result ->
             (result.analyte as? BloodTestResultAnalyte.Builtin)?.key == BloodAnalyteKey.E2
@@ -713,6 +730,7 @@ private fun CalibrationPanelResultSummaryColumn(
 @Composable
 private fun CalibrationPanelResultSummaryRow(
     resultSummary: CalibrationPanelResultSummary,
+    hideReferenceRanges: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -739,6 +757,7 @@ private fun CalibrationPanelResultSummaryRow(
             resultSummary = resultSummary,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            hideReferenceRanges = hideReferenceRanges,
         )
     }
 }
@@ -746,6 +765,7 @@ private fun CalibrationPanelResultSummaryRow(
 @Composable
 private fun CalibrationPanelResultAdditionalSummaryRow(
     resultSummary: CalibrationPanelResultSummary,
+    hideReferenceRanges: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -780,6 +800,7 @@ private fun CalibrationPanelResultAdditionalSummaryRow(
                 resultSummary = resultSummary,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                hideReferenceRanges = hideReferenceRanges,
             )
         }
     }
@@ -790,10 +811,11 @@ private fun RowScope.CalibrationResultSummaryDisplayNameText(
     resultSummary: CalibrationPanelResultSummary,
     style: TextStyle,
     color: Color,
+    hideReferenceRanges: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val fullDisplayName = calibrationResultSummaryFullDisplayName(resultSummary)
-    val abbreviatedDisplayName = calibrationResultSummaryAbbreviatedDisplayName(resultSummary)
+    val fullDisplayName = calibrationResultSummaryFullDisplayName(resultSummary, hideReferenceRanges)
+    val abbreviatedDisplayName = calibrationResultSummaryAbbreviatedDisplayName(resultSummary, hideReferenceRanges)
     var availableWidthPx by remember(fullDisplayName, abbreviatedDisplayName) { mutableIntStateOf(0) }
     var useAbbreviation by remember(
         fullDisplayName,
@@ -836,11 +858,16 @@ private fun RowScope.CalibrationResultSummaryDisplayNameText(
 @Composable
 private fun calibrationResultSummaryFullDisplayName(
     resultSummary: CalibrationPanelResultSummary,
+    hideReferenceRanges: Boolean,
 ): String {
     return when (resultSummary) {
         is CalibrationPanelResultSummary.Builtin -> {
             stringResource(calibrationAnalyteFullNameRes(resultSummary.analyteKey)) +
-                calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                if (hideReferenceRanges) {
+                    ""
+                } else {
+                    calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                }
         }
         is CalibrationPanelResultSummary.Custom -> resultSummary.name
     }
@@ -848,11 +875,16 @@ private fun calibrationResultSummaryFullDisplayName(
 
 private fun calibrationResultSummaryAbbreviatedDisplayName(
     resultSummary: CalibrationPanelResultSummary,
+    hideReferenceRanges: Boolean,
 ): String? {
     return when (resultSummary) {
         is CalibrationPanelResultSummary.Builtin -> {
             calibrationAnalyteLabel(resultSummary.analyteKey) +
-                calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                if (hideReferenceRanges) {
+                    ""
+                } else {
+                    calibrationResultSummaryRangeStatusSuffix(resultSummary.rangeStatus)
+                }
         }
         is CalibrationPanelResultSummary.Custom -> {
             resultSummary.abbreviation.takeUnless { it == resultSummary.name }

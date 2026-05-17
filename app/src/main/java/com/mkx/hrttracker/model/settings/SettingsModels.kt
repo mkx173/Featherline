@@ -67,6 +67,7 @@ data class SettingsState(
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val remindersEnabled: Boolean = true,
     val showArchivedGroupRecords: Boolean = true,
+    val hideReferenceRanges: Boolean = false,
     val screenLockProtectionEnabled: Boolean = false,
     val appLockGracePeriodOption: AppLockGracePeriodOption =
         AppLockGracePeriodOption.ONE_MINUTE,

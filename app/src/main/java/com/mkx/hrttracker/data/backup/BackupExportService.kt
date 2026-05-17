@@ -171,6 +171,7 @@ class BackupExportService @Inject constructor(
                 adaptiveColorEnabled = settings.adaptiveColorEnabled,
                 remindersEnabled = settings.remindersEnabled,
                 showArchivedGroupRecords = settings.showArchivedGroupRecords,
+                hideReferenceRanges = settings.hideReferenceRanges,
                 // Do not include screenLockProtectionEnabled; app-lock protection stays local.
                 appLockGracePeriodOption = settings.appLockGracePeriodOption.name,
                 hideScreenContentEnabled = settings.hideScreenContentEnabled,
