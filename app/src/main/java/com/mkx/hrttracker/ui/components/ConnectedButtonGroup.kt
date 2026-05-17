@@ -16,6 +16,7 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
 enum class ConnectedButtonGroupLayout {
@@ -38,6 +39,7 @@ fun <T> ConnectedButtonGroup(
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
     applyCjkTextOffset: Boolean = true,
+    textStyle: TextStyle? = null,
 ) {
     val resolvedSelectedOption = resolveConnectedButtonSelection(options, selectedOption)
     ConnectedButtonGroup(
@@ -57,6 +59,7 @@ fun <T> ConnectedButtonGroup(
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
+        textStyle = textStyle,
     )
 }
 
@@ -75,6 +78,7 @@ fun <T> ConnectedButtonGroup(
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
     applyCjkTextOffset: Boolean = true,
+    textStyle: TextStyle? = null,
 ) {
     ConnectedButtonGroup(
         modifier = modifier,
@@ -89,6 +93,7 @@ fun <T> ConnectedButtonGroup(
         colors = colors,
         layout = layout,
         expandOptions = expandOptions,
+        textStyle = textStyle,
     )
 }
 
@@ -107,6 +112,7 @@ private fun <T> ConnectedButtonGroup(
     layout: ConnectedButtonGroupLayout = ConnectedButtonGroupLayout.FLOW_ROW,
     expandOptions: Boolean = false,
     applyCjkTextOffset: Boolean = true,
+    textStyle: TextStyle? = null,
 ) {
     val horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     val verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -133,6 +139,7 @@ private fun <T> ConnectedButtonGroup(
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
+                        textStyle = textStyle,
                     )
                 }
             }
@@ -169,6 +176,7 @@ private fun <T> ConnectedButtonGroup(
                         enabled = enabled,
                         applyCjkTextOffset = applyCjkTextOffset,
                         colors = colors,
+                        textStyle = textStyle,
                     )
                 }
             }
@@ -180,6 +188,7 @@ private fun <T> ConnectedButtonGroup(
 @Composable
 private fun <T> ConnectedButtonGroupButton(
     modifier: Modifier = Modifier,
+    textStyle: TextStyle? = null,
     option: T,
     index: Int,
     optionCount: Int,
@@ -221,6 +230,7 @@ private fun <T> ConnectedButtonGroupButton(
         LocalizedButtonLabelText(
             text = optionLabel(option),
             applyCjkTextOffset = applyCjkTextOffset,
+            textStyle = textStyle
         )
     }
 }
@@ -229,6 +239,7 @@ private fun <T> ConnectedButtonGroupButton(
 @Composable
 private fun <T> ConnectedButtonGroupRowButton(
     modifier: Modifier = Modifier,
+    textStyle: TextStyle? = null,
     option: T,
     index: Int,
     optionCount: Int,
@@ -243,6 +254,7 @@ private fun <T> ConnectedButtonGroupRowButton(
 ) {
     ConnectedButtonGroupButton(
         modifier = modifier,
+        textStyle = textStyle,
         option = option,
         index = index,
         optionCount = optionCount,

@@ -10,12 +10,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -163,10 +165,12 @@ private fun ButtonContainer(
 internal fun LocalizedButtonLabelText(
     text: String,
     modifier: Modifier = Modifier,
+    textStyle: TextStyle? = null,
     applyCjkTextOffset: Boolean = true,
 ) {
     Text(
         text = text,
         modifier = modifier.cjkTextOffset(text = text, enabled = applyCjkTextOffset),
+        style = textStyle ?: LocalTextStyle.current
     )
 }

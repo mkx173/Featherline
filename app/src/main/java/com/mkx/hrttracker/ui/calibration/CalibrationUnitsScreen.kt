@@ -347,7 +347,7 @@ private fun CalibrationUnitPreferenceItem(
         count = count,
         onClick = {},
         titleTextStyle = MaterialTheme.typography.labelLarge,
-        titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        titleColor = MaterialTheme.colorScheme.onSurface,
         trailingContent = {
             ConnectedButtonGroup(
                 options = calibrationAllowedUnitsFor(analyteKey),
@@ -355,7 +355,8 @@ private fun CalibrationUnitPreferenceItem(
                 optionLabel = { unit -> calibrationUnitLabel(unit) },
                 onOptionSelected = onUnitChange,
                 layout = ConnectedButtonGroupLayout.ROW,
-                applyCjkTextOffset = false
+                applyCjkTextOffset = false,
+                textStyle = MaterialTheme.typography.labelMedium
             )
         },
     )
