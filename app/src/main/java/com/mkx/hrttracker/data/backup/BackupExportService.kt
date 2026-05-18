@@ -185,6 +185,7 @@ class BackupExportService @Inject constructor(
                     },
                 lastSeenTimeZoneId = settings.lastSeenTimeZoneId,
                 hideMedicationDetails = settings.hideMedicationDetails,
+                groupNameCounter = settings.groupNameCounter,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = userProfile.weightKg,

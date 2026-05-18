@@ -76,6 +76,7 @@ data class SettingsState(
     val hideScreenContentEnabled: Boolean = false,
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
+    val groupNameCounter: Int = 0,
 )
 
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {

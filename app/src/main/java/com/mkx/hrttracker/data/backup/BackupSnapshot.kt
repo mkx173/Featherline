@@ -36,6 +36,7 @@ data class BackupSettingsSnapshot(
     val calibrationDefaultUnits: Map<String, String>,
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
+    val groupNameCounter: Int = 0,
 )
 
 

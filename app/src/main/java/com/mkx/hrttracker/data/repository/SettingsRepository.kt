@@ -238,6 +238,7 @@ class SettingsRepository @Inject constructor(
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
         hideMedicationDetails: Boolean = false,
+        groupNameCounter: Int = 0,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -278,6 +279,7 @@ class SettingsRepository @Inject constructor(
             }
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
+            preferences[groupNameCounterKey] = groupNameCounter
         }
 
         setAppLanguageOption(appLanguageOption)
@@ -318,6 +320,7 @@ class SettingsRepository @Inject constructor(
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
+            groupNameCounter = preferences[groupNameCounterKey] ?: 0,
         )
     }
 
