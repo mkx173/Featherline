@@ -150,7 +150,7 @@ private fun ProgressBar(fraction: Float, modifier: GlanceModifier = GlanceModifi
             Box(
                 modifier = GlanceModifier
                     .fillMaxHeight()
-                    .width((safeFraction * 100).dp) // approximated; will clip to parent
+                    .width(LocalSize.current.width * safeFraction)
                     .background(colorPrimary),
             ) {}
         }
