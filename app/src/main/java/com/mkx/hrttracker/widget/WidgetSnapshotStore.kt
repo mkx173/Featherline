@@ -7,6 +7,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStore
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkProjectionResult
@@ -38,21 +39,22 @@ import javax.inject.Singleton
 
 enum class WidgetDoseStatus { DONE, DUE_SOON, OVERDUE, UPCOMING }
 
-data class WidgetDoseRow(
-    val displayName: String,
-    val count: Int,
-    val status: WidgetDoseStatus,
-    val scheduledAt: LocalDateTime,
-    val doneAtEpochMillis: Long?,
-    /** Non-null only for DUE_SOON and OVERDUE rows. */
-    val groupUuid: String?,
-    val scheduleTimeUuid: String?,
-)
+enum class WidgetDoseChip { LAST_NIGHT, COMING_UP }
 
-data class WidgetNextDose(
-    val name: String,
-    val scheduledAt: LocalDateTime,
+data class WidgetDoseRow(
+    val medicationName: String,
+    val groupName: String,
+    val colorKey: MedicationGroupColorKey?,   // null for manual records
+    val routeLabel: String,
+    val doseText: String,
     val status: WidgetDoseStatus,
+    val scheduledAt: LocalDateTime,
+    val trailingText: String?,
+    val trailingIsDelta: Boolean,
+    val isManualRecord: Boolean,
+    val contextChip: WidgetDoseChip?,
+    val groupUuid: String?,                   // non-null only for DUE_SOON/OVERDUE non-manual
+    val scheduleTimeUuid: String?,
 )
 
 data class WidgetPkDoseMarkerRecord(
@@ -98,8 +100,9 @@ data class WidgetSnapshotRecord(
     val zoneId: String,
     val doneCount: Int,
     val totalCount: Int,
+    val manualCount: Int,
+    val hideMedicationDetails: Boolean,
     val doseRows: List<WidgetDoseRow>,
-    val nextDueDose: WidgetNextDose?,
     val pkProjection: WidgetPkProjectionRecord?,
 )
 
@@ -144,8 +147,9 @@ internal object WidgetSnapshotCodec {
             s.writeString(record.zoneId)
             s.writeInt(record.doneCount)
             s.writeInt(record.totalCount)
+            s.writeInt(record.manualCount)
+            s.writeBoolean(record.hideMedicationDetails)
             s.writeList(record.doseRows) { writeDoseRow(it) }
-            s.writeNextDueDose(record.nextDueDose)
             s.writePkProjection(record.pkProjection)
         }
         return out.toByteArray()
@@ -162,50 +166,47 @@ internal object WidgetSnapshotCodec {
                 zoneId = s.readString(),
                 doneCount = s.readInt(),
                 totalCount = s.readInt(),
+                manualCount = s.readInt(),
+                hideMedicationDetails = s.readBoolean(),
                 doseRows = s.readList { readDoseRow() },
-                nextDueDose = s.readNextDueDose(),
                 pkProjection = s.readPkProjection(),
             )
         }
     }
 
     private fun DataOutputStream.writeDoseRow(row: WidgetDoseRow) {
-        writeString(row.displayName)
-        writeInt(row.count)
+        writeString(row.medicationName)
+        writeString(row.groupName)
+        writeBoolean(row.colorKey != null)
+        row.colorKey?.let { writeString(it.name) }
+        writeString(row.routeLabel)
+        writeString(row.doseText)
         writeByte(row.status.ordinal)
         writeLocalDateTime(row.scheduledAt)
-        writeBoolean(row.doneAtEpochMillis != null)
-        row.doneAtEpochMillis?.let { writeLong(it) }
+        writeNullableString(row.trailingText)
+        writeBoolean(row.trailingIsDelta)
+        writeBoolean(row.isManualRecord)
+        writeBoolean(row.contextChip != null)
+        row.contextChip?.let { writeByte(it.ordinal) }
         writeNullableString(row.groupUuid)
         writeNullableString(row.scheduleTimeUuid)
     }
 
     private fun DataInputStream.readDoseRow(): WidgetDoseRow = WidgetDoseRow(
-        displayName = readString(),
-        count = readInt(),
+        medicationName = readString(),
+        groupName = readString(),
+        colorKey = if (readBoolean()) MedicationGroupColorKey.fromStorageValue(readString()) else null,
+        routeLabel = readString(),
+        doseText = readString(),
         status = WidgetDoseStatus.entries[readByte().toInt() and 0xff],
         scheduledAt = readLocalDateTime(),
-        doneAtEpochMillis = if (readBoolean()) readLong() else null,
+        trailingText = readNullableString(),
+        trailingIsDelta = readBoolean(),
+        isManualRecord = readBoolean(),
+        contextChip = if (readBoolean()) WidgetDoseChip.entries[readByte().toInt() and 0xff] else null,
         groupUuid = readNullableString(),
         scheduleTimeUuid = readNullableString(),
     )
-
-    private fun DataOutputStream.writeNextDueDose(dose: WidgetNextDose?) {
-        writeBoolean(dose != null)
-        dose ?: return
-        writeString(dose.name)
-        writeLocalDateTime(dose.scheduledAt)
-        writeByte(dose.status.ordinal)
-    }
-
-    private fun DataInputStream.readNextDueDose(): WidgetNextDose? {
-        if (!readBoolean()) return null
-        return WidgetNextDose(
-            name = readString(),
-            scheduledAt = readLocalDateTime(),
-            status = WidgetDoseStatus.entries[readByte().toInt() and 0xff],
-        )
-    }
 
     private fun DataOutputStream.writePkProjection(rec: WidgetPkProjectionRecord?) {
         writeBoolean(rec != null)
@@ -386,9 +387,9 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 1
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 3
 private const val TAG = "WidgetSnapshotStore"
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 1
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 3
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_widget_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
