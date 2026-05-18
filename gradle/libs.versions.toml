@@ -4,6 +4,7 @@ appcompat = "1.7.1"
 biometric = "1.1.0"
 coreSplashscreen = "1.2.0"
 datastorePreferences = "1.2.1"
+glanceAppwidget = "1.1.1"
 hilt = "2.59.2"
 ksp = "2.3.4"
 kotlin = "2.3.21"
@@ -28,6 +29,7 @@ coroutinesTest = "1.10.2"
 vico = "3.1.0"
 material-kolor = "4.1.1"
 argon2kt = "1.6.0"
+workRuntimeKtx = "2.10.1"
 benchmark = "1.4.1"
 uiautomator = "2.4.0-beta02"
 kmp-wheel-picker = "0.3.0"
@@ -39,6 +41,8 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-datastore = { module = "androidx.datastore:datastore", version.ref = "datastorePreferences" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glanceAppwidget" }
+androidx-glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glanceAppwidget" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
@@ -76,6 +80,7 @@ vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", ve
 material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "material-kolor" }
 argon2kt = { module = "com.lambdapioneer.argon2kt:argon2kt", version.ref = "argon2kt" }
 swmansion-kmp-wheel-picker = { module = "com.swmansion.kmpwheelpicker:kmp-wheel-picker", version.ref = "kmp-wheel-picker" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
