@@ -325,6 +325,7 @@ private class AndroidWidgetSnapshotCrypto : WidgetSnapshotCrypto {
         return cipher.doFinal(enc)
     }
 
+    @Synchronized
     private fun getOrCreateKey(): SecretKey {
         val ks = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
         (ks.getKey(MASTER_KEY_ALIAS, null) as? SecretKey)?.let { return it }

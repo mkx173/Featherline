@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -41,6 +42,7 @@ class HomeWidgetManager @Inject constructor(
         // 2. Re-render whenever the E2 display unit changes (no DB, no simulation).
         appScope.launch {
             settingsRepository.homeE2DisplayUnitFlow
+                .drop(1)
                 .collect {
                     runCatching { HrtWidget().updateAll(context) }
                 }
