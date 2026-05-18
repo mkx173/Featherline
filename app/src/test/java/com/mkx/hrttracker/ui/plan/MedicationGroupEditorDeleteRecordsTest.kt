@@ -72,6 +72,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
+        coEvery { settingsRepository.nextGroupNameIndex() } returns 1
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
         every {
             context.getString(R.string.default_group_name_format, any())

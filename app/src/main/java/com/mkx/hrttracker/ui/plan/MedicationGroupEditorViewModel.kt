@@ -797,32 +797,28 @@ class MedicationGroupEditorViewModel @Inject constructor(
         ) {
             return
         }
-        viewModelScope.launch {
-            val index = settingsRepository.nextGroupNameIndex()
-            val defaultName = context.getString(R.string.default_group_name_format, index)
-            val usedColors = latestGroups.map(MedicationGroup::colorKey)
-                .ifEmpty { listOf(currentState.groupColorKey) }
-            val resolvedGroupName = resolveMedicationGroupName(
-                groupName = currentState.groupName,
-                defaultGroupName = currentState.defaultGroupName,
-                isEditing = currentState.isEditing,
-            ).ifEmpty { defaultName }
-            val colorKey = nextAvailableMedicationGroupColor(
-                usedColors = usedColors,
-                seed = UUID.randomUUID().hashCode(),
-            )
-            val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
+        val usedColors = latestGroups.map(MedicationGroup::colorKey)
+            .ifEmpty { listOf(currentState.groupColorKey) }
+        val resolvedGroupName = resolveMedicationGroupName(
+            groupName = currentState.groupName,
+            defaultGroupName = currentState.defaultGroupName,
+            isEditing = currentState.isEditing,
+        )
+        val colorKey = nextAvailableMedicationGroupColor(
+            usedColors = usedColors,
+            seed = UUID.randomUUID().hashCode(),
+        )
+        val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
 
-            _uiState.update {
-                currentState.toUnsavedDuplicatedGroupState(
-                    resolvedGroupName = resolvedGroupName,
-                    defaultGroupName = defaultName,
-                    colorKey = colorKey,
-                    scheduleStartDate = duplicateScheduleStartDate,
-                ).copy(
-                    scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
-                )
-            }
+        _uiState.update {
+            currentState.toUnsavedDuplicatedGroupState(
+                resolvedGroupName = resolvedGroupName,
+                defaultGroupName = currentState.defaultGroupName,
+                colorKey = colorKey,
+                scheduleStartDate = duplicateScheduleStartDate,
+            ).copy(
+                scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
+            )
         }
     }
 
