@@ -163,6 +163,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setHideMedicationDetails(hidden: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHideMedicationDetails(hidden)
+        }
+    }
+
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setRemindersEnabled(enabled)

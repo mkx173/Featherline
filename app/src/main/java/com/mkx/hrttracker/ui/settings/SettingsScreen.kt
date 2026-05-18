@@ -428,6 +428,7 @@ fun SettingsScreen(
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
+        onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -563,6 +564,7 @@ private fun SettingsScreenContent(
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
+    onHideMedicationDetailsChange: (Boolean) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -733,7 +735,7 @@ private fun SettingsScreenContent(
                     supportingText = stringResource(R.string.settings_reminders_summary),
                     enabled = hasNotificationAccess,
                     index = 0,
-                    count = if (hasReminderSupportMessage) 2 else 1,
+                    count = if (hasReminderSupportMessage) 3 else 2,
                     onClick = {
                         if (hasNotificationAccess) {
                             onRemindersEnabledChange(!settingsState.remindersEnabled)
@@ -760,7 +762,7 @@ private fun SettingsScreenContent(
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
-                        count = 2
+                        count = 3
                     )
                 } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
                     SettingsSupportMessage(
@@ -769,9 +771,30 @@ private fun SettingsScreenContent(
                         onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
                         index = 1,
-                        count = 2
+                        count = 3
                     )
                 }
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_medication_details),
+                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
+                    index = if (hasReminderSupportMessage) 2 else 1,
+                    count = if (hasReminderSupportMessage) 3 else 2,
+                    onClick = {
+                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_subtitles_off)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.hideMedicationDetails,
+                            onCheckedChange = onHideMedicationDetailsChange
+                        )
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -1700,6 +1723,7 @@ private fun SettingsScreenPreview() {
             onAdaptiveColorEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
+            onHideMedicationDetailsChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,
