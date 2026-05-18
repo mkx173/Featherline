@@ -605,4 +605,11 @@
     <string name="confirm">OK</string>
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>
+
+    <string name="widget_medium_description">HRT Tracker – dose summary</string>
+    <string name="widget_large_description">HRT Tracker – dose list</string>
+    <string name="widget_all_done">All done</string>
+    <string name="widget_no_medications">No medications set up · Tap to open</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_tomorrow">Tomorrow</string>
 </resources>
