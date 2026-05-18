@@ -735,7 +735,7 @@ private fun SettingsScreenContent(
                     supportingText = stringResource(R.string.settings_reminders_summary),
                     enabled = hasNotificationAccess,
                     index = 0,
-                    count = if (hasReminderSupportMessage) 3 else 2,
+                    count = if (hasReminderSupportMessage) 2 else 1,
                     onClick = {
                         if (hasNotificationAccess) {
                             onRemindersEnabledChange(!settingsState.remindersEnabled)
@@ -762,7 +762,7 @@ private fun SettingsScreenContent(
                         onClick = { onRemindersEnabledChange(true) },
                         showChevron = true,
                         index = 1,
-                        count = 3
+                        count = 2
                     )
                 } else if (reminderSupportState == SettingsReminderSupportState.EXACT_ALARM_OFF) {
                     SettingsSupportMessage(
@@ -771,30 +771,10 @@ private fun SettingsScreenContent(
                         onClick = { showExactAlarmRecoveryDialog = true },
                         showChevron = true,
                         index = 1,
-                        count = 3
+                        count = 2
                     )
                 }
 
-                SettingsSegmentedListItem(
-                    title = stringResource(R.string.settings_hide_medication_details),
-                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
-                    index = if (hasReminderSupportMessage) 2 else 1,
-                    count = if (hasReminderSupportMessage) 3 else 2,
-                    onClick = {
-                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
-                    },
-                    leadingContent = {
-                        SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_subtitles_off)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = settingsState.hideMedicationDetails,
-                            onCheckedChange = onHideMedicationDetailsChange
-                        )
-                    }
-                )
             }
 
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
@@ -916,7 +896,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_reference_ranges),
                     index = 0,
-                    count = 2,
+                    count = 3,
                     onClick = {
                         onHideReferenceRangesChange(!settingsState.hideReferenceRanges)
                     },
@@ -940,10 +920,31 @@ private fun SettingsScreenContent(
                 )
 
                 SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_hide_medication_details),
+                    supportingText = stringResource(R.string.settings_hide_medication_details_summary),
+                    index = 1,
+                    count = 3,
+                    onClick = {
+                        onHideMedicationDetailsChange(!settingsState.hideMedicationDetails)
+                    },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_subtitles_off)
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = settingsState.hideMedicationDetails,
+                            onCheckedChange = onHideMedicationDetailsChange
+                        )
+                    }
+                )
+
+                SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_hide_archived_group_records),
                     supportingText = stringResource(R.string.settings_hide_archived_group_records_summary),
-                    index = 1,
-                    count = 2,
+                    index = 2,
+                    count = 3,
                     onClick = {
                         onShowArchivedGroupRecordsChange(!settingsState.showArchivedGroupRecords)
                     },
