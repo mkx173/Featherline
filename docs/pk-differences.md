@@ -103,14 +103,13 @@ should read the upstream README and its `pk_research/` workspace.
   snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
   events directly inside its simulator. Featherline keeps the active-mg
-  conversion in `toEstradiolPkDoseEvent` and `activeEstradiolDoseMg`,
+  conversion in `toEstradiolPkDoseEvent` and
+  [`activeEstradiolDoseMg()`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1136),
   pulling per-compound `activeFactor` from `PkCatalog.compounds`
   (active-vs-prodrug molecular-weight ratios) and passing already-mg-as-E2
-  values into the engine. The route-aware split between
-  [`medicineDoseMg()`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1164)
-  (injections) and
-  [`activeEstradiolDoseMg()`](https://github.com/mkx173/Featherline/blob/c300e0930621a1202a31ffc711fb27d80afd7655/app/src/main/java/com/mkx/hrttracker/model/pk/PkSimulation.kt#L1136)
-  (everything else) lives at the call boundary, not inside the engine.
+  values into the engine. All routes including injections use
+  `activeEstradiolDoseMg()`; the engine's `formationFraction` values are
+  calibrated against active-E2 input, matching upstream's convention.
 - **Duplicated molecular-weight constants.** Estradiol
   molecular-weight constants live in `PkCatalog.compounds` and again
   in

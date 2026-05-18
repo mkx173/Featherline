@@ -68,7 +68,7 @@ class PkSimulationTest {
     }
 
     @Test
-    fun simulateMainEstradiolTrend_keepsInjectionEsterDoseAsMedicineMg() {
+    fun simulateMainEstradiolTrend_convertsInjectionDoseToActiveE2() {
         val now = LocalDateTime.of(2026, 5, 5, 12, 0)
         val zoneId = ZoneId.systemDefault()
         val injectionAt = now.minusHours(48)
@@ -101,7 +101,7 @@ class PkSimulationTest {
                     hormone = PkHormone.ESTRADIOL,
                     route = PkRoute.INJECTION,
                     timeH = 36.0,
-                    doseMg = medicineDoseMg,
+                    doseMg = medicineDoseMg * PkCatalog.activeFactor(PkCompound.EV),
                     compound = PkCompound.EV,
                 )
             ),

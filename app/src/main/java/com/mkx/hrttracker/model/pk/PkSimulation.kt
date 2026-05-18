@@ -1114,7 +1114,7 @@ private fun MedicationLogEntry.toEstradiolPkDoseEvent(
             is MedicationDose.PatchReleaseRateMcgPerDay -> 0.0
             else -> activeEstradiolDoseMg()
         }
-        PkRoute.INJECTION -> medicineDoseMg()
+        PkRoute.INJECTION -> activeEstradiolDoseMg()
         else -> activeEstradiolDoseMg()
     } * count.coerceAtLeast(1)
 
