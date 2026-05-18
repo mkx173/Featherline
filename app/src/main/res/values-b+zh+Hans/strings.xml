@@ -347,7 +347,7 @@
     <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>
     <string name="settings_hide_reference_ranges">隐藏参考范围</string>
     <string name="settings_hide_medication_details">隐藏药物详情</string>
-    <string name="settings_hide_medication_details_summary">在通知中显示药物名称和剂量</string>
+    <string name="settings_hide_medication_details_summary">在通知中隐藏药物名称和剂量</string>
     <string name="settings_screen_lock_protection">应用锁</string>
     <string name="settings_screen_lock_protection_summary">打开应用时需要验证身份</string>
     <string name="settings_app_lock_grace_period">离开后保持解锁</string>
