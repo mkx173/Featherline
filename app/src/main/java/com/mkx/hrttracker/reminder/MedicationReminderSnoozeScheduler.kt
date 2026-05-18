@@ -182,17 +182,42 @@ class MedicationReminderSnoozeScheduler @Inject constructor(
             .toInstant()
             .toEpochMilli()
         val pendingIntent = buildSnoozePendingIntent(records)
+        val exactAlarm = alarmManager.canScheduleExactAlarms()
 
         diagnosticsLogger.info(
             TAG,
             "snooze_alarm_schedule snoozeAt=${records.first().snoozeAt} " +
-                "slots=${records.size} triggerAtMillis=$triggerAtMillis"
+                "slots=${records.size} triggerAtMillis=$triggerAtMillis exact=$exactAlarm"
         )
-        alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent,
-        )
+        if (exactAlarm) {
+            try {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            } catch (error: SecurityException) {
+                // TOCTOU: exact-alarm access can be revoked between the capability
+                // check and scheduling. Keep the snooze armed even if precision drops.
+                diagnosticsLogger.warning(
+                    TAG,
+                    "snooze_alarm_schedule_exact_revoked snoozeAt=${records.first().snoozeAt} " +
+                        "slots=${records.size}",
+                    error,
+                )
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent,
+                )
+            }
+        } else {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent,
+            )
+        }
     }
 
     private fun cancelSnoozeBundle(records: List<MedicationReminderSnoozeRecord>) {

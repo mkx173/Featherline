@@ -46,6 +46,7 @@ class MedicationReminderSnoozeSchedulerTest {
         every { Uri.parse(any()) } returns mockk(relaxed = true)
         every { context.getSystemService(AlarmManager::class.java) } returns alarmManager
         every { context.packageName } returns "com.mkx.hrttracker.test"
+        every { alarmManager.canScheduleExactAlarms() } returns true
         coEvery { snoozeStore.replaceSnoozeRecords(any()) } just Runs
 
         scheduler = MedicationReminderSnoozeScheduler(
@@ -57,6 +58,76 @@ class MedicationReminderSnoozeSchedulerTest {
     @After
     fun tearDown() {
         unmockkAll()
+    }
+
+    @Test
+    fun snoozeSlots_schedulesExactAlarmWhenExactAlarmAccessIsAvailable() = runTest {
+        val slot = snoozeRecord(
+            groupUuid = UUID.fromString("1377bcf2-bd79-47d6-8d2d-979cbfd406ea"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+        ).slot
+        coEvery { snoozeStore.getSnoozeRecords() } returns emptyList()
+
+        scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+        )
+
+        verify(exactly = 1) {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+        verify(exactly = 0) {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun snoozeSlots_fallsBackToInexactAlarmWhenExactAlarmAccessIsMissing() = runTest {
+        every { alarmManager.canScheduleExactAlarms() } returns false
+        val slot = snoozeRecord(
+            groupUuid = UUID.fromString("debbf44c-08ed-409e-9d4a-df3dd834c5ba"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+        ).slot
+        coEvery { snoozeStore.getSnoozeRecords() } returns emptyList()
+
+        scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+        )
+
+        verify(exactly = 0) {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+        verify(exactly = 1) {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+    }
+
+    @Test
+    fun snoozeSlots_fallsBackToInexactAlarmWhenExactAlarmAccessIsRevokedDuringScheduling() = runTest {
+        every {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        } throws SecurityException("revoked")
+        val slot = snoozeRecord(
+            groupUuid = UUID.fromString("9de5ac6c-e704-4487-b22e-6ea726c84042"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+        ).slot
+        coEvery { snoozeStore.getSnoozeRecords() } returns emptyList()
+
+        scheduler.snoozeSlots(
+            slots = listOf(slot),
+            now = LocalDateTime.of(2026, 4, 20, 9, 0),
+        )
+
+        verify(exactly = 1) {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+        verify(exactly = 1) {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
     }
 
     @Test
@@ -152,7 +223,7 @@ class MedicationReminderSnoozeSchedulerTest {
         assertEquals(listOf(unchangedRecord, otherGroupRecord), storedRecords.captured)
         verify(exactly = 1) { alarmManager.cancel(any<PendingIntent>()) }
         verify(exactly = 1) {
-            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
         }
     }
 

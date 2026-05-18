@@ -197,10 +197,12 @@ Three files cooperate:
   owns the alarms. `snoozeSlots(slots, now)` advances each slot's snooze
   count, persists the new
   `MedicationReminderSnoozeRecord(slot, snoozeAt, snoozeCount)` set,
-  and schedules `AlarmManager` alarms via `setAndAllowWhileIdle` (the
-  snooze path is inexact by design — a 15-minute snooze does not need
-  the precision overhead of `setExactAndAllowWhileIdle`). Records
-  sharing the same `snoozeAt` collapse into one alarm; the
+  and schedules `AlarmManager` alarms via `setExactAndAllowWhileIdle`
+  when exact-alarm access is available. If the permission is missing,
+  or is revoked between the capability check and scheduling call, the
+  scheduler falls back to `setAndAllowWhileIdle` so the snooze still
+  fires with reduced precision. Records sharing the same `snoozeAt`
+  collapse into one alarm; the
   `PendingIntent` data URI hashes the slot set so each bundle gets a
   stable identity.
 - [`MedicationReminderSnoozeStore.kt`](https://github.com/mkx173/Featherline/blob/1f086786438c8c0ff93cb6739fd45b67e58bd8be/app/src/main/java/com/mkx/hrttracker/reminder/MedicationReminderSnoozeStore.kt)
@@ -322,9 +324,9 @@ per group) that the store keeps only the bare set of active group UUIDs.
 
 ## Edge cases
 
-- **Exact-alarm permission denied.** Scheduler falls back to
-  `setAndAllowWhileIdle`; alarms still fire, with a few minutes of
-  Doze-deferred jitter. The reconciler exposes
+- **Exact-alarm permission denied.** The regular reminder and snooze
+  schedulers fall back to `setAndAllowWhileIdle`; alarms still fire,
+  with a few minutes of Doze-deferred jitter. The reconciler exposes
   `hasExactAlarmAccess = false` on the state flow so the settings
   screen can offer a "fix this" call-to-action.
 - **Notification permission denied.** `canPostNotifications()` returns

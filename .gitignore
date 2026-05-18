@@ -44,4 +44,8 @@ notes/
 featherline-backup*
 keystore.properties
 
+# macOS
 .DS_Store
+
+# Superpowers
+.superpowers/
