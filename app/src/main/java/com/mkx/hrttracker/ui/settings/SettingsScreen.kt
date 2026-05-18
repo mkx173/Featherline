@@ -929,7 +929,7 @@ private fun SettingsScreenContent(
                     },
                     leadingContent = {
                         SettingsLeadingIconSlot(
-                            painter = painterResource(R.drawable.ic_subtitles_off)
+                            painter = painterResource(R.drawable.ic_pill_off)
                         )
                     },
                     trailingContent = {
