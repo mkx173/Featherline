@@ -59,7 +59,8 @@ class MedicationReminderReceiver : BroadcastReceiver() {
         )
         appScope.launch {
             runCatching {
-                if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+                val settings = settingsRepository.getCurrentSettings()
+                if (!settings.remindersEnabled) {
                     diagnosticsLogger.info(
                         TAG,
                         "reminder_receiver_master_disabled groupUuid=$groupUuid scheduledAt=$scheduledAt"
@@ -76,7 +77,10 @@ class MedicationReminderReceiver : BroadcastReceiver() {
                     entries = entries,
                 )
                 if (bundle != null) {
-                    reminderNotificationManager.showDoseReminderNotification(bundle)
+                    reminderNotificationManager.showDoseReminderNotification(
+                        bundle,
+                        hideMedicationDetails = settings.hideMedicationDetails,
+                    )
                     diagnosticsLogger.info(
                         TAG,
                         "reminder_receiver_notification_shown groupUuid=$groupUuid " +

@@ -163,7 +163,8 @@ class MedicationReminderActionHandler @Inject constructor(
             "reminder_action_show_snoozed_start slots=${normalizedSlots.size} " +
                 "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
         )
-        if (!settingsRepository.getCurrentSettings().remindersEnabled) {
+        val settings = settingsRepository.getCurrentSettings()
+        if (!settings.remindersEnabled) {
             diagnosticsLogger.info(
                 TAG,
                 "reminder_action_show_snoozed_skipped reason=master_disabled slots=${normalizedSlots.size}"
@@ -210,6 +211,7 @@ class MedicationReminderActionHandler @Inject constructor(
                 items = bundleItems,
             ),
             canSnooze = canSnooze,
+            hideMedicationDetails = settings.hideMedicationDetails,
         )
         diagnosticsLogger.info(
             TAG,
