@@ -1,10 +1,15 @@
 package com.mkx.hrttracker.data.repository
 
+import android.content.Context
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
+import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
+import com.mkx.hrttracker.model.medication.isSlotFulfilled
+import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -13,10 +18,22 @@ import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.HrtWidget
+import com.mkx.hrttracker.widget.WidgetDoseRow
+import com.mkx.hrttracker.widget.WidgetDoseStatus
+import com.mkx.hrttracker.widget.WidgetNextDose
+import com.mkx.hrttracker.widget.WidgetPkDoseMarkerRecord
+import com.mkx.hrttracker.widget.WidgetPkProjectionRecord
+import com.mkx.hrttracker.widget.WidgetSnapshotRecord
+import com.mkx.hrttracker.widget.WidgetSnapshotStore
+import com.mkx.hrttracker.widget.WIDGET_SNAPSHOT_SCHEMA_VERSION
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -38,6 +55,8 @@ class HomeSnapshotRepository @Inject constructor(
     private val databaseHolder: DatabaseHolder,
     private val homeSnapshotStore: HomeSnapshotStore,
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore,
+    private val widgetSnapshotStore: WidgetSnapshotStore,
+    @param:ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     @param:AppScope private val appScope: CoroutineScope,
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
@@ -448,15 +467,28 @@ class HomeSnapshotRepository @Inject constructor(
             horizon = horizon,
             zoneId = zoneId,
         )
-        val projection = withContext(defaultDispatcher) {
-            PkMedicationSimulation.simulateMainEstradiolProjection(
-                entries = simulationEntries.real,
-                plannedEntries = simulationEntries.planned,
-                bodyWeightKg = inputs.profile.weightKg,
-                generatedAt = now,
-                zoneId = zoneId,
-                option = option,
-            )
+        val (projection, widgetProjectionResult) = coroutineScope {
+            val homeAsync = async(defaultDispatcher) {
+                PkMedicationSimulation.simulateMainEstradiolProjection(
+                    entries = simulationEntries.real,
+                    plannedEntries = simulationEntries.planned,
+                    bodyWeightKg = inputs.profile.weightKg,
+                    generatedAt = now,
+                    zoneId = zoneId,
+                    option = option,
+                )
+            }
+            val widgetAsync = async(defaultDispatcher) {
+                PkMedicationSimulation.simulateMainEstradiolProjection(
+                    entries = simulationEntries.real,
+                    plannedEntries = emptyList(),
+                    bodyWeightKg = inputs.profile.weightKg,
+                    generatedAt = now,
+                    zoneId = zoneId,
+                    option = option,
+                )
+            }
+            Pair(homeAsync.await(), widgetAsync.await())
         }
         // Expire at the soonest planned dose after generation time — the
         // moment a slot transitions from "future" to "should be logged by now"
@@ -494,6 +526,22 @@ class HomeSnapshotRepository @Inject constructor(
             densePolicy = option.densePolicy.toRecord(),
             includesPostDoseOffsets = option.includesPostDoseOffsets,
         )
+        val widgetPkProjectionRecord = WidgetPkProjectionRecord(
+            generatedAtEpochMillis = widgetProjectionResult.generatedAt.toEpochMilli(),
+            windowStartEpochMillis = widgetProjectionResult.windowStart.toEpochMilli(),
+            windowEndEpochMillis = widgetProjectionResult.windowEnd.toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis = expiresAtInstant.toEpochMilli(),
+            concentrationUnit = widgetProjectionResult.concentrationUnit.name,
+            timeH = widgetProjectionResult.timeH,
+            concentrations = widgetProjectionResult.concentrations,
+            doseMarkers = widgetProjectionResult.doseMarkers.map { marker ->
+                WidgetPkDoseMarkerRecord(
+                    timeH = marker.timeH,
+                    concentration = marker.concentration,
+                    isPlanned = marker.isPlanned,
+                )
+            },
+        )
         val snapshotRecord = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generation = refreshGeneration,
@@ -507,6 +555,13 @@ class HomeSnapshotRepository @Inject constructor(
             userProfile = inputs.profile,
         )
 
+        val widgetSnapshotRecord = buildWidgetSnapshotRecord(
+            inputs = inputs,
+            pkProjection = widgetPkProjectionRecord,
+            now = now,
+            zoneId = zoneId,
+        )
+
         withContext(Dispatchers.IO) {
             // Avoid restoring stale snapshot data from a refresh that raced with a write.
             snapshotMutationMutex.withLock {
@@ -516,6 +571,14 @@ class HomeSnapshotRepository @Inject constructor(
                         "home_snapshot_write_start ${snapshotRecord.diagnosticSummary()}"
                     )
                     homeSnapshotStore.writeSnapshot(snapshotRecord)
+                    runCatching {
+                        widgetSnapshotStore.writeSnapshot(widgetSnapshotRecord)
+                    }.onFailure { e ->
+                        diagnosticsLogger.warning(TAG, "widget_snapshot_write_failed", e)
+                    }
+                    runCatching { HrtWidget().updateAll(context) }.onFailure { throwable ->
+                        diagnosticsLogger.warning(TAG, "widget_update_all_failed", throwable)
+                    }
                     StartupTiming.mark("home_snapshot_rebuilt")
                     diagnosticsLogger.info(
                         TAG,
@@ -677,6 +740,98 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.warning(TAG, "home_snapshot_clear_failed", throwable)
         }
     }
+
+    private fun buildWidgetSnapshotRecord(
+        inputs: HomeSnapshotBuildInputs,
+        pkProjection: WidgetPkProjectionRecord?,
+        now: LocalDateTime,
+        zoneId: ZoneId,
+    ): WidgetSnapshotRecord {
+        val todayStart = now.toLocalDate().atStartOfDay()
+        val tomorrowStart = todayStart.plusDays(1)
+        val nowInstant = now.atZone(zoneId).toInstant()
+        val dueSoonThreshold = nowInstant.plusSeconds(DUE_SOON_THRESHOLD_SECONDS)
+
+        val occurrences = inputs.activeGroups.flatMap { group ->
+            group.occurrencesBetweenInPlanWindow(
+                startDate = todayStart.toLocalDate(),
+                endDate = tomorrowStart.toLocalDate().minusDays(1),
+                zoneId = zoneId,
+            )
+        }.sortedBy { it.scheduledFor }
+
+        val doseRows = occurrences.map { occurrence ->
+            val group = inputs.activeGroups.first { it.uuid == occurrence.groupUuid }
+            val slotKey = MedicationGroupSlotKey(
+                scheduleTimeUuid = occurrence.scheduleTimeUuid,
+                scheduledFor = occurrence.scheduledFor,
+            )
+            val fulfilled = isSlotFulfilled(
+                group = group,
+                slot = slotKey,
+                entries = inputs.scheduleEntries,
+                zoneId = zoneId,
+            )
+            val scheduledInstant = occurrence.scheduledFor.atZone(zoneId).toInstant()
+            val status = when {
+                fulfilled -> WidgetDoseStatus.DONE
+                scheduledInstant < nowInstant -> WidgetDoseStatus.OVERDUE
+                scheduledInstant <= dueSoonThreshold -> WidgetDoseStatus.DUE_SOON
+                else -> WidgetDoseStatus.UPCOMING
+            }
+            val isActionable = status == WidgetDoseStatus.DUE_SOON || status == WidgetDoseStatus.OVERDUE
+            val doneAtEpochMillis = if (fulfilled) {
+                inputs.scheduleEntries
+                    .filter { entry ->
+                        isEntryFulfillingPlanSlot(group, slotKey, entry, zoneId)
+                    }
+                    .maxOfOrNull { it.appliedAt.toEpochMilli() }
+            } else null
+            WidgetDoseRow(
+                displayName = group.name,
+                count = group.medications.sumOf { it.count },
+                status = status,
+                scheduledAt = occurrence.scheduledFor,
+                doneAtEpochMillis = doneAtEpochMillis,
+                groupUuid = if (isActionable) group.uuid.toString() else null,
+                scheduleTimeUuid = if (isActionable) occurrence.scheduleTimeUuid.toString() else null,
+            )
+        }
+
+        val doneCount = doseRows.count { it.status == WidgetDoseStatus.DONE }
+
+        val nextDueDose = doseRows.firstOrNull { it.status != WidgetDoseStatus.DONE }
+            ?.let { row ->
+                WidgetNextDose(
+                    name = row.displayName,
+                    scheduledAt = row.scheduledAt,
+                    status = row.status,
+                )
+            }
+            ?: inputs.activeGroups.flatMap { group ->
+                group.occurrencesBetweenInPlanWindow(
+                    startDate = tomorrowStart.toLocalDate(),
+                    endDate = tomorrowStart.toLocalDate(),
+                    zoneId = zoneId,
+                ).map { occurrence ->
+                    WidgetNextDose(
+                        name = group.name,
+                        scheduledAt = occurrence.scheduledFor,
+                        status = WidgetDoseStatus.UPCOMING,
+                    )
+                }
+            }.minByOrNull { it.scheduledAt }
+
+        return WidgetSnapshotRecord(
+            schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
+            zoneId = zoneId.id,
+            doneCount = doneCount,
+            totalCount = doseRows.size,
+            doseRows = doseRows,
+            nextDueDose = nextDueDose,
+            pkProjection = pkProjection,
+        )
+    }
 }
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
@@ -701,3 +856,4 @@ private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
 private const val HOME_SNAPSHOT_VALIDITY_DAYS = 10L
 private const val HOME_SNAPSHOT_PAST_BUFFER_DAYS = 1L
+private const val DUE_SOON_THRESHOLD_SECONDS = 7_200L

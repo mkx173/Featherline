@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.data.repository
 
+import android.content.Context
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
@@ -7,6 +8,7 @@ import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.WidgetSnapshotStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -42,6 +44,8 @@ class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
+    private val widgetSnapshotStore: WidgetSnapshotStore = mockk(relaxed = true)
+    private val context: Context = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
@@ -70,6 +74,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -105,6 +111,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -141,6 +149,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -182,6 +192,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher + SupervisorJob()),
             defaultDispatcher = dispatcher,
@@ -219,6 +231,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -265,6 +279,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(appDispatcher),
             defaultDispatcher = UnconfinedTestDispatcher(testScheduler),
@@ -295,6 +311,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -316,6 +334,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -336,6 +356,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -365,6 +387,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             appScope = CoroutineScope(
                 SupervisorJob() + dispatcher + CoroutineExceptionHandler { _, throwable ->
                     failures += throwable
@@ -390,6 +414,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(StandardTestDispatcher(testScheduler)),
             defaultDispatcher = StandardTestDispatcher(testScheduler),
@@ -486,6 +512,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
@@ -544,6 +572,8 @@ class HomeSnapshotRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,
