@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.widget
 
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -12,30 +13,69 @@ class WidgetSnapshotCodecTest {
         zoneId = "UTC",
         doneCount = 1,
         totalCount = 3,
+        manualCount = 1,
+        hideMedicationDetails = false,
         doseRows = listOf(
             WidgetDoseRow(
-                displayName = "Estradiol patch",
-                count = 1,
+                medicationName = "Estradiol",
+                groupName = "Morning group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                routeLabel = "Patch",
+                doseText = "0.1 mg",
                 status = WidgetDoseStatus.DONE,
                 scheduledAt = LocalDateTime.of(2026, 5, 18, 8, 0, 0),
-                doneAtEpochMillis = 1_747_540_800_000L,
+                trailingText = null,
+                trailingIsDelta = false,
+                isManualRecord = false,
+                contextChip = null,
                 groupUuid = null,
                 scheduleTimeUuid = null,
             ),
             WidgetDoseRow(
-                displayName = "Progesterone",
-                count = 2,
+                medicationName = "Progesterone",
+                groupName = "Evening group",
+                colorKey = MedicationGroupColorKey.VIOLET,
+                routeLabel = "Oral",
+                doseText = "100 mg",
                 status = WidgetDoseStatus.DUE_SOON,
                 scheduledAt = LocalDateTime.of(2026, 5, 18, 20, 0, 0),
-                doneAtEpochMillis = null,
+                trailingText = "20:00",
+                trailingIsDelta = false,
+                isManualRecord = false,
+                contextChip = null,
                 groupUuid = "123e4567-e89b-12d3-a456-426614174000",
                 scheduleTimeUuid = "223e4567-e89b-12d3-a456-426614174001",
             ),
-        ),
-        nextDueDose = WidgetNextDose(
-            name = "Progesterone",
-            scheduledAt = LocalDateTime.of(2026, 5, 18, 20, 0, 0),
-            status = WidgetDoseStatus.DUE_SOON,
+            WidgetDoseRow(
+                medicationName = "Estradiol",
+                groupName = "",
+                colorKey = null,
+                routeLabel = "Injection",
+                doseText = "5 mg",
+                status = WidgetDoseStatus.DONE,
+                scheduledAt = LocalDateTime.of(2026, 5, 18, 9, 0, 0),
+                trailingText = "Manual",
+                trailingIsDelta = true,
+                isManualRecord = true,
+                contextChip = null,
+                groupUuid = null,
+                scheduleTimeUuid = null,
+            ),
+            WidgetDoseRow(
+                medicationName = "Estradiol",
+                groupName = "Morning group",
+                colorKey = MedicationGroupColorKey.SKY,
+                routeLabel = "Patch",
+                doseText = "0.1 mg",
+                status = WidgetDoseStatus.UPCOMING,
+                scheduledAt = LocalDateTime.of(2026, 5, 19, 8, 0, 0),
+                trailingText = "08:00",
+                trailingIsDelta = false,
+                isManualRecord = false,
+                contextChip = WidgetDoseChip.COMING_UP,
+                groupUuid = null,
+                scheduleTimeUuid = null,
+            ),
         ),
         pkProjection = WidgetPkProjectionRecord(
             generatedAtEpochMillis = 1_747_540_000_000L,
@@ -57,21 +97,37 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
-    fun `codec round-trips a record with null projection and null nextDueDose`() {
-        val minimal = baseRecord.copy(pkProjection = null, nextDueDose = null, doseRows = emptyList())
-        val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(minimal))
-        assertEquals(minimal, decoded)
+    fun `codec round-trips a record with null projection and empty rows`() {
+        val minimal = baseRecord.copy(pkProjection = null, doseRows = emptyList())
+        assertEquals(minimal, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(minimal)))
     }
 
     @Test
-    fun `codec round-trips overdue dose row without action fields`() {
+    fun `codec round-trips a LAST_NIGHT chip row`() {
+        val row = baseRecord.doseRows.first().copy(
+            contextChip = WidgetDoseChip.LAST_NIGHT,
+            trailingText = "2h later",
+            trailingIsDelta = true,
+        )
+        val record = baseRecord.copy(doseRows = listOf(row))
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
+    fun `codec round-trips a manual row with null colorKey`() {
         val row = WidgetDoseRow(
-            displayName = "Test",
-            count = 1,
-            status = WidgetDoseStatus.OVERDUE,
-            scheduledAt = LocalDateTime.of(2026, 5, 18, 6, 0, 0),
-            doneAtEpochMillis = null,
-            groupUuid = "aaa-bbb",
+            medicationName = "Estradiol",
+            groupName = "",
+            colorKey = null,
+            routeLabel = "Injection",
+            doseText = "",
+            status = WidgetDoseStatus.DONE,
+            scheduledAt = LocalDateTime.of(2026, 5, 18, 9, 0, 0),
+            trailingText = "Manual",
+            trailingIsDelta = true,
+            isManualRecord = true,
+            contextChip = null,
+            groupUuid = null,
             scheduleTimeUuid = null,
         )
         val record = baseRecord.copy(doseRows = listOf(row))
@@ -79,9 +135,15 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips hideMedicationDetails=true`() {
+        val record = baseRecord.copy(hideMedicationDetails = true)
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
     fun `decode throws on wrong codec version`() {
         val bytes = WidgetSnapshotCodec.encode(baseRecord).copyOf()
-        bytes[0] = 99.toByte()  // corrupt first byte of the codec version Int
+        bytes[0] = 99.toByte()
         assertThrows(IllegalArgumentException::class.java) { WidgetSnapshotCodec.decode(bytes) }
     }
 
@@ -96,7 +158,6 @@ class WidgetSnapshotCodecTest {
     }
 }
 
-// Test double — bypasses encryption
 private object PassthroughWidgetCrypto : WidgetSnapshotCrypto {
     override fun encrypt(plaintext: ByteArray) = plaintext
     override fun decrypt(ciphertext: ByteArray) = ciphertext
