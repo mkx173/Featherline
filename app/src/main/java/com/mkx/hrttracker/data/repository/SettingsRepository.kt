@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
@@ -64,6 +65,7 @@ class SettingsRepository @Inject constructor(
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
+    private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
@@ -197,6 +199,16 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { preferences ->
             preferences[hideMedicationDetailsKey] = hidden
         }
+    }
+
+    suspend fun nextGroupNameIndex(): Int {
+        var result = 0
+        context.dataStore.edit { preferences ->
+            val next = (preferences[groupNameCounterKey] ?: 0) + 1
+            preferences[groupNameCounterKey] = next
+            result = next
+        }
+        return result
     }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {

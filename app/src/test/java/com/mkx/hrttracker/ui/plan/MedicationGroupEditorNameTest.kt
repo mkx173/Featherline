@@ -14,17 +14,6 @@ import java.util.Locale
 
 class MedicationGroupEditorNameTest {
     @Test
-    fun defaultMedicationGroupName_uses_existing_group_count_plus_one() {
-        val defaultName = defaultMedicationGroupName(
-            existingGroupCount = 4
-        ) { index ->
-            "Group $index"
-        }
-
-        assertEquals("Group 5", defaultName)
-    }
-
-    @Test
     fun resolveMedicationGroupName_uses_default_for_blank_new_group_name() {
         assertEquals(
             "Group 1",

@@ -155,9 +155,6 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 _uiState.update { currentState ->
                     val allGroups = groupsOrNull.orEmpty()
                     latestGroups = allGroups
-                    val editingGroup = allGroups.firstOrNull { group ->
-                        group.uuid.toString() == currentState.editingGroupId
-                    }
                     val visibleGroups = allGroups.filterNot { group ->
                         group.uuid.toString() == currentState.editingGroupId
                     }
@@ -168,17 +165,23 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         isEditing = currentState.isEditing,
                         hasAssignedColor = currentState.hasAssignedGroupColor
                     )
-                    applyDefaultGroupNameToEditorState(
-                        currentState = currentState,
-                        defaultGroupName = defaultMedicationGroupName(
-                            existingGroupCount = visibleGroups.size,
-                            formatName = { index ->
-                                context.getString(R.string.default_group_name_format, index)
-                            }
-                        )
-                    ).copy(
+                    currentState.copy(
                         groupColorKey = resolvedGroupColorKey,
                         hasAssignedGroupColor = true,
+                    )
+                }
+            }
+        }
+
+        if (editingGroupUuid == null) {
+            viewModelScope.launch {
+                val index = settingsRepository.nextGroupNameIndex()
+                _uiState.update { currentState ->
+                    applyDefaultGroupNameToEditorState(
+                        currentState = currentState,
+                        defaultGroupName = context.getString(
+                            R.string.default_group_name_format, index
+                        )
                     )
                 }
             }
@@ -794,35 +797,32 @@ class MedicationGroupEditorViewModel @Inject constructor(
         ) {
             return
         }
-        val existingGroupCount = latestGroups.size.takeIf { it > 0 } ?: 1
-        val usedColors = latestGroups.map(MedicationGroup::colorKey)
-            .ifEmpty { listOf(currentState.groupColorKey) }
-        val defaultName = defaultMedicationGroupName(
-            existingGroupCount = existingGroupCount,
-            formatName = { index ->
-                context.getString(R.string.default_group_name_format, index)
-            }
-        )
-        val resolvedGroupName = resolveMedicationGroupName(
-            groupName = currentState.groupName,
-            defaultGroupName = currentState.defaultGroupName,
-            isEditing = currentState.isEditing,
-        ).ifEmpty { defaultName }
-        val colorKey = nextAvailableMedicationGroupColor(
-            usedColors = usedColors,
-            seed = UUID.randomUUID().hashCode(),
-        )
-        val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
-
-        _uiState.update {
-            currentState.toUnsavedDuplicatedGroupState(
-                resolvedGroupName = resolvedGroupName,
-                defaultGroupName = defaultName,
-                colorKey = colorKey,
-                scheduleStartDate = duplicateScheduleStartDate,
-            ).copy(
-                scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
+        viewModelScope.launch {
+            val index = settingsRepository.nextGroupNameIndex()
+            val defaultName = context.getString(R.string.default_group_name_format, index)
+            val usedColors = latestGroups.map(MedicationGroup::colorKey)
+                .ifEmpty { listOf(currentState.groupColorKey) }
+            val resolvedGroupName = resolveMedicationGroupName(
+                groupName = currentState.groupName,
+                defaultGroupName = currentState.defaultGroupName,
+                isEditing = currentState.isEditing,
+            ).ifEmpty { defaultName }
+            val colorKey = nextAvailableMedicationGroupColor(
+                usedColors = usedColors,
+                seed = UUID.randomUUID().hashCode(),
             )
+            val duplicateScheduleStartDate = currentMinute.value.toLocalDate()
+
+            _uiState.update {
+                currentState.toUnsavedDuplicatedGroupState(
+                    resolvedGroupName = resolvedGroupName,
+                    defaultGroupName = defaultName,
+                    colorKey = colorKey,
+                    scheduleStartDate = duplicateScheduleStartDate,
+                ).copy(
+                    scrollToTopRequestVersion = it.scrollToTopRequestVersion + 1,
+                )
+            }
         }
     }
 
@@ -1900,13 +1900,6 @@ internal fun resolveMedicationGroupName(
     } else {
         ""
     }
-}
-
-internal fun defaultMedicationGroupName(
-    existingGroupCount: Int,
-    formatName: (Int) -> String
-): String {
-    return formatName(existingGroupCount + 1)
 }
 
 internal fun resolveMedicationGroupColorKey(
