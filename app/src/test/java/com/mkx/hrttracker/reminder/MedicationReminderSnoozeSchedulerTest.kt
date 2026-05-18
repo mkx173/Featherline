@@ -131,6 +131,34 @@ class MedicationReminderSnoozeSchedulerTest {
     }
 
     @Test
+    fun rescheduleAll_dropsExpiredRecordsAndDoesNotScheduleAlarmForThem() = runTest {
+        val now = LocalDateTime.of(2026, 4, 20, 9, 30)
+        val expiredRecord = snoozeRecord(
+            groupUuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000001"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15),
+        )
+        val futureRecord = snoozeRecord(
+            groupUuid = UUID.fromString("a1b2c3d4-0000-0000-0000-000000000002"),
+            scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+            snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 45),
+        )
+        val storedRecords = slot<List<MedicationReminderSnoozeRecord>>()
+        coEvery { snoozeStore.getSnoozeRecords() } returns listOf(expiredRecord, futureRecord)
+        coEvery { snoozeStore.replaceSnoozeRecords(capture(storedRecords)) } just Runs
+
+        scheduler.rescheduleAll(now = now)
+
+        assertEquals(listOf(futureRecord), storedRecords.captured)
+        verify(exactly = 1) {
+            alarmManager.setExactAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+        verify(exactly = 0) {
+            alarmManager.setAndAllowWhileIdle(any(), any(), any<PendingIntent>())
+        }
+    }
+
+    @Test
     fun clearAllSnoozes_cancelsStoredSnoozeAlarmsAndClearsRecords() = runTest {
         val snoozeAt = LocalDateTime.of(2026, 4, 20, 9, 15)
         val records = listOf(

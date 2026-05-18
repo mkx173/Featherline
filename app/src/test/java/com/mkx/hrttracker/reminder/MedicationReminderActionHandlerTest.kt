@@ -223,6 +223,38 @@ class MedicationReminderActionHandlerTest {
     }
 
     @Test
+    fun showSnoozedReminder_postsNotificationWithoutSnoozeActionWhenAllSlotsAreAtMaxSnoozeCount() = runTest {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val group = medicationGroup(
+            uuid = UUID.fromString("d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80"),
+            name = "Estradiol",
+            time = LocalTime.of(9, 0),
+            medicationKey = MedicationKey.ESTRADIOL,
+            medicationCount = 1,
+        )
+        val slot = group.toReminderSlot(scheduledAt)
+        coEvery { groupRepository.getGroup(group.uuid) } returns group
+        coEvery { logRepository.getScheduledGroupEntriesSince(scheduledAt) } returns emptyList()
+        coEvery { snoozeScheduler.getSnoozeRecords() } returns listOf(
+            MedicationReminderSnoozeRecord(
+                slot = slot,
+                snoozeAt = scheduledAt.plusMinutes(15),
+                snoozeCount = MAX_REMINDER_SNOOZE_COUNT,
+            )
+        )
+
+        actionHandler.showSnoozedReminder(
+            slots = listOf(slot),
+            notificationTag = "bundle-tag",
+            now = scheduledAt.plusMinutes(15),
+        )
+
+        verify(exactly = 1) {
+            notificationManager.showDoseReminderNotification(any(), canSnooze = false)
+        }
+    }
+
+    @Test
     fun showSnoozedReminder_skips_notification_when_master_switch_off() = runTest {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
         val slot = MedicationReminderSlot(
