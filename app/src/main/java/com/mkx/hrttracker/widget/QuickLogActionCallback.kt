@@ -1,0 +1,81 @@
+package com.mkx.hrttracker.widget
+
+import android.content.Context
+import androidx.glance.GlanceId
+import androidx.glance.action.ActionParameters
+import androidx.glance.appwidget.action.ActionCallback
+import com.mkx.hrttracker.model.medication.isActive
+import com.mkx.hrttracker.reminder.MedicationReminderSlot
+import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
+import dagger.hilt.android.EntryPointAccessors
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.UUID
+
+class QuickLogActionCallback : ActionCallback {
+
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val groupUuidStr = parameters[GroupUuidKey] ?: return
+        val scheduleTimeUuidStr = parameters[ScheduleTimeUuidKey]
+        val scheduledAtStr = parameters[ScheduledAtKey] ?: return
+
+        val groupUuid = runCatching { UUID.fromString(groupUuidStr) }.getOrNull() ?: return
+        val scheduleTimeUuid = scheduleTimeUuidStr?.takeIf { it.isNotEmpty() }
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        val scheduledAt = runCatching { LocalDateTime.parse(scheduledAtStr) }.getOrNull() ?: return
+
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            WidgetEntryPoint::class.java,
+        )
+        val groupRepository = entryPoint.medicationGroupRepository()
+        val logRepository = entryPoint.medicationLogRepository()
+        val diagnosticsLogger = entryPoint.diagnosticsLogger()
+
+        val group = groupRepository.getGroup(groupUuid) ?: run {
+            diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
+            HrtWidget().updateAll(context.applicationContext)
+            return
+        }
+
+        if (!group.isActive()) {
+            HrtWidget().updateAll(context.applicationContext)
+            return
+        }
+
+        val zoneId = ZoneId.systemDefault()
+        val appliedAt = LocalDateTime.now()
+        val slot = MedicationReminderSlot(
+            groupUuid = groupUuid,
+            scheduledAt = scheduledAt,
+            scheduleTimeUuid = scheduleTimeUuid,
+        )
+
+        // Load entries from scheduledAt onward — same approach used by the reminder action handler.
+        val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
+
+        val missingEntries = buildMissingScheduledLogEntries(
+            group = group,
+            slot = slot,
+            entries = entries,
+            appliedAt = appliedAt,
+            zoneId = zoneId,
+        )
+
+        if (missingEntries.isNotEmpty()) {
+            logRepository.saveNewEntries(missingEntries)
+            // saveNewEntries triggers runHomeDataMutation, which rebuilds and re-renders the widget.
+        } else {
+            diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
+            HrtWidget().updateAll(context.applicationContext)
+        }
+    }
+
+    companion object {
+        private const val TAG = "QuickLogActionCallback"
+    }
+}
+
+val GroupUuidKey = ActionParameters.Key<String>("widget_group_uuid")
+val ScheduleTimeUuidKey = ActionParameters.Key<String>("widget_schedule_time_uuid")
+val ScheduledAtKey = ActionParameters.Key<String>("widget_scheduled_at")
