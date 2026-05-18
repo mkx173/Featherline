@@ -72,6 +72,7 @@ class ReminderNotificationManager @Inject constructor(
     fun showDoseReminderNotification(
         bundle: MedicationReminderBundle,
         canSnooze: Boolean = true,
+        hideMedicationDetails: Boolean = false,
     ) {
         if (!canPostNotifications()) {
             diagnosticsLogger.info(
@@ -114,7 +115,15 @@ class ReminderNotificationManager @Inject constructor(
             .setAutoCancel(true)
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    bundle.items.joinToString(separator = " · ") { it.groupName }
+                    if (hideMedicationDetails) {
+                        bundle.items.joinToString(separator = " · ") { it.groupName }
+                    } else {
+                        bundle.items.joinToString(separator = "\n") { item ->
+                            item.medications.joinToString(separator = "\n") { medication ->
+                                medicationDetailLine(context, item.groupName, medication)
+                            }
+                        }
+                    }
                 )
             )
             .apply {
