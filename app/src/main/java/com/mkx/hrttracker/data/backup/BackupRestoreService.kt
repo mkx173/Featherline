@@ -195,6 +195,7 @@ class BackupRestoreService @Inject constructor(
             homeE2DisplayUnit = validatedSnapshot.settings.homeE2DisplayUnit,
             homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
+            hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
         )
 
         // Reminder rescheduling is a best-effort side effect — the data is
@@ -665,6 +666,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         homeE2DisplayUnit = homeE2Choice,
         homeE2ChartWindowOption = homeE2ChartWindowOption,
         lastSeenTimeZoneId = lastSeenTimeZoneId,
+        hideMedicationDetails = hideMedicationDetails,
     )
 }
 
@@ -784,6 +786,7 @@ internal data class ValidatedBackupSettings(
     val homeE2DisplayUnit: AllowedAnalyteUnit,
     val homeE2ChartWindowOption: HomeE2ChartWindowOption,
     val lastSeenTimeZoneId: String?,
+    val hideMedicationDetails: Boolean,
 )
 
 private data class ValidatedMedicationData(

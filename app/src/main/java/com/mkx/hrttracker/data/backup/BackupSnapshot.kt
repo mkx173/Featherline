@@ -35,7 +35,9 @@ data class BackupSettingsSnapshot(
     val homeE2ChartWindow: String = "SEVEN_DAYS",
     val calibrationDefaultUnits: Map<String, String>,
     val lastSeenTimeZoneId: String? = null,
+    val hideMedicationDetails: Boolean = false,
 )
+
 
 @JsonClass(generateAdapter = true)
 data class BackupUserProfileSnapshot(
