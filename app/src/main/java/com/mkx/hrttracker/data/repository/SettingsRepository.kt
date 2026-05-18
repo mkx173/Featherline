@@ -63,6 +63,7 @@ class SettingsRepository @Inject constructor(
     private val screenLockProtectionKey = booleanPreferencesKey("screen_lock_protection")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
+    private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
@@ -192,6 +193,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setHideMedicationDetails(hidden: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[hideMedicationDetailsKey] = hidden
+        }
+    }
+
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[onboardingCompletedKey] = completed
@@ -218,6 +225,7 @@ class SettingsRepository @Inject constructor(
         homeE2DisplayUnit: AllowedAnalyteUnit,
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
+        hideMedicationDetails: Boolean = false,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -256,6 +264,8 @@ class SettingsRepository @Inject constructor(
             } else {
                 preferences[lastSeenTimeZoneIdKey] = lastSeenTimeZoneId
             }
+
+            preferences[hideMedicationDetailsKey] = hideMedicationDetails
         }
 
         setAppLanguageOption(appLanguageOption)
@@ -295,6 +305,7 @@ class SettingsRepository @Inject constructor(
             hideScreenContentEnabled = preferences[hideScreenContentKey] ?: false,
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
+            hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
         )
     }
 
