@@ -21,16 +21,11 @@ class WidgetDailyRefreshWorker(
         val zoneId = ZoneId.systemDefault()
         val snapshot = widgetSnapshotStore.readSnapshot()
 
-        if (snapshot == null) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
-            return Result.success()
-        }
-
-        val projectionExpired = snapshot.pkProjection
-            ?.toPkProjectionResult(now, zoneId) == null
+        val projectionExpired = snapshot == null ||
+            snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
 
         if (projectionExpired) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+            homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
         } else {
             HrtWidget().updateAll(appContext)
         }

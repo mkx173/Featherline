@@ -41,7 +41,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
             snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
 
         if (projectionExpired) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
+            homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
         } else {
             HrtWidget().updateAll(context.applicationContext)
         }

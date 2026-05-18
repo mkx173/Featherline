@@ -44,8 +44,10 @@ import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
 import java.io.File
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -247,9 +249,7 @@ private fun DoseRow(row: WidgetDoseRow) {
         when {
             row.status == WidgetDoseStatus.DONE -> {
                 val doneAt = row.doneAtEpochMillis?.let {
-                    LocalDateTime.ofEpochSecond(it / 1000, 0, java.time.ZoneOffset.UTC)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toLocalDateTime()
+                    Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime()
                 }
                 Text(
                     text = if (doneAt != null) formatTime(doneAt) else "",
@@ -288,7 +288,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             .padding(12.dp),
         contentAlignment = Alignment.TopStart,
     ) {
-        if (snapshot == null) {
+        if (snapshot == null || snapshot.totalCount == 0) {
             Text(
                 text = context.getString(R.string.widget_no_medications),
                 style = TextStyle(color = colorOnSurfaceVariant, fontSize = 13.sp),
@@ -296,6 +296,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@Box
         }
 
+        val now = LocalDateTime.now()
+        val zoneId = ZoneId.systemDefault()
+        val e2Value = snapshot.pkProjection
+            ?.toPkProjectionResult(now, zoneId)
+            ?.toMainEstradiolTrend(now, zoneId)
+            ?.currentConcentration
         val doneCount = snapshot.doneCount
         val totalCount = snapshot.totalCount
         val allDone = doneCount >= totalCount && totalCount > 0
@@ -326,14 +332,16 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 ProgressBar(
                     fraction = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f,
                 )
-                Spacer(GlanceModifier.height(4.dp))
-                Text(
-                    text = context.getString(R.string.widget_today),
-                    style = TextStyle(
-                        color = colorOnSurfaceVariant,
-                        fontSize = 11.sp,
-                    ),
-                )
+                if (e2Value != null) {
+                    Spacer(GlanceModifier.height(4.dp))
+                    Text(
+                        text = "E2 %.0f".format(e2Value),
+                        style = TextStyle(
+                            color = colorOnSurfaceVariant,
+                            fontSize = 11.sp,
+                        ),
+                    )
+                }
             }
 
             Spacer(GlanceModifier.width(12.dp))
@@ -404,7 +412,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             .padding(12.dp),
         contentAlignment = Alignment.TopStart,
     ) {
-        if (snapshot == null) {
+        if (snapshot == null || snapshot.totalCount == 0) {
             Text(
                 text = context.getString(R.string.widget_no_medications),
                 style = TextStyle(color = colorOnSurfaceVariant, fontSize = 13.sp),
@@ -412,40 +420,48 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@Box
         }
 
+        val now = LocalDateTime.now()
+        val zoneId = ZoneId.systemDefault()
+        val e2Value = snapshot.pkProjection
+            ?.toPkProjectionResult(now, zoneId)
+            ?.toMainEstradiolTrend(now, zoneId)
+            ?.currentConcentration
         val doneCount = snapshot.doneCount
         val totalCount = snapshot.totalCount
         val allDone = doneCount >= totalCount && totalCount > 0
         val rows = buildLargeWidgetRows(snapshot)
 
         Column(modifier = GlanceModifier.fillMaxSize()) {
-            // Header: TODAY · X of Y done
+            // Header: TODAY · X of Y done, with optional E2 estimate on the right
             Row(
                 modifier = GlanceModifier.fillMaxWidth().wrapContentHeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = context.getString(R.string.widget_today).uppercase(),
-                    style = TextStyle(
-                        color = colorOnSurfaceVariant,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                )
-                Spacer(GlanceModifier.width(6.dp))
-                Text(
-                    text = "· $doneCount / $totalCount",
-                    style = TextStyle(
-                        color = colorOnSurfaceVariant,
-                        fontSize = 11.sp,
-                    ),
-                )
+                Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
+                    Text(
+                        text = "${context.getString(R.string.widget_today).uppercase()} · $doneCount / $totalCount",
+                        style = TextStyle(
+                            color = colorOnSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                    )
+                    Spacer(GlanceModifier.height(4.dp))
+                    ProgressBar(
+                        fraction = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f,
+                    )
+                }
+                if (e2Value != null) {
+                    Spacer(GlanceModifier.width(8.dp))
+                    Text(
+                        text = "E2 %.0f".format(e2Value),
+                        style = TextStyle(
+                            color = colorOnSurfaceVariant,
+                            fontSize = 11.sp,
+                        ),
+                    )
+                }
             }
-
-            Spacer(GlanceModifier.height(4.dp))
-
-            ProgressBar(
-                fraction = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f,
-            )
 
             Spacer(GlanceModifier.height(8.dp))
 

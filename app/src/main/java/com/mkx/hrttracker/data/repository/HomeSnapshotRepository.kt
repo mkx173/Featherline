@@ -735,6 +735,7 @@ class HomeSnapshotRepository @Inject constructor(
     private suspend fun clearSnapshotBestEffortLocked() {
         runCatching {
             homeSnapshotStore.clearSnapshot()
+            widgetSnapshotStore.clearSnapshot()
             diagnosticsLogger.info(TAG, "home_snapshot_cleared_best_effort")
         }.onFailure { throwable ->
             diagnosticsLogger.warning(TAG, "home_snapshot_clear_failed", throwable)
