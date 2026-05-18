@@ -12,7 +12,7 @@ User data lives in three places under the app sandbox:
 
 - The encrypted Room database `hrt_tracker.db`, with the SQLite WAL/SHM siblings `hrt_tracker.db-shm` and `hrt_tracker.db-wal`. Contents are described in [data-model.md](data-model.md).
 - The `SharedPreferences` file [`hrt_tracker_secure_storage.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt#L132). Holds the AES-GCM-wrapped SQLCipher passphrase. No user-visible data, only the wrapped key envelope.
-- Five DataStore files under `datastore/`: `settings.preferences_pb`, `home_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, home-screen cache, and reminder bookkeeping.
+- Six DataStore files under `datastore/`: `settings.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, home-screen cache, widget cache, and reminder bookkeeping.
 
 Nothing else under the sandbox holds user content.
 
@@ -32,9 +32,18 @@ No network calls. The `android.permission.INTERNET` permission is **not declared
 
 ## Android Auto Backup exclusions
 
-The manifest declares [`android:allowBackup="true"`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/AndroidManifest.xml#L10), which would normally enroll the app in Google's Auto Backup service and Android-to-Android device transfer. The granular exclusion rules below remove every file that holds user data from both paths:
+The manifest declares [`android:allowBackup="true"`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/AndroidManifest.xml#L10), which would normally enroll the app in Google's Auto Backup service and Android-to-Android device transfer. The granular exclusion rules below remove every file that holds user data from both paths.
 
-- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, and the five DataStore files from both `<cloud-backup>` and `<device-transfer>`.
+### DataStore exclusions
+
+Two sensitive DataStore files are excluded to prevent device-to-device de-sync and re-identification:
+
+- `datastore/home_snapshot.pb`: Cached dose status for home screen display. Contains encrypted medical data derived from the medication schedule (dose completion, estimated E2 level). Encrypted at rest with AES-256-GCM. Excluded to prevent inconsistency when transferring to a device where the cached state no longer matches the authoritative database.
+- `datastore/widget_snapshot.pb`: Cached dose status for widget display. Contains encrypted medical data derived from the medication schedule (dose completion status, E2 estimate). Encrypted at rest with AES-256-GCM. Excluded to prevent widget state divergence and re-identification risk if transferred alongside backup data.
+
+The following rules enforce these exclusions across all Android versions:
+
+- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, and the six DataStore files from both `<cloud-backup>` and `<device-transfer>`.
 - [`res/xml/backup_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/backup_rules.xml) (pre-API-31 fallback) applies the same exclusions to `<full-backup-content>`.
 
 Net effect: Google Auto Backup copies the app binary and resources but no user data. Android-to-Android device transfer copies no user data either. The `allowBackup="true"` flag is kept rather than set to `false` because Android lint discourages a blanket `false` when granular rules are available, and the granular rules document the policy more clearly.
