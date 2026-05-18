@@ -32,6 +32,8 @@ import com.mkx.hrttracker.model.pk.DenseSamplePolicy
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.WidgetPkDoseMarkerRecord
+import com.mkx.hrttracker.widget.WidgetPkProjectionRecord
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -171,6 +173,20 @@ sealed interface HomePkDenseSamplePolicyRecord {
     data class Interval(val hours: Double) : HomePkDenseSamplePolicyRecord
     data class Budget(val segmentCount: Int) : HomePkDenseSamplePolicyRecord
 }
+
+fun HomePkProjectionRecord.toWidgetRecord(): WidgetPkProjectionRecord =
+    WidgetPkProjectionRecord(
+        generatedAtEpochMillis = generatedAtEpochMillis,
+        windowStartEpochMillis = windowStartEpochMillis,
+        windowEndEpochMillis = windowEndEpochMillis,
+        pkProjectionExpiresAtEpochMillis = pkProjectionExpiresAtEpochMillis,
+        concentrationUnit = concentrationUnit,
+        timeH = timeH,
+        concentrations = concentrations,
+        doseMarkers = doseMarkers.map {
+            WidgetPkDoseMarkerRecord(timeH = it.timeH, concentration = it.concentration, isPlanned = it.isPlanned)
+        },
+    )
 
 fun DenseSamplePolicy.toRecord(): HomePkDenseSamplePolicyRecord = when (this) {
     is DenseSamplePolicy.Interval -> HomePkDenseSamplePolicyRecord.Interval(hours = hours)
