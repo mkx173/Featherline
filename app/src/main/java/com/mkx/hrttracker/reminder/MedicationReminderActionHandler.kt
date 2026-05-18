@@ -275,6 +275,19 @@ internal fun buildMissingReminderLogEntries(
     if (!group.isActive() || !group.notificationsEnabled || group.medications.isEmpty()) {
         return emptyList()
     }
+    return buildMissingScheduledLogEntries(group, slot, entries, appliedAt, zoneId)
+}
+
+internal fun buildMissingScheduledLogEntries(
+    group: MedicationGroup,
+    slot: MedicationReminderSlot,
+    entries: List<MedicationLogEntry>,
+    appliedAt: LocalDateTime,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): List<MedicationLogEntryInput> {
+    if (!group.isActive() || group.medications.isEmpty()) {
+        return emptyList()
+    }
 
     val planSlot = slot.toMedicationGroupSlotKey()
     val slotLogs = entries.filter { entry ->
