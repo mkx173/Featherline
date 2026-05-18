@@ -1,13 +1,27 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.MedicationGroupEntity
+import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
+import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
+import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.widget.WidgetDoseChip
+import com.mkx.hrttracker.widget.WidgetSnapshotRecord
 import com.mkx.hrttracker.widget.WidgetSnapshotStore
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -38,7 +52,9 @@ import org.junit.Test
 import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.util.UUID
 
 class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -598,6 +614,148 @@ class HomeSnapshotRepositoryTest {
 
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
         coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
+    }
+
+    @Test
+    fun refreshHomeSnapshotIfNeeded_writesMedicationNamesToWidgetRows() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val widgetSnapshot = slot<WidgetSnapshotRecord>()
+        val group = widgetTestGroup(
+            groupName = "Evening group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate(),
+            time = LocalTime.of(20, 0),
+        )
+        stubRefreshInputs(activeGroups = listOf(group), widgetSnapshot = widgetSnapshot)
+        every { context.getString(R.string.medication_name_bicalutamide) } returns "Bicalutamide"
+
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        ).refreshHomeSnapshotIfNeeded(now = now, force = true)
+
+        assertTrue(widgetSnapshot.isCaptured)
+        val rows = widgetSnapshot.captured.doseRows
+        val todayRow = rows.first { it.contextChip == null && !it.isManualRecord }
+        assertEquals("Bicalutamide", todayRow.medicationName)
+        assertEquals(1, widgetSnapshot.captured.totalCount)
+        assertEquals(0, widgetSnapshot.captured.doneCount)
+        val comingUpRow = rows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
+        assertNotNull(comingUpRow)
+        assertEquals("Bicalutamide", comingUpRow!!.medicationName)
+        assertEquals(now.toLocalDate().plusDays(1), comingUpRow.scheduledAt.toLocalDate())
+    }
+
+    @Test
+    fun refreshHomeSnapshotIfNeeded_keepsFuturePlanOutOfEmptyWidgetState() = runTest {
+        val now = LocalDateTime.of(2026, 5, 6, 10, 15)
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val widgetSnapshot = slot<WidgetSnapshotRecord>()
+        val group = widgetTestGroup(
+            groupName = "Tomorrow group",
+            medicationKey = MedicationKey.BICALUTAMIDE,
+            since = now.toLocalDate().plusDays(1),
+            time = LocalTime.of(8, 0),
+        )
+        stubRefreshInputs(activeGroups = listOf(group), widgetSnapshot = widgetSnapshot)
+        every { context.getString(R.string.medication_name_bicalutamide) } returns "Bicalutamide"
+
+        HomeSnapshotRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotStore = homeSnapshotStore,
+            homeSnapshotGenerationStore = homeSnapshotGenerationStore,
+            widgetSnapshotStore = widgetSnapshotStore,
+            context = context,
+            settingsRepository = settingsRepository,
+            appScope = CoroutineScope(dispatcher),
+            defaultDispatcher = dispatcher,
+        ).refreshHomeSnapshotIfNeeded(now = now, force = true)
+
+        assertTrue(widgetSnapshot.isCaptured)
+        assertEquals(0, widgetSnapshot.captured.totalCount)
+        val comingUpRow = widgetSnapshot.captured.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
+        assertNotNull(comingUpRow)
+        assertEquals("Bicalutamide", comingUpRow!!.medicationName)
+        assertEquals(now.toLocalDate().plusDays(1), comingUpRow.scheduledAt.toLocalDate())
+    }
+
+    private fun stubRefreshInputs(
+        activeGroups: List<MedicationGroupWithItemsEntity>,
+        widgetSnapshot: io.mockk.CapturingSlot<WidgetSnapshotRecord>,
+    ) {
+        val database: HrtTrackerDatabase = mockk()
+        val homeDao: HomeDao = mockk()
+        val userProfileDao: UserProfileDao = mockk()
+        every { databaseHolder.get() } returns database
+        every { database.homeDao() } returns homeDao
+        every { database.userProfileDao() } returns userProfileDao
+        coEvery { homeSnapshotStore.readSnapshot() } returns null
+        coEvery { homeSnapshotStore.writeSnapshot(any()) } returns Unit
+        coEvery { widgetSnapshotStore.writeSnapshot(capture(widgetSnapshot)) } returns Unit
+        coEvery { homeDao.getActiveGroups() } returns activeGroups
+        coEvery { homeDao.getScheduleEntries(any(), any(), any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestAntiandrogenEntriesOnOrBefore(any()) } returns emptyList()
+        coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
+        coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
+        coEvery { userProfileDao.getProfile() } returns null
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+    }
+
+    private fun widgetTestGroup(
+        groupName: String,
+        medicationKey: MedicationKey,
+        since: LocalDate,
+        time: LocalTime,
+    ): MedicationGroupWithItemsEntity {
+        val groupUuid = UUID.randomUUID().toString()
+        return MedicationGroupWithItemsEntity(
+            group = MedicationGroupEntity(
+                uuid = groupUuid,
+                name = groupName,
+                colorKey = MedicationGroupColorKey.ROSE.name,
+                scheduleType = MedicationGroupScheduleType.DAILY.name,
+                scheduleInterval = 1,
+                scheduleSinceEpochDay = since.toEpochDay(),
+                createdAtEpochMillis = 0L,
+                updatedAtEpochMillis = 0L,
+            ),
+            items = listOf(
+                MedicationGroupItemEntity(
+                    uuid = UUID.randomUUID().toString(),
+                    groupUuid = groupUuid,
+                    sortOrder = 0,
+                    count = 1,
+                    category = medicationKey.category.name,
+                    applicationType = MedicationApplicationType.ORAL.name,
+                    selectionKind = MedicationSelectionKind.CATALOG.name,
+                    medicationKey = medicationKey.name,
+                    customMedicationName = null,
+                    doseKind = MedicationDoseKind.MG_AS_MEDICINE.name,
+                    doseValueMg = 25.0,
+                    doseValuePercent = null,
+                    doseWeightGrams = null,
+                    doseReleaseRateMcgPerDay = null,
+                )
+            ),
+            scheduleTimes = listOf(
+                MedicationGroupScheduleTimeEntity(
+                    groupUuid = groupUuid,
+                    sortOrder = 0,
+                    hourOfDay = time.hour,
+                    minuteOfHour = time.minute,
+                    effectiveFromLocalIso = since.atStartOfDay().toString(),
+                    uuid = UUID.randomUUID().toString(),
+                )
+            ),
+            weeklyDays = emptyList(),
+        )
     }
 
     private fun homeSnapshotRecord(
