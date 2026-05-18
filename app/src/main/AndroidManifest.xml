@@ -80,5 +80,16 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/hrt_widget_large_info" />
         </receiver>
+
+        <receiver
+            android:name=".widget.WidgetDateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
