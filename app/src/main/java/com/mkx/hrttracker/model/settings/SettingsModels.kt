@@ -75,6 +75,7 @@ data class SettingsState(
         AppLockGracePeriodOption.ONE_MINUTE,
     val hideScreenContentEnabled: Boolean = false,
     val lastSeenTimeZoneId: String? = null,
+    val hideMedicationDetails: Boolean = false,
 )
 
 fun SettingsState.calibrationDefaultUnitFor(analyteKey: BloodAnalyteKey): BloodUnitKey {
