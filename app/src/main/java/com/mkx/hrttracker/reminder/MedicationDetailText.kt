@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
+import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -39,25 +40,33 @@ fun medicationDetailLine(
     }
 }
 
-private fun medicationDoseText(context: Context, medication: MedicationGroupMedication): String? {
+fun medicationDisplayName(details: MedicationDetails, context: Context): String =
+    when (val sel = details.selection) {
+        is MedicationSelection.Catalog -> context.getString(sel.medicationKey.labelRes)
+        is MedicationSelection.Custom -> sel.medicationName
+    }
+
+fun medicationRouteLabel(details: MedicationDetails, context: Context): String =
+    context.getString(details.applicationType.labelRes)
+
+internal fun medicationDoseText(context: Context, details: MedicationDetails): String? {
     val locale = Locale.getDefault()
-    return when (val dose = medication.dose) {
+    return when (val dose = details.dose) {
         is MedicationDose.MgAsMedicine -> {
-            val unit = medication.details.customDoseDisplayUnit()
+            val unit = details.customDoseDisplayUnit()
             "${unit.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(unit.shortLabelRes)}"
         }
-        is MedicationDose.GelEquivalentEstradiolMg -> {
+        is MedicationDose.GelEquivalentEstradiolMg ->
             "${MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(MedicationDoseUnit.MG.shortLabelRes)}"
-        }
-        is MedicationDose.PatchTotalMg -> {
+        is MedicationDose.PatchTotalMg ->
             "${MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(MedicationDoseUnit.MG.shortLabelRes)}"
-        }
-        is MedicationDose.PatchReleaseRateMcgPerDay -> {
+        is MedicationDose.PatchReleaseRateMcgPerDay ->
             "${dose.valueMcgPerDay.formatDose(locale)} ${context.getString(MedicationDoseUnit.MCG.shortLabelRes)}"
-        }
-        is MedicationDose.GelPercentAndWeight -> {
+        is MedicationDose.GelPercentAndWeight ->
             "${dose.percent.formatDose(locale)}% ${dose.weightGrams.formatDose(locale)} ${context.getString(MedicationDoseUnit.G.shortLabelRes)}"
-        }
         MedicationDose.None -> null
     }
 }
+
+internal fun medicationDoseText(context: Context, medication: MedicationGroupMedication): String? =
+    medicationDoseText(context, medication.details)
