@@ -1,15 +1,13 @@
 package com.mkx.hrttracker.data.repository
 
 import android.content.Context
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
-import com.mkx.hrttracker.model.medication.isSlotFulfilled
-import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -21,7 +19,12 @@ import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.widget.HrtWidget
 import com.mkx.hrttracker.widget.WidgetDoseRow
 import com.mkx.hrttracker.widget.WidgetDoseStatus
-import com.mkx.hrttracker.widget.WidgetNextDose
+import com.mkx.hrttracker.reminder.medicationDisplayName
+import com.mkx.hrttracker.reminder.medicationDoseText
+import com.mkx.hrttracker.reminder.medicationRouteLabel
+import com.mkx.hrttracker.ui.plan.PlanDayScheduleEntry
+import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
+import com.mkx.hrttracker.widget.WidgetDoseChip
 import com.mkx.hrttracker.widget.WidgetPkDoseMarkerRecord
 import com.mkx.hrttracker.widget.WidgetPkProjectionRecord
 import com.mkx.hrttracker.widget.WidgetSnapshotRecord
@@ -46,8 +49,12 @@ import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
+import kotlin.math.abs
 import javax.inject.Singleton
 
 @Singleton
@@ -555,11 +562,13 @@ class HomeSnapshotRepository @Inject constructor(
             userProfile = inputs.profile,
         )
 
+        val settings = settingsRepository.getCurrentSettings()
         val widgetSnapshotRecord = buildWidgetSnapshotRecord(
             inputs = inputs,
             pkProjection = widgetPkProjectionRecord,
             now = now,
             zoneId = zoneId,
+            hideMedicationDetails = settings.hideMedicationDetails,
         )
 
         withContext(Dispatchers.IO) {
@@ -747,93 +756,177 @@ class HomeSnapshotRepository @Inject constructor(
         pkProjection: WidgetPkProjectionRecord?,
         now: LocalDateTime,
         zoneId: ZoneId,
+        hideMedicationDetails: Boolean,
     ): WidgetSnapshotRecord {
-        val todayStart = now.toLocalDate().atStartOfDay()
-        val tomorrowStart = todayStart.plusDays(1)
-        val nowInstant = now.atZone(zoneId).toInstant()
-        val dueSoonThreshold = nowInstant.plusSeconds(DUE_SOON_THRESHOLD_SECONDS)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val tomorrowStart = today.plusDays(1).atStartOfDay()
 
-        val occurrences = inputs.activeGroups.flatMap { group ->
-            group.occurrencesBetweenInPlanWindow(
-                startDate = todayStart.toLocalDate(),
-                endDate = tomorrowStart.toLocalDate().minusDays(1),
-                zoneId = zoneId,
-            )
-        }.sortedBy { it.scheduledFor }
-
-        val doseRows = occurrences.map { occurrence ->
-            val group = inputs.activeGroups.first { it.uuid == occurrence.groupUuid }
-            val slotKey = MedicationGroupSlotKey(
-                scheduleTimeUuid = occurrence.scheduleTimeUuid,
-                scheduledFor = occurrence.scheduledFor,
-            )
-            val fulfilled = isSlotFulfilled(
-                group = group,
-                slot = slotKey,
+        // Last night rows (only during overnight hours: before 06:00)
+        val isOvernight = now.toLocalTime().isBefore(LocalTime.of(6, 0))
+        val lastNightRows: List<WidgetDoseRow> = if (isOvernight) {
+            buildPlanDaySchedule(
+                date = yesterday,
+                groups = inputs.activeGroups,
                 entries = inputs.scheduleEntries,
+                now = now,
                 zoneId = zoneId,
-            )
-            val scheduledInstant = occurrence.scheduledFor.atZone(zoneId).toInstant()
-            val status = when {
-                fulfilled -> WidgetDoseStatus.DONE
-                scheduledInstant < nowInstant -> WidgetDoseStatus.OVERDUE
-                scheduledInstant <= dueSoonThreshold -> WidgetDoseStatus.DUE_SOON
-                else -> WidgetDoseStatus.UPCOMING
-            }
-            val isActionable = status == WidgetDoseStatus.DUE_SOON || status == WidgetDoseStatus.OVERDUE
-            val doneAtEpochMillis = if (fulfilled) {
-                inputs.scheduleEntries
-                    .filter { entry ->
-                        isEntryFulfillingPlanSlot(group, slotKey, entry, zoneId)
-                    }
-                    .maxOfOrNull { it.appliedAt.toEpochMilli() }
-            } else null
-            WidgetDoseRow(
-                displayName = group.name,
-                count = group.medications.sumOf { it.count },
-                status = status,
-                scheduledAt = occurrence.scheduledFor,
-                doneAtEpochMillis = doneAtEpochMillis,
-                groupUuid = if (isActionable) group.uuid.toString() else null,
-                scheduleTimeUuid = if (isActionable) occurrence.scheduleTimeUuid.toString() else null,
-            )
-        }
+            ).scheduledEntries
+                .filter { !it.scheduledFor.toLocalTime().isBefore(LocalTime.of(18, 0)) }
+                .map { it.toWidgetDoseRow(context, now, zoneId, WidgetDoseChip.LAST_NIGHT) }
+        } else emptyList()
 
-        val doneCount = doseRows.count { it.status == WidgetDoseStatus.DONE }
-
-        val nextDueDose = doseRows.firstOrNull { it.status != WidgetDoseStatus.DONE }
-            ?.let { row ->
-                WidgetNextDose(
-                    name = row.displayName,
-                    scheduledAt = row.scheduledAt,
-                    status = row.status,
+        // Today scheduled and manual rows
+        val todaySchedule = buildPlanDaySchedule(
+            date = today,
+            groups = inputs.activeGroups,
+            entries = inputs.scheduleEntries,
+            now = now,
+            zoneId = zoneId,
+        )
+        val todayScheduledRows = todaySchedule.scheduledEntries
+            .map { it.toWidgetDoseRow(context, now, zoneId, null) }
+        val manualRows = todaySchedule.unplannedEntries
+            .map { entry ->
+                val scheduledAt = entry.appliedAt.atZone(zoneId).toLocalDateTime()
+                WidgetDoseRow(
+                    medicationName = medicationDisplayName(entry.details, context),
+                    groupName = "",
+                    colorKey = null,
+                    routeLabel = medicationRouteLabel(entry.details, context),
+                    doseText = medicationDoseText(context, entry.details) ?: "",
+                    status = WidgetDoseStatus.DONE,
+                    scheduledAt = scheduledAt,
+                    trailingText = context.getString(R.string.plan_entry_label_manual),
+                    trailingIsDelta = true,
+                    isManualRecord = true,
+                    contextChip = null,
+                    groupUuid = null,
+                    scheduleTimeUuid = null,
                 )
             }
-            ?: inputs.activeGroups.flatMap { group ->
-                group.occurrencesBetweenInPlanWindow(
-                    startDate = tomorrowStart.toLocalDate(),
-                    endDate = tomorrowStart.toLocalDate(),
+
+        // Coming-up-next row (tomorrow's first group, first medication only)
+        val comingUpRow: WidgetDoseRow? = inputs.activeGroups
+            .flatMap { group ->
+                group.nextOccurrencesInPlanWindowFrom(
+                    start = tomorrowStart,
+                    limit = 1,
                     zoneId = zoneId,
-                ).map { occurrence ->
-                    WidgetNextDose(
-                        name = group.name,
-                        scheduledAt = occurrence.scheduledFor,
-                        status = WidgetDoseStatus.UPCOMING,
-                    )
+                ).flatMap { occurrence ->
+                    group.medications.take(1).map { medication ->
+                        val scheduledAt = occurrence.scheduledFor
+                        WidgetDoseRow(
+                            medicationName = medicationDisplayName(medication.details, context),
+                            groupName = group.name,
+                            colorKey = group.colorKey,
+                            routeLabel = medicationRouteLabel(medication.details, context),
+                            doseText = medicationDoseText(context, medication.details) ?: "",
+                            status = WidgetDoseStatus.UPCOMING,
+                            scheduledAt = scheduledAt,
+                            trailingText = scheduledAt.format(DateTimeFormatter.ofPattern("HH:mm")),
+                            trailingIsDelta = false,
+                            isManualRecord = false,
+                            contextChip = WidgetDoseChip.COMING_UP,
+                            groupUuid = null,
+                            scheduleTimeUuid = null,
+                        )
+                    }
                 }
-            }.minByOrNull { it.scheduledAt }
+            }
+            .minByOrNull { it.scheduledAt }
+
+        val allRows = lastNightRows +
+            (todayScheduledRows + manualRows).sortedBy { it.scheduledAt } +
+            listOfNotNull(comingUpRow)
+
+        val doneCount = todayScheduledRows.count { it.status == WidgetDoseStatus.DONE }
 
         return WidgetSnapshotRecord(
             schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
             zoneId = zoneId.id,
             doneCount = doneCount,
-            totalCount = doseRows.size,
-            doseRows = doseRows,
-            nextDueDose = nextDueDose,
+            totalCount = todayScheduledRows.size,
+            manualCount = manualRows.size,
+            hideMedicationDetails = hideMedicationDetails,
+            doseRows = allRows,
             pkProjection = pkProjection,
         )
     }
 }
+
+private fun PlanDayScheduleEntry.toWidgetDoseRow(
+    context: Context,
+    now: LocalDateTime,
+    zoneId: ZoneId,
+    contextChip: WidgetDoseChip?,
+): WidgetDoseRow {
+    val status = when {
+        isFulfilled -> WidgetDoseStatus.DONE
+        isPastDue -> WidgetDoseStatus.OVERDUE
+        isDueSoon -> WidgetDoseStatus.DUE_SOON
+        else -> WidgetDoseStatus.UPCOMING
+    }
+    val isActionable = status == WidgetDoseStatus.DUE_SOON || status == WidgetDoseStatus.OVERDUE
+    val doneAt = loggedAt ?: outsideScheduleWindowLoggedAt
+    val (trailingText, trailingIsDelta) = widgetTrailingText(
+        context = context,
+        status = status,
+        scheduledAt = scheduledFor,
+        doneAt = doneAt,
+        now = now,
+    )
+    return WidgetDoseRow(
+        medicationName = medicationDisplayName(medication.details, context),
+        groupName = groupName,
+        colorKey = groupColorKey,
+        routeLabel = medicationRouteLabel(medication.details, context),
+        doseText = medicationDoseText(context, medication.details) ?: "",
+        status = status,
+        scheduledAt = scheduledFor,
+        trailingText = trailingText,
+        trailingIsDelta = trailingIsDelta,
+        isManualRecord = false,
+        contextChip = contextChip,
+        groupUuid = if (isActionable) groupUuid.toString() else null,
+        scheduleTimeUuid = if (isActionable) scheduleTimeUuid?.toString() else null,
+    )
+}
+
+private fun widgetTrailingText(
+    context: Context,
+    status: WidgetDoseStatus,
+    scheduledAt: LocalDateTime,
+    doneAt: LocalDateTime?,
+    now: LocalDateTime,
+): Pair<String?, Boolean> {
+    return when {
+        doneAt != null -> Pair(widgetScheduleOffsetText(context, scheduledAt, doneAt), true)
+        scheduledAt.isAfter(now.minusMinutes(WIDGET_SCHEDULE_GRACE_MINUTES)) ->
+            Pair(scheduledAt.format(DateTimeFormatter.ofPattern("HH:mm")), false)
+        else -> Pair(widgetScheduleOffsetText(context, scheduledAt, now), true)
+    }
+}
+
+private fun widgetScheduleOffsetText(
+    context: Context,
+    scheduledFor: LocalDateTime,
+    comparedAt: LocalDateTime,
+): String? {
+    val deltaMinutes = ChronoUnit.MINUTES.between(scheduledFor, comparedAt)
+    val absoluteMinutes = abs(deltaMinutes)
+    if (absoluteMinutes < WIDGET_SCHEDULE_GRACE_MINUTES) return null
+    val isEarly = deltaMinutes < 0
+    val hours = (absoluteMinutes / 60L).coerceAtLeast(1L).toInt()
+    return context.resources.getQuantityString(
+        if (isEarly) R.plurals.main_today_schedule_offset_hours_earlier
+        else R.plurals.main_today_schedule_offset_hours_later,
+        hours,
+        hours,
+    )
+}
+
+private const val WIDGET_SCHEDULE_GRACE_MINUTES = 60L
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
     return "schema=$schemaVersion " +
