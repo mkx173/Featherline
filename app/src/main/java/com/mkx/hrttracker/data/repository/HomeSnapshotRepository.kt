@@ -806,35 +806,36 @@ class HomeSnapshotRepository @Inject constructor(
                 )
             }
 
-        // Coming-up-next row (tomorrow's first group, first medication only)
-        val comingUpRow: WidgetDoseRow? = inputs.activeGroups
-            .flatMap { group ->
-                group.nextOccurrencesInPlanWindowFrom(
-                    start = tomorrowStart,
-                    limit = 1,
-                    zoneId = zoneId,
-                ).flatMap { occurrence ->
-                    group.medications.take(1).map { medication ->
-                        val scheduledAt = occurrence.scheduledFor
-                        WidgetDoseRow(
-                            medicationName = medicationDisplayName(medication.details, context),
-                            groupName = group.name,
-                            colorKey = group.colorKey,
-                            routeLabel = medicationRouteLabel(medication.details, context),
-                            doseText = medicationDoseText(context, medication.details) ?: "",
-                            status = WidgetDoseStatus.UPCOMING,
-                            scheduledAt = scheduledAt,
-                            trailingText = scheduledAt.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            trailingIsDelta = false,
-                            isManualRecord = false,
-                            contextChip = WidgetDoseChip.COMING_UP,
-                            groupUuid = null,
-                            scheduleTimeUuid = null,
-                        )
-                    }
-                }
+        // Coming-up-next row: earliest next time across all groups; "+x" for additional meds at same time
+        data class ComingUpCandidate(val group: MedicationGroup, val scheduledAt: LocalDateTime)
+        val comingUpCandidates = inputs.activeGroups.mapNotNull { group ->
+            group.nextOccurrencesInPlanWindowFrom(start = tomorrowStart, limit = 1, zoneId = zoneId)
+                .firstOrNull()
+                ?.let { ComingUpCandidate(group = group, scheduledAt = it.scheduledFor) }
+        }
+        val comingUpRow: WidgetDoseRow? = comingUpCandidates.minByOrNull { it.scheduledAt }
+            ?.let { earliest ->
+                val groupsAtTime = comingUpCandidates.filter { it.scheduledAt == earliest.scheduledAt }
+                val totalMedications = groupsAtTime.sumOf { it.group.medications.size }
+                val firstMedication = earliest.group.medications.first()
+                val baseName = medicationDisplayName(firstMedication.details, context)
+                val medicationName = if (totalMedications > 1) "$baseName +${totalMedications - 1}" else baseName
+                WidgetDoseRow(
+                    medicationName = medicationName,
+                    groupName = earliest.group.name,
+                    colorKey = earliest.group.colorKey,
+                    routeLabel = medicationRouteLabel(firstMedication.details, context),
+                    doseText = medicationDoseText(context, firstMedication.details) ?: "",
+                    status = WidgetDoseStatus.UPCOMING,
+                    scheduledAt = earliest.scheduledAt,
+                    trailingText = earliest.scheduledAt.format(DateTimeFormatter.ofPattern("HH:mm")),
+                    trailingIsDelta = false,
+                    isManualRecord = false,
+                    contextChip = WidgetDoseChip.COMING_UP,
+                    groupUuid = null,
+                    scheduleTimeUuid = null,
+                )
             }
-            .minByOrNull { it.scheduledAt }
 
         val allRows = lastNightRows +
             (todayScheduledRows + manualRows).sortedBy { it.scheduledAt } +
