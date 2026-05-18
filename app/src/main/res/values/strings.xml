@@ -609,7 +609,11 @@
     <string name="widget_medium_description">HRT Tracker – dose summary</string>
     <string name="widget_large_description">HRT Tracker – dose list</string>
     <string name="widget_all_done">All done</string>
-    <string name="widget_no_medications">No medications set up · Tap to open</string>
+    <string name="widget_no_medications">No medications set up</string>
+    <string name="widget_no_doses_today">No doses today</string>
+    <string name="widget_next_dose">Next dose</string>
     <string name="widget_today">Today</string>
     <string name="widget_tomorrow">Tomorrow</string>
+    <string name="widget_chip_last_night">Last night</string>
+    <string name="widget_chip_coming_up">Coming up</string>
 </resources>

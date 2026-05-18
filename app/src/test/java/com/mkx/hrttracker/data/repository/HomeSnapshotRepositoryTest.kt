@@ -81,6 +81,7 @@ class HomeSnapshotRepositoryTest {
             nextGeneration
         }
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns chartWindowOptionState
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
     }
 
     @Test
@@ -705,7 +706,6 @@ class HomeSnapshotRepositoryTest {
         coEvery { homeDao.getEstradiolPkEntries(any(), any()) } returns emptyList()
         coEvery { homeDao.getLatestEstradiolEntryOnOrBefore(any()) } returns null
         coEvery { userProfileDao.getProfile() } returns null
-        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
     }
 
     private fun widgetTestGroup(
