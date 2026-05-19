@@ -135,6 +135,7 @@ import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter

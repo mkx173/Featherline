@@ -85,6 +85,7 @@ import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
 import com.mkx.hrttracker.util.rememberUses24HourTimeFormat
+import com.mkx.hrttracker.util.calibrationUnitLabel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime

@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.timeSinceEntryMillis
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.model.settings.calibrationDefaultUnitFor
 import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.formatCalibrationNumericValue
 import com.mkx.hrttracker.util.zoneDisplayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

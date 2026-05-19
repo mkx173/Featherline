@@ -4,8 +4,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
-import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
-import com.mkx.hrttracker.ui.main.formatMainE2ConcentrationValue
+import com.mkx.hrttracker.util.calibrationUnitLabel
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 
 internal fun formatWidgetE2Text(
     currentConcentration: Double,

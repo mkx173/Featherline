@@ -93,6 +93,10 @@ import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.calibrationMonthHeaderFormatter
 import com.mkx.hrttracker.util.calibrationPanelDateTimeFormatters
 import com.mkx.hrttracker.util.displayZoneOf
+import com.mkx.hrttracker.util.calibrationUnitLabel
+import com.mkx.hrttracker.util.formatCalibrationConvertedValue
+import com.mkx.hrttracker.util.formatCalibrationNumericValue
+import com.mkx.hrttracker.util.formatCalibrationUnitLabel
 import com.mkx.hrttracker.util.formatCalibrationPanelDateTimeLabels
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -1143,31 +1147,6 @@ internal fun calibrationUnitLabelFor(
     )
 }
 
-internal fun calibrationUnitLabel(unit: BloodUnitKey): String {
-    return formatCalibrationUnitLabel(unit.storageValue)
-}
-
-internal fun formatCalibrationUnitLabel(unitSnapshot: String): String {
-    return when (BloodUnitKey.fromStorageValue(unitSnapshot)) {
-        BloodUnitKey.PG_ML -> "pg/mL"
-        BloodUnitKey.PMOL_L -> "pmol/L"
-        BloodUnitKey.NG_DL -> "ng/dL"
-        BloodUnitKey.NMOL_L -> "nmol/L"
-        BloodUnitKey.NG_ML -> "ng/mL"
-        BloodUnitKey.MIU_L -> "mIU/L"
-        BloodUnitKey.MIU_ML -> "mIU/mL"
-        BloodUnitKey.IU_L -> "IU/L"
-        null -> unitSnapshot
-    }
-}
-
-internal fun formatCalibrationNumericValue(value: Double): String {
-    return if (value == value.toLong().toDouble()) {
-        value.toLong().toString()
-    } else {
-        value.toString()
-    }
-}
 
 internal fun calibrationValueInPreferredUnitLabel(
     analyteKey: BloodAnalyteKey,
@@ -1193,14 +1172,6 @@ internal fun calibrationValueInPreferredUnitLabel(
     return "${formatCalibrationConvertedValue(preferredValue)} ${calibrationUnitLabel(preferredUnit)}"
 }
 
-internal fun formatCalibrationConvertedValue(value: Double): String {
-    val roundedValue = when {
-        value >= 100.0 -> round(value * 10.0) / 10.0
-        value >= 1.0 -> round(value * 100.0) / 100.0
-        else -> round(value * 1000.0) / 1000.0
-    }
-    return formatCalibrationNumericValue(roundedValue)
-}
 
 private sealed interface CalibrationCanonicalTarget {
     data class Range(val low: Double, val high: Double) : CalibrationCanonicalTarget

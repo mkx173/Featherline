@@ -18,8 +18,9 @@ import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
-import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
-import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
+import com.mkx.hrttracker.util.calibrationUnitLabel
+import com.mkx.hrttracker.util.formatCalibrationConvertedValue
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
@@ -560,24 +561,6 @@ internal fun buildMainLastNightSection(
         manualCount = lastNightRows.manualRows.size,
         rows = rows
     )
-}
-
-internal fun formatMainE2ConcentrationValue(
-    value: Double,
-    displayUnit: BloodUnitKey,
-): String {
-    return when (displayUnit) {
-        BloodUnitKey.PG_ML,
-        BloodUnitKey.PMOL_L,
-        -> value.roundToLong().toString()
-
-        BloodUnitKey.NG_DL -> {
-            val roundedValue = (value * 10.0).roundToLong() / 10.0
-            String.format(Locale.US, "%.1f", roundedValue)
-        }
-
-        else -> formatCalibrationConvertedValue(value)
-    }
 }
 
 internal fun formatMainE2TrendDeltaValue(
