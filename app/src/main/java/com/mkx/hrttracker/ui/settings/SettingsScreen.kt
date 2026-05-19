@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,6 +112,7 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -429,6 +431,8 @@ fun SettingsScreen(
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
+        onWidgetContentScaleChange = viewModel::setWidgetContentScale,
+        onWidgetBackgroundAlphaChange = viewModel::setWidgetBackgroundAlpha,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -545,6 +549,53 @@ fun SettingsScreen(
     }
 }
 
+@Composable
+private fun WidgetAppearanceDialog(
+    contentScale: Float,
+    backgroundAlpha: Float,
+    onContentScaleChange: (Float) -> Unit,
+    onBackgroundAlphaChange: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val constrainedContentScale = contentScale.coerceIn(0.7f, 1.3f)
+    val constrainedBackgroundAlpha = backgroundAlpha.coerceIn(0.5f, 1f)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_widget_appearance)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Text(
+                        text = "${stringResource(R.string.settings_widget_content_scale)} ${(constrainedContentScale * 100).roundToInt()}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = constrainedContentScale,
+                        onValueChange = onContentScaleChange,
+                        valueRange = 0.7f..1.3f,
+                    )
+                }
+                Column {
+                    Text(
+                        text = "${stringResource(R.string.settings_widget_background_opacity)} ${(constrainedBackgroundAlpha * 100).roundToInt()}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Slider(
+                        value = constrainedBackgroundAlpha,
+                        onValueChange = onBackgroundAlphaChange,
+                        valueRange = 0.5f..1f,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.done))
+            }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreenContent(
@@ -565,6 +616,8 @@ private fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
+    onWidgetContentScaleChange: (Float) -> Unit,
+    onWidgetBackgroundAlphaChange: (Float) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -581,6 +634,7 @@ private fun SettingsScreenContent(
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
@@ -980,7 +1034,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
-                        count = 3,
+                        count = 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1006,7 +1060,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 1,
-                        count = 3,
+                        count = 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1030,7 +1084,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 2,
-                    count = 3,
+                    count = 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1044,6 +1098,21 @@ private fun SettingsScreenContent(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
                         )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_widget_appearance),
+                    index = 3,
+                    count = 4,
+                    onClick = { showWidgetAppearanceDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_widgets)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
                     }
                 )
             }
@@ -1331,6 +1400,16 @@ private fun SettingsScreenContent(
                 onRequestExactAlarmAccess()
             },
             onDismiss = { showExactAlarmRecoveryDialog = false }
+        )
+    }
+
+    if (showWidgetAppearanceDialog) {
+        WidgetAppearanceDialog(
+            contentScale = settingsState.widgetContentScale,
+            backgroundAlpha = settingsState.widgetBackgroundAlpha,
+            onContentScaleChange = onWidgetContentScaleChange,
+            onBackgroundAlphaChange = onWidgetBackgroundAlphaChange,
+            onDismiss = { showWidgetAppearanceDialog = false },
         )
     }
 
@@ -1725,6 +1804,8 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
+            onWidgetContentScaleChange = { },
+            onWidgetBackgroundAlphaChange = { },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,

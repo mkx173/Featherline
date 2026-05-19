@@ -16,6 +16,8 @@ class WidgetSnapshotCodecTest {
         manualCount = 1,
         hideMedicationDetails = false,
         adaptiveColorEnabled = false,
+        widgetContentScale = 1.0f,
+        widgetBackgroundAlpha = 0.85f,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol",
@@ -133,6 +135,17 @@ class WidgetSnapshotCodecTest {
     fun `codec round-trips hideMedicationDetails=true`() {
         val record = baseRecord.copy(hideMedicationDetails = true)
         assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
+    fun `codec round-trips non-default widget appearance settings`() {
+        val record = baseRecord.copy(
+            widgetContentScale = 0.8f,
+            widgetBackgroundAlpha = 0.6f,
+        )
+        val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
+        assertEquals(0.8f, decoded.widgetContentScale)
+        assertEquals(0.6f, decoded.widgetBackgroundAlpha)
     }
 
     @Test

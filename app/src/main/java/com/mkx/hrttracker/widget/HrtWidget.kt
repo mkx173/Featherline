@@ -81,7 +81,7 @@ private data class WidgetColorScheme(
     val outlineVariant: ColorProvider,
 )
 
-private fun hardcodedWidgetColorScheme(): WidgetColorScheme {
+private fun hardcodedWidgetColorScheme(alpha: Float = 1.0f): WidgetColorScheme {
     fun p(day: Color, night: Color) = DayNightColorProvider(day, night)
     return WidgetColorScheme(
         primary             = p(Color(0xFF8D4959), Color(0xFFFFB1C0)),
@@ -91,8 +91,8 @@ private fun hardcodedWidgetColorScheme(): WidgetColorScheme {
         onTertiaryContainer = p(Color(0xFF5F401D), Color(0xFFFFDCBC)),
         surfaceVariant      = p(Color(0xFFF5E4E6), Color(0xFF312829)),
         onSurfaceVariant    = p(Color(0xFF524345), Color(0xFFD6C2C4)),
-        surfaceContainerLow = p(Color(0xFFFFF0F1), Color(0xFF22191B)),
-        surface             = p(Color(0xFFFFF8F7), Color(0xFF191113)),
+        surfaceContainerLow = p(Color(0xFFFFF0F1).copy(alpha = alpha), Color(0xFF22191B).copy(alpha = alpha)),
+        surface             = p(Color(0xFFFFF8F7).copy(alpha = alpha), Color(0xFF191113).copy(alpha = alpha)),
         onSurface           = p(Color(0xFF22191B), Color(0xFFEFDEE0)),
         outline             = p(Color(0xFF847375), Color(0xFF9F8C8F)),
         outlineVariant      = p(Color(0xFFD6C2C4), Color(0xFF524345)),
@@ -100,7 +100,7 @@ private fun hardcodedWidgetColorScheme(): WidgetColorScheme {
 }
 
 @androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
-private fun dynamicWidgetColorScheme(context: Context): WidgetColorScheme {
+private fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): WidgetColorScheme {
     val seed = Color(context.getColor(android.R.color.system_accent1_500))
     val light = dynamicColorScheme(seed, isDark = false)
     val dark  = dynamicColorScheme(seed, isDark = true)
@@ -113,8 +113,8 @@ private fun dynamicWidgetColorScheme(context: Context): WidgetColorScheme {
         onTertiaryContainer = p(light.onTertiaryContainer,  dark.onTertiaryContainer),
         surfaceVariant      = p(light.surfaceVariant,       dark.surfaceVariant),
         onSurfaceVariant    = p(light.onSurfaceVariant,     dark.onSurfaceVariant),
-        surfaceContainerLow = p(light.surfaceContainerLow,  dark.surfaceContainerLow),
-        surface             = p(light.surface,              dark.surface),
+        surfaceContainerLow = p(light.surfaceContainerLow.copy(alpha = alpha), dark.surfaceContainerLow.copy(alpha = alpha)),
+        surface             = p(light.surface.copy(alpha = alpha), dark.surface.copy(alpha = alpha)),
         onSurface           = p(light.onSurface,            dark.onSurface),
         outline             = p(light.outline,              dark.outline),
         outlineVariant      = p(light.outlineVariant,       dark.outlineVariant),
@@ -122,6 +122,8 @@ private fun dynamicWidgetColorScheme(context: Context): WidgetColorScheme {
 }
 
 private val LocalWidgetColors = compositionLocalOf { hardcodedWidgetColorScheme() }
+private val LocalWidgetScale = compositionLocalOf { 1.0f }
+private val LocalWidgetAlpha = compositionLocalOf { 1.0f }
 
 private val colorGroupSlate = DayNightColorProvider(day = Color(0xFF60646C), night = Color(0xFFB0B4BA))
 private val colorGroupRose = DayNightColorProvider(day = Color(0xFFCE2C31), night = Color(0xFFFF8A88))
@@ -145,13 +147,19 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         val state = currentState<WidgetSnapshotState>()
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
         val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
+        val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
+        val scale = snapshot?.widgetContentScale?.coerceIn(0.7f, 1.3f) ?: 1.0f
         val widgetColors = if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            dynamicWidgetColorScheme(context)
+            dynamicWidgetColorScheme(context, alpha)
         } else {
-            hardcodedWidgetColorScheme()
+            hardcodedWidgetColorScheme(alpha)
         }
         GlanceTheme {
-            CompositionLocalProvider(LocalWidgetColors provides widgetColors) {
+            CompositionLocalProvider(
+                LocalWidgetColors provides widgetColors,
+                LocalWidgetScale provides scale,
+                LocalWidgetAlpha provides alpha,
+            ) {
                 content(snapshot)
             }
         }
@@ -242,12 +250,13 @@ private fun WidgetShell(contentAlignment: Alignment = Alignment.TopStart, conten
 @Composable
 private fun WidgetLabel(text: String, modifier: GlanceModifier = GlanceModifier, fontSize: TextUnit = 18.sp) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     Text(
         text = text.uppercase(),
         modifier = modifier,
         style = TextStyle(
             color = colors.onSurfaceVariant,
-            fontSize = fontSize,
+            fontSize = (fontSize.value * scale).sp,
             fontWeight = FontWeight.Bold,
         ),
         maxLines = 1,
@@ -274,7 +283,7 @@ private fun EmptyWidgetContent() {
             text = context.getString(R.string.widget_no_medications),
             style = TextStyle(
                 color = colors.onSurfaceVariant,
-                fontSize = 13.sp,
+                fontSize = (13f * LocalWidgetScale.current).sp,
                 fontWeight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -292,9 +301,10 @@ private fun ProgressBar(
 ) {
     if (totalCount <= 0) return
     val colors = LocalWidgetColors.current
-    Row(modifier = modifier.height(6.dp)) {
+    val scale = LocalWidgetScale.current
+    Row(modifier = modifier.height((6f * scale).dp)) {
         for (i in 0 until totalCount) {
-            if (i > 0) Spacer(GlanceModifier.width(3.dp))
+            if (i > 0) Spacer(GlanceModifier.width((3f * scale).dp))
             Box(
                 modifier = GlanceModifier
                     .defaultWeight()
@@ -329,6 +339,7 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     val groupUuid = row.groupUuid
     val scheduleTimeUuid = row.scheduleTimeUuid ?: ""
     val clickModifier = if (showLogAction && groupUuid != null) {
@@ -348,7 +359,7 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
 
     when (row.status) {
         WidgetDoseStatus.DONE -> Box(
-            modifier = GlanceModifier.size(32.dp)
+            modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.secondaryContainer)
                 .cornerRadius(999.dp)
                 .then(clickModifier),
@@ -357,13 +368,13 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size(24.dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
             )
         }
 
         WidgetDoseStatus.DUE_SOON -> Box(
-            modifier = GlanceModifier.size(32.dp)
+            modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.tertiaryContainer)
                 .cornerRadius(999.dp)
                 .then(clickModifier),
@@ -372,13 +383,13 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size(24.dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
             )
         }
 
         WidgetDoseStatus.OVERDUE -> Box(
-            modifier = GlanceModifier.size(32.dp)
+            modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp)
                 .then(clickModifier),
@@ -387,13 +398,13 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size(24.dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
 
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
-            modifier = GlanceModifier.size(32.dp)
+            modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
@@ -401,7 +412,7 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size(24.dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
@@ -411,16 +422,16 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             val borderColor = colors.outline
             val fillColor = colors.surface
             Box(
-                modifier = GlanceModifier.size(32.dp)
+                modifier = GlanceModifier.size((32f * scale).dp)
                     .background(borderColor)
-                    .cornerRadius(16.dp)
+                    .cornerRadius((16f * scale).dp)
                     .then(clickModifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    modifier = GlanceModifier.size(30.dp)
+                    modifier = GlanceModifier.size((30f * scale).dp)
                         .background(fillColor)
-                        .cornerRadius(15.dp),
+                        .cornerRadius((15f * scale).dp),
                 ) {}
             }
         }
@@ -436,12 +447,13 @@ private fun DoseRow(
     hideMedicationDetails: Boolean,
 ) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     val rowModifier = GlanceModifier
         .fillMaxWidth()
-        .height(64.dp)
+        .height((64f * scale).dp)
         .background(colors.surfaceContainerLow)
         .cornerRadius(10.dp)
-        .padding(horizontal = 16.dp)
+        .padding(horizontal = (16f * scale).dp)
 
     Row(
         modifier = rowModifier,
@@ -451,7 +463,7 @@ private fun DoseRow(
         Box(
             modifier = GlanceModifier
                 .width(6.dp)
-                .height(44.dp)
+                .height((44f * scale).dp)
                 .background(groupAccentColor(row.colorKey))
                 .cornerRadius(999.dp),
         ) {}
@@ -474,7 +486,7 @@ private fun DoseRow(
                     } else {
                         colors.onSurface
                     },
-                    fontSize = 18.sp,
+                    fontSize = (18f * LocalWidgetScale.current).sp,
                     fontWeight = FontWeight.Medium,
                 ),
                 maxLines = 1,
@@ -489,7 +501,7 @@ private fun DoseRow(
                         text = supportingText,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 14.sp,
+                            fontSize = (14f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Normal,
                         ),
                         maxLines = 1,
@@ -506,7 +518,7 @@ private fun DoseRow(
                 text = row.trailingText,
                 style = TextStyle(
                     color = colors.onSurface,
-                    fontSize = 16.sp,
+                    fontSize = (16f * LocalWidgetScale.current).sp,
                     fontWeight = FontWeight.Medium,
                 ),
                 maxLines = 1,
@@ -562,7 +574,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = context.getString(R.string.widget_no_doses_today),
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 13.sp,
+                            fontSize = (13f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
@@ -577,7 +589,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 } else {
                                     colors.onSurface
                                 },
-                                fontSize = 32.sp,
+                                fontSize = (32f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Bold,
                             ),
                         )
@@ -586,7 +598,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             text = "/$totalCount done",
                             style = TextStyle(
                                 color = colors.onSurfaceVariant,
-                                fontSize = 14.sp,
+                                fontSize = (14f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Medium,
                             ),
                             maxLines = 1,
@@ -601,7 +613,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = "E2 ~%.0f pg/mL".format(e2Value),
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            fontSize = (11f * LocalWidgetScale.current).sp,
                         ),
                     )
                 }
@@ -643,7 +655,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = context.getString(R.string.widget_all_done),
                         style = TextStyle(
                             color = colors.primary,
-                            fontSize = 13.sp,
+                            fontSize = (13f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                     )
@@ -665,7 +677,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = displayName,
                         style = TextStyle(
                             color = colors.onSurface,
-                            fontSize = 13.sp,
+                            fontSize = (13f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
@@ -681,7 +693,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = supporting,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = 11.sp,
+                                    fontSize = (11f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -698,7 +710,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = 11.sp,
+                                    fontSize = (11f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -807,12 +819,12 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Value != null) {
-                    Spacer(GlanceModifier.width(64.dp))
+                    Spacer(GlanceModifier.width((64f / LocalWidgetScale.current).dp))
                     Text(
                         text = "E2 ~%.0f pg/mL".format(e2Value),
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 14.sp,
+                            fontSize = (14f * LocalWidgetScale.current).sp,
                         ),
                     )
                 }
@@ -854,6 +866,8 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
         manualCount = 0,
         hideMedicationDetails = false,
         adaptiveColorEnabled = false,
+        widgetContentScale = 1.0f,
+        widgetBackgroundAlpha = 1.0f,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol Valerate",

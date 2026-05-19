@@ -196,6 +196,8 @@ class BackupRestoreService @Inject constructor(
             homeE2ChartWindowOption = validatedSnapshot.settings.homeE2ChartWindowOption,
             lastSeenTimeZoneId = validatedSnapshot.settings.lastSeenTimeZoneId,
             hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
+            widgetContentScale = validatedSnapshot.settings.widgetContentScale,
+            widgetBackgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
         )
 
@@ -668,6 +670,8 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         homeE2ChartWindowOption = homeE2ChartWindowOption,
         lastSeenTimeZoneId = lastSeenTimeZoneId,
         hideMedicationDetails = hideMedicationDetails,
+        widgetContentScale = widgetContentScale.requireFiniteIn(0.7f..1.3f, "widget content scale"),
+        widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(0.5f..1f, "widget background opacity"),
         groupNameCounter = groupNameCounter,
     )
 }
@@ -789,6 +793,8 @@ internal data class ValidatedBackupSettings(
     val homeE2ChartWindowOption: HomeE2ChartWindowOption,
     val lastSeenTimeZoneId: String?,
     val hideMedicationDetails: Boolean,
+    val widgetContentScale: Float,
+    val widgetBackgroundAlpha: Float,
     val groupNameCounter: Int,
 )
 
@@ -1009,6 +1015,16 @@ private fun requireZoneId(
 private fun Double?.requirePositiveFinite(fieldName: String): Double {
     require(this != null && isFinite() && this > 0.0) {
         "$fieldName must be a positive finite number."
+    }
+    return this
+}
+
+private fun Float.requireFiniteIn(
+    range: ClosedFloatingPointRange<Float>,
+    fieldName: String,
+): Float {
+    require(isFinite() && this in range) {
+        "$fieldName must be finite and between ${range.start} and ${range.endInclusive}."
     }
     return this
 }

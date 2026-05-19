@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -80,6 +81,8 @@ class SettingsRepository @Inject constructor(
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
+    private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
+    private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
@@ -224,6 +227,18 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setWidgetContentScale(value: Float) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetContentScaleKey] = value
+        }
+    }
+
+    suspend fun setWidgetBackgroundAlpha(value: Float) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetBackgroundAlphaKey] = value.coerceIn(0.5f, 1.0f)
+        }
+    }
+
     suspend fun nextGroupNameIndex(): Int {
         var result = 0
         activeDataStore().edit { preferences ->
@@ -261,6 +276,8 @@ class SettingsRepository @Inject constructor(
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
         hideMedicationDetails: Boolean = false,
+        widgetContentScale: Float = 1.0f,
+        widgetBackgroundAlpha: Float = 1.0f,
         groupNameCounter: Int = 0,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
@@ -302,6 +319,8 @@ class SettingsRepository @Inject constructor(
             }
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
+            preferences[widgetContentScaleKey] = widgetContentScale
+            preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
             preferences[groupNameCounterKey] = groupNameCounter
         }
 
@@ -340,6 +359,8 @@ class SettingsRepository @Inject constructor(
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
+            widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
+            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(0.5f, 1.0f),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
         )
     }

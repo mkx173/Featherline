@@ -273,6 +273,7 @@
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
+    <string name="done">完成</string>
     <string name="archive">归档</string>
     <string name="archived_group_record_indicator">来自已归档分组</string>
     <string name="cross_timezone_entry_indicator">在其他时区记录</string>
@@ -342,6 +343,9 @@
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
+    <string name="settings_widget_appearance">小部件外观</string>
+    <string name="settings_widget_content_scale">内容大小</string>
+    <string name="settings_widget_background_opacity">背景不透明度</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
     <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>

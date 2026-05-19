@@ -97,7 +97,14 @@ class HomeSnapshotRepository @Inject constructor(
             var first = true
             settingsRepository.settingsState
                 .map { s ->
-                    listOf(s.hideMedicationDetails, s.adaptiveColorEnabled, s.darkModeOption, s.appLanguageOption)
+                    listOf(
+                        s.hideMedicationDetails,
+                        s.adaptiveColorEnabled,
+                        s.widgetContentScale,
+                        s.widgetBackgroundAlpha,
+                        s.darkModeOption,
+                        s.appLanguageOption,
+                    )
                 }
                 .distinctUntilChanged()
                 .collect { _ ->
@@ -582,6 +589,8 @@ class HomeSnapshotRepository @Inject constructor(
             zoneId = zoneId,
             hideMedicationDetails = settings.hideMedicationDetails,
             adaptiveColorEnabled = settings.adaptiveColorEnabled,
+            widgetContentScale = settings.widgetContentScale,
+            widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
         )
 
         withContext(Dispatchers.IO) {
@@ -771,6 +780,8 @@ class HomeSnapshotRepository @Inject constructor(
         zoneId: ZoneId,
         hideMedicationDetails: Boolean,
         adaptiveColorEnabled: Boolean,
+        widgetContentScale: Float,
+        widgetBackgroundAlpha: Float,
     ): WidgetSnapshotRecord {
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
@@ -872,6 +883,8 @@ class HomeSnapshotRepository @Inject constructor(
             manualCount = manualRows.size,
             hideMedicationDetails = hideMedicationDetails,
             adaptiveColorEnabled = adaptiveColorEnabled,
+            widgetContentScale = widgetContentScale,
+            widgetBackgroundAlpha = widgetBackgroundAlpha,
             doseRows = allRows,
             pkProjection = pkProjection,
         )

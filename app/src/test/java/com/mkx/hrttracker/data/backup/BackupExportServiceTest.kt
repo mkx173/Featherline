@@ -118,6 +118,8 @@ class BackupExportServiceTest {
             screenLockProtectionEnabled = true,
             appLockGracePeriodOption = AppLockGracePeriodOption.FIVE_MINUTES,
             hideScreenContentEnabled = true,
+            widgetContentScale = 0.8f,
+            widgetBackgroundAlpha = 0.6f,
         )
         coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile(
             weightKg = 52.2,
@@ -256,6 +258,8 @@ class BackupExportServiceTest {
         assertEquals("SIMPLIFIED_CHINESE", snapshot.settings.appLanguageOption)
         assertEquals("ng_dl", snapshot.settings.homeE2DisplayUnit)
         assertEquals("THIRTY_DAYS", snapshot.settings.homeE2ChartWindow)
+        assertEquals(0.8f, snapshot.settings.widgetContentScale, 0f)
+        assertEquals(0.6f, snapshot.settings.widgetBackgroundAlpha, 0f)
         assertEquals(
             mapOf("e2" to "pmol_l", "t" to "nmol_l"),
             snapshot.settings.calibrationDefaultUnits,
