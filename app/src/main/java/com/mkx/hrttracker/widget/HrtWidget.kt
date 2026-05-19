@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.compose.foundation.layout.padding
 import com.materialkolor.dynamicColorScheme
@@ -29,6 +30,7 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.itemsIndexed
@@ -55,6 +57,15 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.core.net.toUri
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_ENTRY_UUID
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_GROUP_UUID
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_KIND
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_MEDICATION_UUID
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID
+import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULED_AT
+import com.mkx.hrttracker.HIGHLIGHT_KIND_MANUAL
+import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
@@ -464,20 +475,55 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
 
 // ── Dose row ──────────────────────────────────────────────────────────────────
 
+private fun widgetRowHighlightIntent(context: Context, row: WidgetDoseRow): Intent? {
+    val entryUuid = row.entryUuid
+    if (entryUuid != null) {
+        return Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data = "hrttracker://widget-row-highlight/manual/$entryUuid".toUri()
+            putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_MANUAL)
+            putExtra(EXTRA_HIGHLIGHT_ENTRY_UUID, entryUuid)
+        }
+    }
+    val groupUuid = row.groupUuid ?: return null
+    val stableKey = listOf(
+        groupUuid,
+        row.scheduleTimeUuid.orEmpty(),
+        row.scheduledAt.toString(),
+        row.medicationUuid.orEmpty(),
+    ).joinToString(":")
+    return Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        data = "hrttracker://widget-row-highlight/scheduled/${android.net.Uri.encode(stableKey)}".toUri()
+        putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
+        putExtra(EXTRA_HIGHLIGHT_GROUP_UUID, groupUuid)
+        row.scheduleTimeUuid?.let { putExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID, it) }
+        putExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT, row.scheduledAt.toString())
+        row.medicationUuid?.let { putExtra(EXTRA_HIGHLIGHT_MEDICATION_UUID, it) }
+    }
+}
+
 @Composable
 private fun DoseRow(
     row: WidgetDoseRow,
     showLogAction: Boolean,
     hideMedicationDetails: Boolean,
+    highlightIntent: Intent? = null,
 ) {
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
+    val rowClickModifier = if (highlightIntent != null) {
+        GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
+    } else {
+        GlanceModifier
+    }
     val rowModifier = GlanceModifier
         .fillMaxWidth()
         .height((64f * scale).dp)
         .background(colors.surfaceContainerLow)
         .cornerRadius(10.dp)
         .padding(horizontal = (16f * scale).dp)
+        .then(rowClickModifier)
 
     Row(
         modifier = rowModifier,
@@ -654,10 +700,17 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             Spacer(GlanceModifier.width(14.dp))
 
             // Right column: single active medicine
+            val activeHighlightIntent = activeRow?.let { widgetRowHighlightIntent(context, it) }
+            val activeRowClickModifier = if (activeHighlightIntent != null) {
+                GlanceModifier.clickable(actionStartActivityFromIntent(activeHighlightIntent))
+            } else {
+                GlanceModifier
+            }
             Column(
                 modifier = GlanceModifier
                     .defaultWeight()
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .then(activeRowClickModifier),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.Start,
             ) {
@@ -868,9 +921,10 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             is WidgetListItem.Header -> SectionHeader(item.text)
                             is WidgetListItem.Row -> DoseRow(
                                 row = item.row,
-                                showLogAction = item.row.groupUuid != null &&
-                                    (item.row.status == WidgetDoseStatus.DUE_SOON || item.row.status == WidgetDoseStatus.OVERDUE),
+                                showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||
+                                    item.row.status == WidgetDoseStatus.OVERDUE,
                                 hideMedicationDetails = record.hideMedicationDetails,
+                                highlightIntent = widgetRowHighlightIntent(context, item.row),
                             )
                         }
                     }
