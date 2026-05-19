@@ -57,6 +57,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 fun MainScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
+    highlightEffectsEnabled: Boolean = true,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit = { },
     onEntryClick: (MainEditEntryRequest) -> Unit = { },
     onAddEntryClick: () -> Unit = { },

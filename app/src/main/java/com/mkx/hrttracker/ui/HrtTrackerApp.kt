@@ -5,6 +5,14 @@ import androidx.navigation.NavHostController
 import com.mkx.hrttracker.ui.navigation.HrtTrackerNavHost
 
 @Composable
-fun HrtTrackerApp(navController: NavHostController) {
-    HrtTrackerNavHost(navController = navController)
+fun HrtTrackerApp(
+    navController: NavHostController,
+    homeDeepLinkSignal: Int,
+    highlightEffectsEnabled: Boolean,
+) {
+    HrtTrackerNavHost(
+        navController = navController,
+        homeDeepLinkSignal = homeDeepLinkSignal,
+        highlightEffectsEnabled = highlightEffectsEnabled,
+    )
 }

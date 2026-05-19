@@ -14,6 +14,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -249,6 +250,8 @@ internal fun topLevelRootBackAction(
 @Composable
 fun HrtTrackerNavHost(
     navController: NavHostController,
+    homeDeepLinkSignal: Int = 0,
+    highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by rememberSaveable(stateSaver = AddEntrySheetRequestSaver) {
@@ -270,6 +273,18 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
+
+    var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
+
+    LaunchedEffect(homeDeepLinkSignal) {
+        if (homeDeepLinkSignal > lastHandledHomeDeepLinkSignal) {
+            lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
+            navController.navigateToTopLevelScreen(
+                targetScreen = Screen.Main,
+                selectedBottomScreen = selectedBottomScreen,
+            )
+        }
+    }
 
     BackHandler(
         enabled = topLevelRootBackAction(
@@ -360,6 +375,7 @@ fun HrtTrackerNavHost(
                     MainScreen(
                         modifier,
                         scrollToTopSignal = mainScrollToTopSignal,
+                        highlightEffectsEnabled = highlightEffectsEnabled,
                         onEntryClick = { request ->
                             addEntrySheetRequest = AddEntrySheetRequest(
                                 entryIds = request.entryUuids.map(UUID::toString),

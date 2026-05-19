@@ -165,6 +165,7 @@ class MainActivity : AppCompatActivity() {
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
                 val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
                 val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
+                val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
                 val context = LocalContext.current
                 val density = LocalDensity.current
                 val layoutDirection = LocalLayoutDirection.current
@@ -288,7 +289,14 @@ class MainActivity : AppCompatActivity() {
                                         }
                                     )
                             ) {
-                                HrtTrackerApp(navController = navController)
+                                val highlightEffectsEnabled =
+                                    !contentLayers.showInWindowLockScreen &&
+                                        !onboardingUiState.shouldShowOnboarding
+                                HrtTrackerApp(
+                                    navController = navController,
+                                    homeDeepLinkSignal = homeDeepLinkSignal,
+                                    highlightEffectsEnabled = highlightEffectsEnabled,
+                                )
                             }
 
                             AnimatedVisibility(
