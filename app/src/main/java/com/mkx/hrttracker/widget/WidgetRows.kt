@@ -207,9 +207,9 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                provider = ImageProvider(R.drawable.ic_edit),
+                provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size((18f * scale).dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
             )
         }
@@ -222,9 +222,9 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                provider = ImageProvider(R.drawable.ic_edit),
+                provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size((18f * scale).dp),
+                modifier = GlanceModifier.size((24f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
@@ -253,7 +253,7 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_arrow_forward),
                 contentDescription = null,
-                modifier = GlanceModifier.size((22f * scale).dp),
+                modifier = GlanceModifier.size((20f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
