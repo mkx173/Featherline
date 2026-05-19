@@ -663,7 +663,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = doneCount.toString(),
                         style = TextStyle(
                             color = if (allDone) colors.primary else colors.onSurface,
-                            fontSize = (36f * LocalWidgetScale.current).sp,
+                            fontSize = (40f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
@@ -672,7 +672,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (14f * LocalWidgetScale.current).sp,
+                            fontSize = (18f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
@@ -683,12 +683,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
 
             // ── Divider ───────────────────────────────────────────────────────
-            Spacer(GlanceModifier.height(8.dp))
+            Spacer(GlanceModifier.height(16.dp))
             Box(
                 modifier = GlanceModifier.fillMaxWidth().height(1.dp)
                     .background(colors.outlineVariant),
             ) {}
-            Spacer(GlanceModifier.height(7.dp))
+            Spacer(GlanceModifier.height(12.dp))
 
             // ── Bottom panel: next dose ───────────────────────────────────────
             if (allDone && activeRow == null) {
@@ -737,26 +737,33 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     activeRow
                 }
                 val highlightIntent = widgetRowHighlightIntent(context, highlightRow)
-                val rowClickModifier = if (highlightIntent != null) {
+                val cardClickModifier = if (highlightIntent != null) {
                     GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
                 } else {
                     GlanceModifier
                 }
-                Column(
-                    modifier = GlanceModifier.fillMaxWidth().defaultWeight()
-                        .then(rowClickModifier),
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .height((64f * LocalWidgetScale.current).dp)
+                        .background(colors.surfaceContainerLow)
+                        .cornerRadius(10.dp)
+                        .padding(horizontal = (16f * LocalWidgetScale.current).dp)
+                        .then(cardClickModifier),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(modifier = GlanceModifier.fillMaxWidth()) {
-                        Text(
-                            text = "→ ",
-                            style = TextStyle(
-                                color = colors.onSurfaceVariant,
-                                fontSize = (18f * LocalWidgetScale.current).sp,
-                            ),
-                        )
+                    Box(
+                        modifier = GlanceModifier
+                            .width(6.dp)
+                            .height((44f * LocalWidgetScale.current).dp)
+                            .background(groupAccentColor(activeRow.colorKey))
+                            .cornerRadius(999.dp),
+                    ) {}
+                    Spacer(GlanceModifier.width(10.dp))
+                    Column(modifier = GlanceModifier.defaultWeight()) {
                         Text(
                             text = displayName,
-                            modifier = GlanceModifier.defaultWeight(),
+                            modifier = GlanceModifier.fillMaxWidth(),
                             style = TextStyle(
                                 color = colors.onSurface,
                                 fontSize = (18f * LocalWidgetScale.current).sp,
@@ -764,46 +771,23 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             ),
                             maxLines = 1,
                         )
-                    }
-                    if (!record.hideMedicationDetails) {
-                        val supporting = listOfNotNull(
-                            activeRow.routeLabel.takeIf(String::isNotBlank),
-                            activeRow.doseText.takeIf(String::isNotBlank),
-                        ).joinToString(" · ")
-                        if (supporting.isNotBlank()) {
-                            Text(
-                                text = supporting,
-                                style = TextStyle(
-                                    color = colors.onSurfaceVariant,
-                                    fontSize = (14f * LocalWidgetScale.current).sp,
-                                ),
-                                maxLines = 1,
-                            )
+                        if (!record.hideMedicationDetails) {
+                            val supporting = listOfNotNull(
+                                activeRow.routeLabel.takeIf(String::isNotBlank),
+                                activeRow.doseText.takeIf(String::isNotBlank),
+                            ).joinToString(" · ")
+                            if (supporting.isNotBlank()) {
+                                Text(
+                                    text = supporting,
+                                    style = TextStyle(
+                                        color = colors.onSurfaceVariant,
+                                        fontSize = (14f * LocalWidgetScale.current).sp,
+                                        fontWeight = FontWeight.Normal,
+                                    ),
+                                    maxLines = 1,
+                                )
+                            }
                         }
-                    }
-                    Spacer(GlanceModifier.defaultWeight())
-                    Row(
-                        modifier = GlanceModifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val showTrailingText = activeRow.trailingText != null &&
-                            !(record.hideMedicationDetails && activeRow.isManualRecord)
-                        if (showTrailingText) {
-                            Text(
-                                text = activeRow.trailingText,
-                                style = TextStyle(
-                                    color = colors.onSurfaceVariant,
-                                    fontSize = (16f * LocalWidgetScale.current).sp,
-                                ),
-                                maxLines = 1,
-                            )
-                            Spacer(GlanceModifier.width(6.dp))
-                        }
-                        val isActionable = activeRow.groupUuid != null &&
-                            (activeRow.status == WidgetDoseStatus.DUE_SOON ||
-                                activeRow.status == WidgetDoseStatus.OVERDUE)
-                        TrailingButton(activeRow, isActionable)
                     }
                 }
             }
