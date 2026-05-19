@@ -981,3 +981,37 @@ private fun List<Pair<Double, Float>>.exactOrInterpolatedPointAt(
         else -> null
     }
 }
+
+// ── Widget dose row deep link ──────────────────────────────────────────────────
+
+sealed interface DoseRowHighlightKey {
+    data class Scheduled(
+        val groupUuid: UUID,
+        val scheduleTimeUuid: UUID?,
+        val scheduledAt: LocalDateTime,
+        val medicationUuid: UUID?,
+    ) : DoseRowHighlightKey
+
+    data class Manual(
+        val entryUuid: UUID,
+    ) : DoseRowHighlightKey
+}
+
+internal fun DoseRowHighlightKey.matches(row: MainTodayDoseRowUiState): Boolean =
+    when (this) {
+        is DoseRowHighlightKey.Scheduled ->
+            row.groupUuid == groupUuid &&
+                row.scheduleTimeUuid == scheduleTimeUuid &&
+                row.scheduledAt == scheduledAt &&
+                (medicationUuid == null || row.medication.uuid == medicationUuid)
+
+        is DoseRowHighlightKey.Manual ->
+            row.isManualRecord && entryUuid in row.fulfillingEntryUuids
+    }
+
+internal fun DoseRowHighlightKey.matches(row: MainUpcomingDoseRowUiState): Boolean =
+    this is DoseRowHighlightKey.Scheduled &&
+        row.groupUuid == groupUuid &&
+        row.scheduleTimeUuid == scheduleTimeUuid &&
+        row.scheduledAt == scheduledAt &&
+        (medicationUuid == null || row.medication.uuid == medicationUuid)

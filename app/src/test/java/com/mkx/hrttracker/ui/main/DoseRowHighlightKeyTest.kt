@@ -1,0 +1,145 @@
+package com.mkx.hrttracker.ui.main
+
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import java.time.LocalDateTime
+import java.util.UUID
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DoseRowHighlightKeyTest {
+
+    private val groupUuid = UUID.fromString("11111111-0000-0000-0000-000000000000")
+    private val slotUuid = UUID.fromString("22222222-0000-0000-0000-000000000000")
+    private val medUuid = UUID.fromString("33333333-0000-0000-0000-000000000000")
+    private val entryUuid = UUID.fromString("44444444-0000-0000-0000-000000000000")
+    private val scheduledAt = LocalDateTime.of(2026, 5, 20, 8, 0)
+
+    private val details = testCustomMedicationDetails(
+        medicationName = "Estradiol",
+        dose = MedicationDose.MgAsMedicine(2.0),
+    )
+
+    private fun scheduledTodayRow(
+        groupUuid: UUID = this.groupUuid,
+        scheduleTimeUuid: UUID? = slotUuid,
+        scheduledAt: LocalDateTime = this.scheduledAt,
+        medicationUuid: UUID = medUuid,
+    ): MainTodayDoseRowUiState = MainTodayDoseRowUiState(
+        groupUuid = groupUuid,
+        groupName = "Test",
+        groupColorKey = null,
+        scheduleTimeUuid = scheduleTimeUuid,
+        scheduledAt = scheduledAt,
+        medication = testMedicationGroupMedication(uuid = medicationUuid, details = details),
+        status = MainTodayDoseStatus.DUE_SOON,
+    )
+
+    private fun manualTodayRow(entryUuid: UUID = this.entryUuid): MainTodayDoseRowUiState =
+        MainTodayDoseRowUiState(
+            groupUuid = null,
+            groupName = "",
+            groupColorKey = null,
+            scheduleTimeUuid = null,
+            scheduledAt = scheduledAt,
+            medication = testMedicationGroupMedication(uuid = UUID.randomUUID(), details = details),
+            status = MainTodayDoseStatus.DONE,
+            isManualRecord = true,
+            fulfillingEntryUuids = listOf(entryUuid),
+        )
+
+    private fun upcomingRow(
+        groupUuid: UUID = this.groupUuid,
+        scheduleTimeUuid: UUID? = slotUuid,
+        scheduledAt: LocalDateTime = this.scheduledAt,
+        medicationUuid: UUID = medUuid,
+    ): MainUpcomingDoseRowUiState = MainUpcomingDoseRowUiState(
+        groupUuid = groupUuid,
+        groupName = "Test",
+        groupColorKey = MedicationGroupColorKey.ROSE,
+        scheduleTimeUuid = scheduleTimeUuid,
+        scheduledAt = scheduledAt,
+        medication = testMedicationGroupMedication(uuid = medicationUuid, details = details),
+    )
+
+    // -- Scheduled matches today row --
+
+    @Test
+    fun `Scheduled matches today row with same group, slot, time, and medication`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertTrue(key.matches(scheduledTodayRow()))
+    }
+
+    @Test
+    fun `Scheduled with null medicationUuid matches any medication in that slot`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
+        assertTrue(key.matches(scheduledTodayRow(medicationUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Scheduled does not match today row with wrong groupUuid`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertFalse(key.matches(scheduledTodayRow(groupUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Scheduled does not match today row with wrong scheduledAt`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertFalse(key.matches(scheduledTodayRow(scheduledAt = scheduledAt.plusHours(1))))
+    }
+
+    @Test
+    fun `Scheduled does not match today row with wrong medicationUuid when key has one`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertFalse(key.matches(scheduledTodayRow(medicationUuid = UUID.randomUUID())))
+    }
+
+    // -- Manual matches today row --
+
+    @Test
+    fun `Manual matches today row whose fulfillingEntryUuids contains the entryUuid`() {
+        val key = DoseRowHighlightKey.Manual(entryUuid)
+        assertTrue(key.matches(manualTodayRow(entryUuid)))
+    }
+
+    @Test
+    fun `Manual does not match today row whose fulfillingEntryUuids lacks the entryUuid`() {
+        val key = DoseRowHighlightKey.Manual(entryUuid)
+        assertFalse(key.matches(manualTodayRow(UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Manual does not match a non-manual today row`() {
+        val key = DoseRowHighlightKey.Manual(entryUuid)
+        assertFalse(key.matches(scheduledTodayRow()))
+    }
+
+    // -- Scheduled matches upcoming row --
+
+    @Test
+    fun `Scheduled matches upcoming row with same identity`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertTrue(key.matches(upcomingRow()))
+    }
+
+    @Test
+    fun `Scheduled with null medicationUuid matches upcoming row`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medicationUuid = null)
+        assertTrue(key.matches(upcomingRow(medicationUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Scheduled does not match upcoming row with wrong groupUuid`() {
+        val key = DoseRowHighlightKey.Scheduled(groupUuid, slotUuid, scheduledAt, medUuid)
+        assertFalse(key.matches(upcomingRow(groupUuid = UUID.randomUUID())))
+    }
+
+    @Test
+    fun `Manual does not match an upcoming row`() {
+        val key = DoseRowHighlightKey.Manual(entryUuid)
+        assertFalse(key.matches(upcomingRow()))
+    }
+}
