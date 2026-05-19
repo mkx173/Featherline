@@ -617,4 +617,5 @@
     <string name="widget_tonight">Tonight</string>
     <string name="widget_chip_last_night">Last night</string>
     <string name="widget_chip_coming_up">Coming up</string>
+    <string name="widget_manual_record">Manual record</string>
 </resources>

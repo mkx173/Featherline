@@ -456,7 +456,11 @@ private fun DoseRow(
 
         Column(modifier = GlanceModifier.defaultWeight()) {
             val context = LocalContext.current
-            val fullName = if (hideMedicationDetails && !row.isManualRecord) row.groupName else row.medicationName
+            val fullName = when {
+                hideMedicationDetails && row.isManualRecord -> context.getString(R.string.widget_manual_record)
+                hideMedicationDetails -> row.groupName
+                else -> row.medicationName
+            }
             Text(
                 text = fullName,
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -492,9 +496,10 @@ private fun DoseRow(
 
         Spacer(GlanceModifier.width(8.dp))
 
-        if (row.trailingText != null) {
+        val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
+        if (showTrailingText) {
             Text(
-                text = row.trailingText,
+                text = row.trailingText!!,
                 style = TextStyle(
                     color = if (row.trailingIsDelta) {
                         colors.onSurfaceVariant
@@ -741,8 +746,28 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 .values
                 .map { rows ->
                     val count = rows.size
+                    val representativeStatus = when {
+                        rows.all { it.status == WidgetDoseStatus.DONE } -> WidgetDoseStatus.DONE
+                        rows.any { it.status == WidgetDoseStatus.OVERDUE } -> WidgetDoseStatus.OVERDUE
+                        rows.any { it.status == WidgetDoseStatus.DUE_SOON } -> WidgetDoseStatus.DUE_SOON
+                        rows.any { it.status == WidgetDoseStatus.UPCOMING } -> WidgetDoseStatus.UPCOMING
+                        else -> WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
+                    }
+                    val isActionable = representativeStatus == WidgetDoseStatus.DUE_SOON ||
+                        representativeStatus == WidgetDoseStatus.OVERDUE
+                    val actionSource = if (isActionable) rows.firstOrNull { it.groupUuid != null } else null
+                    val trailingText = when (representativeStatus) {
+                        WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
+                        else -> rows.firstOrNull { it.status == representativeStatus }?.trailingText
+                            ?: rows.firstOrNull { it.trailingText != null }?.trailingText
+                    }
                     rows.first().copy(
-                        medicationName = if (count > 1) "${rows.first().groupName} · $count" else rows.first().groupName
+                        medicationName = if (count > 1) "${rows.first().groupName} · $count" else rows.first().groupName,
+                        status = representativeStatus,
+                        trailingText = trailingText,
+                        groupUuid = actionSource?.groupUuid,
+                        scheduleTimeUuid = actionSource?.scheduleTimeUuid,
+                        medicationUuid = null,
                     )
                 }
             val manualRows = regularRows.filter { it.isManualRecord }

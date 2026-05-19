@@ -66,6 +66,7 @@ class HomeSnapshotRepositoryTest {
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
     private val chartWindowOptionState = MutableStateFlow(HomeE2ChartWindowOption.SEVEN_DAYS)
+    private val settingsState = MutableStateFlow(SettingsState())
 
     @Before
     fun setUp() {
@@ -81,6 +82,7 @@ class HomeSnapshotRepositoryTest {
             nextGeneration
         }
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns chartWindowOptionState
+        every { settingsRepository.settingsState } returns settingsState
         coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
     }
 

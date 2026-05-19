@@ -96,14 +96,13 @@ class HomeSnapshotRepository @Inject constructor(
         appScope.launch {
             var first = true
             settingsRepository.settingsState
-                .map { it.hideMedicationDetails to it.adaptiveColorEnabled }
+                .map { s ->
+                    listOf(s.hideMedicationDetails, s.adaptiveColorEnabled, s.darkModeOption, s.appLanguageOption)
+                }
                 .distinctUntilChanged()
-                .collect { (hide, adaptive) ->
+                .collect { _ ->
                     if (first) { first = false; return@collect }
-                    diagnosticsLogger.info(
-                        TAG,
-                        "home_snapshot_widget_settings_changed hideMedicationDetails=$hide adaptiveColor=$adaptive"
-                    )
+                    diagnosticsLogger.info(TAG, "home_snapshot_widget_settings_changed")
                     refreshHomeSnapshotAsync(force = true)
                 }
         }

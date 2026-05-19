@@ -580,4 +580,16 @@
     <string name="confirm">确定</string>
     <string name="select_date">选择日期</string>
     <string name="select_time">选择时间</string>
+    <string name="widget_medium_description">HRT 追踪器 – 剂量概览</string>
+    <string name="widget_large_description">HRT 追踪器 – 剂量列表</string>
+    <string name="widget_all_done">全部完成</string>
+    <string name="widget_no_medications">未设置药物</string>
+    <string name="widget_no_doses_today">今日无剂量</string>
+    <string name="widget_next_dose">下次剂量</string>
+    <string name="widget_last_night">昨晚</string>
+    <string name="widget_today">今天</string>
+    <string name="widget_tonight">今晚</string>
+    <string name="widget_chip_last_night">昨晚</string>
+    <string name="widget_chip_coming_up">即将</string>
+    <string name="widget_manual_record">手动记录</string>
 </resources>
