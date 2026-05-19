@@ -37,12 +37,12 @@ class QuickLogActionCallback : ActionCallback {
 
         val group = groupRepository.getGroup(groupUuid) ?: run {
             diagnosticsLogger.warning(TAG, "widget_quick_log_group_not_found uuid=$groupUuid")
-            HrtWidget().updateAll(context.applicationContext)
+            updateAllHrtWidgets(context.applicationContext)
             return
         }
 
         if (!group.isActive()) {
-            HrtWidget().updateAll(context.applicationContext)
+            updateAllHrtWidgets(context.applicationContext)
             return
         }
 
@@ -79,7 +79,7 @@ class QuickLogActionCallback : ActionCallback {
             // saveNewEntries triggers runHomeDataMutation, which rebuilds and re-renders the widget.
         } else {
             diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
-            HrtWidget().updateAll(context.applicationContext)
+            updateAllHrtWidgets(context.applicationContext)
         }
     }
 

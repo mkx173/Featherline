@@ -43,7 +43,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
         if (projectionExpired) {
             homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
         } else {
-            HrtWidget().updateAll(context.applicationContext)
+            updateAllHrtWidgets(context.applicationContext)
         }
     }
 

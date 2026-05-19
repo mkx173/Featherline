@@ -16,7 +16,7 @@ import com.mkx.hrttracker.model.pk.buildEstradiolPkSimulationEntries
 import com.mkx.hrttracker.model.pk.projectionFutureDays
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.widget.HrtWidget
+import com.mkx.hrttracker.widget.updateAllHrtWidgets
 import com.mkx.hrttracker.widget.WidgetDoseRow
 import com.mkx.hrttracker.widget.WidgetDoseStatus
 import com.mkx.hrttracker.reminder.medicationDisplayName
@@ -598,7 +598,7 @@ class HomeSnapshotRepository @Inject constructor(
                     }.onFailure { e ->
                         diagnosticsLogger.warning(TAG, "widget_snapshot_write_failed", e)
                     }
-                    runCatching { HrtWidget().updateAll(context) }.onFailure { throwable ->
+                    runCatching { updateAllHrtWidgets(context) }.onFailure { throwable ->
                         diagnosticsLogger.warning(TAG, "widget_update_all_failed", throwable)
                     }
                     StartupTiming.mark("home_snapshot_rebuilt")
@@ -774,8 +774,9 @@ class HomeSnapshotRepository @Inject constructor(
     ): WidgetSnapshotRecord {
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
-        val tomorrowStart = today.plusDays(1).atStartOfDay()
         val comingUpEnd = today.plusDays(1).atTime(6, 0)
+
+        val groupColorByUuid = inputs.activeGroups.associate { it.uuid to it.colorKey }
 
         // Last night rows (only during overnight hours: before 06:00)
         val isOvernight = now.toLocalTime().isBefore(LocalTime.of(6, 0))
@@ -797,7 +798,7 @@ class HomeSnapshotRepository @Inject constructor(
                     WidgetDoseRow(
                         medicationName = medicationDisplayName(entry.details, context),
                         groupName = "",
-                        colorKey = null,
+                        colorKey = entry.sourceGroupUuid?.let { groupColorByUuid[it] },
                         routeLabel = medicationRouteLabel(entry.details, context),
                         doseText = medicationDoseText(context, entry.details) ?: "",
                         status = WidgetDoseStatus.DONE,
@@ -830,7 +831,7 @@ class HomeSnapshotRepository @Inject constructor(
                 WidgetDoseRow(
                     medicationName = medicationDisplayName(entry.details, context),
                     groupName = "",
-                    colorKey = null,
+                    colorKey = entry.sourceGroupUuid?.let { groupColorByUuid[it] },
                     routeLabel = medicationRouteLabel(entry.details, context),
                     doseText = medicationDoseText(context, entry.details) ?: "",
                     status = WidgetDoseStatus.DONE,
@@ -845,43 +846,23 @@ class HomeSnapshotRepository @Inject constructor(
             }
 
         // Coming-up-next: only shown in evening (18:00–00:00), only entries before 06:00 tonight
-        data class ComingUpCandidate(val group: MedicationGroup, val scheduledAt: LocalDateTime)
         val isEvening = now.toLocalTime() >= LocalTime.of(18, 0)
-        val comingUpRow: WidgetDoseRow? = if (isEvening) {
-            val comingUpCandidates = inputs.activeGroups.mapNotNull { group ->
-                group.nextOccurrencesInPlanWindowFrom(start = tomorrowStart, limit = 1, zoneId = zoneId)
-                    .firstOrNull()
-                    ?.takeIf { it.scheduledFor.isBefore(comingUpEnd) }
-                    ?.let { ComingUpCandidate(group = group, scheduledAt = it.scheduledFor) }
-            }
-            comingUpCandidates.minByOrNull { it.scheduledAt }
-                ?.let { earliest ->
-                    val groupsAtTime = comingUpCandidates.filter { it.scheduledAt == earliest.scheduledAt }
-                    val totalMedications = groupsAtTime.sumOf { it.group.medications.size }
-                    val firstMedication = earliest.group.medications.first()
-                    val baseName = medicationDisplayName(firstMedication.details, context)
-                    val medicationName = if (totalMedications > 1) "$baseName +${totalMedications - 1}" else baseName
-                    WidgetDoseRow(
-                        medicationName = medicationName,
-                        groupName = earliest.group.name,
-                        colorKey = earliest.group.colorKey,
-                        routeLabel = medicationRouteLabel(firstMedication.details, context),
-                        doseText = medicationDoseText(context, firstMedication.details) ?: "",
-                        status = WidgetDoseStatus.UPCOMING,
-                        scheduledAt = earliest.scheduledAt,
-                        trailingText = earliest.scheduledAt.format(timeFormatter),
-                        trailingIsDelta = false,
-                        isManualRecord = false,
-                        contextChip = WidgetDoseChip.COMING_UP,
-                        groupUuid = null,
-                        scheduleTimeUuid = null,
-                    )
-                }
-        } else null
+        val comingUpRows: List<WidgetDoseRow> = if (isEvening) {
+            val tomorrowSchedule = buildPlanDaySchedule(
+                date = today.plusDays(1),
+                groups = inputs.activeGroups,
+                entries = inputs.scheduleEntries,
+                now = now,
+                zoneId = zoneId,
+            )
+            tomorrowSchedule.scheduledEntries
+                .filter { it.scheduledFor.isBefore(comingUpEnd) }
+                .map { it.toWidgetDoseRow(context, WidgetDoseChip.COMING_UP) }
+        } else emptyList()
 
         val allRows = lastNightRows +
             (todayScheduledRows + manualRows).sortedBy { it.scheduledAt } +
-            listOfNotNull(comingUpRow)
+            comingUpRows
 
         val doneCount = todayScheduledRows.count { it.status == WidgetDoseStatus.DONE }
 

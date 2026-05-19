@@ -19,6 +19,8 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.preview.ExperimentalGlancePreviewApi
+import androidx.glance.preview.Preview as GlancePreview
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -120,6 +122,7 @@ private fun dynamicWidgetColorScheme(context: Context): WidgetColorScheme {
 
 private val LocalWidgetColors = compositionLocalOf { hardcodedWidgetColorScheme() }
 
+private val colorGroupSlate = DayNightColorProvider(day = Color(0xFF60646C), night = Color(0xFFB0B4BA))
 private val colorGroupRose = DayNightColorProvider(day = Color(0xFFCE2C31), night = Color(0xFFFF8A88))
 private val colorGroupCoral = DayNightColorProvider(day = Color(0xFFD14E00), night = Color(0xFFFF9B52))
 private val colorGroupAmber = DayNightColorProvider(day = Color(0xFFA06E00), night = Color(0xFFD9C600))
@@ -133,42 +136,46 @@ private val colorGroupPlum = DayNightColorProvider(day = Color(0xFFC1298A), nigh
 
 // ── Widget ────────────────────────────────────────────────────────────────────
 
-class HrtWidget : GlanceAppWidget() {
-
-    override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
-
-    override val sizeMode: SizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent {
-            val state = currentState<WidgetSnapshotState>()
-            val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
-            val size = LocalSize.current
-            val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
-            val widgetColors = if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dynamicWidgetColorScheme(context)
-            } else {
-                hardcodedWidgetColorScheme()
-            }
-            GlanceTheme {
-                CompositionLocalProvider(LocalWidgetColors provides widgetColors) {
-                    if (size.usesLargeWidgetLayout()) {
-                        LargeWidgetContent(snapshot)
-                    } else {
-                        MediumWidgetContent(snapshot)
-                    }
-                }
+private suspend fun GlanceAppWidget.provideHrtContent(
+    context: Context,
+    content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
+) {
+    provideContent {
+        val state = currentState<WidgetSnapshotState>()
+        val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
+        val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
+        val widgetColors = if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicWidgetColorScheme(context)
+        } else {
+            hardcodedWidgetColorScheme()
+        }
+        GlanceTheme {
+            CompositionLocalProvider(LocalWidgetColors provides widgetColors) {
+                content(snapshot)
             }
         }
     }
+}
 
-    suspend fun updateAll(context: Context) {
-        glanceUpdateAll(context)
+class HrtWidgetMedium : GlanceAppWidget() {
+    override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(330.dp, 150.dp)))
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideHrtContent(context) { snapshot -> MediumWidgetContent(snapshot) }
     }
+}
 
-    companion object {
-        val LARGE_LAYOUT_MIN_SIZE = DpSize(240.dp, 180.dp)
+class HrtWidgetLarge : GlanceAppWidget() {
+    override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(330.dp, 150.dp)))
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideHrtContent(context) { snapshot -> LargeWidgetContent(snapshot) }
     }
+}
+
+suspend fun updateAllHrtWidgets(context: Context) {
+    HrtWidgetMedium().glanceUpdateAll(context)
+    HrtWidgetLarge().glanceUpdateAll(context)
 }
 
 // ── State definition ──────────────────────────────────────────────────────────
@@ -184,20 +191,17 @@ internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotS
 // ── Receivers ─────────────────────────────────────────────────────────────────
 
 class HrtWidgetMediumReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = HrtWidget()
+    override val glanceAppWidget: GlanceAppWidget = HrtWidgetMedium()
 }
 
 class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = HrtWidget()
+    override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-internal fun DpSize.usesLargeWidgetLayout(): Boolean =
-    width >= HrtWidget.LARGE_LAYOUT_MIN_SIZE.width &&
-        height >= HrtWidget.LARGE_LAYOUT_MIN_SIZE.height
-
-private fun groupAccentColor(colorKey: MedicationGroupColorKey): ColorProvider = when (colorKey) {
+private fun groupAccentColor(colorKey: MedicationGroupColorKey?): ColorProvider = when (colorKey) {
+    null -> colorGroupSlate
     MedicationGroupColorKey.ROSE -> colorGroupRose
     MedicationGroupColorKey.CORAL -> colorGroupCoral
     MedicationGroupColorKey.AMBER -> colorGroupAmber
@@ -448,7 +452,7 @@ private fun DoseRow(
             modifier = GlanceModifier
                 .width(4.dp)
                 .height(22.dp)
-                .background(if (row.colorKey != null) groupAccentColor(row.colorKey) else colors.outlineVariant)
+                .background(groupAccentColor(row.colorKey))
                 .cornerRadius(2.dp),
         ) {}
 
@@ -773,8 +777,6 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             val manualRows = regularRows.filter { it.isManualRecord }
             val comingUpRows = record.doseRows
                 .filter { it.contextChip == WidgetDoseChip.COMING_UP }
-                .groupBy { it.groupName }
-                .values.map { rows -> rows.first() }
             (collapsed + manualRows).sortedBy { it.scheduledAt } + comingUpRows
         } else {
             record.doseRows
@@ -844,5 +846,87 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
         }
+    }
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+
+private fun previewSnapshot(): WidgetSnapshotRecord {
+    val now = LocalDateTime.now()
+    return WidgetSnapshotRecord(
+        schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
+        zoneId = "UTC",
+        doneCount = 1,
+        totalCount = 3,
+        manualCount = 0,
+        hideMedicationDetails = false,
+        adaptiveColorEnabled = false,
+        doseRows = listOf(
+            WidgetDoseRow(
+                medicationName = "Estradiol Valerate",
+                groupName = "Estradiol",
+                colorKey = MedicationGroupColorKey.ROSE,
+                routeLabel = "IM injection",
+                doseText = "4 mg",
+                status = WidgetDoseStatus.DONE,
+                scheduledAt = now.minusHours(2),
+                trailingText = null,
+                trailingIsDelta = false,
+                isManualRecord = false,
+                contextChip = null,
+                groupUuid = null,
+                scheduleTimeUuid = null,
+            ),
+            WidgetDoseRow(
+                medicationName = "Progesterone",
+                groupName = "Progesterone",
+                colorKey = MedicationGroupColorKey.INDIGO,
+                routeLabel = "Oral",
+                doseText = "200 mg",
+                status = WidgetDoseStatus.DUE_SOON,
+                scheduledAt = now.plusMinutes(30),
+                trailingText = "+30 min",
+                trailingIsDelta = true,
+                isManualRecord = false,
+                contextChip = null,
+                groupUuid = "g1",
+                scheduleTimeUuid = "s1",
+                medicationUuid = "m1",
+            ),
+            WidgetDoseRow(
+                medicationName = "Spironolactone",
+                groupName = "Spiro",
+                colorKey = MedicationGroupColorKey.TEAL,
+                routeLabel = "Oral",
+                doseText = "100 mg",
+                status = WidgetDoseStatus.UPCOMING,
+                scheduledAt = now.plusHours(4),
+                trailingText = now.plusHours(4).format(DateTimeFormatter.ofPattern("h:mm a")),
+                trailingIsDelta = false,
+                isManualRecord = false,
+                contextChip = WidgetDoseChip.COMING_UP,
+                groupUuid = null,
+                scheduleTimeUuid = null,
+            ),
+        ),
+        pkProjection = null,
+    )
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@GlancePreview(widthDp = 330, heightDp = 150)
+@Composable
+private fun MediumWidgetPreview() {
+    CompositionLocalProvider(LocalWidgetColors provides hardcodedWidgetColorScheme()) {
+        MediumWidgetContent(previewSnapshot())
+    }
+}
+
+@OptIn(ExperimentalGlancePreviewApi::class)
+@GlancePreview(widthDp = 330, heightDp = 150)
+@Composable
+private fun LargeWidgetPreview() {
+    CompositionLocalProvider(LocalWidgetColors provides hardcodedWidgetColorScheme()) {
+        LargeWidgetContent(previewSnapshot())
     }
 }

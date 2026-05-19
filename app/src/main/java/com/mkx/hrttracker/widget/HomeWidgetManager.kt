@@ -44,7 +44,7 @@ class HomeWidgetManager @Inject constructor(
             settingsRepository.homeE2DisplayUnitFlow
                 .drop(1)
                 .collect {
-                    runCatching { HrtWidget().updateAll(context) }
+                    runCatching { updateAllHrtWidgets(context) }
                 }
         }
     }

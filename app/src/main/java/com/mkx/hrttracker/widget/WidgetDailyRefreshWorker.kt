@@ -27,7 +27,7 @@ class WidgetDailyRefreshWorker(
         if (projectionExpired) {
             homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
         } else {
-            HrtWidget().updateAll(appContext)
+            updateAllHrtWidgets(appContext)
         }
         return Result.success()
     }
