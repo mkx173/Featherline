@@ -1,14 +1,72 @@
 package com.mkx.hrttracker.ui.main
 
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.util.UUID
 
 class MainContentComponentsTest {
+    @Test
+    fun mainTodayDoseRowCompositionKey_distinguishesScheduledSlotsForSameGroup() {
+        val groupUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val medicationUuid = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val firstSlotUuid = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val secondSlotUuid = UUID.fromString("44444444-4444-4444-4444-444444444444")
+
+        val firstSlotKey = mainTodayDoseRowCompositionKey(
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = firstSlotUuid,
+                scheduledAt = LocalDateTime.of(2026, 5, 20, 8, 0),
+                medicationUuid = medicationUuid,
+            )
+        )
+        val secondSlotKey = mainTodayDoseRowCompositionKey(
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = secondSlotUuid,
+                scheduledAt = LocalDateTime.of(2026, 5, 20, 21, 0),
+                medicationUuid = medicationUuid,
+            )
+        )
+
+        assertNotEquals(firstSlotKey, secondSlotKey)
+    }
+
+    @Test
+    fun mainTodayDoseRowCompositionKey_distinguishesMedicationRowsInsideSameSlot() {
+        val groupUuid = UUID.fromString("55555555-5555-5555-5555-555555555555")
+        val slotUuid = UUID.fromString("66666666-6666-6666-6666-666666666666")
+        val scheduledAt = LocalDateTime.of(2026, 5, 20, 8, 0)
+
+        val firstMedicationKey = mainTodayDoseRowCompositionKey(
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = slotUuid,
+                scheduledAt = scheduledAt,
+                medicationUuid = UUID.fromString("77777777-7777-7777-7777-777777777777"),
+            )
+        )
+        val secondMedicationKey = mainTodayDoseRowCompositionKey(
+            scheduledTodayRow(
+                groupUuid = groupUuid,
+                scheduleTimeUuid = slotUuid,
+                scheduledAt = scheduledAt,
+                medicationUuid = UUID.fromString("88888888-8888-8888-8888-888888888888"),
+            )
+        )
+
+        assertNotEquals(firstMedicationKey, secondMedicationKey)
+    }
+
     @Test
     fun mainE2EstimateInfoToastRes_uses_plasma_concentration_estimate_disclaimer() {
         assertEquals(
@@ -302,4 +360,25 @@ class MainContentComponentsTest {
             1e-9,
         )
     }
+
+    private fun scheduledTodayRow(
+        groupUuid: UUID,
+        scheduleTimeUuid: UUID?,
+        scheduledAt: LocalDateTime,
+        medicationUuid: UUID,
+    ): MainTodayDoseRowUiState = MainTodayDoseRowUiState(
+        groupUuid = groupUuid,
+        groupName = "Test",
+        groupColorKey = null,
+        scheduleTimeUuid = scheduleTimeUuid,
+        scheduledAt = scheduledAt,
+        medication = testMedicationGroupMedication(
+            uuid = medicationUuid,
+            details = testCustomMedicationDetails(
+                medicationName = "Estradiol",
+                dose = MedicationDose.MgAsMedicine(2.0),
+            ),
+        ),
+        status = MainTodayDoseStatus.DUE_SOON,
+    )
 }

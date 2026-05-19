@@ -2850,17 +2850,19 @@ internal fun MainTodaySection(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
                         rows.forEachIndexed { index, row ->
-                            MainTodayDoseRow(
-                                row = row,
-                                index = index,
-                                itemCount = rows.size,
-                                now = now,
-                                timeFormatter = timeFormatter,
-                                isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                                onHighlightConsumed = onHighlightConsumed,
-                                onQuickLogDoseClick = onQuickLogDoseClick,
-                                onEntryClick = onEntryClick
-                            )
+                            key(mainTodayDoseRowCompositionKey(row)) {
+                                MainTodayDoseRow(
+                                    row = row,
+                                    index = index,
+                                    itemCount = rows.size,
+                                    now = now,
+                                    timeFormatter = timeFormatter,
+                                    isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                                    onHighlightConsumed = onHighlightConsumed,
+                                    onQuickLogDoseClick = onQuickLogDoseClick,
+                                    onEntryClick = onEntryClick
+                                )
+                            }
                         }
                     }
                 }
@@ -2907,17 +2909,19 @@ internal fun MainLastNightSection(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
         ) {
             section.rows.forEachIndexed { index, row ->
-                MainTodayDoseRow(
-                    row = row,
-                    index = index,
-                    itemCount = section.rows.size,
-                    now = now,
-                    timeFormatter = timeFormatter,
-                    isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                    onHighlightConsumed = onHighlightConsumed,
-                    onQuickLogDoseClick = onQuickLogDoseClick,
-                    onEntryClick = onEntryClick
-                )
+                key(mainTodayDoseRowCompositionKey(row)) {
+                    MainTodayDoseRow(
+                        row = row,
+                        index = index,
+                        itemCount = section.rows.size,
+                        now = now,
+                        timeFormatter = timeFormatter,
+                        isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                        onHighlightConsumed = onHighlightConsumed,
+                        onQuickLogDoseClick = onQuickLogDoseClick,
+                        onEntryClick = onEntryClick
+                    )
+                }
             }
         }
     }
@@ -2959,19 +2963,44 @@ internal fun MainUpcomingSection(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
                 section.rows.forEachIndexed { index, row ->
-                    MainUpcomingDoseRow(
-                        row = row,
-                        index = index,
-                        itemCount = section.rows.size,
-                        timeFormatter = timeFormatter,
-                        isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
-                        onHighlightConsumed = onHighlightConsumed,
-                    )
+                    key(mainUpcomingDoseRowCompositionKey(row)) {
+                        MainUpcomingDoseRow(
+                            row = row,
+                            index = index,
+                            itemCount = section.rows.size,
+                            timeFormatter = timeFormatter,
+                            isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                            onHighlightConsumed = onHighlightConsumed,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+internal fun mainTodayDoseRowCompositionKey(row: MainTodayDoseRowUiState): String {
+    val entryIdentity = (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids)
+        .sorted()
+        .joinToString(separator = ",")
+    return listOf(
+        if (row.isManualRecord) "manual" else "scheduled",
+        row.groupUuid,
+        row.scheduleTimeUuid,
+        row.scheduledAt,
+        row.medication.uuid,
+        entryIdentity,
+    ).joinToString(separator = "|")
+}
+
+internal fun mainUpcomingDoseRowCompositionKey(row: MainUpcomingDoseRowUiState): String =
+    listOf(
+        "upcoming",
+        row.groupUuid,
+        row.scheduleTimeUuid,
+        row.scheduledAt,
+        row.medication.uuid,
+    ).joinToString(separator = "|")
 
 @Composable
 private fun MainTodayDoseRow(
@@ -2994,13 +3023,19 @@ private fun MainTodayDoseRow(
         label = "dose-row-highlight",
     )
     LaunchedEffect(isHighlighted) {
-        if (isHighlighted) {
-            bringIntoViewRequester.bringIntoView()
-            flashActive = true
-            delay(300)
+        if (!isHighlighted) {
             flashActive = false
-            onHighlightConsumed()
+            return@LaunchedEffect
         }
+
+        try {
+            flashActive = true
+            bringIntoViewRequester.bringIntoView()
+            delay(300)
+        } finally {
+            flashActive = false
+        }
+        onHighlightConsumed()
     }
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
@@ -3141,13 +3176,19 @@ private fun MainUpcomingDoseRow(
         label = "dose-row-highlight",
     )
     LaunchedEffect(isHighlighted) {
-        if (isHighlighted) {
-            bringIntoViewRequester.bringIntoView()
-            flashActive = true
-            delay(600)
+        if (!isHighlighted) {
             flashActive = false
-            onHighlightConsumed()
+            return@LaunchedEffect
         }
+
+        try {
+            flashActive = true
+            bringIntoViewRequester.bringIntoView()
+            delay(600)
+        } finally {
+            flashActive = false
+        }
+        onHighlightConsumed()
     }
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
