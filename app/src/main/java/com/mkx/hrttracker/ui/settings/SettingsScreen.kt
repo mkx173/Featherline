@@ -557,8 +557,8 @@ private fun WidgetAppearanceDialog(
     onBackgroundAlphaChange: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val constrainedContentScale = contentScale.coerceIn(0.7f, 1.3f)
-    val constrainedBackgroundAlpha = backgroundAlpha.coerceIn(0.5f, 1f)
+    var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.7f, 1.3f)) }
+    var localBackgroundAlpha by remember { mutableStateOf(backgroundAlpha.coerceIn(0.5f, 1f)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
@@ -566,30 +566,34 @@ private fun WidgetAppearanceDialog(
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column {
                     Text(
-                        text = "${stringResource(R.string.settings_widget_content_scale)} ${(constrainedContentScale * 100).roundToInt()}%",
+                        text = "${stringResource(R.string.settings_widget_content_scale)} ${(localContentScale * 100).roundToInt()}%",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Slider(
-                        value = constrainedContentScale,
-                        onValueChange = onContentScaleChange,
+                        value = localContentScale,
+                        onValueChange = { localContentScale = it },
                         valueRange = 0.7f..1.3f,
                     )
                 }
                 Column {
                     Text(
-                        text = "${stringResource(R.string.settings_widget_background_opacity)} ${(constrainedBackgroundAlpha * 100).roundToInt()}%",
+                        text = "${stringResource(R.string.settings_widget_background_opacity)} ${(localBackgroundAlpha * 100).roundToInt()}%",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Slider(
-                        value = constrainedBackgroundAlpha,
-                        onValueChange = onBackgroundAlphaChange,
+                        value = localBackgroundAlpha,
+                        onValueChange = { localBackgroundAlpha = it },
                         valueRange = 0.5f..1f,
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = {
+                onContentScaleChange(localContentScale)
+                onBackgroundAlphaChange(localBackgroundAlpha)
+                onDismiss()
+            }) {
                 Text(stringResource(R.string.done))
             }
         },
