@@ -52,6 +52,9 @@ fun MainContent(
     modifier: Modifier = Modifier,
     uiState: MainUiState,
     scrollState: ScrollState,
+    highlightRequest: DoseRowHighlightKey? = null,
+    highlightEffectsEnabled: Boolean = true,
+    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     onDismissTimeZoneChangeNotice: () -> Unit = { },
@@ -120,6 +123,9 @@ fun MainContent(
                 now = uiState.now,
                 dateFormatter = dayHeaderDateFormatter,
                 timeFormatter = timeFormatter,
+                highlightRequest = highlightRequest,
+                highlightEffectsEnabled = highlightEffectsEnabled,
+                onHighlightConsumed = onHighlightConsumed,
                 onQuickLogDoseClick = onQuickLogDoseClick,
                 onEntryClick = onEntryClick
             )
@@ -131,6 +137,9 @@ fun MainContent(
             now = uiState.now,
             dateFormatter = dayHeaderDateFormatter,
             timeFormatter = timeFormatter,
+            highlightRequest = highlightRequest,
+            highlightEffectsEnabled = highlightEffectsEnabled,
+            onHighlightConsumed = onHighlightConsumed,
             onQuickLogDoseClick = onQuickLogDoseClick,
             onEntryClick = onEntryClick
         )
@@ -139,7 +148,10 @@ fun MainContent(
         MainUpcomingSection(
             section = uiState.upcomingSection,
             dateFormatter = dayHeaderDateFormatter,
-            timeFormatter = timeFormatter
+            timeFormatter = timeFormatter,
+            highlightRequest = highlightRequest,
+            highlightEffectsEnabled = highlightEffectsEnabled,
+            onHighlightConsumed = onHighlightConsumed,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
