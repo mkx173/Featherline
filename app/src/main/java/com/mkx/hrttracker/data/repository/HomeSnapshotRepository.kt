@@ -821,6 +821,7 @@ class HomeSnapshotRepository @Inject constructor(
                         contextChip = WidgetDoseChip.LAST_NIGHT,
                         groupUuid = null,
                         scheduleTimeUuid = null,
+                        entryUuid = entry.uuid.toString(),
                     )
                 }
                 .filter { !it.scheduledAt.toLocalTime().isBefore(eveningCutoff) }
@@ -853,6 +854,7 @@ class HomeSnapshotRepository @Inject constructor(
                     contextChip = null,
                     groupUuid = null,
                     scheduleTimeUuid = null,
+                    entryUuid = entry.uuid.toString(),
                 )
             }
 
@@ -905,7 +907,6 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         isDueSoon -> WidgetDoseStatus.DUE_SOON
         else -> WidgetDoseStatus.UPCOMING
     }
-    val isActionable = status == WidgetDoseStatus.DUE_SOON || status == WidgetDoseStatus.OVERDUE
     val displayTime = when (status) {
         WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
         else -> scheduledFor.format(timeFormatter)
@@ -921,8 +922,8 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         trailingText = displayTime,
         isManualRecord = false,
         contextChip = contextChip,
-        groupUuid = if (isActionable) groupUuid.toString() else null,
-        scheduleTimeUuid = if (isActionable) scheduleTimeUuid?.toString() else null,
+        groupUuid = groupUuid.toString(),
+        scheduleTimeUuid = scheduleTimeUuid?.toString(),
         medicationUuid = medication.uuid.toString(),
     )
 }
