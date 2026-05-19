@@ -7,8 +7,6 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import java.time.ZoneId
 
 class WidgetDateReceiver : BroadcastReceiver() {
 
@@ -30,21 +28,8 @@ class WidgetDateReceiver : BroadcastReceiver() {
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext, WidgetEntryPoint::class.java
         )
-        val widgetSnapshotStore = entryPoint.widgetSnapshotStore()
-        val homeSnapshotRepository = entryPoint.homeSnapshotRepository()
-
-        val now = LocalDateTime.now()
-        val zoneId = ZoneId.systemDefault()
-        val snapshot = widgetSnapshotStore.readSnapshot()
-
-        val projectionExpired = snapshot == null ||
-            snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
-
-        if (projectionExpired) {
-            homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
-        } else {
-            updateAllHrtWidgets(context.applicationContext)
-        }
+        entryPoint.homeSnapshotRepository()
+            .refreshHomeSnapshotIfNeeded(force = true)
     }
 
     companion object {

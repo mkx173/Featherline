@@ -10,8 +10,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -28,10 +26,8 @@ class HomeWidgetManager @Inject constructor(
     fun start() {
         if (!started.compareAndSet(false, true)) return
 
-        // 1. Enqueue the daily best-effort re-render worker (idempotent).
-        val initialDelay = durationUntilLocalMidnightMillis()
-        val request = PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+        // 1. Enqueue the periodic re-render/rebuild worker (idempotent).
+        val request = PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(15, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
@@ -47,12 +43,6 @@ class HomeWidgetManager @Inject constructor(
                     runCatching { updateAllHrtWidgets(context) }
                 }
         }
-    }
-
-    private fun durationUntilLocalMidnightMillis(): Long {
-        val now = LocalDateTime.now()
-        val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
-        return ChronoUnit.MILLIS.between(now, midnight).coerceAtLeast(0L)
     }
 
     companion object {

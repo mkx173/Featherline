@@ -556,7 +556,7 @@ class HomeSnapshotRepository @Inject constructor(
             generatedAtEpochMillis = widgetProjectionResult.generatedAt.toEpochMilli(),
             windowStartEpochMillis = widgetProjectionResult.windowStart.toEpochMilli(),
             windowEndEpochMillis = widgetProjectionResult.windowEnd.toEpochMilli(),
-            pkProjectionExpiresAtEpochMillis = expiresAtInstant.toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis = widgetProjectionResult.windowEnd.toEpochMilli(),
             concentrationUnit = widgetProjectionResult.concentrationUnit.name,
             timeH = widgetProjectionResult.timeH,
             concentrations = widgetProjectionResult.concentrations,
@@ -948,4 +948,3 @@ private const val HOME_PK_PROJECTION_LOOKBACK_DAYS = 180L
 private const val HOME_SCHEDULE_LOOKAHEAD_DAYS = 90L
 private const val HOME_SNAPSHOT_VALIDITY_DAYS = 10L
 private const val HOME_SNAPSHOT_PAST_BUFFER_DAYS = 1L
-private const val DUE_SOON_THRESHOLD_SECONDS = 7_200L
