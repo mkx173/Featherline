@@ -700,7 +700,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             Spacer(GlanceModifier.width(14.dp))
 
             // Right column: single active medicine
-            val activeHighlightIntent = activeRow?.let { widgetRowHighlightIntent(context, it) }
+            val activeHighlightRow = if (record.hideMedicationDetails && activeRow?.isManualRecord == false) {
+                activeRow?.copy(medicationUuid = null)
+            } else {
+                activeRow
+            }
+            val activeHighlightIntent = activeHighlightRow?.let { widgetRowHighlightIntent(context, it) }
             val activeRowClickModifier = if (activeHighlightIntent != null) {
                 GlanceModifier.clickable(actionStartActivityFromIntent(activeHighlightIntent))
             } else {
@@ -844,7 +849,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     }
                     val isActionable = representativeStatus == WidgetDoseStatus.DUE_SOON ||
                         representativeStatus == WidgetDoseStatus.OVERDUE
-                    val actionSource = if (isActionable) rows.firstOrNull { it.groupUuid != null } else null
+                    val identitySource = rows.firstOrNull { it.groupUuid != null }
                     val trailingText = when (representativeStatus) {
                         WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
                         else -> rows.firstOrNull { it.status == representativeStatus }?.trailingText
@@ -854,8 +859,8 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         medicationName = if (count > 1) "${rows.first().groupName} · $count" else rows.first().groupName,
                         status = representativeStatus,
                         trailingText = trailingText,
-                        groupUuid = actionSource?.groupUuid,
-                        scheduleTimeUuid = actionSource?.scheduleTimeUuid,
+                        groupUuid = identitySource?.groupUuid,
+                        scheduleTimeUuid = identitySource?.scheduleTimeUuid,
                         medicationUuid = null,
                     )
                 }
