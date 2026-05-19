@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -91,6 +92,20 @@ class HomeSnapshotRepository @Inject constructor(
                     refreshHomeSnapshotAsync(force = true)
                 }
             }
+        }
+        appScope.launch {
+            var first = true
+            settingsRepository.settingsState
+                .map { it.hideMedicationDetails to it.adaptiveColorEnabled }
+                .distinctUntilChanged()
+                .collect { (hide, adaptive) ->
+                    if (first) { first = false; return@collect }
+                    diagnosticsLogger.info(
+                        TAG,
+                        "home_snapshot_widget_settings_changed hideMedicationDetails=$hide adaptiveColor=$adaptive"
+                    )
+                    refreshHomeSnapshotAsync(force = true)
+                }
         }
     }
 
