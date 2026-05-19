@@ -31,7 +31,6 @@
     </plurals>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_estimate_info">显示雌二醇估算说明</string>
-    <string name="main_e2_chart_title">7 天趋势</string>
     <string name="main_e2_chart_title_seven_days">7 天趋势</string>
     <string name="main_e2_chart_title_thirty_days">30 天趋势</string>
     <string name="main_e2_chart_window_toggle_cd">切换图表窗口</string>
@@ -343,8 +342,8 @@
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
-    <string name="settings_widget_appearance">小部件外观</string>
-    <string name="settings_widget_content_scale">内容大小</string>
+    <string name="settings_widget_appearance">小部件</string>
+    <string name="settings_widget_content_scale">内容缩放</string>
     <string name="settings_widget_background_opacity">背景不透明度</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
@@ -465,9 +464,7 @@
     <string name="personalization_weight">体重</string>
     <string name="personalization_weight_not_set">未设置</string>
     <string name="personalization_weight_display">%1$s %2$s</string>
-    <string name="personalization_weight_unit_kg">千克 (kg)</string>
     <string name="personalization_weight_unit_kg_short">kg</string>
-    <string name="personalization_weight_unit_lb">磅 (lb)</string>
     <string name="personalization_weight_unit_lb_short">lb</string>
     <string name="personalization_weight_dialog_title">体重</string>
     <string name="personalization_weight_dialog_description">用于改进血药浓度估算</string>
@@ -584,16 +581,13 @@
     <string name="confirm">确定</string>
     <string name="select_date">选择日期</string>
     <string name="select_time">选择时间</string>
-    <string name="widget_medium_description">HRT 追踪器 – 剂量概览</string>
-    <string name="widget_large_description">HRT 追踪器 – 剂量列表</string>
+    <string name="widget_medium_description">Featherline – 剂量概览</string>
+    <string name="widget_large_description">Featherline – 剂量列表</string>
     <string name="widget_all_done">全部完成</string>
     <string name="widget_no_medications">未设置药物</string>
     <string name="widget_no_doses_today">今日无剂量</string>
-    <string name="widget_next_dose">下次剂量</string>
     <string name="widget_last_night">昨晚</string>
     <string name="widget_today">今天</string>
     <string name="widget_tonight">今晚</string>
-    <string name="widget_chip_last_night">昨晚</string>
-    <string name="widget_chip_coming_up">即将</string>
     <string name="widget_manual_record">手动记录</string>
 </resources>

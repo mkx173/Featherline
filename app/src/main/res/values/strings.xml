@@ -33,7 +33,6 @@
     </plurals>
     <string name="main_e2_title">Estradiol · estimated</string>
     <string name="main_e2_estimate_info">Show estradiol estimate information</string>
-    <string name="main_e2_chart_title">7-day trend</string>
     <string name="main_e2_chart_title_seven_days">7-day trend</string>
     <string name="main_e2_chart_title_thirty_days">30-day trend</string>
     <string name="main_e2_chart_window_toggle_cd">Switch chart window</string>
@@ -352,7 +351,7 @@
     <string name="settings_app_language">App language</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
-    <string name="settings_widget_appearance">Widget appearance</string>
+    <string name="settings_widget_appearance">Widgets</string>
     <string name="settings_widget_content_scale">Content scale</string>
     <string name="settings_widget_background_opacity">Background opacity</string>
     <string name="settings_display">Display</string>
@@ -477,9 +476,7 @@
     <string name="personalization_weight">Body weight</string>
     <string name="personalization_weight_not_set">Not set</string>
     <string name="personalization_weight_display">%1$s %2$s</string>
-    <string name="personalization_weight_unit_kg">Kilograms (kg)</string>
     <string name="personalization_weight_unit_kg_short">kg</string>
-    <string name="personalization_weight_unit_lb">Pounds (lb)</string>
     <string name="personalization_weight_unit_lb_short">lb</string>
     <string name="personalization_weight_dialog_title">Body weight</string>
     <string name="personalization_weight_dialog_description">Used to improve plasma concentration estimates.</string>
@@ -610,16 +607,13 @@
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>
 
-    <string name="widget_medium_description">HRT Tracker – dose summary</string>
-    <string name="widget_large_description">HRT Tracker – dose list</string>
+    <string name="widget_medium_description">Featherline – dose summary</string>
+    <string name="widget_large_description">Featherline – dose list</string>
     <string name="widget_all_done">All done</string>
     <string name="widget_no_medications">No medications set up</string>
     <string name="widget_no_doses_today">No doses today</string>
-    <string name="widget_next_dose">Next dose</string>
     <string name="widget_last_night">Last night</string>
     <string name="widget_today">Today</string>
     <string name="widget_tonight">Tonight</string>
-    <string name="widget_chip_last_night">Last night</string>
-    <string name="widget_chip_coming_up">Coming up</string>
     <string name="widget_manual_record">Manual record</string>
 </resources>

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,6 +65,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -565,10 +567,20 @@ private fun WidgetAppearanceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column {
-                    Text(
-                        text = "${stringResource(R.string.settings_widget_content_scale)} ${(localContentScale * 100).roundToInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_content_scale),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localContentScale * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     Slider(
                         value = localContentScale,
                         onValueChange = { localContentScale = it },
@@ -576,10 +588,20 @@ private fun WidgetAppearanceDialog(
                     )
                 }
                 Column {
-                    Text(
-                        text = "${stringResource(R.string.settings_widget_background_opacity)} ${(localBackgroundAlpha * 100).roundToInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_background_opacity),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     Slider(
                         value = localBackgroundAlpha,
                         onValueChange = { localBackgroundAlpha = it },
@@ -594,7 +616,7 @@ private fun WidgetAppearanceDialog(
                 onBackgroundAlphaChange(localBackgroundAlpha)
                 onDismiss()
             }) {
-                Text(stringResource(R.string.done))
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
