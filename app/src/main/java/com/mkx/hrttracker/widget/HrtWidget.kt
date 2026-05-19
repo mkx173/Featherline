@@ -373,17 +373,16 @@ private fun SectionHeader(text: String, topPadding: Dp = 4.dp) {
 // ── Trailing button ───────────────────────────────────────────────────────────
 
 @Composable
-private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
+private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigateIntent: Intent? = null) {
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
     val groupUuid = row.groupUuid
-    val scheduleTimeUuid = row.scheduleTimeUuid ?: ""
-    val clickModifier = if (showLogAction && groupUuid != null) {
+    val logModifier = if (showLogAction && groupUuid != null) {
         GlanceModifier.clickable(
             actionRunCallback<QuickLogActionCallback>(
                 actionParametersOf(
                     GroupUuidKey to groupUuid,
-                    ScheduleTimeUuidKey to scheduleTimeUuid,
+                    ScheduleTimeUuidKey to (row.scheduleTimeUuid ?: ""),
                     ScheduledAtKey to row.scheduledAt.toString(),
                     MedicationUuidKey to (row.medicationUuid ?: ""),
                 )
@@ -392,13 +391,17 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
     } else {
         GlanceModifier
     }
+    val navigateModifier = if (navigateIntent != null) {
+        GlanceModifier.clickable(actionStartActivityFromIntent(navigateIntent))
+    } else {
+        GlanceModifier
+    }
 
     when (row.status) {
         WidgetDoseStatus.DONE -> Box(
             modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.secondaryContainer)
-                .cornerRadius(999.dp)
-                .then(clickModifier),
+                .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -413,13 +416,13 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.tertiaryContainer)
                 .cornerRadius(999.dp)
-                .then(clickModifier),
+                .then(logModifier),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                provider = ImageProvider(R.drawable.ic_add),
+                provider = ImageProvider(R.drawable.ic_edit),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size((18f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
             )
         }
@@ -428,13 +431,13 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             modifier = GlanceModifier.size((32f * scale).dp)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp)
-                .then(clickModifier),
+                .then(logModifier),
             contentAlignment = Alignment.Center,
         ) {
             Image(
-                provider = ImageProvider(R.drawable.ic_add),
+                provider = ImageProvider(R.drawable.ic_edit),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size((18f * scale).dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
@@ -453,23 +456,19 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             )
         }
 
-        else -> {
-            // UPCOMING: outlined empty circle; 1dp border via nested boxes
-            val borderColor = colors.outline
-            val fillColor = colors.surface
-            Box(
-                modifier = GlanceModifier.size((32f * scale).dp)
-                    .background(borderColor)
-                    .cornerRadius((16f * scale).dp)
-                    .then(clickModifier),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = GlanceModifier.size((30f * scale).dp)
-                        .background(fillColor)
-                        .cornerRadius((15f * scale).dp),
-                ) {}
-            }
+        else -> Box(
+            modifier = GlanceModifier.size((32f * scale).dp)
+                .background(colors.surfaceVariant)
+                .cornerRadius(999.dp)
+                .then(navigateModifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_arrow_forward),
+                contentDescription = null,
+                modifier = GlanceModifier.size((22f * scale).dp),
+                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+            )
         }
     }
 }
@@ -596,7 +595,7 @@ private fun DoseRow(
             )
             Spacer(GlanceModifier.width(8.dp))
         }
-        TrailingButton(row, showLogAction)
+        TrailingButton(row, showLogAction, highlightIntent)
     }
 }
 
@@ -646,7 +645,6 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     )
                 }
             }
-            Spacer(GlanceModifier.height(3.dp))
             if (totalCount == 0) {
                 Text(
                     text = context.getString(R.string.widget_no_doses_today),
@@ -667,7 +665,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             fontWeight = FontWeight.Bold,
                         ),
                     )
-                    Spacer(GlanceModifier.width(3.dp))
+                    Spacer(GlanceModifier.width(2.dp))
                     Text(
                         text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                         style = TextStyle(
@@ -678,16 +676,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         maxLines = 1,
                     )
                 }
-                Spacer(GlanceModifier.height(6.dp))
+                Spacer(GlanceModifier.height(4.dp))
                 ProgressBar(doneCount = doneCount, totalCount = totalCount)
             }
 
             // ── Divider ───────────────────────────────────────────────────────
-            Spacer(GlanceModifier.height(16.dp))
-            Box(
-                modifier = GlanceModifier.fillMaxWidth().height(1.dp)
-                    .background(colors.outlineVariant),
-            ) {}
             Spacer(GlanceModifier.height(12.dp))
 
             // ── Bottom panel: next dose ───────────────────────────────────────
@@ -813,7 +806,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         val isActionable = activeRow.groupUuid != null &&
                             (activeRow.status == WidgetDoseStatus.DUE_SOON ||
                                 activeRow.status == WidgetDoseStatus.OVERDUE)
-                        TrailingButton(activeRow, isActionable)
+                        TrailingButton(activeRow, isActionable, highlightIntent)
                     }
                 }
             }
