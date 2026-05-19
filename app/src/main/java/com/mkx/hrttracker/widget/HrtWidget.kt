@@ -186,7 +186,7 @@ private suspend fun GlanceAppWidget.provideHrtContent(
 
 class HrtWidgetMedium : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
-    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(330.dp, 150.dp)))
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(150.dp, 150.dp)))
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideHrtContent(context) { snapshot -> MediumWidgetContent(snapshot) }
     }
@@ -600,7 +600,7 @@ private fun DoseRow(
     }
 }
 
-// ── Medium widget (4×2) ───────────────────────────────────────────────────────
+// ── Medium widget (2×2) ───────────────────────────────────────────────────────
 
 @Composable
 private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
@@ -612,7 +612,6 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
-
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val e2Trend = record.pkProjection
@@ -624,160 +623,159 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val totalCount = record.totalCount
         val allDone = totalCount > 0 && doneCount >= totalCount
 
-        // Active row: first non-DONE today row (not LAST_NIGHT), or COMING_UP fallback
         val activeRow = record.doseRows
             .firstOrNull { it.contextChip != WidgetDoseChip.LAST_NIGHT && it.status != WidgetDoseStatus.DONE }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
 
-        Row(
-            modifier = GlanceModifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Left column: unchanged progress area
-            Column(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .fillMaxHeight(),
+        Column(modifier = GlanceModifier.fillMaxSize()) {
+            // ── Top panel: progress ───────────────────────────────────────────
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                WidgetLabel(context.getString(R.string.widget_today))
-                Spacer(GlanceModifier.height(4.dp))
-                if (totalCount == 0) {
-                    Text(
-                        text = context.getString(R.string.widget_no_doses_today),
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (13f * LocalWidgetScale.current).sp,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        maxLines = 1,
-                    )
-                } else {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = doneCount.toString(),
-                            style = TextStyle(
-                                color = if (allDone) {
-                                    colors.primary
-                                } else {
-                                    colors.onSurface
-                                },
-                                fontSize = (32f * LocalWidgetScale.current).sp,
-                                fontWeight = FontWeight.Bold,
-                            ),
-                        )
-                        Spacer(GlanceModifier.width(4.dp))
-                        Text(
-                            text = "/$totalCount done",
-                            style = TextStyle(
-                                color = colors.onSurfaceVariant,
-                                fontSize = (14f * LocalWidgetScale.current).sp,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                            maxLines = 1,
-                        )
-                    }
-                    Spacer(GlanceModifier.height(8.dp))
-                    ProgressBar(doneCount = doneCount, totalCount = totalCount)
-                }
+                WidgetLabel(context.getString(R.string.widget_today), fontSize = 9.sp)
                 if (e2Text != null) {
                     Spacer(GlanceModifier.defaultWeight())
                     Text(
                         text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (11f * LocalWidgetScale.current).sp,
+                            fontSize = (9f * LocalWidgetScale.current).sp,
                         ),
+                        maxLines = 1,
                     )
                 }
             }
-
-            Spacer(GlanceModifier.width(14.dp))
-            Box(
-                modifier = GlanceModifier
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(colors.outlineVariant),
-            ) {}
-            Spacer(GlanceModifier.width(14.dp))
-
-            // Right column: single active medicine
-            val activeHighlightRow = if (record.hideMedicationDetails && activeRow?.isManualRecord == false) {
-                activeRow?.copy(medicationUuid = null)
+            Spacer(GlanceModifier.height(3.dp))
+            if (totalCount == 0) {
+                Text(
+                    text = context.getString(R.string.widget_no_doses_today),
+                    style = TextStyle(
+                        color = colors.onSurfaceVariant,
+                        fontSize = (13f * LocalWidgetScale.current).sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    maxLines = 1,
+                )
             } else {
-                activeRow
-            }
-            val activeHighlightIntent = activeHighlightRow?.let { widgetRowHighlightIntent(context, it) }
-            val activeRowClickModifier = if (activeHighlightIntent != null) {
-                GlanceModifier.clickable(actionStartActivityFromIntent(activeHighlightIntent))
-            } else {
-                GlanceModifier
-            }
-            Column(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .fillMaxHeight()
-                    .then(activeRowClickModifier),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalAlignment = Alignment.Start,
-            ) {
-                if (allDone && activeRow == null) {
-                    Box(
-                        modifier = GlanceModifier.size(26.dp)
-                            .background(colors.secondaryContainer)
-                            .cornerRadius(13.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Image(
-                            provider = ImageProvider(R.drawable.ic_check),
-                            contentDescription = null,
-                            modifier = GlanceModifier.size(18.dp),
-                            colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
-                        )
-                    }
-                    Spacer(GlanceModifier.height(4.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = context.getString(R.string.widget_all_done),
+                        text = doneCount.toString(),
                         style = TextStyle(
-                            color = colors.primary,
-                            fontSize = (13f * LocalWidgetScale.current).sp,
-                            fontWeight = FontWeight.Medium,
+                            color = if (allDone) colors.primary else colors.onSurface,
+                            fontSize = (36f * LocalWidgetScale.current).sp,
+                            fontWeight = FontWeight.Bold,
                         ),
                     )
-                } else if (activeRow != null) {
-                    val labelText = when {
-                        activeRow.contextChip == WidgetDoseChip.COMING_UP ->
-                            context.getString(R.string.widget_chip_coming_up).uppercase()
-                        activeRow.status == WidgetDoseStatus.OVERDUE -> "OVERDUE"
-                        else -> context.getString(R.string.widget_next_dose)
-                    }
-                    WidgetLabel(labelText)
-                    Spacer(GlanceModifier.height(4.dp))
-                    val displayName = if (record.hideMedicationDetails && !activeRow.isManualRecord) {
-                        activeRow.groupName
-                    } else {
-                        activeRow.medicationName
-                    }
+                    Spacer(GlanceModifier.width(3.dp))
                     Text(
-                        text = displayName,
+                        text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                         style = TextStyle(
-                            color = colors.onSurface,
-                            fontSize = (13f * LocalWidgetScale.current).sp,
+                            color = colors.onSurfaceVariant,
+                            fontSize = (12f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
                     )
+                }
+                Spacer(GlanceModifier.height(6.dp))
+                ProgressBar(doneCount = doneCount, totalCount = totalCount)
+            }
+
+            // ── Divider ───────────────────────────────────────────────────────
+            Spacer(GlanceModifier.height(8.dp))
+            Box(
+                modifier = GlanceModifier.fillMaxWidth().height(1.dp)
+                    .background(colors.outlineVariant),
+            ) {}
+            Spacer(GlanceModifier.height(7.dp))
+
+            // ── Bottom panel: next dose ───────────────────────────────────────
+            if (allDone && activeRow == null) {
+                Box(
+                    modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = GlanceModifier.size(18.dp)
+                                .background(colors.secondaryContainer)
+                                .cornerRadius(9.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_check),
+                                contentDescription = null,
+                                modifier = GlanceModifier.size(12.dp),
+                                colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
+                            )
+                        }
+                        Spacer(GlanceModifier.height(4.dp))
+                        Text(
+                            text = context.getString(R.string.widget_all_done),
+                            style = TextStyle(
+                                color = colors.primary,
+                                fontSize = (12f * LocalWidgetScale.current).sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                        )
+                    }
+                }
+            } else if (activeRow != null) {
+                val displayName = when {
+                    record.hideMedicationDetails && activeRow.isManualRecord ->
+                        context.getString(R.string.widget_manual_record)
+                    record.hideMedicationDetails -> activeRow.groupName
+                    else -> activeRow.medicationName
+                }
+                val highlightRow = if (record.hideMedicationDetails && !activeRow.isManualRecord) {
+                    activeRow.copy(medicationUuid = null)
+                } else {
+                    activeRow
+                }
+                val highlightIntent = widgetRowHighlightIntent(context, highlightRow)
+                val rowClickModifier = if (highlightIntent != null) {
+                    GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
+                } else {
+                    GlanceModifier
+                }
+                Column(
+                    modifier = GlanceModifier.fillMaxWidth().defaultWeight()
+                        .then(rowClickModifier),
+                ) {
+                    Row(modifier = GlanceModifier.fillMaxWidth()) {
+                        Text(
+                            text = "→ ",
+                            style = TextStyle(
+                                color = colors.onSurfaceVariant,
+                                fontSize = (12f * LocalWidgetScale.current).sp,
+                            ),
+                        )
+                        Text(
+                            text = displayName,
+                            modifier = GlanceModifier.defaultWeight(),
+                            style = TextStyle(
+                                color = colors.onSurface,
+                                fontSize = (13f * LocalWidgetScale.current).sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
                     if (!record.hideMedicationDetails) {
                         val supporting = listOfNotNull(
                             activeRow.routeLabel.takeIf(String::isNotBlank),
                             activeRow.doseText.takeIf(String::isNotBlank),
                         ).joinToString(" · ")
                         if (supporting.isNotBlank()) {
-                            Spacer(GlanceModifier.height(2.dp))
                             Text(
                                 text = supporting,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = (11f * LocalWidgetScale.current).sp,
+                                    fontSize = (10f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -789,19 +787,22 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         horizontalAlignment = Alignment.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (activeRow.trailingText != null) {
+                        val showTrailingText = activeRow.trailingText != null &&
+                            !(record.hideMedicationDetails && activeRow.isManualRecord)
+                        if (showTrailingText) {
                             Text(
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = (11f * LocalWidgetScale.current).sp,
+                                    fontSize = (10f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
                             Spacer(GlanceModifier.width(6.dp))
                         }
                         val isActionable = activeRow.groupUuid != null &&
-                            (activeRow.status == WidgetDoseStatus.DUE_SOON || activeRow.status == WidgetDoseStatus.OVERDUE)
+                            (activeRow.status == WidgetDoseStatus.DUE_SOON ||
+                                activeRow.status == WidgetDoseStatus.OVERDUE)
                         TrailingButton(activeRow, isActionable)
                     }
                 }
@@ -1005,7 +1006,7 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
 }
 
 @OptIn(ExperimentalGlancePreviewApi::class)
-@GlancePreview(widthDp = 330, heightDp = 150)
+@GlancePreview(widthDp = 150, heightDp = 150)
 @Composable
 private fun MediumWidgetPreview() {
     CompositionLocalProvider(LocalWidgetColors provides hardcodedWidgetColorScheme()) {
