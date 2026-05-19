@@ -915,7 +915,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
 
-            Spacer(GlanceModifier.height(16.dp))
+            Spacer(GlanceModifier.height(if (listItems.firstOrNull() is WidgetListItem.Header) 8.dp else 16.dp))
 
             LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 itemsIndexed(
