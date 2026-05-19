@@ -15,6 +15,7 @@ class WidgetSnapshotCodecTest {
         totalCount = 3,
         manualCount = 1,
         hideMedicationDetails = false,
+        adaptiveColorEnabled = false,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol",

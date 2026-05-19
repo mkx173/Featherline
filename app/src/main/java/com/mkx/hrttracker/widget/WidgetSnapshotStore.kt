@@ -102,6 +102,7 @@ data class WidgetSnapshotRecord(
     val totalCount: Int,
     val manualCount: Int,
     val hideMedicationDetails: Boolean,
+    val adaptiveColorEnabled: Boolean,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
 )
@@ -149,6 +150,7 @@ internal object WidgetSnapshotCodec {
             s.writeInt(record.totalCount)
             s.writeInt(record.manualCount)
             s.writeBoolean(record.hideMedicationDetails)
+            s.writeBoolean(record.adaptiveColorEnabled)
             s.writeList(record.doseRows) { writeDoseRow(it) }
             s.writePkProjection(record.pkProjection)
         }
@@ -168,6 +170,7 @@ internal object WidgetSnapshotCodec {
                 totalCount = s.readInt(),
                 manualCount = s.readInt(),
                 hideMedicationDetails = s.readBoolean(),
+                adaptiveColorEnabled = s.readBoolean(),
                 doseRows = s.readList { readDoseRow() },
                 pkProjection = s.readPkProjection(),
             )
@@ -387,9 +390,9 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 3
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 4
 private const val TAG = "WidgetSnapshotStore"
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 3
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 4
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_widget_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"

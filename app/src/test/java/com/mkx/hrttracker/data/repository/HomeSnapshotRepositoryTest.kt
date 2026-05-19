@@ -648,10 +648,6 @@ class HomeSnapshotRepositoryTest {
         assertEquals("Bicalutamide", todayRow.medicationName)
         assertEquals(1, widgetSnapshot.captured.totalCount)
         assertEquals(0, widgetSnapshot.captured.doneCount)
-        val comingUpRow = rows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
-        assertNotNull(comingUpRow)
-        assertEquals("Bicalutamide", comingUpRow!!.medicationName)
-        assertEquals(now.toLocalDate().plusDays(1), comingUpRow.scheduledAt.toLocalDate())
     }
 
     @Test
@@ -681,10 +677,8 @@ class HomeSnapshotRepositoryTest {
 
         assertTrue(widgetSnapshot.isCaptured)
         assertEquals(0, widgetSnapshot.captured.totalCount)
-        val comingUpRow = widgetSnapshot.captured.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
-        assertNotNull(comingUpRow)
-        assertEquals("Bicalutamide", comingUpRow!!.medicationName)
-        assertEquals(now.toLocalDate().plusDays(1), comingUpRow.scheduledAt.toLocalDate())
+        // tomorrow-8am is beyond the 06:00 tonight cutoff — never shown in widget
+        assertNull(widgetSnapshot.captured.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP })
     }
 
     private fun stubRefreshInputs(
