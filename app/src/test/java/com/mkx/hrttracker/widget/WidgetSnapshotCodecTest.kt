@@ -163,6 +163,34 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun `codec round-trips a scheduled row with entryUuid null`() {
+        val row = baseRecord.doseRows.first().copy(entryUuid = null)
+        val record = baseRecord.copy(doseRows = listOf(row))
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
+    fun `codec round-trips a manual row with entryUuid set`() {
+        val row = WidgetDoseRow(
+            medicationName = "Estradiol",
+            groupName = "",
+            colorKey = null,
+            routeLabel = "Injection",
+            doseText = "5 mg",
+            status = WidgetDoseStatus.DONE,
+            scheduledAt = LocalDateTime.of(2026, 5, 18, 9, 0, 0),
+            trailingText = "Manual",
+            isManualRecord = true,
+            contextChip = null,
+            groupUuid = null,
+            scheduleTimeUuid = null,
+            entryUuid = "aaaaaaaa-0000-0000-0000-000000000000",
+        )
+        val record = baseRecord.copy(doseRows = listOf(row))
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
     fun `WidgetSnapshotSerializer returns empty state on corrupt bytes`() {
         val serializer = WidgetSnapshotSerializer(PassthroughWidgetCrypto)
         var result: WidgetSnapshotState? = null

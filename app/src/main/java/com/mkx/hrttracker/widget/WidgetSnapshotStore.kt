@@ -52,9 +52,10 @@ data class WidgetDoseRow(
     val trailingText: String?,
     val isManualRecord: Boolean,
     val contextChip: WidgetDoseChip?,
-    val groupUuid: String?,                   // non-null only for DUE_SOON/OVERDUE non-manual
+    val groupUuid: String?,                   // non-null for every scheduled row
     val scheduleTimeUuid: String?,
-    val medicationUuid: String? = null,       // non-null for scheduled non-manual rows
+    val medicationUuid: String? = null,       // non-null for scheduled per-medication rows
+    val entryUuid: String? = null,            // non-null for manual rows
 )
 
 data class WidgetPkDoseMarkerRecord(
@@ -202,6 +203,7 @@ internal object WidgetSnapshotCodec {
         writeNullableString(row.groupUuid)
         writeNullableString(row.scheduleTimeUuid)
         writeNullableString(row.medicationUuid)
+        writeNullableString(row.entryUuid)
     }
 
     private fun DataInputStream.readDoseRow(): WidgetDoseRow = WidgetDoseRow(
@@ -218,6 +220,7 @@ internal object WidgetSnapshotCodec {
         groupUuid = readNullableString(),
         scheduleTimeUuid = readNullableString(),
         medicationUuid = readNullableString(),
+        entryUuid = readNullableString(),
     )
 
     private fun DataOutputStream.writePkProjection(rec: WidgetPkProjectionRecord?) {
@@ -399,9 +402,9 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 8
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 9
 private const val TAG = "WidgetSnapshotStore"
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 7
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 8
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_widget_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
