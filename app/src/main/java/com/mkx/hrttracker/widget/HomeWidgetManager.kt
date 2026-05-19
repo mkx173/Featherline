@@ -2,6 +2,7 @@ package com.mkx.hrttracker.widget
 
 import android.content.Context
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.mkx.hrttracker.data.repository.SettingsRepository
@@ -27,14 +28,20 @@ class HomeWidgetManager @Inject constructor(
     fun start() {
         if (!started.compareAndSet(false, true)) return
 
+        val workManager = WorkManager.getInstance(context)
+
         // 1. Enqueue the periodic re-render/rebuild worker (idempotent).
-        val request = PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(15, TimeUnit.MINUTES)
+        val periodicRequest = PeriodicWorkRequestBuilder<WidgetDailyRefreshWorker>(15, TimeUnit.MINUTES)
             .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
-            request,
+            periodicRequest,
         )
+
+        // Run the worker logic once immediately on startup so the widget is never stale
+        // after a long absence or a fresh install.
+        workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
 
         // 2. Re-render whenever the E2 display unit changes (no DB, no simulation).
         appScope.launch {
