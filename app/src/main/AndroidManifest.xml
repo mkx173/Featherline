@@ -26,6 +26,7 @@
             android:name=".MainActivity"
             android:windowSoftInputMode="adjustResize"
             android:exported="true"
+            android:launchMode="singleTop"
             android:configChanges="uiMode|locale|layoutDirection"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>

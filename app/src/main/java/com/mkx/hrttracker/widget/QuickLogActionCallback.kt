@@ -18,11 +18,14 @@ class QuickLogActionCallback : ActionCallback {
         val groupUuidStr = parameters[GroupUuidKey] ?: return
         val scheduleTimeUuidStr = parameters[ScheduleTimeUuidKey]
         val scheduledAtStr = parameters[ScheduledAtKey] ?: return
+        val medicationUuidStr = parameters[MedicationUuidKey]
 
         val groupUuid = runCatching { UUID.fromString(groupUuidStr) }.getOrNull() ?: return
         val scheduleTimeUuid = scheduleTimeUuidStr?.takeIf { it.isNotEmpty() }
             ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         val scheduledAt = runCatching { LocalDateTime.parse(scheduledAtStr) }.getOrNull() ?: return
+        val medicationUuid = medicationUuidStr?.takeIf { it.isNotEmpty() }
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
 
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext,
@@ -43,6 +46,15 @@ class QuickLogActionCallback : ActionCallback {
             return
         }
 
+        // Restrict to the tapped medication so the callback doesn't log all
+        // medications in the group when only one row was tapped.
+        val targetGroup = if (medicationUuid != null) {
+            val match = group.medications.firstOrNull { it.uuid == medicationUuid }
+            if (match != null) group.copy(medications = listOf(match)) else group
+        } else {
+            group
+        }
+
         val zoneId = ZoneId.systemDefault()
         val appliedAt = LocalDateTime.now()
         val slot = MedicationReminderSlot(
@@ -55,7 +67,7 @@ class QuickLogActionCallback : ActionCallback {
         val entries = logRepository.getScheduledGroupEntriesSince(scheduledAt)
 
         val missingEntries = buildMissingScheduledLogEntries(
-            group = group,
+            group = targetGroup,
             slot = slot,
             entries = entries,
             appliedAt = appliedAt,
@@ -79,3 +91,4 @@ class QuickLogActionCallback : ActionCallback {
 val GroupUuidKey = ActionParameters.Key<String>("widget_group_uuid")
 val ScheduleTimeUuidKey = ActionParameters.Key<String>("widget_schedule_time_uuid")
 val ScheduledAtKey = ActionParameters.Key<String>("widget_scheduled_at")
+val MedicationUuidKey = ActionParameters.Key<String>("widget_medication_uuid")

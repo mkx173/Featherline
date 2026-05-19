@@ -891,12 +891,16 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
 ): WidgetDoseRow {
     val status = when {
         isFulfilled -> WidgetDoseStatus.DONE
+        hasOutsideScheduleWindowEntry -> WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
         isPastDue -> WidgetDoseStatus.OVERDUE
         isDueSoon -> WidgetDoseStatus.DUE_SOON
         else -> WidgetDoseStatus.UPCOMING
     }
     val isActionable = status == WidgetDoseStatus.DUE_SOON || status == WidgetDoseStatus.OVERDUE
-    val displayTime = if (status == WidgetDoseStatus.DONE) null else scheduledFor.format(timeFormatter)
+    val displayTime = when (status) {
+        WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
+        else -> scheduledFor.format(timeFormatter)
+    }
     return WidgetDoseRow(
         medicationName = medicationDisplayName(medication.details, context),
         groupName = groupName,
@@ -911,6 +915,7 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         contextChip = contextChip,
         groupUuid = if (isActionable) groupUuid.toString() else null,
         scheduleTimeUuid = if (isActionable) scheduleTimeUuid?.toString() else null,
+        medicationUuid = medication.uuid.toString(),
     )
 }
 

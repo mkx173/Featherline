@@ -334,6 +334,7 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
                     GroupUuidKey to groupUuid,
                     ScheduleTimeUuidKey to scheduleTimeUuid,
                     ScheduledAtKey to row.scheduledAt.toString(),
+                    MedicationUuidKey to (row.medicationUuid ?: ""),
                 )
             )
         )
@@ -381,6 +382,20 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
+                contentDescription = null,
+                modifier = GlanceModifier.size(18.dp),
+                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+            )
+        }
+
+        WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
+            modifier = GlanceModifier.size(26.dp)
+                .background(colors.surfaceVariant)
+                .cornerRadius(13.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
                 modifier = GlanceModifier.size(18.dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),

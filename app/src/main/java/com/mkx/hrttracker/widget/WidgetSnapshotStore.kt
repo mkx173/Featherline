@@ -37,7 +37,7 @@ import javax.inject.Singleton
 
 // ── Public data model ──────────────────────────────────────────────────────────
 
-enum class WidgetDoseStatus { DONE, DUE_SOON, OVERDUE, UPCOMING }
+enum class WidgetDoseStatus { DONE, DUE_SOON, OVERDUE, UPCOMING, LOGGED_OUT_OF_WINDOW }
 
 enum class WidgetDoseChip { LAST_NIGHT, COMING_UP }
 
@@ -55,6 +55,7 @@ data class WidgetDoseRow(
     val contextChip: WidgetDoseChip?,
     val groupUuid: String?,                   // non-null only for DUE_SOON/OVERDUE non-manual
     val scheduleTimeUuid: String?,
+    val medicationUuid: String? = null,       // non-null for scheduled non-manual rows
 )
 
 data class WidgetPkDoseMarkerRecord(
@@ -193,6 +194,7 @@ internal object WidgetSnapshotCodec {
         row.contextChip?.let { writeByte(it.ordinal) }
         writeNullableString(row.groupUuid)
         writeNullableString(row.scheduleTimeUuid)
+        writeNullableString(row.medicationUuid)
     }
 
     private fun DataInputStream.readDoseRow(): WidgetDoseRow = WidgetDoseRow(
@@ -209,6 +211,7 @@ internal object WidgetSnapshotCodec {
         contextChip = if (readBoolean()) WidgetDoseChip.entries[readByte().toInt() and 0xff] else null,
         groupUuid = readNullableString(),
         scheduleTimeUuid = readNullableString(),
+        medicationUuid = readNullableString(),
     )
 
     private fun DataOutputStream.writePkProjection(rec: WidgetPkProjectionRecord?) {
@@ -390,9 +393,9 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 4
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 5
 private const val TAG = "WidgetSnapshotStore"
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 4
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 5
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_widget_snapshot_key"
 private const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
