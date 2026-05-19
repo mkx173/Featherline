@@ -32,8 +32,6 @@ import com.mkx.hrttracker.model.pk.DenseSamplePolicy
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
-import com.mkx.hrttracker.widget.WidgetPkDoseMarkerRecord
-import com.mkx.hrttracker.widget.WidgetPkProjectionRecord
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -130,6 +128,12 @@ data class HomeSnapshotRecord(
     val anchorDateEpochDay: Long,
     val zoneId: String,
     val pkProjection: HomePkProjectionRecord?,
+    // Sibling of pkProjection simulated with plannedEntries=emptyList(). The
+    // widget reads this to display the current body-state estimate from logged
+    // doses only — without it, a planned dose 30 min from now would distort the
+    // widget's "current" reading. Nullable so test fixtures don't have to fill
+    // it; refresh always populates both projections in the same pass.
+    val widgetPkProjection: HomePkProjectionRecord? = null,
     val activeGroups: List<MedicationGroup>,
     val scheduleEntries: List<MedicationLogEntry>,
     val antiandrogenHistoryEntries: List<MedicationLogEntry>,
@@ -173,20 +177,6 @@ sealed interface HomePkDenseSamplePolicyRecord {
     data class Interval(val hours: Double) : HomePkDenseSamplePolicyRecord
     data class Budget(val segmentCount: Int) : HomePkDenseSamplePolicyRecord
 }
-
-fun HomePkProjectionRecord.toWidgetRecord(): WidgetPkProjectionRecord =
-    WidgetPkProjectionRecord(
-        generatedAtEpochMillis = generatedAtEpochMillis,
-        windowStartEpochMillis = windowStartEpochMillis,
-        windowEndEpochMillis = windowEndEpochMillis,
-        pkProjectionExpiresAtEpochMillis = pkProjectionExpiresAtEpochMillis,
-        concentrationUnit = concentrationUnit,
-        timeH = timeH,
-        concentrations = concentrations,
-        doseMarkers = doseMarkers.map {
-            WidgetPkDoseMarkerRecord(timeH = it.timeH, concentration = it.concentration, isPlanned = it.isPlanned)
-        },
-    )
 
 fun DenseSamplePolicy.toRecord(): HomePkDenseSamplePolicyRecord = when (this) {
     is DenseSamplePolicy.Interval -> HomePkDenseSamplePolicyRecord.Interval(hours = hours)
@@ -252,6 +242,7 @@ internal object HomeSnapshotCodec {
             stream.writeLong(record.anchorDateEpochDay)
             stream.writeString(record.zoneId)
             stream.writeHomePkProjectionRecord(record.pkProjection)
+            stream.writeHomePkProjectionRecord(record.widgetPkProjection)
             stream.writeList(record.activeGroups) { group -> writeMedicationGroup(group) }
             stream.writeList(record.scheduleEntries) { entry -> writeMedicationLogEntry(entry) }
             stream.writeList(record.antiandrogenHistoryEntries) { entry -> writeMedicationLogEntry(entry) }
@@ -273,6 +264,7 @@ internal object HomeSnapshotCodec {
                 anchorDateEpochDay = stream.readLong(),
                 zoneId = stream.readString(),
                 pkProjection = stream.readHomePkProjectionRecord(),
+                widgetPkProjection = stream.readHomePkProjectionRecord(),
                 activeGroups = stream.readList { readMedicationGroup() },
                 scheduleEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
                 antiandrogenHistoryEntries = stream.readList { checkNotNull(readMedicationLogEntry()) },
@@ -699,7 +691,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 9
+private const val SNAPSHOT_CODEC_VERSION = 10
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")

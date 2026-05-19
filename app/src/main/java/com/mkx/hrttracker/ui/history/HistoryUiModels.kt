@@ -7,8 +7,8 @@ import com.mkx.hrttracker.model.medication.isScheduledOn
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayUiState
 import com.mkx.hrttracker.ui.plan.buildPlanCalendarDayUiState
-import com.mkx.hrttracker.ui.plan.isPlanOffPlanEntry
-import com.mkx.hrttracker.ui.plan.planCalendarDate
+import com.mkx.hrttracker.model.medication.isPlanOffPlanEntry
+import com.mkx.hrttracker.model.medication.planCalendarDate
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId

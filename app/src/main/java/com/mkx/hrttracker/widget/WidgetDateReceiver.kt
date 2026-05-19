@@ -28,6 +28,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext, WidgetEntryPoint::class.java
         )
+        // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
         entryPoint.homeSnapshotRepository()
             .refreshHomeSnapshotIfNeeded(force = true)
     }

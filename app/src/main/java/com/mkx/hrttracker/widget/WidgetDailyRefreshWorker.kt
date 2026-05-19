@@ -35,7 +35,8 @@ class WidgetDailyRefreshWorker(
         } == true
 
         if (projectionExpired || doseStatusStale) {
-            homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)
+            // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
+            homeSnapshotRepository.refreshHomeSnapshotIfNeeded(now = now, force = true)
         } else {
             updateAllHrtWidgets(appContext)
         }

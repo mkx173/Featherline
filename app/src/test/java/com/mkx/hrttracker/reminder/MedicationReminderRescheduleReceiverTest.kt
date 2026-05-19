@@ -139,7 +139,7 @@ class MedicationReminderRescheduleReceiverTest {
     }
 
     @Test
-    fun bootCompleted_doesNotRefreshSnapshot() = runTest {
+    fun bootCompleted_forcesHomeSnapshotRefresh() = runTest {
         coEvery { reminderCapabilityReconciler.reconcile(any()) } returns Unit
 
         handleReminderRescheduleBroadcast(
@@ -151,10 +151,8 @@ class MedicationReminderRescheduleReceiverTest {
             goAsync = { pendingResult },
         )
 
-        // The startup preloader handles snapshot refresh; the receiver shouldn't
-        // double-fire here.
-        verify(exactly = 0) {
-            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = any())
+        verify(exactly = 1) {
+            homeSnapshotRepository.refreshHomeSnapshotAsync(now = any(), force = true)
         }
     }
 

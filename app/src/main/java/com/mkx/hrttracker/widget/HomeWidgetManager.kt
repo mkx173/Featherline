@@ -5,11 +5,15 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -18,10 +22,12 @@ import javax.inject.Singleton
 
 @Singleton
 class HomeWidgetManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
+    private val homeSnapshotRepository: HomeSnapshotRepository,
     private val settingsRepository: SettingsRepository,
-    private val widgetSnapshotStore: WidgetSnapshotStore,
-    @AppScope private val appScope: CoroutineScope,
+    private val widgetSnapshotRepository: WidgetSnapshotRepository,
+    @param:AppScope private val appScope: CoroutineScope,
+    private val diagnosticsLogger: AppDiagnosticsLogger = AppDiagnosticsLogger(),
 ) {
     private val started = AtomicBoolean(false)
 
@@ -43,25 +49,49 @@ class HomeWidgetManager @Inject constructor(
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
 
-        // 2. Re-render whenever the E2 display unit changes (no DB, no simulation).
         appScope.launch {
-            settingsRepository.homeE2DisplayUnitFlow
-                .drop(1)
-                .collect { displayUnit ->
+            homeSnapshotRepository.observeHomeSnapshot()
+                .collect { snapshot ->
                     runCatching {
-                        val snapshot = widgetSnapshotStore.readSnapshot()
-                        if (snapshot != null) {
-                            widgetSnapshotStore.writeSnapshot(
-                                snapshot.copy(e2DisplayUnit = displayUnit.unit.storageValue)
-                            )
+                        if (snapshot == null) {
+                            widgetSnapshotRepository.clearWidgetSnapshot()
+                        } else {
+                            widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
                         }
-                        updateAllHrtWidgets(context)
+                    }.onFailure { throwable ->
+                        diagnosticsLogger.warning(TAG, "widget_snapshot_home_observer_failed", throwable)
+                    }
+                }
+        }
+
+        // Rebuild only the widget snapshot when widget-facing settings change.
+        appScope.launch {
+            settingsRepository.settingsState
+                .map { settings ->
+                    listOf(
+                        settings.hideMedicationDetails,
+                        settings.adaptiveColorEnabled,
+                        settings.widgetContentScale,
+                        settings.widgetBackgroundAlpha,
+                        settings.homeE2DisplayUnit,
+                        settings.darkModeOption,
+                        settings.appLanguageOption,
+                    )
+                }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    runCatching {
+                        widgetSnapshotRepository.refreshWidgetSnapshot()
+                    }.onFailure { throwable ->
+                        diagnosticsLogger.warning(TAG, "widget_snapshot_settings_refresh_failed", throwable)
                     }
                 }
         }
     }
 
     companion object {
+        private const val TAG = "HomeWidgetManager"
         private const val WORK_NAME = "widget_daily_refresh"
     }
 }

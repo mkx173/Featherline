@@ -11,8 +11,8 @@ import dagger.hilt.components.SingletonComponent
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface WidgetEntryPoint {
-    fun homeSnapshotRepository(): HomeSnapshotRepository
     fun widgetSnapshotStore(): WidgetSnapshotStore
+    fun homeSnapshotRepository(): HomeSnapshotRepository
     fun medicationGroupRepository(): MedicationGroupRepository
     fun medicationLogRepository(): MedicationLogRepository
     fun diagnosticsLogger(): AppDiagnosticsLogger

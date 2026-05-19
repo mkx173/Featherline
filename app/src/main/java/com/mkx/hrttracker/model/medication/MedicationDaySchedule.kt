@@ -1,14 +1,5 @@
-package com.mkx.hrttracker.ui.plan
+package com.mkx.hrttracker.model.medication
 
-import com.mkx.hrttracker.model.medication.MedicationGroup
-import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.MedicationGroupMedication
-import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSignature
-import com.mkx.hrttracker.model.medication.isEntryForPlanSlot
-import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
-import com.mkx.hrttracker.model.medication.isEntryWithinScheduleFulfillmentWindow
-import com.mkx.hrttracker.model.medication.time
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import com.mkx.hrttracker.util.isCrossZone
 import java.time.Duration

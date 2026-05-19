@@ -20,6 +20,9 @@ class MedicationDetailTextTest {
         every { context.getString(R.string.medication_name_estradiol_valerate) } returns "Estradiol valerate"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
         every { context.getString(R.string.unit_mg) } returns "mg"
+        every {
+            context.getString(R.string.medication_dose_with_unit, any(), any())
+        } returns "2 mg"
 
         val medication = testMedicationGroupMedication(
             details = testCatalogMedicationDetails(
@@ -40,6 +43,9 @@ class MedicationDetailTextTest {
         every { context.getString(R.string.medication_name_spironolactone) } returns "Spironolactone"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
         every { context.getString(R.string.unit_mg) } returns "mg"
+        every {
+            context.getString(R.string.medication_dose_with_unit, any(), any())
+        } returns "100 mg"
 
         val medication = testMedicationGroupMedication(
             details = testCatalogMedicationDetails(

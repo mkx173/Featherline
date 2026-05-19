@@ -75,8 +75,10 @@ class QuickLogActionCallback : ActionCallback {
         )
 
         if (missingEntries.isNotEmpty()) {
+            // saveNewEntries goes through runHomeDataMutation, which rewrites the home
+            // snapshot. HomeWidgetManager's home-snapshot observer picks that up and
+            // re-derives the widget snapshot — no explicit widget refresh needed.
             logRepository.saveNewEntries(missingEntries)
-            // saveNewEntries triggers runHomeDataMutation, which rebuilds and re-renders the widget.
         } else {
             diagnosticsLogger.info(TAG, "widget_quick_log_already_fulfilled slot=$scheduledAt group=$groupUuid")
             updateAllHrtWidgets(context.applicationContext)

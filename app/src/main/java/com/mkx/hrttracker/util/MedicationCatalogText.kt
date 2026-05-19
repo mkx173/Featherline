@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.ui.medication
+package com.mkx.hrttracker.util
 
 import androidx.annotation.StringRes
 import com.mkx.hrttracker.R

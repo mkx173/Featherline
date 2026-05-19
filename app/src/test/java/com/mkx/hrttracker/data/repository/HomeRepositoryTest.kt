@@ -1,6 +1,5 @@
 package com.mkx.hrttracker.data.repository
 
-import android.content.Context
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
@@ -21,7 +20,6 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.settings.SettingsState
-import com.mkx.hrttracker.widget.WidgetSnapshotStore
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -54,8 +52,6 @@ class HomeRepositoryTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val homeSnapshotStore: HomeSnapshotStore = mockk()
     private val homeSnapshotGenerationStore: HomeSnapshotGenerationStore = mockk()
-    private val widgetSnapshotStore: WidgetSnapshotStore = mockk(relaxed = true)
-    private val context: Context = mockk(relaxed = true)
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
 
@@ -198,8 +194,6 @@ class HomeRepositoryTest {
             databaseHolder = databaseHolder,
             homeSnapshotStore = homeSnapshotStore,
             homeSnapshotGenerationStore = homeSnapshotGenerationStore,
-            widgetSnapshotStore = widgetSnapshotStore,
-            context = context,
             settingsRepository = settingsRepository,
             appScope = CoroutineScope(dispatcher),
             defaultDispatcher = dispatcher,

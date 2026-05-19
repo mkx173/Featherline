@@ -1,17 +1,10 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import androidx.compose.foundation.layout.padding
-import com.materialkolor.dynamicColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
@@ -24,13 +17,10 @@ import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview as GlancePreview
-import androidx.glance.action.actionParametersOf
-import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityFromIntent
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -38,14 +28,12 @@ import androidx.glance.appwidget.lazy.itemsIndexed
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll as glanceUpdateAll
 import androidx.glance.background
-import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -57,103 +45,14 @@ import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
-import androidx.core.net.toUri
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_ENTRY_UUID
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_GROUP_UUID
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_KIND
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_MEDICATION_UUID
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID
-import com.mkx.hrttracker.EXTRA_HIGHLIGHT_SCHEDULED_AT
-import com.mkx.hrttracker.HIGHLIGHT_KIND_MANUAL
-import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
-import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
-import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.pk.PkConcentrationUnit
-import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
-import com.mkx.hrttracker.ui.main.formatMainE2ConcentrationValue
 import java.io.File
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// ── Widget color scheme ───────────────────────────────────────────────────────
-
-private data class WidgetColorScheme(
-    val primary: ColorProvider,
-    val secondaryContainer: ColorProvider,
-    val onSecondaryContainer: ColorProvider,
-    val tertiaryContainer: ColorProvider,
-    val onTertiaryContainer: ColorProvider,
-    val surfaceVariant: ColorProvider,
-    val onSurfaceVariant: ColorProvider,
-    val surfaceContainerLow: ColorProvider,
-    val surface: ColorProvider,
-    val onSurface: ColorProvider,
-    val outline: ColorProvider,
-    val outlineVariant: ColorProvider,
-)
-
-private fun hardcodedWidgetColorScheme(alpha: Float = 1.0f): WidgetColorScheme {
-    fun p(day: Color, night: Color) = DayNightColorProvider(day, night)
-    return WidgetColorScheme(
-        primary             = p(Color(0xFF8D4959), Color(0xFFFFB1C0)),
-        secondaryContainer  = p(Color(0xFFFFD9DF), Color(0xFF5B3F44)),
-        onSecondaryContainer = p(Color(0xFF5B3F44), Color(0xFFFFD9DF)),
-        tertiaryContainer   = p(Color(0xFFFFDCBC), Color(0xFF5F401D)),
-        onTertiaryContainer = p(Color(0xFF5F401D), Color(0xFFFFDCBC)),
-        surfaceVariant      = p(Color(0xFFF5E4E6), Color(0xFF312829)),
-        onSurfaceVariant    = p(Color(0xFF524345), Color(0xFFD6C2C4)),
-        surfaceContainerLow = p(Color(0xFFFFF0F1).copy(alpha = alpha), Color(0xFF22191B).copy(alpha = alpha)),
-        surface             = p(Color(0xFFFFF8F7).copy(alpha = alpha), Color(0xFF191113).copy(alpha = alpha)),
-        onSurface           = p(Color(0xFF22191B), Color(0xFFEFDEE0)),
-        outline             = p(Color(0xFF847375), Color(0xFF9F8C8F)),
-        outlineVariant      = p(Color(0xFFD6C2C4), Color(0xFF524345)),
-    )
-}
-
-@androidx.annotation.RequiresApi(Build.VERSION_CODES.S)
-private fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): WidgetColorScheme {
-    val seed = Color(context.getColor(android.R.color.system_accent1_500))
-    val light = dynamicColorScheme(seed, isDark = false)
-    val dark  = dynamicColorScheme(seed, isDark = true)
-    fun p(l: Color, d: Color) = DayNightColorProvider(l, d)
-    return WidgetColorScheme(
-        primary             = p(light.primary,              dark.primary),
-        secondaryContainer  = p(light.secondaryContainer,   dark.secondaryContainer),
-        onSecondaryContainer = p(light.onSecondaryContainer, dark.onSecondaryContainer),
-        tertiaryContainer   = p(light.tertiaryContainer,    dark.tertiaryContainer),
-        onTertiaryContainer = p(light.onTertiaryContainer,  dark.onTertiaryContainer),
-        surfaceVariant      = p(light.surfaceVariant,       dark.surfaceVariant),
-        onSurfaceVariant    = p(light.onSurfaceVariant,     dark.onSurfaceVariant),
-        surfaceContainerLow = p(light.surfaceContainerLow.copy(alpha = alpha), dark.surfaceContainerLow.copy(alpha = alpha)),
-        surface             = p(light.surface.copy(alpha = alpha), dark.surface.copy(alpha = alpha)),
-        onSurface           = p(light.onSurface,            dark.onSurface),
-        outline             = p(light.outline,              dark.outline),
-        outlineVariant      = p(light.outlineVariant,       dark.outlineVariant),
-    )
-}
-
-private val LocalWidgetColors = compositionLocalOf { hardcodedWidgetColorScheme() }
-private val LocalWidgetScale = compositionLocalOf { 1.0f }
-private val LocalWidgetAlpha = compositionLocalOf { 1.0f }
-
-private val colorGroupSlate = DayNightColorProvider(day = Color(0xFF60646C), night = Color(0xFFB0B4BA))
-private val colorGroupRose = DayNightColorProvider(day = Color(0xFFCE2C31), night = Color(0xFFFF8A88))
-private val colorGroupCoral = DayNightColorProvider(day = Color(0xFFD14E00), night = Color(0xFFFF9B52))
-private val colorGroupAmber = DayNightColorProvider(day = Color(0xFFA06E00), night = Color(0xFFD9C600))
-private val colorGroupCitron = DayNightColorProvider(day = Color(0xFF5C7C2F), night = Color(0xFFBDEE63))
-private val colorGroupSage = DayNightColorProvider(day = Color(0xFF00824D), night = Color(0xFF3DD68C))
-private val colorGroupTeal = DayNightColorProvider(day = Color(0xFF00826D), night = Color(0xFF0AD8B6))
-private val colorGroupSky = DayNightColorProvider(day = Color(0xFF00749E), night = Color(0xFF7CE2FE))
-private val colorGroupIndigo = DayNightColorProvider(day = Color(0xFF3A5BC7), night = Color(0xFF9DB1FF))
-private val colorGroupViolet = DayNightColorProvider(day = Color(0xFF8145B5), night = Color(0xFFD59CFF))
-private val colorGroupPlum = DayNightColorProvider(day = Color(0xFFC1298A), night = Color(0xFFFF80CA))
 
 // ── Widget ────────────────────────────────────────────────────────────────────
 
@@ -225,379 +124,6 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HrtWidgetLarge()
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-private fun groupAccentColor(colorKey: MedicationGroupColorKey?): ColorProvider = when (colorKey) {
-    null -> colorGroupSlate
-    MedicationGroupColorKey.ROSE -> colorGroupRose
-    MedicationGroupColorKey.CORAL -> colorGroupCoral
-    MedicationGroupColorKey.AMBER -> colorGroupAmber
-    MedicationGroupColorKey.CITRON -> colorGroupCitron
-    MedicationGroupColorKey.SAGE -> colorGroupSage
-    MedicationGroupColorKey.TEAL -> colorGroupTeal
-    MedicationGroupColorKey.SKY -> colorGroupSky
-    MedicationGroupColorKey.INDIGO -> colorGroupIndigo
-    MedicationGroupColorKey.VIOLET -> colorGroupViolet
-    MedicationGroupColorKey.PLUM -> colorGroupPlum
-}
-
-private fun formatWidgetE2Text(
-    currentConcentration: Double,
-    concentrationUnit: PkConcentrationUnit,
-    displayUnit: BloodUnitKey,
-): String {
-    val canonical = when (concentrationUnit) {
-        PkConcentrationUnit.PG_PER_ML -> currentConcentration
-        PkConcentrationUnit.PMOL_PER_L -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration, BloodUnitKey.PMOL_L)
-        PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration, BloodUnitKey.NG_DL)
-        PkConcentrationUnit.NG_PER_ML -> currentConcentration * 1_000.0
-        PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration * 1_000.0, BloodUnitKey.PMOL_L)
-    }
-    val displayValue = BloodTestCatalog.fromCanonical(BloodAnalyteKey.E2, canonical, displayUnit)
-    val formatted = formatMainE2ConcentrationValue(displayValue, displayUnit)
-    val label = calibrationUnitLabel(displayUnit)
-    return "E2 ~$formatted $label"
-}
-
-private fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
-    snapshot == null || snapshot.doseRows.isEmpty()
-
-private sealed interface WidgetListItem {
-    data class Header(val text: String) : WidgetListItem
-    data class Row(val row: WidgetDoseRow) : WidgetListItem
-}
-
-@Composable
-private fun WidgetShell(contentAlignment: Alignment = Alignment.TopStart, content: @Composable () -> Unit) {
-    val colors = LocalWidgetColors.current
-    Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(colors.surface)
-            .cornerRadius(22.dp)
-            .clickable(actionStartActivity<MainActivity>())
-            .padding(12.dp),
-        contentAlignment = contentAlignment,
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun WidgetLabel(text: String, modifier: GlanceModifier = GlanceModifier, fontSize: TextUnit = 18.sp) {
-    val colors = LocalWidgetColors.current
-    val scale = LocalWidgetScale.current
-    Text(
-        text = text.uppercase(),
-        modifier = modifier,
-        style = TextStyle(
-            color = colors.onSurfaceVariant,
-            fontSize = (fontSize.value * scale).sp,
-            fontWeight = FontWeight.Bold,
-        ),
-        maxLines = 1,
-    )
-}
-
-@Composable
-private fun EmptyWidgetContent() {
-    val colors = LocalWidgetColors.current
-    val context = LocalContext.current
-    Column(
-        modifier = GlanceModifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_medication),
-            contentDescription = null,
-            modifier = GlanceModifier.size(30.dp),
-            colorFilter = ColorFilter.tint(colors.outlineVariant),
-        )
-        Spacer(GlanceModifier.height(8.dp))
-        Text(
-            text = context.getString(R.string.widget_no_medications),
-            style = TextStyle(
-                color = colors.onSurfaceVariant,
-                fontSize = (13f * LocalWidgetScale.current).sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            maxLines = 1,
-        )
-    }
-}
-
-// ── Progress bar ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun ProgressBar(
-    doneCount: Int,
-    totalCount: Int,
-    modifier: GlanceModifier = GlanceModifier.fillMaxWidth(),
-) {
-    if (totalCount <= 0) return
-    val colors = LocalWidgetColors.current
-    val scale = LocalWidgetScale.current
-    Row(modifier = modifier.height((6f * scale).dp)) {
-        for (i in 0 until totalCount) {
-            if (i > 0) Spacer(GlanceModifier.width((3f * scale).dp))
-            Box(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .fillMaxHeight()
-                    .background(if (i < doneCount) colors.primary else colors.surfaceVariant)
-                    .cornerRadius(999.dp),
-            ) {}
-        }
-    }
-}
-
-// ── Section header ────────────────────────────────────────────────────────────
-
-@Composable
-private fun SectionHeader(text: String, topPadding: Dp = 4.dp) {
-    val colors = LocalWidgetColors.current
-    Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(top = topPadding, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        WidgetLabel(text, fontSize = 16.sp)
-        Spacer(GlanceModifier.width(8.dp))
-        Box(
-            modifier = GlanceModifier.defaultWeight().height(1.dp)
-                .background(colors.outlineVariant),
-        ) {}
-    }
-}
-
-// ── Trailing button ───────────────────────────────────────────────────────────
-
-@Composable
-private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigateIntent: Intent? = null) {
-    val colors = LocalWidgetColors.current
-    val scale = LocalWidgetScale.current
-    val groupUuid = row.groupUuid
-    val logModifier = if (showLogAction && groupUuid != null) {
-        GlanceModifier.clickable(
-            actionRunCallback<QuickLogActionCallback>(
-                actionParametersOf(
-                    GroupUuidKey to groupUuid,
-                    ScheduleTimeUuidKey to (row.scheduleTimeUuid ?: ""),
-                    ScheduledAtKey to row.scheduledAt.toString(),
-                    MedicationUuidKey to (row.medicationUuid ?: ""),
-                )
-            )
-        )
-    } else {
-        GlanceModifier
-    }
-    val navigateModifier = if (navigateIntent != null) {
-        GlanceModifier.clickable(actionStartActivityFromIntent(navigateIntent))
-    } else {
-        GlanceModifier
-    }
-
-    when (row.status) {
-        WidgetDoseStatus.DONE -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.secondaryContainer)
-                .cornerRadius(999.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_check),
-                contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
-            )
-        }
-
-        WidgetDoseStatus.DUE_SOON -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.tertiaryContainer)
-                .cornerRadius(999.dp)
-                .then(logModifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_edit),
-                contentDescription = null,
-                modifier = GlanceModifier.size((18f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
-            )
-        }
-
-        WidgetDoseStatus.OVERDUE -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp)
-                .then(logModifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_edit),
-                contentDescription = null,
-                modifier = GlanceModifier.size((18f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-            )
-        }
-
-        WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_check),
-                contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-            )
-        }
-
-        else -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.surfaceVariant)
-                .cornerRadius(999.dp)
-                .then(navigateModifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(R.drawable.ic_arrow_forward),
-                contentDescription = null,
-                modifier = GlanceModifier.size((22f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-            )
-        }
-    }
-}
-
-// ── Dose row ──────────────────────────────────────────────────────────────────
-
-private fun widgetRowHighlightIntent(context: Context, row: WidgetDoseRow): Intent? {
-    val entryUuid = row.entryUuid
-    if (entryUuid != null) {
-        return Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            data = "hrttracker://widget-row-highlight/manual/$entryUuid".toUri()
-            putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_MANUAL)
-            putExtra(EXTRA_HIGHLIGHT_ENTRY_UUID, entryUuid)
-        }
-    }
-    val groupUuid = row.groupUuid ?: return null
-    val stableKey = listOf(
-        groupUuid,
-        row.scheduleTimeUuid.orEmpty(),
-        row.scheduledAt.toString(),
-        row.medicationUuid.orEmpty(),
-    ).joinToString(":")
-    return Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        data = "hrttracker://widget-row-highlight/scheduled/${android.net.Uri.encode(stableKey)}".toUri()
-        putExtra(EXTRA_HIGHLIGHT_KIND, HIGHLIGHT_KIND_SCHEDULED)
-        putExtra(EXTRA_HIGHLIGHT_GROUP_UUID, groupUuid)
-        row.scheduleTimeUuid?.let { putExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID, it) }
-        putExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT, row.scheduledAt.toString())
-        row.medicationUuid?.let { putExtra(EXTRA_HIGHLIGHT_MEDICATION_UUID, it) }
-    }
-}
-
-@Composable
-private fun DoseRow(
-    row: WidgetDoseRow,
-    showLogAction: Boolean,
-    hideMedicationDetails: Boolean,
-    highlightIntent: Intent? = null,
-) {
-    val colors = LocalWidgetColors.current
-    val scale = LocalWidgetScale.current
-    val rowClickModifier = if (highlightIntent != null) {
-        GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
-    } else {
-        GlanceModifier
-    }
-    val rowModifier = GlanceModifier
-        .fillMaxWidth()
-        .height((64f * scale).dp)
-        .background(colors.surfaceContainerLow)
-        .cornerRadius(10.dp)
-        .padding(horizontal = (16f * scale).dp)
-        .then(rowClickModifier)
-
-    Row(
-        modifier = rowModifier,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Left: color bar (neutral outline when no group color)
-        Box(
-            modifier = GlanceModifier
-                .width(6.dp)
-                .height((44f * scale).dp)
-                .background(groupAccentColor(row.colorKey))
-                .cornerRadius(999.dp),
-        ) {}
-
-        Spacer(GlanceModifier.width(10.dp))
-
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            val context = LocalContext.current
-            val fullName = when {
-                hideMedicationDetails && row.isManualRecord -> context.getString(R.string.widget_manual_record)
-                hideMedicationDetails -> row.groupName
-                else -> row.medicationName
-            }
-            Text(
-                text = fullName,
-                modifier = GlanceModifier.fillMaxWidth(),
-                style = TextStyle(
-                    color = if (row.status == WidgetDoseStatus.UPCOMING) {
-                        colors.onSurfaceVariant
-                    } else {
-                        colors.onSurface
-                    },
-                    fontSize = (18f * LocalWidgetScale.current).sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                maxLines = 1,
-            )
-            if (!hideMedicationDetails && (row.routeLabel.isNotBlank() || row.doseText.isNotBlank())) {
-                val supportingText = listOfNotNull(
-                    row.routeLabel.takeIf(String::isNotBlank),
-                    row.doseText.takeIf(String::isNotBlank),
-                ).joinToString(" · ")
-                if (supportingText.isNotBlank()) {
-                    Text(
-                        text = supportingText,
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (14f * LocalWidgetScale.current).sp,
-                            fontWeight = FontWeight.Normal,
-                        ),
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-
-        Spacer(GlanceModifier.width(8.dp))
-
-        val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
-        if (showTrailingText) {
-            Text(
-                text = row.trailingText,
-                style = TextStyle(
-                    color = colors.onSurface,
-                    fontSize = (16f * LocalWidgetScale.current).sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                maxLines = 1,
-            )
-            Spacer(GlanceModifier.width(8.dp))
-        }
-        TrailingButton(row, showLogAction, highlightIntent)
-    }
-}
 
 // ── Medium widget (2×2) ───────────────────────────────────────────────────────
 

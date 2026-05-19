@@ -1,4 +1,4 @@
-package com.mkx.hrttracker.widget
+package com.mkx.hrttracker.reminder
 
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
@@ -10,8 +10,6 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
-import com.mkx.hrttracker.reminder.MedicationReminderSlot
-import com.mkx.hrttracker.reminder.buildMissingScheduledLogEntries
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

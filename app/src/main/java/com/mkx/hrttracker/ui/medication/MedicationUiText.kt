@@ -9,7 +9,9 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.customDoseDisplayUnit
 import com.mkx.hrttracker.model.medication.formatDose
 import com.mkx.hrttracker.model.medication.formatDoseFromCanonicalMg
+import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.shortLabelRes
 
 @Composable
 fun medicationDisplayName(details: MedicationDetails): String {
