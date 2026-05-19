@@ -2,12 +2,14 @@ package com.mkx.hrttracker.widget
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.layout.padding
 import com.materialkolor.dynamicColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
@@ -18,7 +20,6 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview as GlancePreview
 import androidx.glance.action.actionParametersOf
@@ -239,14 +240,14 @@ private fun WidgetShell(contentAlignment: Alignment = Alignment.TopStart, conten
 }
 
 @Composable
-private fun WidgetLabel(text: String, modifier: GlanceModifier = GlanceModifier) {
+private fun WidgetLabel(text: String, modifier: GlanceModifier = GlanceModifier, fontSize: TextUnit = 18.sp) {
     val colors = LocalWidgetColors.current
     Text(
         text = text.uppercase(),
         modifier = modifier,
         style = TextStyle(
             color = colors.onSurfaceVariant,
-            fontSize = 9.sp,
+            fontSize = fontSize,
             fontWeight = FontWeight.Bold,
         ),
         maxLines = 1,
@@ -284,23 +285,22 @@ private fun EmptyWidgetContent() {
 // ── Progress bar ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun ProgressBar(fraction: Float, modifier: GlanceModifier = GlanceModifier.fillMaxWidth()) {
+private fun ProgressBar(
+    doneCount: Int,
+    totalCount: Int,
+    modifier: GlanceModifier = GlanceModifier.fillMaxWidth(),
+) {
+    if (totalCount <= 0) return
     val colors = LocalWidgetColors.current
-    val safeFraction = fraction.coerceIn(0f, 1f)
-    Box(
-        modifier = modifier
-            .height(4.dp)
-            .background(colors.surfaceVariant)
-            .cornerRadius(2.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        if (safeFraction > 0f) {
+    Row(modifier = modifier.height(6.dp)) {
+        for (i in 0 until totalCount) {
+            if (i > 0) Spacer(GlanceModifier.width(3.dp))
             Box(
                 modifier = GlanceModifier
+                    .defaultWeight()
                     .fillMaxHeight()
-                    .width(LocalSize.current.width * safeFraction)
-                    .background(colors.primary)
-                    .cornerRadius(2.dp),
+                    .background(if (i < doneCount) colors.primary else colors.surfaceVariant)
+                    .cornerRadius(999.dp),
             ) {}
         }
     }
@@ -312,11 +312,11 @@ private fun ProgressBar(fraction: Float, modifier: GlanceModifier = GlanceModifi
 private fun SectionHeader(text: String) {
     val colors = LocalWidgetColors.current
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        WidgetLabel(text)
-        Spacer(GlanceModifier.width(6.dp))
+        WidgetLabel(text, fontSize = 16.sp)
+        Spacer(GlanceModifier.width(8.dp))
         Box(
             modifier = GlanceModifier.defaultWeight().height(1.dp)
                 .background(colors.outlineVariant),
@@ -348,60 +348,60 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
 
     when (row.status) {
         WidgetDoseStatus.DONE -> Box(
-            modifier = GlanceModifier.size(26.dp)
+            modifier = GlanceModifier.size(32.dp)
                 .background(colors.secondaryContainer)
-                .cornerRadius(13.dp)
+                .cornerRadius(999.dp)
                 .then(clickModifier),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size(18.dp),
+                modifier = GlanceModifier.size(24.dp),
                 colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
             )
         }
 
         WidgetDoseStatus.DUE_SOON -> Box(
-            modifier = GlanceModifier.size(26.dp)
+            modifier = GlanceModifier.size(32.dp)
                 .background(colors.tertiaryContainer)
-                .cornerRadius(13.dp)
+                .cornerRadius(999.dp)
                 .then(clickModifier),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size(18.dp),
+                modifier = GlanceModifier.size(24.dp),
                 colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
             )
         }
 
         WidgetDoseStatus.OVERDUE -> Box(
-            modifier = GlanceModifier.size(26.dp)
+            modifier = GlanceModifier.size(32.dp)
                 .background(colors.surfaceVariant)
-                .cornerRadius(13.dp)
+                .cornerRadius(999.dp)
                 .then(clickModifier),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size(18.dp),
+                modifier = GlanceModifier.size(24.dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
 
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
-            modifier = GlanceModifier.size(26.dp)
+            modifier = GlanceModifier.size(32.dp)
                 .background(colors.surfaceVariant)
-                .cornerRadius(13.dp),
+                .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size(18.dp),
+                modifier = GlanceModifier.size(24.dp),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
@@ -411,16 +411,16 @@ private fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean) {
             val borderColor = colors.outline
             val fillColor = colors.surface
             Box(
-                modifier = GlanceModifier.size(26.dp)
+                modifier = GlanceModifier.size(32.dp)
                     .background(borderColor)
-                    .cornerRadius(13.dp)
+                    .cornerRadius(16.dp)
                     .then(clickModifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    modifier = GlanceModifier.size(24.dp)
+                    modifier = GlanceModifier.size(30.dp)
                         .background(fillColor)
-                        .cornerRadius(12.dp),
+                        .cornerRadius(15.dp),
                 ) {}
             }
         }
@@ -438,10 +438,10 @@ private fun DoseRow(
     val colors = LocalWidgetColors.current
     val rowModifier = GlanceModifier
         .fillMaxWidth()
-        .height(40.dp)
+        .height(64.dp)
         .background(colors.surfaceContainerLow)
         .cornerRadius(10.dp)
-        .padding(horizontal = 8.dp)
+        .padding(horizontal = 16.dp)
 
     Row(
         modifier = rowModifier,
@@ -450,10 +450,10 @@ private fun DoseRow(
         // Left: color bar (neutral outline when no group color)
         Box(
             modifier = GlanceModifier
-                .width(4.dp)
-                .height(22.dp)
+                .width(6.dp)
+                .height(44.dp)
                 .background(groupAccentColor(row.colorKey))
-                .cornerRadius(2.dp),
+                .cornerRadius(999.dp),
         ) {}
 
         Spacer(GlanceModifier.width(10.dp))
@@ -474,7 +474,7 @@ private fun DoseRow(
                     } else {
                         colors.onSurface
                     },
-                    fontSize = 13.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 ),
                 maxLines = 1,
@@ -489,7 +489,7 @@ private fun DoseRow(
                         text = supportingText,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
                         ),
                         maxLines = 1,
@@ -503,15 +503,11 @@ private fun DoseRow(
         val showTrailingText = row.trailingText != null && !(hideMedicationDetails && row.isManualRecord)
         if (showTrailingText) {
             Text(
-                text = row.trailingText!!,
+                text = row.trailingText,
                 style = TextStyle(
-                    color = if (row.trailingIsDelta) {
-                        colors.onSurfaceVariant
-                    } else {
-                        colors.onSurface
-                    },
-                    fontSize = if (row.trailingIsDelta) 11.sp else 13.sp,
-                    fontWeight = if (row.trailingIsDelta) FontWeight.Normal else FontWeight.Medium,
+                    color = colors.onSurface,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
                 ),
                 maxLines = 1,
             )
@@ -597,9 +593,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         )
                     }
                     Spacer(GlanceModifier.height(8.dp))
-                    ProgressBar(
-                        fraction = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f,
-                    )
+                    ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Value != null) {
                     Spacer(GlanceModifier.defaultWeight())
@@ -802,46 +796,45 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
         }
 
-        Column(modifier = GlanceModifier.fillMaxSize()) {
+        Column(modifier = GlanceModifier.fillMaxSize().padding(4.dp)) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth().wrapContentHeight(),
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
-                    WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount of $totalCount done")
-                    Spacer(GlanceModifier.height(7.dp))
-                    ProgressBar(
-                        fraction = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f,
-                        modifier = GlanceModifier.width(140.dp),
-                    )
+                    WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
+                    Spacer(GlanceModifier.height(8.dp))
+                    ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Value != null) {
-                    Spacer(GlanceModifier.width(8.dp))
+                    Spacer(GlanceModifier.width(64.dp))
                     Text(
                         text = "E2 ~%.0f pg/mL".format(e2Value),
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                         ),
                     )
                 }
             }
 
-            Spacer(GlanceModifier.height(10.dp))
+            Spacer(GlanceModifier.height(16.dp))
 
             LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 itemsIndexed(
                     items = listItems,
                     itemId = { index, _ -> (index + 1).toLong() },
-                ) { _, item ->
-                    when (item) {
-                        is WidgetListItem.Header -> SectionHeader(item.text)
-                        is WidgetListItem.Row -> DoseRow(
-                            row = item.row,
-                            showLogAction = item.row.groupUuid != null &&
-                                (item.row.status == WidgetDoseStatus.DUE_SOON || item.row.status == WidgetDoseStatus.OVERDUE),
-                            hideMedicationDetails = record.hideMedicationDetails,
-                        )
+                ) { index, item ->
+                    Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
+                        when (item) {
+                            is WidgetListItem.Header -> SectionHeader(item.text)
+                            is WidgetListItem.Row -> DoseRow(
+                                row = item.row,
+                                showLogAction = item.row.groupUuid != null &&
+                                    (item.row.status == WidgetDoseStatus.DUE_SOON || item.row.status == WidgetDoseStatus.OVERDUE),
+                                hideMedicationDetails = record.hideMedicationDetails,
+                            )
+                        }
                     }
                 }
             }
@@ -871,7 +864,6 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
                 status = WidgetDoseStatus.DONE,
                 scheduledAt = now.minusHours(2),
                 trailingText = null,
-                trailingIsDelta = false,
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = null,
@@ -886,7 +878,6 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
                 status = WidgetDoseStatus.DUE_SOON,
                 scheduledAt = now.plusMinutes(30),
                 trailingText = "+30 min",
-                trailingIsDelta = true,
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = "g1",
@@ -902,7 +893,6 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
                 status = WidgetDoseStatus.UPCOMING,
                 scheduledAt = now.plusHours(4),
                 trailingText = now.plusHours(4).format(DateTimeFormatter.ofPattern("h:mm a")),
-                trailingIsDelta = false,
                 isManualRecord = false,
                 contextChip = WidgetDoseChip.COMING_UP,
                 groupUuid = null,

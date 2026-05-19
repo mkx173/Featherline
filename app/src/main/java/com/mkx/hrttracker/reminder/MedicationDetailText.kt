@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.reminder
 
 import android.content.Context
+import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationDoseUnit
@@ -54,16 +55,23 @@ internal fun medicationDoseText(context: Context, details: MedicationDetails): S
     return when (val dose = details.dose) {
         is MedicationDose.MgAsMedicine -> {
             val unit = details.customDoseDisplayUnit()
-            "${unit.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(unit.shortLabelRes)}"
+            context.getString(R.string.medication_dose_with_unit,
+                unit.formatDoseFromCanonicalMg(dose.valueMg, locale),
+                context.getString(unit.shortLabelRes))
         }
         is MedicationDose.GelEquivalentEstradiolMg ->
-            "${MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(MedicationDoseUnit.MG.shortLabelRes)}"
+            context.getString(R.string.medication_dose_mg_e2,
+                MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale))
         is MedicationDose.PatchTotalMg ->
-            "${MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale)} ${context.getString(MedicationDoseUnit.MG.shortLabelRes)}"
+            context.getString(R.string.medication_dose_mg_e2,
+                MedicationDoseUnit.MG.formatDoseFromCanonicalMg(dose.valueMg, locale))
         is MedicationDose.PatchReleaseRateMcgPerDay ->
-            "${dose.valueMcgPerDay.formatDose(locale)} ${context.getString(MedicationDoseUnit.MCG.shortLabelRes)}"
+            context.getString(R.string.medication_dose_release_rate_mcg_day,
+                dose.valueMcgPerDay.formatDose(locale))
         is MedicationDose.GelPercentAndWeight ->
-            "${dose.percent.formatDose(locale)}% ${dose.weightGrams.formatDose(locale)} ${context.getString(MedicationDoseUnit.G.shortLabelRes)}"
+            context.getString(R.string.medication_dose_percent_and_weight,
+                dose.percent.formatDose(locale),
+                dose.weightGrams.formatDose(locale))
         MedicationDose.None -> null
     }
 }

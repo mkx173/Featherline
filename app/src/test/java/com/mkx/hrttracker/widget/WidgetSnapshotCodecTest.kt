@@ -26,7 +26,6 @@ class WidgetSnapshotCodecTest {
                 status = WidgetDoseStatus.DONE,
                 scheduledAt = LocalDateTime.of(2026, 5, 18, 8, 0, 0),
                 trailingText = null,
-                trailingIsDelta = false,
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = null,
@@ -41,7 +40,6 @@ class WidgetSnapshotCodecTest {
                 status = WidgetDoseStatus.DUE_SOON,
                 scheduledAt = LocalDateTime.of(2026, 5, 18, 20, 0, 0),
                 trailingText = "20:00",
-                trailingIsDelta = false,
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = "123e4567-e89b-12d3-a456-426614174000",
@@ -56,7 +54,6 @@ class WidgetSnapshotCodecTest {
                 status = WidgetDoseStatus.DONE,
                 scheduledAt = LocalDateTime.of(2026, 5, 18, 9, 0, 0),
                 trailingText = "Manual",
-                trailingIsDelta = true,
                 isManualRecord = true,
                 contextChip = null,
                 groupUuid = null,
@@ -71,7 +68,6 @@ class WidgetSnapshotCodecTest {
                 status = WidgetDoseStatus.UPCOMING,
                 scheduledAt = LocalDateTime.of(2026, 5, 19, 8, 0, 0),
                 trailingText = "08:00",
-                trailingIsDelta = false,
                 isManualRecord = false,
                 contextChip = WidgetDoseChip.COMING_UP,
                 groupUuid = null,
@@ -108,7 +104,6 @@ class WidgetSnapshotCodecTest {
         val row = baseRecord.doseRows.first().copy(
             contextChip = WidgetDoseChip.LAST_NIGHT,
             trailingText = "2h later",
-            trailingIsDelta = true,
         )
         val record = baseRecord.copy(doseRows = listOf(row))
         assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
@@ -125,7 +120,6 @@ class WidgetSnapshotCodecTest {
             status = WidgetDoseStatus.DONE,
             scheduledAt = LocalDateTime.of(2026, 5, 18, 9, 0, 0),
             trailingText = "Manual",
-            trailingIsDelta = true,
             isManualRecord = true,
             contextChip = null,
             groupUuid = null,

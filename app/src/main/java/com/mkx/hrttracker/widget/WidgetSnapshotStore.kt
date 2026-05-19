@@ -50,7 +50,6 @@ data class WidgetDoseRow(
     val status: WidgetDoseStatus,
     val scheduledAt: LocalDateTime,
     val trailingText: String?,
-    val trailingIsDelta: Boolean,
     val isManualRecord: Boolean,
     val contextChip: WidgetDoseChip?,
     val groupUuid: String?,                   // non-null only for DUE_SOON/OVERDUE non-manual
@@ -188,7 +187,6 @@ internal object WidgetSnapshotCodec {
         writeByte(row.status.ordinal)
         writeLocalDateTime(row.scheduledAt)
         writeNullableString(row.trailingText)
-        writeBoolean(row.trailingIsDelta)
         writeBoolean(row.isManualRecord)
         writeBoolean(row.contextChip != null)
         row.contextChip?.let { writeByte(it.ordinal) }
@@ -206,7 +204,6 @@ internal object WidgetSnapshotCodec {
         status = WidgetDoseStatus.entries[readByte().toInt() and 0xff],
         scheduledAt = readLocalDateTime(),
         trailingText = readNullableString(),
-        trailingIsDelta = readBoolean(),
         isManualRecord = readBoolean(),
         contextChip = if (readBoolean()) WidgetDoseChip.entries[readByte().toInt() and 0xff] else null,
         groupUuid = readNullableString(),
@@ -393,7 +390,7 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 5
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 6
 private const val TAG = "WidgetSnapshotStore"
 private const val WIDGET_SNAPSHOT_CODEC_VERSION = 5
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
