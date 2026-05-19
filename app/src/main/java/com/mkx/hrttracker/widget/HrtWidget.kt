@@ -633,14 +633,14 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                WidgetLabel(context.getString(R.string.widget_today), fontSize = 9.sp)
+                WidgetLabel(context.getString(R.string.widget_today))
                 if (e2Text != null) {
                     Spacer(GlanceModifier.defaultWeight())
                     Text(
                         text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (9f * LocalWidgetScale.current).sp,
+                            fontSize = (16f * LocalWidgetScale.current).sp,
                         ),
                         maxLines = 1,
                     )
@@ -672,7 +672,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (12f * LocalWidgetScale.current).sp,
+                            fontSize = (14f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
@@ -718,7 +718,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             text = context.getString(R.string.widget_all_done),
                             style = TextStyle(
                                 color = colors.primary,
-                                fontSize = (12f * LocalWidgetScale.current).sp,
+                                fontSize = (13f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Medium,
                             ),
                         )
@@ -751,7 +751,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             text = "→ ",
                             style = TextStyle(
                                 color = colors.onSurfaceVariant,
-                                fontSize = (12f * LocalWidgetScale.current).sp,
+                                fontSize = (18f * LocalWidgetScale.current).sp,
                             ),
                         )
                         Text(
@@ -759,7 +759,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             modifier = GlanceModifier.defaultWeight(),
                             style = TextStyle(
                                 color = colors.onSurface,
-                                fontSize = (13f * LocalWidgetScale.current).sp,
+                                fontSize = (18f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Medium,
                             ),
                             maxLines = 1,
@@ -775,7 +775,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = supporting,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = (10f * LocalWidgetScale.current).sp,
+                                    fontSize = (14f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -794,7 +794,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = (10f * LocalWidgetScale.current).sp,
+                                    fontSize = (16f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
