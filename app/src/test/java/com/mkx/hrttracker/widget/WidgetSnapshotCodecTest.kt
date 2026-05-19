@@ -18,6 +18,7 @@ class WidgetSnapshotCodecTest {
         adaptiveColorEnabled = false,
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 0.85f,
+        e2DisplayUnit = "pg_ml",
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol",
@@ -146,6 +147,12 @@ class WidgetSnapshotCodecTest {
         val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
         assertEquals(0.8f, decoded.widgetContentScale)
         assertEquals(0.6f, decoded.widgetBackgroundAlpha)
+    }
+
+    @Test
+    fun `codec round-trips e2DisplayUnit`() {
+        val record = baseRecord.copy(e2DisplayUnit = "pmol_l")
+        assertEquals("pmol_l", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).e2DisplayUnit)
     }
 
     @Test

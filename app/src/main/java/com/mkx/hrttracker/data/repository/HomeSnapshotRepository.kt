@@ -591,6 +591,7 @@ class HomeSnapshotRepository @Inject constructor(
             adaptiveColorEnabled = settings.adaptiveColorEnabled,
             widgetContentScale = settings.widgetContentScale,
             widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
+            e2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
         )
 
         withContext(Dispatchers.IO) {
@@ -782,6 +783,7 @@ class HomeSnapshotRepository @Inject constructor(
         adaptiveColorEnabled: Boolean,
         widgetContentScale: Float,
         widgetBackgroundAlpha: Float,
+        e2DisplayUnit: String,
     ): WidgetSnapshotRecord {
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
@@ -885,6 +887,7 @@ class HomeSnapshotRepository @Inject constructor(
             adaptiveColorEnabled = adaptiveColorEnabled,
             widgetContentScale = widgetContentScale,
             widgetBackgroundAlpha = widgetBackgroundAlpha,
+            e2DisplayUnit = e2DisplayUnit,
             doseRows = allRows,
             pkProjection = pkProjection,
         )

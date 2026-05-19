@@ -19,6 +19,7 @@ import javax.inject.Singleton
 class HomeWidgetManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
+    private val widgetSnapshotStore: WidgetSnapshotStore,
     @AppScope private val appScope: CoroutineScope,
 ) {
     private val started = AtomicBoolean(false)
@@ -39,8 +40,16 @@ class HomeWidgetManager @Inject constructor(
         appScope.launch {
             settingsRepository.homeE2DisplayUnitFlow
                 .drop(1)
-                .collect {
-                    runCatching { updateAllHrtWidgets(context) }
+                .collect { displayUnit ->
+                    runCatching {
+                        val snapshot = widgetSnapshotStore.readSnapshot()
+                        if (snapshot != null) {
+                            widgetSnapshotStore.writeSnapshot(
+                                snapshot.copy(e2DisplayUnit = displayUnit.unit.storageValue)
+                            )
+                        }
+                        updateAllHrtWidgets(context)
+                    }
                 }
         }
     }

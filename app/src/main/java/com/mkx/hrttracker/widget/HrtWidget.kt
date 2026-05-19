@@ -57,7 +57,13 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
+import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
+import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
+import com.mkx.hrttracker.ui.main.formatMainE2ConcentrationValue
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -221,6 +227,24 @@ private fun groupAccentColor(colorKey: MedicationGroupColorKey?): ColorProvider 
     MedicationGroupColorKey.INDIGO -> colorGroupIndigo
     MedicationGroupColorKey.VIOLET -> colorGroupViolet
     MedicationGroupColorKey.PLUM -> colorGroupPlum
+}
+
+private fun formatWidgetE2Text(
+    currentConcentration: Double,
+    concentrationUnit: PkConcentrationUnit,
+    displayUnit: BloodUnitKey,
+): String {
+    val canonical = when (concentrationUnit) {
+        PkConcentrationUnit.PG_PER_ML -> currentConcentration
+        PkConcentrationUnit.PMOL_PER_L -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration, BloodUnitKey.PMOL_L)
+        PkConcentrationUnit.NG_PER_DL -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration, BloodUnitKey.NG_DL)
+        PkConcentrationUnit.NG_PER_ML -> currentConcentration * 1_000.0
+        PkConcentrationUnit.NMOL_PER_L -> BloodTestCatalog.toCanonical(BloodAnalyteKey.E2, currentConcentration * 1_000.0, BloodUnitKey.PMOL_L)
+    }
+    val displayValue = BloodTestCatalog.fromCanonical(BloodAnalyteKey.E2, canonical, displayUnit)
+    val formatted = formatMainE2ConcentrationValue(displayValue, displayUnit)
+    val label = calibrationUnitLabel(displayUnit)
+    return "E2 ~$formatted $label"
 }
 
 private fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
@@ -544,10 +568,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
 
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
-        val e2Value = record.pkProjection
+        val e2Trend = record.pkProjection
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
-            ?.currentConcentration
+        val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
+        val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
         val allDone = totalCount > 0 && doneCount >= totalCount
@@ -607,10 +632,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     Spacer(GlanceModifier.height(8.dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
-                if (e2Value != null) {
+                if (e2Text != null) {
                     Spacer(GlanceModifier.defaultWeight())
                     Text(
-                        text = "E2 ~%.0f pg/mL".format(e2Value),
+                        text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
                             fontSize = (11f * LocalWidgetScale.current).sp,
@@ -740,10 +765,11 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val record = checkNotNull(snapshot)
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
-        val e2Value = record.pkProjection
+        val e2Trend = record.pkProjection
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
-            ?.currentConcentration
+        val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
+        val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
 
@@ -818,10 +844,10 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     Spacer(GlanceModifier.height(8.dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
-                if (e2Value != null) {
+                if (e2Text != null) {
                     Spacer(GlanceModifier.width((64f / LocalWidgetScale.current).dp))
                     Text(
-                        text = "E2 ~%.0f pg/mL".format(e2Value),
+                        text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
                             fontSize = (14f * LocalWidgetScale.current).sp,
@@ -868,6 +894,7 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
         adaptiveColorEnabled = false,
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 1.0f,
+        e2DisplayUnit = BloodUnitKey.PG_ML.storageValue,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol Valerate",
