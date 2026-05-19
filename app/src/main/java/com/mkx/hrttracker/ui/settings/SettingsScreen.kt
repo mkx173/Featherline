@@ -597,6 +597,11 @@ private fun WidgetAppearanceDialog(
                 Text(stringResource(R.string.done))
             }
         },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
     )
 }
 

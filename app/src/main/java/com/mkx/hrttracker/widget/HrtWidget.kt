@@ -850,7 +850,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (14f * LocalWidgetScale.current).sp,
+                            fontSize = (16f * LocalWidgetScale.current).sp,
                         ),
                     )
                 }
