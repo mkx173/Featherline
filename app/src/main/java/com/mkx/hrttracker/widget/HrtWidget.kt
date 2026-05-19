@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -354,10 +355,10 @@ private fun ProgressBar(
 // ── Section header ────────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionHeader(text: String) {
+private fun SectionHeader(text: String, topPadding: Dp = 4.dp) {
     val colors = LocalWidgetColors.current
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(top = topPadding, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         WidgetLabel(text, fontSize = 16.sp)
@@ -923,7 +924,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 ) { index, item ->
                     Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
                         when (item) {
-                            is WidgetListItem.Header -> SectionHeader(item.text)
+                            is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp)
                             is WidgetListItem.Row -> DoseRow(
                                 row = item.row,
                                 showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||
