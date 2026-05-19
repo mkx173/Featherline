@@ -126,6 +126,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
@@ -2996,7 +2997,7 @@ private fun MainTodayDoseRow(
         if (isHighlighted) {
             bringIntoViewRequester.bringIntoView()
             flashActive = true
-            delay(150)
+            delay(300)
             flashActive = false
             onHighlightConsumed()
         }
@@ -3044,6 +3045,7 @@ private fun MainTodayDoseRow(
         }
     }
 
+    val rowShape = segmentedListItemShape(index = index, count = itemCount)
     Box {
         EditorSegmentedListItem(
             index = index,
@@ -3110,6 +3112,7 @@ private fun MainTodayDoseRow(
             Box(
                 Modifier
                     .matchParentSize()
+                    .clip(rowShape)
                     .background(
                         MaterialTheme.colorScheme.surfaceContainerHigh.copy(
                             alpha = 0.55f * flashAlpha,
@@ -3134,14 +3137,14 @@ private fun MainUpcomingDoseRow(
     var flashActive by remember { mutableStateOf(false) }
     val flashAlpha by animateFloatAsState(
         targetValue = if (flashActive) 1f else 0f,
-        animationSpec = if (flashActive) tween(150) else tween(600),
+        animationSpec = if (flashActive) tween(150) else tween(1000),
         label = "dose-row-highlight",
     )
     LaunchedEffect(isHighlighted) {
         if (isHighlighted) {
             bringIntoViewRequester.bringIntoView()
             flashActive = true
-            delay(150)
+            delay(600)
             flashActive = false
             onHighlightConsumed()
         }
@@ -3157,6 +3160,7 @@ private fun MainUpcomingDoseRow(
         medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
+    val rowShape = segmentedListItemShape(index = index, count = itemCount)
 
     Box {
         EditorSegmentedListItem(
@@ -3214,6 +3218,7 @@ private fun MainUpcomingDoseRow(
             Box(
                 Modifier
                     .matchParentSize()
+                    .clip(rowShape)
                     .background(
                         MaterialTheme.colorScheme.surfaceContainerHigh.copy(
                             alpha = 0.55f * flashAlpha,

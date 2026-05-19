@@ -11,6 +11,31 @@ import androidx.compose.ui.graphics.Shape
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
+fun segmentedListItemShape(
+    index: Int,
+    count: Int,
+    cornerShape: CornerBasedShape = MaterialTheme.shapes.large,
+): Shape {
+    val defaultShape = ListItemDefaults.shapes().shape
+    return remember(index, count, cornerShape, defaultShape) {
+        if (defaultShape !is CornerBasedShape) return@remember defaultShape
+        when {
+            count <= 1 -> cornerShape
+            index == 0 -> defaultShape.copy(
+                topStart = cornerShape.topStart,
+                topEnd = cornerShape.topEnd,
+            )
+            index == count - 1 -> defaultShape.copy(
+                bottomStart = cornerShape.bottomStart,
+                bottomEnd = cornerShape.bottomEnd,
+            )
+            else -> defaultShape
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 fun segmentedListItemShapes(
     index: Int,
     count: Int,
