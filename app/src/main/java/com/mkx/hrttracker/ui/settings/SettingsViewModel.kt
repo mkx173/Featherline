@@ -181,6 +181,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setWidgetAppearance(contentScale: Float, backgroundAlpha: Float) {
+        viewModelScope.launch {
+            settingsRepository.setWidgetAppearance(contentScale, backgroundAlpha)
+        }
+    }
+
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setRemindersEnabled(enabled)

@@ -239,6 +239,13 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setWidgetAppearance(contentScale: Float, backgroundAlpha: Float) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetContentScaleKey] = contentScale
+            preferences[widgetBackgroundAlphaKey] = backgroundAlpha.coerceIn(0.5f, 1.0f)
+        }
+    }
+
     suspend fun nextGroupNameIndex(): Int {
         var result = 0
         activeDataStore().edit { preferences ->

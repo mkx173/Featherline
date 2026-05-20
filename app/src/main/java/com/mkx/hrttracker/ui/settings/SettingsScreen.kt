@@ -433,8 +433,7 @@ fun SettingsScreen(
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
-        onWidgetContentScaleChange = viewModel::setWidgetContentScale,
-        onWidgetBackgroundAlphaChange = viewModel::setWidgetBackgroundAlpha,
+        onWidgetAppearanceChange = viewModel::setWidgetAppearance,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -555,8 +554,7 @@ fun SettingsScreen(
 private fun WidgetAppearanceDialog(
     contentScale: Float,
     backgroundAlpha: Float,
-    onContentScaleChange: (Float) -> Unit,
-    onBackgroundAlphaChange: (Float) -> Unit,
+    onAppearanceChange: (Float, Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.7f, 1.3f)) }
@@ -612,8 +610,7 @@ private fun WidgetAppearanceDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onContentScaleChange(localContentScale)
-                onBackgroundAlphaChange(localBackgroundAlpha)
+                onAppearanceChange(localContentScale, localBackgroundAlpha)
                 onDismiss()
             }) {
                 Text(stringResource(R.string.save))
@@ -647,8 +644,7 @@ private fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
-    onWidgetContentScaleChange: (Float) -> Unit,
-    onWidgetBackgroundAlphaChange: (Float) -> Unit,
+    onWidgetAppearanceChange: (Float, Float) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -1438,8 +1434,7 @@ private fun SettingsScreenContent(
         WidgetAppearanceDialog(
             contentScale = settingsState.widgetContentScale,
             backgroundAlpha = settingsState.widgetBackgroundAlpha,
-            onContentScaleChange = onWidgetContentScaleChange,
-            onBackgroundAlphaChange = onWidgetBackgroundAlphaChange,
+            onAppearanceChange = onWidgetAppearanceChange,
             onDismiss = { showWidgetAppearanceDialog = false },
         )
     }
@@ -1835,8 +1830,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
-            onWidgetContentScaleChange = { },
-            onWidgetBackgroundAlphaChange = { },
+            onWidgetAppearanceChange = { _, _ -> },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,
