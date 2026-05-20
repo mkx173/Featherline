@@ -75,8 +75,8 @@ class HomeWidgetManager @Inject constructor(
                         settings.adaptiveColorEnabled,
                         settings.widgetContentScale,
                         settings.widgetBackgroundAlpha,
+                        settings.widgetDarkModeOption,
                         settings.homeE2DisplayUnit,
-                        settings.darkModeOption,
                         settings.appLanguageOption,
                     )
                 }

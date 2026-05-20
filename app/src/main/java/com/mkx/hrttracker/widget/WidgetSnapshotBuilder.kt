@@ -107,7 +107,7 @@ internal fun buildWidgetSnapshotRecord(
         widgetContentScale = settings.widgetContentScale,
         widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
         e2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
-        forcedDark = when (settings.darkModeOption) {
+        forcedDark = when (settings.widgetDarkModeOption) {
             DarkModeOption.LIGHT -> false
             DarkModeOption.DARK -> true
             DarkModeOption.FOLLOW_SYSTEM -> null

@@ -345,6 +345,7 @@
     <string name="settings_widget_appearance">小部件</string>
     <string name="settings_widget_content_scale">内容大小</string>
     <string name="settings_widget_background_opacity">背景不透明度</string>
+    <string name="settings_widget_dark_mode">深色模式</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
     <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>

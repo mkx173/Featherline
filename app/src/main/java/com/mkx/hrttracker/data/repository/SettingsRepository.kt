@@ -84,6 +84,7 @@ class SettingsRepository @Inject constructor(
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
     private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
     private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
+    private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
@@ -240,10 +241,15 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setWidgetAppearance(contentScale: Float, backgroundAlpha: Float) {
+    suspend fun setWidgetAppearance(
+        contentScale: Float,
+        backgroundAlpha: Float,
+        darkModeOption: DarkModeOption,
+    ) {
         activeDataStore().edit { preferences ->
             preferences[widgetContentScaleKey] = contentScale
             preferences[widgetBackgroundAlphaKey] = backgroundAlpha.coerceIn(0.5f, 1.0f)
+            preferences[widgetDarkModeKey] = darkModeOption.name
         }
     }
 
@@ -286,6 +292,7 @@ class SettingsRepository @Inject constructor(
         hideMedicationDetails: Boolean = false,
         widgetContentScale: Float = 1.0f,
         widgetBackgroundAlpha: Float = 1.0f,
+        widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
@@ -329,6 +336,7 @@ class SettingsRepository @Inject constructor(
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
             preferences[widgetContentScaleKey] = widgetContentScale
             preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
+            preferences[widgetDarkModeKey] = widgetDarkModeOption.name
             preferences[groupNameCounterKey] = groupNameCounter
         }
 
@@ -373,6 +381,7 @@ class SettingsRepository @Inject constructor(
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
             widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
             widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(0.5f, 1.0f),
+            widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
         )
     }

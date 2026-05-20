@@ -198,6 +198,7 @@ class BackupRestoreService @Inject constructor(
             hideMedicationDetails = validatedSnapshot.settings.hideMedicationDetails,
             widgetContentScale = validatedSnapshot.settings.widgetContentScale,
             widgetBackgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
+            widgetDarkModeOption = validatedSnapshot.settings.widgetDarkModeOption,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
         )
 
@@ -629,6 +630,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         darkModeOption,
         "dark mode option",
     )
+    val widgetDarkModeOption = requireEnumName<DarkModeOption>(
+        widgetDarkModeOption,
+        "widget dark mode option",
+    )
     val appLockGracePeriodOption = requireEnumName<AppLockGracePeriodOption>(
         appLockGracePeriodOption,
         "app lock grace period option",
@@ -672,6 +677,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         hideMedicationDetails = hideMedicationDetails,
         widgetContentScale = widgetContentScale.requireFiniteIn(0.7f..1.3f, "widget content scale"),
         widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(0.5f..1f, "widget background opacity"),
+        widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
     )
 }
@@ -795,6 +801,7 @@ internal data class ValidatedBackupSettings(
     val hideMedicationDetails: Boolean,
     val widgetContentScale: Float,
     val widgetBackgroundAlpha: Float,
+    val widgetDarkModeOption: DarkModeOption,
     val groupNameCounter: Int,
 )
 

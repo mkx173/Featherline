@@ -181,9 +181,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setWidgetAppearance(contentScale: Float, backgroundAlpha: Float) {
+    fun setWidgetAppearance(
+        contentScale: Float,
+        backgroundAlpha: Float,
+        darkModeOption: DarkModeOption,
+    ) {
         viewModelScope.launch {
-            settingsRepository.setWidgetAppearance(contentScale, backgroundAlpha)
+            settingsRepository.setWidgetAppearance(contentScale, backgroundAlpha, darkModeOption)
         }
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -554,11 +555,14 @@ fun SettingsScreen(
 private fun WidgetAppearanceDialog(
     contentScale: Float,
     backgroundAlpha: Float,
-    onAppearanceChange: (Float, Float) -> Unit,
+    darkModeOption: DarkModeOption,
+    onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.7f, 1.3f)) }
     var localBackgroundAlpha by remember { mutableStateOf(backgroundAlpha.coerceIn(0.5f, 1f)) }
+    var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
+    var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_widget_appearance)) },
@@ -606,11 +610,42 @@ private fun WidgetAppearanceDialog(
                         valueRange = 0.5f..1f,
                     )
                 }
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isDarkModeMenuExpanded = true }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_dark_mode),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = stringResource(localDarkModeOption.labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    HrtDropdownMenu(
+                        expanded = isDarkModeMenuExpanded,
+                        onDismissRequest = { isDarkModeMenuExpanded = false },
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = DarkModeOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.labelRes),
+                                onClick = { localDarkModeOption = option },
+                            )
+                        },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onAppearanceChange(localContentScale, localBackgroundAlpha)
+                onAppearanceChange(localContentScale, localBackgroundAlpha, localDarkModeOption)
                 onDismiss()
             }) {
                 Text(stringResource(R.string.save))
@@ -644,7 +679,7 @@ private fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
-    onWidgetAppearanceChange: (Float, Float) -> Unit,
+    onWidgetAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -1434,6 +1469,7 @@ private fun SettingsScreenContent(
         WidgetAppearanceDialog(
             contentScale = settingsState.widgetContentScale,
             backgroundAlpha = settingsState.widgetBackgroundAlpha,
+            darkModeOption = settingsState.widgetDarkModeOption,
             onAppearanceChange = onWidgetAppearanceChange,
             onDismiss = { showWidgetAppearanceDialog = false },
         )
@@ -1830,7 +1866,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
-            onWidgetAppearanceChange = { _, _ -> },
+            onWidgetAppearanceChange = { _, _, _ -> },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,
