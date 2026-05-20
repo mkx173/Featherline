@@ -48,6 +48,8 @@ import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -100,8 +102,10 @@ class HrtWidgetLarge : GlanceAppWidget() {
 }
 
 suspend fun updateAllHrtWidgets(context: Context) {
-    HrtWidgetMedium().glanceUpdateAll(context)
-    HrtWidgetLarge().glanceUpdateAll(context)
+    coroutineScope {
+        launch { HrtWidgetMedium().glanceUpdateAll(context) }
+        launch { HrtWidgetLarge().glanceUpdateAll(context) }
+    }
 }
 
 // ── State definition ──────────────────────────────────────────────────────────
