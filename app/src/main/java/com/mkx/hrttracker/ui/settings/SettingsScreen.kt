@@ -23,6 +23,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -616,9 +617,11 @@ private fun WidgetAppearanceDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
+                    val widgetDarkModeText = stringResource(R.string.settings_widget_dark_mode)
                     Text(
-                        text = stringResource(R.string.settings_widget_dark_mode),
+                        text = widgetDarkModeText,
                         style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.cjkTextOffset(widgetDarkModeText)
                     )
                     // Only the trailing chip is interactive, so the ripple is bounded to
                     // the selection area. The popup anchors to this Box so the menu opens
@@ -627,14 +630,17 @@ private fun WidgetAppearanceDialog(
                         Row(
                             modifier = Modifier
                                 .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                                 .clickable { isDarkModeMenuExpanded = true }
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            val widgetDarkModeLabelText = stringResource(localDarkModeOption.labelRes)
                             Text(
-                                text = stringResource(localDarkModeOption.labelRes),
+                                text = widgetDarkModeLabelText,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.cjkTextOffset(widgetDarkModeLabelText)
                             )
                             Icon(
                                 imageVector = Icons.Rounded.ArrowDropDown,
