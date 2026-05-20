@@ -1,10 +1,6 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -13,6 +9,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.observeUses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -99,22 +96,17 @@ class HomeWidgetManager @Inject constructor(
         // format, so the widget's pre-formatted trailing-time strings would otherwise
         // stay stale until another refresh trigger fires. Observe TIME_12_24 directly
         // and rebuild the snapshot when it flips.
-        val timeFormatObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                appScope.launch {
+        appScope.launch {
+            context.observeUses24HourTimeFormat()
+                .drop(1)
+                .collect {
                     runCatching {
                         widgetSnapshotRepository.refreshWidgetSnapshot()
                     }.onFailure { throwable ->
                         diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_refresh_failed", throwable)
                     }
                 }
-            }
         }
-        context.contentResolver.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.TIME_12_24),
-            false,
-            timeFormatObserver,
-        )
     }
 
     companion object {
