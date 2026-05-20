@@ -15,6 +15,7 @@ import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.preview.ExperimentalGlancePreviewApi
 import androidx.glance.preview.Preview as GlancePreview
 import androidx.glance.action.clickable
@@ -163,15 +164,45 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
 }
 
 
+// ── Per-device baseline scaling ───────────────────────────────────────────────
+
+// Launcher cell sizes vary by device, so a 2-cell-tall widget renders at different
+// dp heights on different launchers. We capture the first-render height per widget
+// type as the device's baseline (assumed to be the XML targetCell* allocation) and
+// reuse it forever, so resize doesn't change the visual scale and the scale stays
+// consistent across devices.
+private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
+private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp"
+private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp"
+private const val WIDGET_BASELINE_REFERENCE_DP = 276f
+
+@Composable
+private fun rememberWidgetScale(widgetKey: String): Float {
+    val context = LocalContext.current
+    val currentHeightDp = LocalSize.current.height.value
+    val prefs = context.getSharedPreferences(WIDGET_BASELINE_PREFS, Context.MODE_PRIVATE)
+    val storedDp = prefs.getFloat(widgetKey, 0f)
+    val baselineDp = if (storedDp > 0f) {
+        storedDp
+    } else {
+        prefs.edit().putFloat(widgetKey, currentHeightDp).apply()
+        currentHeightDp
+    }
+    return (baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current
+}
+
 // ── Medium widget (2×2) ───────────────────────────────────────────────────────
 
 @Composable
 private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    WidgetShell {
+    val scale = rememberWidgetScale(WIDGET_BASELINE_KEY_MEDIUM)
+    WidgetShell(
+        contentAlignment = Alignment.Center
+    ) {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
+            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary, scale = scale)
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
@@ -236,21 +267,21 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                WidgetLabel(context.getString(R.string.widget_today))
+                WidgetLabel(context.getString(R.string.widget_today), scale = scale)
                 if (e2Text != null) {
                     Spacer(GlanceModifier.defaultWeight())
                     Text(
                         text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (16f * LocalWidgetScale.current).sp,
+                            fontSize = (16f * scale).sp,
                         ),
                         maxLines = 1,
                     )
                 }
             }
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(top = (-6 * LocalWidgetScale.current).dp, bottom = (-4 * LocalWidgetScale.current).dp),
+                modifier = GlanceModifier.fillMaxWidth().padding(top = (-6 * scale).dp, bottom = (-4 * scale).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -258,7 +289,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = doneCount.toString(),
                         style = TextStyle(
                             color = if (allInWindow) colors.primary else colors.onSurface,
-                            fontSize = (42f * LocalWidgetScale.current).sp,
+                            fontSize = (42f * scale).sp,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
@@ -267,19 +298,18 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (18f * LocalWidgetScale.current).sp,
+                            fontSize = (18f * scale).sp,
                             fontWeight = FontWeight.Medium,
                         ),
                         maxLines = 1,
                     )
                 }
                 Spacer(GlanceModifier.defaultWeight())
-                ProgressRing(doneCount = doneCount, totalCount = totalCount)
+                ProgressRing(doneCount = doneCount, totalCount = totalCount, scale = scale)
             }
 
             // ── Bottom panel: next dose ───────────────────────────────────────
             if ((noActionableRemaining || nothingScheduledToday) && activeRow == null) {
-                val scale = LocalWidgetScale.current
                 val useCelebrationColor = allInWindow || nothingScheduledToday
                 val badgeBackground = if (useCelebrationColor) colors.primary else colors.secondary
                 val badgeForeground = if (useCelebrationColor) colors.onPrimary else colors.onSecondary
@@ -292,7 +322,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
-                            modifier = GlanceModifier.size((32f * scale).dp)
+                            modifier = GlanceModifier.size((30f * scale).dp)
                                 .background(badgeBackground)
                                 .cornerRadius(999.dp),
                             contentAlignment = Alignment.Center,
@@ -306,11 +336,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                     }
                                 ),
                                 contentDescription = null,
-                                modifier = GlanceModifier.size((24f * scale).dp),
+                                modifier = GlanceModifier.size((22f * scale).dp),
                                 colorFilter = ColorFilter.tint(badgeForeground),
                             )
                         }
-                        Spacer(GlanceModifier.height((4f * scale).dp))
+                        Spacer(GlanceModifier.height((6f * scale).dp))
                         Text(
                             text = context.getString(
                                 when {
@@ -354,22 +384,22 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     GlanceModifier
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
-                    Spacer(modifier = GlanceModifier.height((4 * LocalWidgetScale.current).dp))
+                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp, scale = scale)
+                    Spacer(modifier = GlanceModifier.height((4 * scale).dp))
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .height((64f * LocalWidgetScale.current).dp)
+                            .height((64f * scale).dp)
                             .background(colors.surfaceContainerLow)
                             .cornerRadius(10.dp)
-                            .padding(horizontal = (16f * LocalWidgetScale.current).dp)
+                            .padding(horizontal = (16f * scale).dp)
                             .then(cardClickModifier),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = GlanceModifier
                                 .width(6.dp)
-                                .height((44f * LocalWidgetScale.current).dp)
+                                .height((44f * scale).dp)
                                 .background(groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current))
                                 .cornerRadius(999.dp),
                         ) {}
@@ -380,7 +410,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 modifier = GlanceModifier.fillMaxWidth(),
                                 style = TextStyle(
                                     color = colors.onSurface,
-                                    fontSize = (18f * LocalWidgetScale.current).sp,
+                                    fontSize = (18f * scale).sp,
                                     fontWeight = FontWeight.Medium,
                                 ),
                                 maxLines = 1,
@@ -395,7 +425,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                         text = supporting,
                                         style = TextStyle(
                                             color = colors.onSurfaceVariant,
-                                            fontSize = (14f * LocalWidgetScale.current).sp,
+                                            fontSize = (14f * scale).sp,
                                             fontWeight = FontWeight.Normal,
                                         ),
                                         maxLines = 1,
@@ -417,7 +447,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurface,
-                                    fontSize = (18f * LocalWidgetScale.current).sp,
+                                    fontSize = (18f * scale).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -433,6 +463,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             buttonSizeDp = 44f,
                             iconSizeDp = 32f,
                             arrowIconSizeDp = 26f,
+                            scale = scale
                         )
                     }
                 }
@@ -447,9 +478,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
 private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
-    WidgetShell {
+    val scale = rememberWidgetScale(WIDGET_BASELINE_KEY_LARGE)
+    WidgetShell(
+        contentAlignment = Alignment.Center
+    ) {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
+            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary, scale = scale)
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
@@ -524,44 +558,43 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
         }
 
-        Column(modifier = GlanceModifier.fillMaxSize().padding(4.dp)) {
+        Column(modifier = GlanceModifier.fillMaxSize()) {
             Row(
                 modifier = GlanceModifier.fillMaxWidth().wrapContentHeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
+                        WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}", scale = scale)
 //                        if (allDone) {
-//                            Spacer(GlanceModifier.width((8f * LocalWidgetScale.current).dp))
+//                            Spacer(GlanceModifier.width((8f * scale).dp))
 //                            Image(
 //                                provider = ImageProvider(R.drawable.ic_check_circle_filled),
 //                                contentDescription = null,
-//                                modifier = GlanceModifier.size((22f * LocalWidgetScale.current).dp),
+//                                modifier = GlanceModifier.size((22f * scale).dp),
 //                                colorFilter = ColorFilter.tint(colors.primary),
 //                            )
 //                        }
                     }
-                    Spacer(GlanceModifier.height((8 * LocalWidgetScale.current).dp))
-                    ProgressBar(doneCount = doneCount, totalCount = totalCount)
+                    Spacer(GlanceModifier.height((8 * scale).dp))
+                    ProgressBar(doneCount = doneCount, totalCount = totalCount, scale = scale)
                 }
                 if (e2Text != null) {
-                    Spacer(GlanceModifier.width((64f / LocalWidgetScale.current).dp))
+                    Spacer(GlanceModifier.width((64f / scale).dp))
                     Text(
                         text = e2Text,
                         style = TextStyle(
                             color = colors.onSurfaceVariant,
-                            fontSize = (16f * LocalWidgetScale.current).sp,
+                            fontSize = (16f * scale).sp,
                         ),
                     )
                 }
             }
 
             val largeWidgetProgressBarBottomPadding = if (listItems.firstOrNull() is WidgetListItem.Header) 8 else 12
-            Spacer(GlanceModifier.height((largeWidgetProgressBarBottomPadding * LocalWidgetScale.current).dp))
+            Spacer(GlanceModifier.height((largeWidgetProgressBarBottomPadding * scale).dp))
 
             if (nothingScheduledToday) {
-                val scale = LocalWidgetScale.current
                 Box(
                     modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                     contentAlignment = Alignment.Center,
@@ -571,7 +604,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
-                            modifier = GlanceModifier.size((32f * scale).dp)
+                            modifier = GlanceModifier.size((30f * scale).dp)
                                 .background(colors.primary)
                                 .cornerRadius(999.dp),
                             contentAlignment = Alignment.Center,
@@ -579,11 +612,11 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_check),
                                 contentDescription = null,
-                                modifier = GlanceModifier.size((24f * scale).dp),
+                                modifier = GlanceModifier.size((22f * scale).dp),
                                 colorFilter = ColorFilter.tint(colors.onPrimary),
                             )
                         }
-                        Spacer(GlanceModifier.height((4f * scale).dp))
+                        Spacer(GlanceModifier.height((6f * scale).dp))
                         Text(
                             text = context.getString(R.string.widget_no_doses_today),
                             style = TextStyle(
@@ -602,13 +635,14 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ) { index, item ->
                         Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
                             when (item) {
-                                is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp)
+                                is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp, scale = scale)
                                 is WidgetListItem.Row -> DoseRow(
                                     row = item.row,
                                     showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||
                                         item.row.status == WidgetDoseStatus.OVERDUE,
                                     hideMedicationDetails = record.hideMedicationDetails,
                                     highlightIntent = widgetRowHighlightIntent(context, item.row),
+                                    scale = scale
                                 )
                             }
                         }
