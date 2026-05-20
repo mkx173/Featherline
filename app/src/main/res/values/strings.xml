@@ -616,4 +616,5 @@
     <string name="widget_today">Today</string>
     <string name="widget_tonight">Tonight</string>
     <string name="widget_manual_record">Manual record</string>
+    <string name="widget_upcoming">Upcoming</string>
 </resources>

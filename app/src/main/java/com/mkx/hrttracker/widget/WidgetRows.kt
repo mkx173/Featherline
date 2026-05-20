@@ -2,7 +2,12 @@ package com.mkx.hrttracker.widget
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -139,6 +144,50 @@ internal fun ProgressBar(
             ) {}
         }
     }
+}
+
+@Composable
+internal fun ProgressRing(
+    doneCount: Int,
+    totalCount: Int,
+    sizeDp: Float = 28f,
+    strokeDp: Float = 4f,
+) {
+    if (totalCount <= 0) return
+    val context = LocalContext.current
+    val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
+    val density = context.resources.displayMetrics.density
+
+    val scaledSizeDp = sizeDp * scale
+    val sizePx = (scaledSizeDp * density).toInt().coerceAtLeast(1)
+    val strokePx = strokeDp * scale * density
+
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = strokePx
+        strokeCap = Paint.Cap.ROUND
+    }
+
+    val inset = strokePx / 2f
+    val rect = RectF(inset, inset, sizePx - inset, sizePx - inset)
+
+    paint.color = colors.surfaceVariant.getColor(context).toArgb()
+    canvas.drawArc(rect, 0f, 360f, false, paint)
+
+    val fraction = (doneCount.toFloat() / totalCount.toFloat()).coerceIn(0f, 1f)
+    if (fraction > 0f) {
+        paint.color = colors.primary.getColor(context).toArgb()
+        canvas.drawArc(rect, -90f, 360f * fraction, false, paint)
+    }
+
+    Image(
+        provider = ImageProvider(bitmap),
+        contentDescription = null,
+        modifier = GlanceModifier.size(scaledSizeDp.dp),
+    )
 }
 
 @Composable

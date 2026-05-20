@@ -590,4 +590,5 @@
     <string name="widget_today">今天</string>
     <string name="widget_tonight">今晚</string>
     <string name="widget_manual_record">手动记录</string>
+    <string name="widget_upcoming">即将到来</string>
 </resources>

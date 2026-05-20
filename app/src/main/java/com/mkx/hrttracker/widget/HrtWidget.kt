@@ -182,32 +182,37 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     maxLines = 1,
                 )
             } else {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = doneCount.toString(),
-                        style = TextStyle(
-                            color = if (allDone) colors.primary else colors.onSurface,
-                            fontSize = (40f * LocalWidgetScale.current).sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
-                    Spacer(GlanceModifier.width(2.dp))
-                    Text(
-                        text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
-                        style = TextStyle(
-                            color = colors.onSurfaceVariant,
-                            fontSize = (18f * LocalWidgetScale.current).sp,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        maxLines = 1,
-                    )
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = doneCount.toString(),
+                            style = TextStyle(
+                                color = if (allDone) colors.primary else colors.onSurface,
+                                fontSize = (32f * LocalWidgetScale.current).sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        )
+                        Spacer(GlanceModifier.width(2.dp))
+                        Text(
+                            text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
+                            style = TextStyle(
+                                color = colors.onSurfaceVariant,
+                                fontSize = (16f * LocalWidgetScale.current).sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
+                    Spacer(GlanceModifier.defaultWeight())
+                    ProgressRing(doneCount = doneCount, totalCount = totalCount)
                 }
-                Spacer(GlanceModifier.height(4.dp))
-                ProgressBar(doneCount = doneCount, totalCount = totalCount)
             }
 
             // ── Divider ───────────────────────────────────────────────────────
-            Spacer(GlanceModifier.height(12.dp))
+            Spacer(GlanceModifier.height(8.dp))
 
             // ── Bottom panel: next dose ───────────────────────────────────────
             if (allDone && activeRow == null) {
@@ -262,6 +267,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     GlanceModifier
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
@@ -445,7 +451,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
 
-            Spacer(GlanceModifier.height(8.dp))
+            Spacer(GlanceModifier.height(if (listItems.firstOrNull() is WidgetListItem.Header) 8.dp else 12.dp))
 
             LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 itemsIndexed(
