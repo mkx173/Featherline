@@ -608,8 +608,8 @@
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>
 
-    <string name="widget_medium_description">Featherline – dose summary</string>
-    <string name="widget_large_description">Featherline – dose list</string>
+    <string name="widget_medium_description">Dose summary</string>
+    <string name="widget_large_description">Dose list</string>
     <string name="widget_all_done">All done</string>
     <string name="widget_all_logged">All logged</string>
     <string name="widget_nothing_more_today">Nothing more today</string>

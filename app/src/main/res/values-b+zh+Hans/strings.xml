@@ -16,8 +16,8 @@
     <string name="main_upcoming_title">即将到来</string>
     <string name="main_today_summary_done_label">已完成</string>
     <string name="main_today_summary_manual_label">手动</string>
-    <string name="main_today_empty_state">今天暂无计划</string>
-    <string name="main_upcoming_empty_state">接下来 90 天内暂无计划</string>
+    <string name="main_today_empty_state">今天没有计划</string>
+    <string name="main_upcoming_empty_state">接下来 90 天内没有计划</string>
     <string name="main_today_quick_log">快速记录</string>
     <string name="main_today_range_night">夜间</string>
     <string name="main_today_range_morning">上午</string>
@@ -582,13 +582,13 @@
     <string name="confirm">确定</string>
     <string name="select_date">选择日期</string>
     <string name="select_time">选择时间</string>
-    <string name="widget_medium_description">Featherline – 剂量概览</string>
-    <string name="widget_large_description">Featherline – 剂量列表</string>
+    <string name="widget_medium_description">剂量概览</string>
+    <string name="widget_large_description">剂量列表</string>
     <string name="widget_all_done">全部完成</string>
     <string name="widget_all_logged">已全部记录</string>
     <string name="widget_nothing_more_today">没有更多计划</string>
     <string name="widget_no_medications">未设置用药计划</string>
-    <string name="widget_no_doses_today">今天暂无计划</string>
+    <string name="widget_no_doses_today">今天没有计划</string>
     <string name="widget_last_night">昨晚</string>
     <string name="widget_today">今天</string>
     <string name="widget_tonight">今晚</string>
