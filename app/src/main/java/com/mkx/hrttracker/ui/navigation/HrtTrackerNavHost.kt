@@ -464,7 +464,7 @@ fun HrtTrackerNavHost(
                 popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
-                composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Main.route) {
                     MainScreen(
                         modifier,
                         scrollToTopSignal = mainScrollToTopSignal,
@@ -497,7 +497,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 }
-                composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Plan.route) {
                     PlanScreen(
                         modifier = modifier,
                         scrollToTopSignal = planScrollToTopSignal,
@@ -558,8 +558,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     PlanBatchAddScreen(
                         modifier = modifier,
@@ -573,8 +572,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     ArchivedMedicationGroupsScreen(
                         modifier = modifier,
@@ -597,8 +595,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     HistoryScreen(
                         modifier = modifier,
@@ -610,7 +607,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 }
-                composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Settings.route) {
                     SettingsScreen(
                         modifier = modifier,
                         scrollToTopSignal = settingsScrollToTopSignal,
@@ -628,8 +625,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationScreen(
                         modifier = modifier,
@@ -661,8 +657,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationUnitsScreen(
                         modifier = modifier,
@@ -681,8 +676,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationEditorScreen(
                         modifier = modifier,
@@ -706,8 +700,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = ""
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) { backStackEntry ->
                     val openedFromArchivedGroupsPage =
                         backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==
