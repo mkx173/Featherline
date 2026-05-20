@@ -50,6 +50,7 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
 import androidx.core.graphics.createBitmap
+import androidx.glance.unit.ColorProvider
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
     snapshot == null || !snapshot.hasActiveGroups
@@ -99,6 +100,9 @@ internal fun WidgetLabel(
 internal fun EmptyWidgetContent(
     iconRes: Int = R.drawable.ic_medication,
     textRes: Int = R.string.widget_no_medications,
+    iconSize: Float = 24f,
+    backgroundColor: ColorProvider = LocalWidgetColors.current.primary,
+    foregroundColor: ColorProvider = LocalWidgetColors.current.onPrimary,
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
@@ -110,15 +114,15 @@ internal fun EmptyWidgetContent(
     ) {
         Box(
             modifier = GlanceModifier.size((32f * scale).dp)
-                .background(colors.primaryContainer)
+                .background(backgroundColor)
                 .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 provider = ImageProvider(iconRes),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
-                colorFilter = ColorFilter.tint(colors.onPrimaryContainer),
+                modifier = GlanceModifier.size((iconSize * scale).dp),
+                colorFilter = ColorFilter.tint(foregroundColor),
             )
         }
         Spacer(GlanceModifier.height((8f * scale).dp))

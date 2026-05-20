@@ -170,7 +170,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val context = LocalContext.current
     WidgetShell {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent()
+            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
@@ -443,7 +443,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
     val context = LocalContext.current
     WidgetShell {
         if (isEmptySetup(snapshot)) {
-            EmptyWidgetContent()
+            EmptyWidgetContent(iconSize = 22f, backgroundColor = colors.secondary, foregroundColor = colors.onSecondary)
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
