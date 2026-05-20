@@ -77,6 +77,56 @@ class MedicationGroupEditorWeeklySelectionTest {
     }
 
     @Test
+    fun editorStateWithUpdatedScheduleType_sets_weekly_days_to_start_date_weekday_when_switching_to_weekly() {
+        val updated = editorStateWithUpdatedScheduleType(
+            uiState = MedicationGroupEditorUiState(
+                scheduleType = MedicationGroupScheduleType.DAILY,
+                sinceDate = LocalDate.of(2026, 4, 22),
+                weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
+            ),
+            scheduleType = MedicationGroupScheduleType.WEEKLY,
+        )
+
+        assertEquals(MedicationGroupScheduleType.WEEKLY, updated.scheduleType)
+        assertEquals(setOf(DayOfWeek.WEDNESDAY), updated.weeklyDaysOfWeek)
+    }
+
+    @Test
+    fun editorStateWithUpdatedScheduleType_preserves_weekly_days_when_already_weekly() {
+        val updated = editorStateWithUpdatedScheduleType(
+            uiState = MedicationGroupEditorUiState(
+                scheduleType = MedicationGroupScheduleType.WEEKLY,
+                sinceDate = LocalDate.of(2026, 4, 22),
+                weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+            ),
+            scheduleType = MedicationGroupScheduleType.WEEKLY,
+        )
+
+        assertEquals(
+            setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+            updated.weeklyDaysOfWeek
+        )
+    }
+
+    @Test
+    fun editorStateWithUpdatedScheduleType_leaves_weekly_days_unchanged_when_switching_to_daily() {
+        val updated = editorStateWithUpdatedScheduleType(
+            uiState = MedicationGroupEditorUiState(
+                scheduleType = MedicationGroupScheduleType.WEEKLY,
+                sinceDate = LocalDate.of(2026, 4, 22),
+                weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+            ),
+            scheduleType = MedicationGroupScheduleType.DAILY,
+        )
+
+        assertEquals(MedicationGroupScheduleType.DAILY, updated.scheduleType)
+        assertEquals(
+            setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY),
+            updated.weeklyDaysOfWeek
+        )
+    }
+
+    @Test
     fun hasSaveableMedicationGroupContent_requires_weekly_days_for_weekly_schedule() {
         val result = hasSaveableMedicationGroupContent(
             MedicationGroupEditorUiState(

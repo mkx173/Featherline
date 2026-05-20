@@ -260,7 +260,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(scheduleType = scheduleType)
+                editorStateWithUpdatedScheduleType(it, scheduleType)
             }
         }
     }
@@ -1503,6 +1503,22 @@ internal fun toggleWeeklyDaySelection(
         selectedDays - dayOfWeek
     } else {
         selectedDays + dayOfWeek
+    }
+}
+
+internal fun editorStateWithUpdatedScheduleType(
+    uiState: MedicationGroupEditorUiState,
+    scheduleType: MedicationGroupScheduleType,
+): MedicationGroupEditorUiState {
+    val isEnteringWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        uiState.scheduleType != MedicationGroupScheduleType.WEEKLY
+    return if (isEnteringWeekly) {
+        uiState.copy(
+            scheduleType = scheduleType,
+            weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
+        )
+    } else {
+        uiState.copy(scheduleType = scheduleType)
     }
 }
 
