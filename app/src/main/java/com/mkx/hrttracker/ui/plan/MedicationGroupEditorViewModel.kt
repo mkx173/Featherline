@@ -280,7 +280,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek))
+                it.copy(
+                    weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek),
+                    hasUserCustomizedWeeklyDays = true,
+                )
             }
         }
     }
@@ -290,7 +293,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(weeklyDaysOfWeek = setOf(it.sinceDate.dayOfWeek))
+                editorStateWithResetWeeklyDaysOfWeek(it)
             }
         }
     }
@@ -1326,6 +1329,8 @@ private fun MedicationGroup.toEditorState(
         weeklyDaysOfWeek = schedule.weeklyDaysOfWeek.ifEmpty {
             setOf(LocalDate.now().dayOfWeek)
         },
+        hasUserCustomizedWeeklyDays = schedule.type == MedicationGroupScheduleType.WEEKLY &&
+            schedule.weeklyDaysOfWeek.isNotEmpty(),
         weeklyTimeLocalId = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
             normalizedScheduleTimeSlots.firstOrNull()?.uuid?.toString() ?: UUID.randomUUID().toString()
         } else {
@@ -1512,14 +1517,21 @@ internal fun editorStateWithUpdatedScheduleType(
 ): MedicationGroupEditorUiState {
     val isEnteringWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY &&
         uiState.scheduleType != MedicationGroupScheduleType.WEEKLY
-    return if (isEnteringWeekly) {
-        uiState.copy(
-            scheduleType = scheduleType,
-            weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
-        )
+    val withType = uiState.copy(scheduleType = scheduleType)
+    return if (isEnteringWeekly && !uiState.hasUserCustomizedWeeklyDays) {
+        editorStateWithResetWeeklyDaysOfWeek(withType)
     } else {
-        uiState.copy(scheduleType = scheduleType)
+        withType
     }
+}
+
+internal fun editorStateWithResetWeeklyDaysOfWeek(
+    uiState: MedicationGroupEditorUiState,
+): MedicationGroupEditorUiState {
+    return uiState.copy(
+        weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
+        hasUserCustomizedWeeklyDays = false,
+    )
 }
 
 internal fun editorStateWithUpdatedSinceDate(
@@ -1541,10 +1553,7 @@ internal fun editorStateWithUpdatedSinceDate(
     }
 
     return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-        uiState.copy(
-            sinceDate = date,
-            weeklyDaysOfWeek = setOf(date.dayOfWeek),
-        )
+        editorStateWithResetWeeklyDaysOfWeek(uiState.copy(sinceDate = date))
     } else {
         uiState.copy(sinceDate = date)
     }
@@ -1705,6 +1714,7 @@ data class MedicationGroupEditorUiState(
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
+    val hasUserCustomizedWeeklyDays: Boolean = false,
     val weeklyTimeLocalId: String = UUID.randomUUID().toString(),
     val weeklyTime: LocalTime = LocalTime.of(9, 0),
     val dailyIntervalDays: String = "1",
