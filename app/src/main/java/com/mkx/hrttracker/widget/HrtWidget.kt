@@ -197,25 +197,37 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         fun WidgetDoseRow.isAddressed(): Boolean =
             status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
 
+        // Past the 1-hour grace period — logging from the widget would only create an
+        // out-of-window record, so we drop these from active-row selection and from the
+        // "still actionable" check that gates the final-state badge.
+        fun WidgetDoseRow.isExpired(): Boolean = status == WidgetDoseStatus.OVERDUE
+
         // Group scheduled today rows by (groupName, scheduledAt) so the medium widget's
         // single action button logs the entire group rather than one medication at a time.
-        // A group that's half-fulfilled still surfaces here because we only require *some*
-        // member to be unaddressed.
+        // A group only surfaces while it has at least one member that's still actionable
+        // (neither addressed nor past its grace period).
         val activeScheduledGroup: List<WidgetDoseRow>? = record.doseRows
             .filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
             .groupBy { it.groupName to it.scheduledAt }
             .values
             .sortedBy { it.first().scheduledAt }
-            .firstOrNull { rows -> rows.any { !it.isAddressed() } }
+            .firstOrNull { rows -> rows.any { !it.isAddressed() && !it.isExpired() } }
         val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
         val isMultiMedGroup = (activeScheduledGroup?.size ?: 1) > 1
-        val allDone = totalCount > 0 &&
-            record.doseRows.none {
-                it.contextChip != WidgetDoseChip.LAST_NIGHT &&
-                    it.contextChip != WidgetDoseChip.COMING_UP &&
-                    !it.isAddressed()
-            }
+        val todayRows = record.doseRows.filter {
+            it.contextChip != WidgetDoseChip.LAST_NIGHT && it.contextChip != WidgetDoseChip.COMING_UP
+        }
+        // Nothing left to act on today (every slot is either addressed or expired).
+        val noActionableRemaining = totalCount > 0 &&
+            todayRows.none { !it.isAddressed() && !it.isExpired() }
+        // Three final-state variants:
+        //   allInWindow → every slot fulfilled within its window (perfect adherence).
+        //   everythingLogged → every slot has a log attached, but at least one is
+        //     out-of-window (took the dose, just timed imperfectly). No missed slots.
+        //   otherwise → at least one OVERDUE slot with no log (missed).
+        val allInWindow = noActionableRemaining && todayRows.all { it.status == WidgetDoseStatus.DONE }
+        val everythingLogged = noActionableRemaining && todayRows.none { it.isExpired() }
 
         Column(modifier = GlanceModifier.fillMaxSize()) {
             // ── Top panel: progress ───────────────────────────────────────────
@@ -237,15 +249,15 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
             Row(
-                modifier = GlanceModifier.fillMaxWidth(),
+                modifier = GlanceModifier.fillMaxWidth().padding(top = (-4 * LocalWidgetScale.current).dp, bottom = (-6 * LocalWidgetScale.current).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = doneCount.toString(),
                         style = TextStyle(
-                            color = if (allDone) colors.primary else colors.onSurface,
-                            fontSize = (36f * LocalWidgetScale.current).sp,
+                            color = if (allInWindow) colors.primary else colors.onSurface,
+                            fontSize = (42f * LocalWidgetScale.current).sp,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
@@ -265,8 +277,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
 
             // ── Bottom panel: next dose ───────────────────────────────────────
-            if (allDone && activeRow == null) {
+            if (noActionableRemaining && activeRow == null) {
                 val scale = LocalWidgetScale.current
+                val badgeBackground = if (allInWindow) colors.primary else colors.secondary
+                val badgeForeground = if (allInWindow) colors.onPrimary else colors.onSecondary
                 Box(
                     modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                     contentAlignment = Alignment.Center,
@@ -277,20 +291,28 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ) {
                         Box(
                             modifier = GlanceModifier.size((32f * scale).dp)
-                                .background(colors.primary)
+                                .background(badgeBackground)
                                 .cornerRadius(999.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(
-                                provider = ImageProvider(R.drawable.ic_check),
+                                provider = ImageProvider(
+                                    if (everythingLogged) R.drawable.ic_done_all else R.drawable.ic_check
+                                ),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((24f * scale).dp),
-                                colorFilter = ColorFilter.tint(colors.onPrimary),
+                                colorFilter = ColorFilter.tint(badgeForeground),
                             )
                         }
                         Spacer(GlanceModifier.height((4f * scale).dp))
                         Text(
-                            text = context.getString(R.string.widget_all_done),
+                            text = context.getString(
+                                when {
+                                    allInWindow -> R.string.widget_all_done
+                                    everythingLogged -> R.string.widget_all_logged
+                                    else -> R.string.widget_nothing_more_today
+                                }
+                            ),
                             style = TextStyle(
                                 color = colors.onSurface,
                                 fontSize = (18f * scale).sp,
@@ -326,7 +348,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                     SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
-                    Spacer(modifier = GlanceModifier.height(4.dp))
+                    Spacer(modifier = GlanceModifier.height((4 * LocalWidgetScale.current).dp))
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
@@ -388,7 +410,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurface,
-                                    fontSize = (20f * LocalWidgetScale.current).sp,
+                                    fontSize = (18f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
@@ -515,7 +537,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
 //                            )
 //                        }
                     }
-                    Spacer(GlanceModifier.height(8.dp))
+                    Spacer(GlanceModifier.height((8 * LocalWidgetScale.current).dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Text != null) {
@@ -530,7 +552,8 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
 
-            Spacer(GlanceModifier.height(if (listItems.firstOrNull() is WidgetListItem.Header) 8.dp else 12.dp))
+            val largeWidgetProgressBarBottomPadding = if (listItems.firstOrNull() is WidgetListItem.Header) 8 else 12
+            Spacer(GlanceModifier.height((largeWidgetProgressBarBottomPadding * LocalWidgetScale.current).dp))
 
             LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                 itemsIndexed(

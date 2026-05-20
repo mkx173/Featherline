@@ -16,6 +16,8 @@ import com.mkx.hrttracker.ui.theme.onPrimaryContainerLight
 import com.mkx.hrttracker.ui.theme.onPrimaryLight
 import com.mkx.hrttracker.ui.theme.onSecondaryContainerDark
 import com.mkx.hrttracker.ui.theme.onSecondaryContainerLight
+import com.mkx.hrttracker.ui.theme.onSecondaryDark
+import com.mkx.hrttracker.ui.theme.onSecondaryLight
 import com.mkx.hrttracker.ui.theme.onSurfaceDark
 import com.mkx.hrttracker.ui.theme.onSurfaceLight
 import com.mkx.hrttracker.ui.theme.onSurfaceVariantDark
@@ -32,6 +34,8 @@ import com.mkx.hrttracker.ui.theme.primaryDark
 import com.mkx.hrttracker.ui.theme.primaryLight
 import com.mkx.hrttracker.ui.theme.secondaryContainerDark
 import com.mkx.hrttracker.ui.theme.secondaryContainerLight
+import com.mkx.hrttracker.ui.theme.secondaryDark
+import com.mkx.hrttracker.ui.theme.secondaryLight
 import com.mkx.hrttracker.ui.theme.surfaceContainerLowDark
 import com.mkx.hrttracker.ui.theme.surfaceContainerLowLight
 import com.mkx.hrttracker.ui.theme.surfaceDark
@@ -46,6 +50,8 @@ internal data class WidgetColorScheme(
     val onPrimary: ColorProvider,
     val primaryContainer: ColorProvider,
     val onPrimaryContainer: ColorProvider,
+    val secondary: ColorProvider,
+    val onSecondary: ColorProvider,
     val secondaryContainer: ColorProvider,
     val onSecondaryContainer: ColorProvider,
     val tertiaryContainer: ColorProvider,
@@ -81,6 +87,8 @@ internal fun hardcodedWidgetColorScheme(
         onPrimary = provider(onPrimaryLight, onPrimaryDark),
         primaryContainer = provider(primaryContainerLight, primaryContainerDark),
         onPrimaryContainer = provider(onPrimaryContainerLight, onPrimaryContainerDark),
+        secondary = provider(secondaryLight, secondaryDark),
+        onSecondary = provider(onSecondaryLight, onSecondaryDark),
         secondaryContainer = provider(secondaryContainerLight, secondaryContainerDark),
         onSecondaryContainer = provider(onSecondaryContainerLight, onSecondaryContainerDark),
         tertiaryContainer = provider(tertiaryContainerLight, tertiaryContainerDark),
@@ -116,6 +124,8 @@ internal fun dynamicWidgetColorScheme(
         onPrimary = provider(light.onPrimary, dark.onPrimary),
         primaryContainer = provider(light.primaryContainer, dark.primaryContainer),
         onPrimaryContainer = provider(light.onPrimaryContainer, dark.onPrimaryContainer),
+        secondary = provider(light.secondary, dark.secondary),
+        onSecondary = provider(light.onSecondary, dark.onSecondary),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
         onSecondaryContainer = provider(light.onSecondaryContainer, dark.onSecondaryContainer),
         tertiaryContainer = provider(light.tertiaryContainer, dark.tertiaryContainer),

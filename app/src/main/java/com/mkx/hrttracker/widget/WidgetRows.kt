@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -175,22 +174,29 @@ internal fun ProgressRing(
     val sizePx = (scaledSizeDp * density).toInt().coerceAtLeast(1)
     val strokePx = strokeDp * scale * density
 
-    val bitmap = createBitmap(sizePx, sizePx)
-    val canvas = Canvas(bitmap)
+    // Render two same-shape bitmaps and tint them via Glance ColorFilter so the
+    // launcher resolves both light/dark variants of the ColorProvider at
+    // RemoteViews apply time — baking a color into the bitmap leaves it stuck in
+    // whichever uiMode our process was in when we composed.
+    val trackBitmap = createBitmap(sizePx, sizePx)
+    val trackCanvas = Canvas(trackBitmap)
+    val progressBitmap = createBitmap(sizePx, sizePx)
+    val progressCanvas = Canvas(progressBitmap)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = strokePx
         strokeCap = Paint.Cap.ROUND
+        color = android.graphics.Color.WHITE
     }
 
     val inset = strokePx / 2f
     val rect = RectF(inset, inset, sizePx - inset, sizePx - inset)
-    val primaryArgb = colors.primary.getColor(context).toArgb()
-    val emptyArgb = colors.outlineVariant.getColor(context).toArgb()
 
     if (totalCount == 1) {
-        paint.color = if (doneCount >= 1) primaryArgb else emptyArgb
-        canvas.drawArc(rect, -90f, 360f, false, paint)
+        trackCanvas.drawArc(rect, -90f, 360f, false, paint)
+        if (doneCount >= 1) {
+            progressCanvas.drawArc(rect, -90f, 360f, false, paint)
+        }
     } else {
         val segmentSweep = 360f / totalCount
         // Reserve enough gap so adjacent round caps don't merge: the cap radius is
@@ -204,16 +210,27 @@ internal fun ProgressRing(
 
         for (i in 0 until totalCount) {
             val startAngle = -90f + segmentSweep * i + gap / 2f
-            paint.color = if (i < doneCount) primaryArgb else emptyArgb
-            canvas.drawArc(rect, startAngle, drawSweep, false, paint)
+            trackCanvas.drawArc(rect, startAngle, drawSweep, false, paint)
+            if (i < doneCount) {
+                progressCanvas.drawArc(rect, startAngle, drawSweep, false, paint)
+            }
         }
     }
 
-    Image(
-        provider = ImageProvider(bitmap),
-        contentDescription = null,
-        modifier = GlanceModifier.size(scaledSizeDp.dp),
-    )
+    Box(modifier = GlanceModifier.size(scaledSizeDp.dp)) {
+        Image(
+            provider = ImageProvider(trackBitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.size(scaledSizeDp.dp),
+            colorFilter = ColorFilter.tint(colors.outlineVariant),
+        )
+        Image(
+            provider = ImageProvider(progressBitmap),
+            contentDescription = null,
+            modifier = GlanceModifier.size(scaledSizeDp.dp),
+            colorFilter = ColorFilter.tint(colors.primary),
+        )
+    }
 }
 
 @Composable
@@ -272,7 +289,7 @@ internal fun TrailingButton(
     when (row.status) {
         WidgetDoseStatus.DONE -> Box(
             modifier = GlanceModifier.size(buttonSize)
-                .background(colors.secondaryContainer)
+                .background(colors.primaryContainer)
                 .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -280,7 +297,7 @@ internal fun TrailingButton(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
                 modifier = GlanceModifier.size(iconSize),
-                colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
+                colorFilter = ColorFilter.tint(colors.onPrimaryContainer),
             )
         }
 

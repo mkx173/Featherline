@@ -611,6 +611,8 @@
     <string name="widget_medium_description">Featherline – dose summary</string>
     <string name="widget_large_description">Featherline – dose list</string>
     <string name="widget_all_done">All done</string>
+    <string name="widget_all_logged">All logged</string>
+    <string name="widget_nothing_more_today">Nothing more today</string>
     <string name="widget_no_medications">No regimen set up</string>
     <string name="widget_no_doses_today">Nothing scheduled today</string>
     <string name="widget_last_night">Last night</string>

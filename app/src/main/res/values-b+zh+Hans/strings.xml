@@ -585,6 +585,8 @@
     <string name="widget_medium_description">Featherline – 剂量概览</string>
     <string name="widget_large_description">Featherline – 剂量列表</string>
     <string name="widget_all_done">全部完成</string>
+    <string name="widget_all_logged">已全部记录</string>
+    <string name="widget_nothing_more_today">没有更多计划</string>
     <string name="widget_no_medications">未设置用药计划</string>
     <string name="widget_no_doses_today">今天暂无计划</string>
     <string name="widget_last_night">昨晚</string>
