@@ -16,7 +16,7 @@
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_summary_done_label">DONE</string>
     <string name="main_today_summary_manual_label">MANUAL</string>
-    <string name="main_today_empty_state">Nothing scheduled for today.</string>
+    <string name="main_today_empty_state">Nothing scheduled today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_quick_log">Quick log</string>
     <string name="main_today_range_night">Night</string>
@@ -610,8 +610,8 @@
     <string name="widget_medium_description">Featherline – dose summary</string>
     <string name="widget_large_description">Featherline – dose list</string>
     <string name="widget_all_done">All done</string>
-    <string name="widget_no_medications">No medications set up</string>
-    <string name="widget_no_doses_today">No doses today</string>
+    <string name="widget_no_medications">No regimen set up</string>
+    <string name="widget_no_doses_today">Nothing scheduled today</string>
     <string name="widget_last_night">Last night</string>
     <string name="widget_today">Today</string>
     <string name="widget_tonight">Tonight</string>

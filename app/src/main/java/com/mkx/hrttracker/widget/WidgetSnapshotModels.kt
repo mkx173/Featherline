@@ -77,6 +77,7 @@ data class WidgetSnapshotRecord(
     val doneCount: Int,
     val totalCount: Int,
     val manualCount: Int,
+    val hasActiveGroups: Boolean,
     val hideMedicationDetails: Boolean,
     val adaptiveColorEnabled: Boolean,
     val widgetContentScale: Float,

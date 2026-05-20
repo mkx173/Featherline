@@ -12,6 +12,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 
 internal data class WidgetColorScheme(
     val primary: ColorProvider,
+    val primaryContainer: ColorProvider,
+    val onPrimaryContainer: ColorProvider,
     val secondaryContainer: ColorProvider,
     val onSecondaryContainer: ColorProvider,
     val tertiaryContainer: ColorProvider,
@@ -29,6 +31,8 @@ internal fun hardcodedWidgetColorScheme(alpha: Float = 1.0f): WidgetColorScheme 
     fun provider(day: Color, night: Color) = DayNightColorProvider(day, night)
     return WidgetColorScheme(
         primary = provider(Color(0xFF8D4959), Color(0xFFFFB1C0)),
+        primaryContainer = provider(Color(0xFFFFD9DF), Color(0xFF723341)),
+        onPrimaryContainer = provider(Color(0xFF3B0717), Color(0xFFFFD9DF)),
         secondaryContainer = provider(Color(0xFFFFD9DF), Color(0xFF5B3F44)),
         onSecondaryContainer = provider(Color(0xFF5B3F44), Color(0xFFFFD9DF)),
         tertiaryContainer = provider(Color(0xFFFFDCBC), Color(0xFF5F401D)),
@@ -57,6 +61,8 @@ internal fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): Wi
     fun provider(lightColor: Color, darkColor: Color) = DayNightColorProvider(lightColor, darkColor)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
+        primaryContainer = provider(light.primaryContainer, dark.primaryContainer),
+        onPrimaryContainer = provider(light.onPrimaryContainer, dark.onPrimaryContainer),
         secondaryContainer = provider(light.secondaryContainer, dark.secondaryContainer),
         onSecondaryContainer = provider(light.onSecondaryContainer, dark.onSecondaryContainer),
         tertiaryContainer = provider(light.tertiaryContainer, dark.tertiaryContainer),
@@ -64,8 +70,8 @@ internal fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): Wi
         surfaceVariant = provider(light.surfaceVariant, dark.surfaceVariant),
         onSurfaceVariant = provider(light.onSurfaceVariant, dark.onSurfaceVariant),
         surfaceContainerLow = provider(
-            light.surfaceContainerLow.copy(alpha = alpha),
-            dark.surfaceContainerLow.copy(alpha = alpha),
+            light.surfaceContainerLow.copy(alpha = alpha * 0.85f),
+            dark.surfaceContainerLow.copy(alpha = alpha * 0.85f),
         ),
         surface = provider(light.surface.copy(alpha = alpha), dark.surface.copy(alpha = alpha)),
         onSurface = provider(light.onSurface, dark.onSurface),

@@ -100,6 +100,7 @@ internal fun buildWidgetSnapshotRecord(
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,
+        hasActiveGroups = activeGroups.isNotEmpty(),
         hideMedicationDetails = settings.hideMedicationDetails,
         adaptiveColorEnabled = settings.adaptiveColorEnabled,
         widgetContentScale = settings.widgetContentScale,

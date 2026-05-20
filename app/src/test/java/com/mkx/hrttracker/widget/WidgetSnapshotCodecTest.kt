@@ -14,6 +14,7 @@ class WidgetSnapshotCodecTest {
         doneCount = 1,
         totalCount = 3,
         manualCount = 1,
+        hasActiveGroups = true,
         hideMedicationDetails = false,
         adaptiveColorEnabled = false,
         widgetContentScale = 1.0f,

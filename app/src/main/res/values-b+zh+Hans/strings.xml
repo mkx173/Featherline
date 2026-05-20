@@ -343,7 +343,7 @@
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
     <string name="settings_widget_appearance">小部件</string>
-    <string name="settings_widget_content_scale">内容缩放</string>
+    <string name="settings_widget_content_scale">内容大小</string>
     <string name="settings_widget_background_opacity">背景不透明度</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
@@ -584,8 +584,8 @@
     <string name="widget_medium_description">Featherline – 剂量概览</string>
     <string name="widget_large_description">Featherline – 剂量列表</string>
     <string name="widget_all_done">全部完成</string>
-    <string name="widget_no_medications">未设置药物</string>
-    <string name="widget_no_doses_today">今日无剂量</string>
+    <string name="widget_no_medications">未设置用药计划</string>
+    <string name="widget_no_doses_today">今天暂无计划</string>
     <string name="widget_last_night">昨晚</string>
     <string name="widget_today">今天</string>
     <string name="widget_tonight">今晚</string>

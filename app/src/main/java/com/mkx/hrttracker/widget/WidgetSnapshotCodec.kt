@@ -18,6 +18,7 @@ internal object WidgetSnapshotCodec {
             stream.writeInt(record.doneCount)
             stream.writeInt(record.totalCount)
             stream.writeInt(record.manualCount)
+            stream.writeBoolean(record.hasActiveGroups)
             stream.writeBoolean(record.hideMedicationDetails)
             stream.writeBoolean(record.adaptiveColorEnabled)
             stream.writeFloat(record.widgetContentScale)
@@ -41,6 +42,7 @@ internal object WidgetSnapshotCodec {
                 doneCount = stream.readInt(),
                 totalCount = stream.readInt(),
                 manualCount = stream.readInt(),
+                hasActiveGroups = stream.readBoolean(),
                 hideMedicationDetails = stream.readBoolean(),
                 adaptiveColorEnabled = stream.readBoolean(),
                 widgetContentScale = stream.readFloat(),
@@ -176,6 +178,6 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 8
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 9
 private const val BYTE_MASK = 0xff
 

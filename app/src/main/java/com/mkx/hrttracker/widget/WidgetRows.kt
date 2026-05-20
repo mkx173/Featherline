@@ -50,9 +50,10 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_MANUAL
 import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
+import androidx.core.graphics.createBitmap
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
-    snapshot == null || snapshot.doseRows.isEmpty()
+    snapshot == null || !snapshot.hasActiveGroups
 
 internal sealed interface WidgetListItem {
     data class Header(val text: String) : WidgetListItem
@@ -96,26 +97,37 @@ internal fun WidgetLabel(
 }
 
 @Composable
-internal fun EmptyWidgetContent() {
+internal fun EmptyWidgetContent(
+    iconRes: Int = R.drawable.ic_medication,
+    textRes: Int = R.string.widget_no_medications,
+) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
+    val scale = LocalWidgetScale.current
     Column(
         modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            provider = ImageProvider(R.drawable.ic_medication),
-            contentDescription = null,
-            modifier = GlanceModifier.size(30.dp),
-            colorFilter = ColorFilter.tint(colors.outlineVariant),
-        )
-        Spacer(GlanceModifier.height(8.dp))
+        Box(
+            modifier = GlanceModifier.size((32f * scale).dp)
+                .background(colors.primaryContainer)
+                .cornerRadius(999.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                provider = ImageProvider(iconRes),
+                contentDescription = null,
+                modifier = GlanceModifier.size((24f * scale).dp),
+                colorFilter = ColorFilter.tint(colors.onPrimaryContainer),
+            )
+        }
+        Spacer(GlanceModifier.height((8f * scale).dp))
         Text(
-            text = context.getString(R.string.widget_no_medications),
+            text = context.getString(textRes),
             style = TextStyle(
-                color = colors.onSurfaceVariant,
-                fontSize = (13f * LocalWidgetScale.current).sp,
+                color = colors.onSurface,
+                fontSize = (18f * scale).sp,
                 fontWeight = FontWeight.Medium,
             ),
             maxLines = 1,
@@ -139,7 +151,7 @@ internal fun ProgressBar(
                 modifier = GlanceModifier
                     .defaultWeight()
                     .fillMaxHeight()
-                    .background(if (i < doneCount) colors.primary else colors.surfaceVariant)
+                    .background(if (i < doneCount) colors.primary else colors.outlineVariant)
                     .cornerRadius(999.dp),
             ) {}
         }
@@ -150,7 +162,7 @@ internal fun ProgressBar(
 internal fun ProgressRing(
     doneCount: Int,
     totalCount: Int,
-    sizeDp: Float = 28f,
+    sizeDp: Float = 32f,
     strokeDp: Float = 4f,
 ) {
     if (totalCount <= 0) return
@@ -163,7 +175,7 @@ internal fun ProgressRing(
     val sizePx = (scaledSizeDp * density).toInt().coerceAtLeast(1)
     val strokePx = strokeDp * scale * density
 
-    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(sizePx, sizePx)
     val canvas = Canvas(bitmap)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -173,14 +185,28 @@ internal fun ProgressRing(
 
     val inset = strokePx / 2f
     val rect = RectF(inset, inset, sizePx - inset, sizePx - inset)
+    val primaryArgb = colors.primary.getColor(context).toArgb()
+    val emptyArgb = colors.outlineVariant.getColor(context).toArgb()
 
-    paint.color = colors.surfaceVariant.getColor(context).toArgb()
-    canvas.drawArc(rect, 0f, 360f, false, paint)
+    if (totalCount == 1) {
+        paint.color = if (doneCount >= 1) primaryArgb else emptyArgb
+        canvas.drawArc(rect, -90f, 360f, false, paint)
+    } else {
+        val segmentSweep = 360f / totalCount
+        // Reserve enough gap so adjacent round caps don't merge: the cap radius is
+        // strokePx/2, so each cap extends ~strokePx tangentially on the centerline.
+        val radiusPx = (sizePx - strokePx) / 2.0
+        val capSweep = Math.toDegrees(strokePx / radiusPx).toFloat()
+        val gap = (capSweep + 10f)
+            .coerceAtMost(segmentSweep * 0.5f)
+            .coerceAtLeast(10f)
+        val drawSweep = (segmentSweep - gap).coerceAtLeast(0.5f)
 
-    val fraction = (doneCount.toFloat() / totalCount.toFloat()).coerceIn(0f, 1f)
-    if (fraction > 0f) {
-        paint.color = colors.primary.getColor(context).toArgb()
-        canvas.drawArc(rect, -90f, 360f * fraction, false, paint)
+        for (i in 0 until totalCount) {
+            val startAngle = -90f + segmentSweep * i + gap / 2f
+            paint.color = if (i < doneCount) primaryArgb else emptyArgb
+            canvas.drawArc(rect, startAngle, drawSweep, false, paint)
+        }
     }
 
     Image(
@@ -209,9 +235,19 @@ internal fun SectionHeader(text: String, topPadding: Dp = 4.dp) {
 }
 
 @Composable
-internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigateIntent: Intent? = null) {
+internal fun TrailingButton(
+    row: WidgetDoseRow,
+    showLogAction: Boolean,
+    navigateIntent: Intent? = null,
+    buttonSizeDp: Float = 32f,
+    iconSizeDp: Float = 24f,
+    arrowIconSizeDp: Float = 20f,
+) {
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
+    val buttonSize = (buttonSizeDp * scale).dp
+    val iconSize = (iconSizeDp * scale).dp
+    val arrowIconSize = (arrowIconSizeDp * scale).dp
     val groupUuid = row.groupUuid
     val logModifier = if (showLogAction && groupUuid != null) {
         GlanceModifier.clickable(
@@ -235,7 +271,7 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
 
     when (row.status) {
         WidgetDoseStatus.DONE -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
+            modifier = GlanceModifier.size(buttonSize)
                 .background(colors.secondaryContainer)
                 .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
@@ -243,13 +279,13 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
             )
         }
 
         WidgetDoseStatus.DUE_SOON -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
+            modifier = GlanceModifier.size(buttonSize)
                 .background(colors.tertiaryContainer)
                 .cornerRadius(999.dp)
                 .then(logModifier),
@@ -258,13 +294,13 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(colors.onTertiaryContainer),
             )
         }
 
         WidgetDoseStatus.OVERDUE -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
+            modifier = GlanceModifier.size(buttonSize)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp)
                 .then(logModifier),
@@ -273,13 +309,13 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_add),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
 
         WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
+            modifier = GlanceModifier.size(buttonSize)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp),
             contentAlignment = Alignment.Center,
@@ -287,13 +323,13 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_check),
                 contentDescription = null,
-                modifier = GlanceModifier.size((24f * scale).dp),
+                modifier = GlanceModifier.size(iconSize),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }
 
         else -> Box(
-            modifier = GlanceModifier.size((32f * scale).dp)
+            modifier = GlanceModifier.size(buttonSize)
                 .background(colors.surfaceVariant)
                 .cornerRadius(999.dp)
                 .then(navigateModifier),
@@ -302,7 +338,7 @@ internal fun TrailingButton(row: WidgetDoseRow, showLogAction: Boolean, navigate
             Image(
                 provider = ImageProvider(R.drawable.ic_arrow_forward),
                 contentDescription = null,
-                modifier = GlanceModifier.size((20f * scale).dp),
+                modifier = GlanceModifier.size(arrowIconSize),
                 colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
             )
         }

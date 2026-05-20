@@ -137,6 +137,13 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
+        if (record.doseRows.isEmpty()) {
+            EmptyWidgetContent(
+                iconRes = R.drawable.ic_check,
+                textRes = R.string.widget_no_doses_today,
+            )
+            return@WidgetShell
+        }
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val e2Trend = record.pkProjection
@@ -182,48 +189,37 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     )
                 }
             }
-            if (totalCount == 0) {
-                Text(
-                    text = context.getString(R.string.widget_no_doses_today),
-                    style = TextStyle(
-                        color = colors.onSurfaceVariant,
-                        fontSize = (13f * LocalWidgetScale.current).sp,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    maxLines = 1,
-                )
-            } else {
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = doneCount.toString(),
-                            style = TextStyle(
-                                color = if (allDone) colors.primary else colors.onSurface,
-                                fontSize = (36f * LocalWidgetScale.current).sp,
-                                fontWeight = FontWeight.Bold,
-                            ),
-                        )
-                        Spacer(GlanceModifier.width(2.dp))
-                        Text(
-                            text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
-                            style = TextStyle(
-                                color = colors.onSurfaceVariant,
-                                fontSize = (18f * LocalWidgetScale.current).sp,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                            maxLines = 1,
-                        )
-                    }
-                    Spacer(GlanceModifier.defaultWeight())
-                    ProgressRing(doneCount = doneCount, totalCount = totalCount)
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = doneCount.toString(),
+                        style = TextStyle(
+                            color = if (allDone) colors.primary else colors.onSurface,
+                            fontSize = (36f * LocalWidgetScale.current).sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                    Spacer(GlanceModifier.width(2.dp))
+                    Text(
+                        text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
+                        style = TextStyle(
+                            color = colors.onSurfaceVariant,
+                            fontSize = (18f * LocalWidgetScale.current).sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        maxLines = 1,
+                    )
                 }
+                Spacer(GlanceModifier.defaultWeight())
+                ProgressRing(doneCount = doneCount, totalCount = totalCount)
             }
 
             // ── Bottom panel: next dose ───────────────────────────────────────
             if (allDone && activeRow == null) {
+                val scale = LocalWidgetScale.current
                 Box(
                     modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                     contentAlignment = Alignment.Center,
@@ -233,24 +229,24 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
-                            modifier = GlanceModifier.size(18.dp)
+                            modifier = GlanceModifier.size((32f * scale).dp)
                                 .background(colors.secondaryContainer)
-                                .cornerRadius(9.dp),
+                                .cornerRadius(999.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Image(
                                 provider = ImageProvider(R.drawable.ic_check),
                                 contentDescription = null,
-                                modifier = GlanceModifier.size(12.dp),
+                                modifier = GlanceModifier.size((24f * scale).dp),
                                 colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
                             )
                         }
-                        Spacer(GlanceModifier.height(4.dp))
+                        Spacer(GlanceModifier.height((4f * scale).dp))
                         Text(
                             text = context.getString(R.string.widget_all_done),
                             style = TextStyle(
-                                color = colors.primary,
-                                fontSize = (13f * LocalWidgetScale.current).sp,
+                                color = colors.onSurface,
+                                fontSize = (18f * scale).sp,
                                 fontWeight = FontWeight.Medium,
                             ),
                         )
@@ -338,16 +334,23 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 text = activeRow.trailingText,
                                 style = TextStyle(
                                     color = colors.onSurfaceVariant,
-                                    fontSize = (16f * LocalWidgetScale.current).sp,
+                                    fontSize = (20f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
                             )
-                            Spacer(GlanceModifier.width(6.dp))
+                            Spacer(GlanceModifier.width(8.dp))
                         }
                         val isActionable = activeRow.groupUuid != null &&
                             (activeRow.status == WidgetDoseStatus.DUE_SOON ||
                                 activeRow.status == WidgetDoseStatus.OVERDUE)
-                        TrailingButton(activeRow, isActionable, highlightIntent)
+                        TrailingButton(
+                            row = activeRow,
+                            showLogAction = isActionable,
+                            navigateIntent = highlightIntent,
+                            buttonSizeDp = 44f,
+                            iconSizeDp = 32f,
+                            arrowIconSizeDp = 26f,
+                        )
                     }
                 }
             }
@@ -367,6 +370,13 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
+        if (record.doseRows.isEmpty()) {
+            EmptyWidgetContent(
+                iconRes = R.drawable.ic_check,
+                textRes = R.string.widget_no_doses_today,
+            )
+            return@WidgetShell
+        }
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val e2Trend = record.pkProjection
@@ -376,6 +386,16 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
+        // Match the medium widget's "addressed" definition so the badge appears whenever
+        // every today slot is either DONE or LOGGED_OUT_OF_WINDOW (no actionable rows left).
+        fun WidgetDoseRow.isAddressed(): Boolean =
+            status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
+        val allDone = totalCount > 0 &&
+            record.doseRows.none {
+                it.contextChip != WidgetDoseChip.LAST_NIGHT &&
+                    it.contextChip != WidgetDoseChip.COMING_UP &&
+                    !it.isAddressed()
+            }
 
         // When hideMedicationDetails, collapse consecutive per-medication rows into per-group rows
         val displayRows: List<WidgetDoseRow> = if (record.hideMedicationDetails) {
@@ -444,7 +464,18 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
-                    WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
+                        if (allDone) {
+                            Spacer(GlanceModifier.width((8f * LocalWidgetScale.current).dp))
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_check_circle_filled),
+                                contentDescription = null,
+                                modifier = GlanceModifier.size((22f * LocalWidgetScale.current).dp),
+                                colorFilter = ColorFilter.tint(colors.primary),
+                            )
+                        }
+                    }
                     Spacer(GlanceModifier.height(8.dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
@@ -495,6 +526,7 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
         doneCount = 1,
         totalCount = 3,
         manualCount = 0,
+        hasActiveGroups = true,
         hideMedicationDetails = false,
         adaptiveColorEnabled = false,
         widgetContentScale = 1.0f,
