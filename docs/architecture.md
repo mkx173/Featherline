@@ -288,6 +288,14 @@ own its own cache and invalidation rules, and `HomeSnapshotRepository`
 will return to being the plan-and-fulfillment cache it should have
 been all along.
 
+The home-screen widget consumes this same `HomeSnapshotRecord`: a
+`HomeWidgetManager` singleton observes `observeHomeSnapshot()`, derives
+a slimmer `WidgetSnapshotRecord` via `WidgetSnapshotBuilder`, and
+persists it to its own encrypted DataStore (`widget_snapshot.pb`) for
+Glance to read. The widget pipeline, its update triggers, and the
+quick-log action contract are documented separately in
+[widget.md](widget.md).
+
 ## Known limitations and planned refactors
 
 Three architectural seams are deferred until the planned PK engine swap
