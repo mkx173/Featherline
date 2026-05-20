@@ -105,6 +105,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -652,6 +653,7 @@ private fun WidgetAppearanceDialog(
                             expanded = isDarkModeMenuExpanded,
                             onDismissRequest = { isDarkModeMenuExpanded = false },
                             modifier = Modifier.width(IntrinsicSize.Min),
+                            anchor = HrtDropdownAnchor.EndAlignedBelow,
                             items = DarkModeOption.entries.map { option ->
                                 HrtDropdownMenuItem(
                                     text = stringResource(option.labelRes),
