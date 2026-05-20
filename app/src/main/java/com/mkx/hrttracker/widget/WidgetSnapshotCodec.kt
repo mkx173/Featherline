@@ -24,6 +24,7 @@ internal object WidgetSnapshotCodec {
             stream.writeFloat(record.widgetContentScale)
             stream.writeFloat(record.widgetBackgroundAlpha)
             stream.writeString(record.e2DisplayUnit)
+            stream.writeNullableBoolean(record.forcedDark)
             stream.writeList(record.doseRows) { writeDoseRow(it) }
             stream.writePkProjection(record.pkProjection)
         }
@@ -48,6 +49,7 @@ internal object WidgetSnapshotCodec {
                 widgetContentScale = stream.readFloat(),
                 widgetBackgroundAlpha = stream.readFloat(),
                 e2DisplayUnit = stream.readString(),
+                forcedDark = stream.readNullableBoolean(),
                 doseRows = stream.readList { readDoseRow() },
                 pkProjection = stream.readPkProjection(),
             )
@@ -165,6 +167,14 @@ internal object WidgetSnapshotCodec {
     private fun DataInputStream.readNullableString(): String? =
         if (readBoolean()) readString() else null
 
+    private fun DataOutputStream.writeNullableBoolean(value: Boolean?) {
+        writeBoolean(value != null)
+        value?.let { writeBoolean(it) }
+    }
+
+    private fun DataInputStream.readNullableBoolean(): Boolean? =
+        if (readBoolean()) readBoolean() else null
+
     private fun <T> DataOutputStream.writeList(values: List<T>, write: DataOutputStream.(T) -> Unit) {
         writeInt(values.size)
         values.forEach { write(it) }
@@ -178,6 +188,6 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 9
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 10
 private const val BYTE_MASK = 0xff
 

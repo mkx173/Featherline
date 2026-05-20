@@ -59,8 +59,23 @@ internal data class WidgetColorScheme(
     val outlineVariant: ColorProvider,
 )
 
-internal fun hardcodedWidgetColorScheme(alpha: Float = 1.0f): WidgetColorScheme {
-    fun provider(day: Color, night: Color) = DayNightColorProvider(day, night)
+// Builds a ColorProvider that either follows the launcher's day/night state (when
+// forcedDark is null) or pins to one mode (when the user picked LIGHT or DARK in
+// the app's settings). The launcher's day/night doesn't track the app's
+// preference, so without this routing the in-app dark mode option had no effect
+// on the widget.
+private fun colorProvider(light: Color, dark: Color, forcedDark: Boolean?): ColorProvider =
+    when (forcedDark) {
+        true -> ColorProvider(dark)
+        false -> ColorProvider(light)
+        null -> DayNightColorProvider(light, dark)
+    }
+
+internal fun hardcodedWidgetColorScheme(
+    alpha: Float = 1.0f,
+    forcedDark: Boolean? = null,
+): WidgetColorScheme {
+    fun provider(day: Color, night: Color) = colorProvider(day, night, forcedDark)
     return WidgetColorScheme(
         primary = provider(primaryLight, primaryDark),
         onPrimary = provider(onPrimaryLight, onPrimaryDark),
@@ -87,11 +102,15 @@ internal fun hardcodedWidgetColorScheme(alpha: Float = 1.0f): WidgetColorScheme 
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
-internal fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): WidgetColorScheme {
+internal fun dynamicWidgetColorScheme(
+    context: Context,
+    alpha: Float = 1.0f,
+    forcedDark: Boolean? = null,
+): WidgetColorScheme {
     val seed = Color(context.getColor(android.R.color.system_accent1_500))
     val light = dynamicColorScheme(seed, isDark = false)
     val dark = dynamicColorScheme(seed, isDark = true)
-    fun provider(lightColor: Color, darkColor: Color) = DayNightColorProvider(lightColor, darkColor)
+    fun provider(lightColor: Color, darkColor: Color) = colorProvider(lightColor, darkColor, forcedDark)
     return WidgetColorScheme(
         primary = provider(light.primary, dark.primary),
         onPrimary = provider(light.onPrimary, dark.onPrimary),
@@ -117,11 +136,22 @@ internal fun dynamicWidgetColorScheme(context: Context, alpha: Float = 1.0f): Wi
 internal val LocalWidgetColors = compositionLocalOf { hardcodedWidgetColorScheme() }
 internal val LocalWidgetScale = compositionLocalOf { 1.0f }
 internal val LocalWidgetAlpha = compositionLocalOf { 1.0f }
+internal val LocalWidgetForcedDark = compositionLocalOf<Boolean?> { null }
 
-private val colorGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
+private val dayNightGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
     MedicationGroupPalettes.mapValues { (_, palette) ->
         DayNightColorProvider(day = palette.lightAccent, night = palette.darkAccent)
     }
+private val lightGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
+    MedicationGroupPalettes.mapValues { (_, palette) -> ColorProvider(palette.lightAccent) }
+private val darkGroupProviders: Map<MedicationGroupColorKey?, ColorProvider> =
+    MedicationGroupPalettes.mapValues { (_, palette) -> ColorProvider(palette.darkAccent) }
 
-internal fun groupAccentColor(colorKey: MedicationGroupColorKey?): ColorProvider =
-    colorGroupProviders.getValue(colorKey)
+internal fun groupAccentColor(colorKey: MedicationGroupColorKey?, forcedDark: Boolean? = null): ColorProvider {
+    val providers = when (forcedDark) {
+        true -> darkGroupProviders
+        false -> lightGroupProviders
+        null -> dayNightGroupProviders
+    }
+    return providers.getValue(colorKey)
+}

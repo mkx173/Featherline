@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
+import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.medicationDisplayName
 import com.mkx.hrttracker.util.medicationDoseText
@@ -106,6 +107,11 @@ internal fun buildWidgetSnapshotRecord(
         widgetContentScale = settings.widgetContentScale,
         widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
         e2DisplayUnit = settings.homeE2DisplayUnit.storageValue,
+        forcedDark = when (settings.darkModeOption) {
+            DarkModeOption.LIGHT -> false
+            DarkModeOption.DARK -> true
+            DarkModeOption.FOLLOW_SYSTEM -> null
+        },
         doseRows = lastNightRows + (todayScheduledRows + manualRows).sortedBy { row -> row.scheduledAt } + comingUpRows,
         pkProjection = homeSnapshot.widgetPkProjection?.toWidgetRecord(),
     )

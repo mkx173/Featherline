@@ -403,7 +403,7 @@ internal fun DoseRow(
             modifier = GlanceModifier
                 .width(6.dp)
                 .height((44f * scale).dp)
-                .background(groupAccentColor(row.colorKey))
+                .background(groupAccentColor(row.colorKey, LocalWidgetForcedDark.current))
                 .cornerRadius(999.dp),
         ) {}
 

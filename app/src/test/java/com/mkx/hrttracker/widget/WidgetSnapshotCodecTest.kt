@@ -20,6 +20,7 @@ class WidgetSnapshotCodecTest {
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 0.85f,
         e2DisplayUnit = "pg_ml",
+        forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol",
@@ -148,6 +149,15 @@ class WidgetSnapshotCodecTest {
         val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
         assertEquals(0.8f, decoded.widgetContentScale)
         assertEquals(0.6f, decoded.widgetBackgroundAlpha)
+    }
+
+    @Test
+    fun `codec round-trips forcedDark variants`() {
+        listOf<Boolean?>(null, false, true).forEach { forced ->
+            val record = baseRecord.copy(forcedDark = forced)
+            val decoded = WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record))
+            assertEquals(forced, decoded.forcedDark)
+        }
     }
 
     @Test

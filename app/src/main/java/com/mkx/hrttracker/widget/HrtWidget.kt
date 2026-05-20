@@ -68,16 +68,18 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
         val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
         val scale = snapshot?.widgetContentScale?.coerceIn(0.7f, 1.3f) ?: 1.0f
+        val forcedDark = snapshot?.forcedDark
         val widgetColors = if (adaptiveEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            dynamicWidgetColorScheme(context, alpha)
+            dynamicWidgetColorScheme(context, alpha, forcedDark)
         } else {
-            hardcodedWidgetColorScheme(alpha)
+            hardcodedWidgetColorScheme(alpha, forcedDark)
         }
         GlanceTheme {
             CompositionLocalProvider(
                 LocalWidgetColors provides widgetColors,
                 LocalWidgetScale provides scale,
                 LocalWidgetAlpha provides alpha,
+                LocalWidgetForcedDark provides forcedDark,
             ) {
                 content(snapshot)
             }
@@ -291,7 +293,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             modifier = GlanceModifier
                                 .width(6.dp)
                                 .height((44f * LocalWidgetScale.current).dp)
-                                .background(groupAccentColor(activeRow.colorKey))
+                                .background(groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current))
                                 .cornerRadius(999.dp),
                         ) {}
                         Spacer(GlanceModifier.width(10.dp))
@@ -536,6 +538,7 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
         widgetContentScale = 1.0f,
         widgetBackgroundAlpha = 1.0f,
         e2DisplayUnit = BloodUnitKey.PG_ML.storageValue,
+        forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
                 medicationName = "Estradiol Valerate",

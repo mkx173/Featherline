@@ -83,6 +83,9 @@ data class WidgetSnapshotRecord(
     val widgetContentScale: Float,
     val widgetBackgroundAlpha: Float,
     val e2DisplayUnit: String,
+    // Resolved app dark-mode preference. null = follow the launcher's day/night;
+    // true/false = force dark/light regardless of what Glance auto-detects.
+    val forcedDark: Boolean?,
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
 )
