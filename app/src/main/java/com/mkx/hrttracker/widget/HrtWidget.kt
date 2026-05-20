@@ -174,13 +174,6 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
-        if (record.doseRows.isEmpty()) {
-            EmptyWidgetContent(
-                iconRes = R.drawable.ic_check,
-                textRes = R.string.widget_no_doses_today,
-            )
-            return@WidgetShell
-        }
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val e2Trend = record.pkProjection
@@ -190,6 +183,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
+        // Only treat the day as "nothing scheduled" when there are no rows at all to
+        // surface — including last-night carry-overs and tonight's coming-up entries,
+        // which aren't counted in totalCount but still represent real activity.
+        val nothingScheduledToday = record.doseRows.isEmpty()
 
         // Treat LOGGED_OUT_OF_WINDOW as addressed for activeRow/all-done: the slot has an
         // entry attached (even though it's outside the fulfillment window), so prompting
@@ -220,6 +217,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             it.contextChip != WidgetDoseChip.LAST_NIGHT && it.contextChip != WidgetDoseChip.COMING_UP
         }
         // Nothing left to act on today (every slot is either addressed or expired).
+        // The empty-schedule case is handled separately via nothingScheduledToday so
+        // we don't conflate it with a perfect-adherence "all in window" finish.
         val noActionableRemaining = totalCount > 0 &&
             todayRows.none { !it.isAddressed() && !it.isExpired() }
         // Three final-state variants:
@@ -278,10 +277,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             }
 
             // ── Bottom panel: next dose ───────────────────────────────────────
-            if (noActionableRemaining && activeRow == null) {
+            if ((noActionableRemaining || nothingScheduledToday) && activeRow == null) {
                 val scale = LocalWidgetScale.current
-                val badgeBackground = if (allInWindow) colors.primary else colors.secondary
-                val badgeForeground = if (allInWindow) colors.onPrimary else colors.onSecondary
+                val useCelebrationColor = allInWindow || nothingScheduledToday
+                val badgeBackground = if (useCelebrationColor) colors.primary else colors.secondary
+                val badgeForeground = if (useCelebrationColor) colors.onPrimary else colors.onSecondary
                 Box(
                     modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                     contentAlignment = Alignment.Center,
@@ -298,7 +298,11 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         ) {
                             Image(
                                 provider = ImageProvider(
-                                    if (everythingLogged) R.drawable.ic_done_all else R.drawable.ic_check
+                                    if (everythingLogged && !nothingScheduledToday) {
+                                        R.drawable.ic_done_all
+                                    } else {
+                                        R.drawable.ic_check
+                                    }
                                 ),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((24f * scale).dp),
@@ -309,6 +313,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         Text(
                             text = context.getString(
                                 when {
+                                    nothingScheduledToday -> R.string.widget_no_doses_today
                                     allInWindow -> R.string.widget_all_done
                                     everythingLogged -> R.string.widget_all_logged
                                     else -> R.string.widget_nothing_more_today
@@ -447,13 +452,6 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             return@WidgetShell
         }
         val record = checkNotNull(snapshot)
-        if (record.doseRows.isEmpty()) {
-            EmptyWidgetContent(
-                iconRes = R.drawable.ic_check,
-                textRes = R.string.widget_no_doses_today,
-            )
-            return@WidgetShell
-        }
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val e2Trend = record.pkProjection
@@ -463,6 +461,10 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
+        // Only treat the day as "nothing scheduled" when there are no rows at all to
+        // surface — including last-night carry-overs and tonight's coming-up entries,
+        // which aren't counted in totalCount but still represent real activity.
+        val nothingScheduledToday = record.doseRows.isEmpty()
         // Match the medium widget's "addressed" definition so the badge appears whenever
         // every today slot is either DONE or LOGGED_OUT_OF_WINDOW (no actionable rows left).
 //        fun WidgetDoseRow.isAddressed(): Boolean =
@@ -557,21 +559,57 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             val largeWidgetProgressBarBottomPadding = if (listItems.firstOrNull() is WidgetListItem.Header) 8 else 12
             Spacer(GlanceModifier.height((largeWidgetProgressBarBottomPadding * LocalWidgetScale.current).dp))
 
-            LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                itemsIndexed(
-                    items = listItems,
-                    itemId = { index, _ -> (index + 1).toLong() },
-                ) { index, item ->
-                    Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
-                        when (item) {
-                            is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp)
-                            is WidgetListItem.Row -> DoseRow(
-                                row = item.row,
-                                showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||
-                                    item.row.status == WidgetDoseStatus.OVERDUE,
-                                hideMedicationDetails = record.hideMedicationDetails,
-                                highlightIntent = widgetRowHighlightIntent(context, item.row),
+            if (nothingScheduledToday) {
+                val scale = LocalWidgetScale.current
+                Box(
+                    modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = GlanceModifier.size((32f * scale).dp)
+                                .background(colors.primary)
+                                .cornerRadius(999.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                provider = ImageProvider(R.drawable.ic_check),
+                                contentDescription = null,
+                                modifier = GlanceModifier.size((24f * scale).dp),
+                                colorFilter = ColorFilter.tint(colors.onPrimary),
                             )
+                        }
+                        Spacer(GlanceModifier.height((4f * scale).dp))
+                        Text(
+                            text = context.getString(R.string.widget_no_doses_today),
+                            style = TextStyle(
+                                color = colors.onSurface,
+                                fontSize = (18f * scale).sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                    itemsIndexed(
+                        items = listItems,
+                        itemId = { index, _ -> (index + 1).toLong() },
+                    ) { index, item ->
+                        Column(modifier = GlanceModifier.fillMaxWidth().padding(top = if (index > 0) 2.dp else 0.dp)) {
+                            when (item) {
+                                is WidgetListItem.Header -> SectionHeader(item.text, topPadding = if (index == 0) 0.dp else 4.dp)
+                                is WidgetListItem.Row -> DoseRow(
+                                    row = item.row,
+                                    showLogAction = item.row.status == WidgetDoseStatus.DUE_SOON ||
+                                        item.row.status == WidgetDoseStatus.OVERDUE,
+                                    hideMedicationDetails = record.hideMedicationDetails,
+                                    highlightIntent = widgetRowHighlightIntent(context, item.row),
+                                )
+                            }
                         }
                     }
                 }

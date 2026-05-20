@@ -144,11 +144,13 @@ internal fun ProgressBar(
     totalCount: Int,
     modifier: GlanceModifier = GlanceModifier.fillMaxWidth(),
 ) {
-    if (totalCount <= 0) return
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
+    // Treat 0/0 as 0/1 so we still draw an empty track instead of collapsing the
+    // top panel layout when nothing is scheduled today.
+    val renderTotal = totalCount.coerceAtLeast(1)
     Row(modifier = modifier.height((6f * scale).dp)) {
-        for (i in 0 until totalCount) {
+        for (i in 0 until renderTotal) {
             if (i > 0) Spacer(GlanceModifier.width((3f * scale).dp))
             Box(
                 modifier = GlanceModifier
@@ -168,7 +170,6 @@ internal fun ProgressRing(
     sizeDp: Float = 32f,
     strokeDp: Float = 4f,
 ) {
-    if (totalCount <= 0) return
     val context = LocalContext.current
     val colors = LocalWidgetColors.current
     val scale = LocalWidgetScale.current
@@ -177,6 +178,9 @@ internal fun ProgressRing(
     val scaledSizeDp = sizeDp * scale
     val sizePx = (scaledSizeDp * density).toInt().coerceAtLeast(1)
     val strokePx = strokeDp * scale * density
+    // Treat 0/0 as 0/1 so the ring still draws as an empty track instead of
+    // disappearing entirely when nothing is scheduled today.
+    val renderTotal = totalCount.coerceAtLeast(1)
 
     // Render two same-shape bitmaps and tint them via Glance ColorFilter so the
     // launcher resolves both light/dark variants of the ColorProvider at
@@ -196,13 +200,13 @@ internal fun ProgressRing(
     val inset = strokePx / 2f
     val rect = RectF(inset, inset, sizePx - inset, sizePx - inset)
 
-    if (totalCount == 1) {
+    if (renderTotal == 1) {
         trackCanvas.drawArc(rect, -90f, 360f, false, paint)
         if (doneCount >= 1) {
             progressCanvas.drawArc(rect, -90f, 360f, false, paint)
         }
     } else {
-        val segmentSweep = 360f / totalCount
+        val segmentSweep = 360f / renderTotal
         // Reserve enough gap so adjacent round caps don't merge: the cap radius is
         // strokePx/2, so each cap extends ~strokePx tangentially on the centerline.
         val radiusPx = (sizePx - strokePx) / 2.0
@@ -212,7 +216,7 @@ internal fun ProgressRing(
             .coerceAtLeast(10f)
         val drawSweep = (segmentSweep - gap).coerceAtLeast(0.5f)
 
-        for (i in 0 until totalCount) {
+        for (i in 0 until renderTotal) {
             val startAngle = -90f + segmentSweep * i + gap / 2f
             trackCanvas.drawArc(rect, startAngle, drawSweep, false, paint)
             if (i < doneCount) {
