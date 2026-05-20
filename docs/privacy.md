@@ -14,7 +14,9 @@ User data lives in three places under the app sandbox:
 - The `SharedPreferences` file [`hrt_tracker_secure_storage.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/java/com/mkx/hrttracker/data/local/DatabasePassphraseProvider.kt#L132). Holds the AES-GCM-wrapped SQLCipher passphrase. No user-visible data, only the wrapped key envelope.
 - Six DataStore files under `datastore/`: `settings.preferences_pb`, `home_snapshot.pb`, `widget_snapshot.pb`, `home_snapshot_metadata.preferences_pb`, `reminder_schedule.preferences_pb`, `medication_reminder_snoozes.preferences_pb`. Settings, home-screen cache, widget cache, and reminder bookkeeping.
 
-Nothing else under the sandbox holds user content.
+**Debug builds only** also write a rolling diagnostics log at `files/diagnostics/app-diagnostics.log`. The [`AppDiagnosticsLogger`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/util/AppDiagnosticsLogger.kt) defaults to `enabled = BuildConfig.DEBUG`, and the export service that surfaces this file refuses to run unless `BuildConfig.DEBUG` is true. Release builds neither write nor expose this file. The log records timestamps, tags, and short event strings (reminder fires, snapshot rebuilds, widget refresh reasons) and is not user-visible in release builds.
+
+Apart from the debug-only diagnostics log, nothing else under the sandbox holds user content.
 
 ## Encryption at rest
 
@@ -43,7 +45,7 @@ Two sensitive DataStore files are excluded to prevent device-to-device de-sync a
 
 The following rules enforce these exclusions across all Android versions:
 
-- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, and the six DataStore files from both `<cloud-backup>` and `<device-transfer>`.
+- [`res/xml/data_extraction_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/data_extraction_rules.xml) (API 31+) excludes `hrt_tracker.db` + WAL/SHM siblings, `hrt_tracker_secure_storage.xml`, the six DataStore files, and the `files/diagnostics/` directory from both `<cloud-backup>` and `<device-transfer>`.
 - [`res/xml/backup_rules.xml`](https://github.com/mkx173/Featherline/blob/880587a204bb3ab37586fdb9d431162a5f1c2545/app/src/main/res/xml/backup_rules.xml) (pre-API-31 fallback) applies the same exclusions to `<full-backup-content>`.
 
 Net effect: Google Auto Backup copies the app binary and resources but no user data. Android-to-Android device transfer copies no user data either. The `allowBackup="true"` flag is kept rather than set to `false` because Android lint discourages a blanket `false` when granular rules are available, and the granular rules document the policy more clearly.

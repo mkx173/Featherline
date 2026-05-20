@@ -92,15 +92,22 @@ should read the upstream README and its `pk_research/` workspace.
   coverage or sampling fingerprint (`chartWindowHours`, dense policy,
   post-dose-offset flag) does not match the selected option. Upstream
   has no such contract because it has no cache.
-- **Projection cache bundled into home snapshot.** The projection
-  result is bundled into `HomeSnapshotRecord` alongside the
-  plan-and-fulfillment cache, so every home-data mutation triggers a
-  PK re-simulation even when no PK input changed. The leaky seam and
-  its fallback path (`MainViewModel` re-simulates directly when the
-  cached expiry is on-or-before the live `now`) are documented in
-  [`architecture.md#home-snapshot-and-pk-projection-cache`](architecture.md#home-snapshot-and-pk-projection-cache).
-  Upstream has no equivalent because it has no persistent home
-  snapshot.
+- **Projection cache bundled into home snapshot.** Two projection
+  records are bundled into `HomeSnapshotRecord` alongside the
+  plan-and-fulfillment cache: `pkProjection` (the chart's
+  option-sized projection — 7-day or 30-day visible window with the
+  forward buffer) and `widgetPkProjection` (a smaller projection
+  sized for the widget's E2 estimate, which has its own validity
+  window). Every home-data mutation re-simulates both, even when no
+  PK input changed. The leaky seam and its fallback path
+  (`MainViewModel` re-simulates the chart projection directly when
+  the cached expiry is on-or-before the live `now`) are documented
+  in
+  [`architecture.md#home-snapshot-and-pk-projection-cache`](architecture.md#home-snapshot-and-pk-projection-cache);
+  the widget consumes `widgetPkProjection` via
+  [`WidgetSnapshotBuilder`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotBuilder.kt)
+  with its own expiry check on the widget render path. Upstream has
+  no equivalent because it has no persistent home snapshot.
 - **Active-mg conversion on the data path.** Upstream resolves dose
   events directly inside its simulator. Featherline keeps the active-mg
   conversion in `toEstradiolPkDoseEvent` and

@@ -115,9 +115,12 @@ flattened into the parent's JSON.
   adaptive color, reminders, archived-record visibility,
   reference-range visibility, app-lock grace period, hide-screen-content,
   onboarding, language, home E2 display unit, home E2 chart window,
-  per-analyte calibration default units, last-seen time-zone).
-  `screenLockProtectionEnabled` is intentionally excluded — app-lock
-  stays local to the device that set it.
+  per-analyte calibration default units, last-seen time-zone,
+  `hideMedicationDetails`, the widget-only knobs
+  `widgetContentScale` / `widgetBackgroundAlpha` /
+  `widgetDarkModeOption`, and the `groupNameCounter` used to suffix
+  default group names). `screenLockProtectionEnabled` is intentionally
+  excluded — app-lock stays local to the device that set it.
 - `BackupUserProfileSnapshot` →
   [`UserProfileEntity`](data-model.md#userprofileentity); carries
   `weightKg` plus the original value + unit for display round-trip.

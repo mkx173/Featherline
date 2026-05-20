@@ -32,9 +32,18 @@ The builtin catalog pins one canonical unit per analyte:
 | `FSH` | `MIU_ML` | `IU_L` |
 | `LH` | `MIU_ML` | `IU_L` |
 
-The catalog is the only place these mappings live. Adding a new
-builtin analyte or unit is a single-place change in the `definitions`
-map.
+The factor-table mappings live only in the catalog. Adding a new
+**unit** for an existing analyte really is a single-place change —
+extend the `BloodUnitKey` enum and add one row to the analyte's
+`factorsToCanonical` map. Adding a new **analyte** is larger:
+beyond the catalog `definitions` map and the `BloodAnalyteKey` enum,
+`CalibrationEditorViewModel` declares the ordered analyte list,
+`CalibrationScreen` maps each analyte to its display-name string
+resource and to a `CalibrationCanonicalTarget`, and the calibration
+default-unit maps are duplicated across `CalibrationScreen` /
+`CalibrationEditorScreen` / `CalibrationUnitsScreen`. Each touch is
+mechanical, but "single place" is true only for unit additions; treat
+the calibration UI surfaces as the second seat.
 
 ## Factor-table pattern
 
@@ -52,10 +61,11 @@ factor instead of storing a second table, so the two directions cannot
 drift. `isUnitAllowed` and `canonicalUnitFor` answer the two questions
 the rest of the codebase asks about a unit choice.
 
-The shape pays off in two places. First, adding an analyte or unit is
-a single-place change — the catalog, no scattered `if (unit == X)`
-arms in repositories or UI code. Second, **canonical-value
-persistence** (the `canonicalValue` column on
+The shape pays off in two places. First, the conversion logic itself
+stays in one place — there are no scattered `if (unit == X)` arms in
+repositories or UI code (calibration's per-analyte defaults and
+display strings are a UI seat, not a conversion seat). Second,
+**canonical-value persistence** (the `canonicalValue` column on
 [`BloodTestResultEntity`](https://github.com/mkx173/Featherline/blob/c13fb98e8109fec775ea4722794475945d5165bb/app/src/main/java/com/mkx/hrttracker/data/local/BloodTestEntities.kt#L70))
 lets the trend chart sort and compare across rows that were entered in
 different units without re-converting on every read.

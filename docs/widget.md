@@ -99,10 +99,9 @@ cache to keep coherent.
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 hosts two `GlanceAppWidget` subclasses:
 
-- `HrtWidgetMedium` — `SizeMode.Responsive` with two buckets,
-  `150 × 60 dp` (1×2 cells, compact) and `150 × 150 dp` (2×2 cells,
-  full). The compact bucket hides the bottom panel and centers the
-  progress row.
+- `HrtWidgetMedium` — `SizeMode.Responsive` with a single
+  `150 × 150 dp` bucket. Renders a progress row over today's count
+  and a next-dose / done-badge panel below.
 - `HrtWidgetLarge` — `SizeMode.Responsive` anchored at `330 × 150 dp`
   with a scrollable `LazyColumn` of dose rows grouped under `Last
   night` / `Today` / `Tonight` headers.
@@ -117,12 +116,14 @@ live in
 `WidgetShell`, `ProgressRing`, `ProgressBar`, `DoseRow`,
 `TrailingButton`, and `widgetRowHighlightIntent`.
 
-The widget's `appwidget-provider` XML
+The `appwidget-provider` XML
 ([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_medium_info.xml),
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_large_info.xml))
-declares `resizeMode="horizontal|vertical"` and target cell counts;
-the responsive size buckets above must align with what the launcher
-can actually deliver.
+declares `resizeMode="horizontal|vertical"` plus smaller `minWidth` /
+`minHeight` than the responsive bucket, so the launcher can resize the
+widget down. Because each widget exposes only one bucket, the Glance
+composition itself does not branch on size — there is no compact
+layout today, just launcher-side scaling.
 
 ## Update triggers
 

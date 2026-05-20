@@ -17,6 +17,8 @@ graph TD
   reminder --> data
   reminder --> model
   startup --> data
+  widget --> data
+  widget --> model
   di --> data
   di --> model
 ```
@@ -29,9 +31,9 @@ The rules:
   depends on `model` types.
 - `ui` is Compose; it depends on both `model` and `data` through
   ViewModels.
-- `reminder` (AlarmManager) and `startup` (Hilt-eager preloader) are
-  sibling top-level packages that bypass `ui` and read directly from
-  `data`.
+- `reminder` (AlarmManager), `startup` (Hilt-eager preloader), and
+  `widget` (Glance home-screen widget) are sibling top-level packages
+  that bypass `ui` and read directly from `data`.
 
 ## Top-level packages
 
@@ -56,6 +58,10 @@ in the order they appear on disk:
   (formatters, lock manager, time source, diagnostics, toast). Not a
   catch-all "lib"; entries earn their place by being used in two or
   more features.
+- [`widget`](https://github.com/mkx173/Featherline/tree/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget) — the home-screen Glance
+  widget: snapshot builder, encrypted DataStore, two `GlanceAppWidget`
+  surfaces, the periodic refresh worker, and the quick-log
+  `ActionCallback`. Documented in detail in [widget.md](widget.md).
 
 Two files sit at the package root, outside any sub-package:
 [`HrtTrackerApplication.kt`](https://github.com/mkx173/Featherline/blob/bf0f761debb69849638d5d0d01a85fe2809b6dcf/app/src/main/java/com/mkx/hrttracker/HrtTrackerApplication.kt)
@@ -159,9 +165,14 @@ both installed in `SingletonComponent`:
   that wraps the clock to support tickable test seams and per-minute
   observation.
 
-Consumer pattern: `@AndroidEntryPoint` on the activity, receivers,
-workers, and services; `@HiltViewModel` on ViewModels. Repositories
-and stores are `@Singleton` and constructor-injected.
+Consumer pattern: `@AndroidEntryPoint` on `MainActivity` and the
+reminder broadcast receivers; `@HiltViewModel` on ViewModels. The
+widget package's receivers, worker, and `ActionCallback` are not
+`@AndroidEntryPoint` — they reach singletons through
+`EntryPointAccessors.fromApplication(..., WidgetEntryPoint::class.java)`
+instead, because Glance's `ActionCallback` and `GlanceAppWidgetReceiver`
+don't compose cleanly with `@AndroidEntryPoint`. Repositories and
+stores are `@Singleton` and constructor-injected.
 
 ## Compose navigation
 
