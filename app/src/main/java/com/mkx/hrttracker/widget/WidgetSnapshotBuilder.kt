@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import com.mkx.hrttracker.util.medicationDisplayName
 import com.mkx.hrttracker.util.medicationDoseText
 import com.mkx.hrttracker.util.medicationRouteLabel
@@ -16,6 +17,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 internal fun buildWidgetSnapshotRecord(
@@ -24,6 +26,7 @@ internal fun buildWidgetSnapshotRecord(
     settings: SettingsState,
     now: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    timeFormatter: DateTimeFormatter = localizedShortTimeFormatter(Locale.US, uses24HourFormat = true),
 ): WidgetSnapshotRecord {
     val today = now.toLocalDate()
     val yesterday = today.minusDays(1)
@@ -44,7 +47,7 @@ internal fun buildWidgetSnapshotRecord(
         val eveningCutoff = LocalTime.of(18, 0)
         val scheduledLastNight = yesterdaySchedule.scheduledEntries
             .filter { entry -> !entry.scheduledFor.toLocalTime().isBefore(eveningCutoff) }
-            .map { entry -> entry.toWidgetDoseRow(context, WidgetDoseChip.LAST_NIGHT) }
+            .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, WidgetDoseChip.LAST_NIGHT) }
         val manualLastNight = yesterdaySchedule.unplannedEntries
             .map { entry ->
                 entry.toManualWidgetDoseRow(
@@ -68,7 +71,7 @@ internal fun buildWidgetSnapshotRecord(
         zoneId = zoneId,
     )
     val todayScheduledRows = todaySchedule.scheduledEntries
-        .map { entry -> entry.toWidgetDoseRow(context, null) }
+        .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, null) }
     val manualRows = todaySchedule.unplannedEntries
         .map { entry ->
             entry.toManualWidgetDoseRow(
@@ -90,7 +93,7 @@ internal fun buildWidgetSnapshotRecord(
         )
         tomorrowSchedule.scheduledEntries
             .filter { entry -> entry.scheduledFor.isBefore(comingUpEnd) }
-            .map { entry -> entry.toWidgetDoseRow(context, WidgetDoseChip.COMING_UP) }
+            .map { entry -> entry.toWidgetDoseRow(context, timeFormatter, WidgetDoseChip.COMING_UP) }
     } else {
         emptyList()
     }
@@ -142,6 +145,7 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
 
 private fun PlanDayScheduleEntry.toWidgetDoseRow(
     context: Context,
+    timeFormatter: DateTimeFormatter,
     contextChip: WidgetDoseChip?,
 ): WidgetDoseRow {
     val status = when {
@@ -191,5 +195,3 @@ private fun HomePkProjectionRecord.toWidgetRecord(): WidgetPkProjectionRecord =
             )
         },
     )
-
-private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

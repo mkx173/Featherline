@@ -1,6 +1,10 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -90,6 +94,27 @@ class HomeWidgetManager @Inject constructor(
                     }
                 }
         }
+
+        // Android does not broadcast when the user toggles the system 24-hour time
+        // format, so the widget's pre-formatted trailing-time strings would otherwise
+        // stay stale until another refresh trigger fires. Observe TIME_12_24 directly
+        // and rebuild the snapshot when it flips.
+        val timeFormatObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                appScope.launch {
+                    runCatching {
+                        widgetSnapshotRepository.refreshWidgetSnapshot()
+                    }.onFailure { throwable ->
+                        diagnosticsLogger.warning(TAG, "widget_snapshot_time_format_refresh_failed", throwable)
+                    }
+                }
+            }
+        }
+        context.contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.TIME_12_24),
+            false,
+            timeFormatObserver,
+        )
     }
 
     companion object {

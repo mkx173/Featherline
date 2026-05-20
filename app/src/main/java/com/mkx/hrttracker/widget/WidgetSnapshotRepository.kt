@@ -7,6 +7,8 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import com.mkx.hrttracker.util.uses24HourTimeFormat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -47,12 +49,17 @@ class WidgetSnapshotRepository @Inject constructor(
         // builder resolves against the user's chosen app language even on API levels
         // where the application context lags AppCompatDelegate.setApplicationLocales.
         val localizedContext = context.withAppLocale(settings)
+        val timeFormatter = localizedShortTimeFormatter(
+            locale = Locale.forLanguageTag(settings.appLanguageOption.languageTag),
+            uses24HourFormat = context.uses24HourTimeFormat(),
+        )
         val widgetSnapshot = buildWidgetSnapshotRecord(
             context = localizedContext,
             homeSnapshot = homeSnapshot,
             settings = settings,
             now = now,
             zoneId = zoneId,
+            timeFormatter = timeFormatter,
         )
         widgetSnapshotStore.writeSnapshot(widgetSnapshot)
         updateAllHrtWidgets(context)

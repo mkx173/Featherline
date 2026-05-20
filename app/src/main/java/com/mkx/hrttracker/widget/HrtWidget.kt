@@ -48,12 +48,13 @@ import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 
 // ── Widget ────────────────────────────────────────────────────────────────────
@@ -673,7 +674,9 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
                 doseText = "100 mg",
                 status = WidgetDoseStatus.UPCOMING,
                 scheduledAt = now.plusHours(4),
-                trailingText = now.plusHours(4).format(DateTimeFormatter.ofPattern("h:mm a")),
+                trailingText = now.plusHours(4).format(
+                    localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
+                ),
                 isManualRecord = false,
                 contextChip = WidgetDoseChip.COMING_UP,
                 groupUuid = null,
