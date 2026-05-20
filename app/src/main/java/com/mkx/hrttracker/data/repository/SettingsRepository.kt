@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -336,6 +337,10 @@ class SettingsRepository @Inject constructor(
 
     fun setAppLanguageOption(option: AppLanguageOption) {
         appLanguageOption.value = option
+        val locale = Locale.forLanguageTag(option.languageTag)
+        // Number formatters (e.g. medicationDoseText) read Locale.getDefault() directly,
+        // so syncing it here keeps formatted doses aligned with the chosen UI language.
+        Locale.setDefault(locale)
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
     }
 
