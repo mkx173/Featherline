@@ -13,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -50,14 +51,15 @@ class HomeWidgetManager @Inject constructor(
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
 
         appScope.launch {
+            // Skip transient nulls that observeHomeSnapshot emits during runHomeDataMutation
+            // (clearSnapshotBestEffort -> async rebuild). Clearing the widget snapshot on each
+            // gap causes a visible "no medications" flash after every quick-log tap. The
+            // rebuild emits a fresh non-null snapshot shortly after, which we propagate.
             homeSnapshotRepository.observeHomeSnapshot()
+                .filterNotNull()
                 .collect { snapshot ->
                     runCatching {
-                        if (snapshot == null) {
-                            widgetSnapshotRepository.clearWidgetSnapshot()
-                        } else {
-                            widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
-                        }
+                        widgetSnapshotRepository.writeWidgetSnapshot(snapshot)
                     }.onFailure { throwable ->
                         diagnosticsLogger.warning(TAG, "widget_snapshot_home_observer_failed", throwable)
                     }

@@ -146,11 +146,22 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
-        val allDone = totalCount > 0 && doneCount >= totalCount
+
+        // Treat LOGGED_OUT_OF_WINDOW as addressed for activeRow/all-done: the slot has an
+        // entry attached (even though it's outside the fulfillment window), so prompting
+        // the user to log it again would just produce another out-of-window record.
+        fun WidgetDoseRow.isAddressed(): Boolean =
+            status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
 
         val activeRow = record.doseRows
-            .firstOrNull { it.contextChip != WidgetDoseChip.LAST_NIGHT && it.status != WidgetDoseStatus.DONE }
+            .firstOrNull { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isAddressed() }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
+        val allDone = totalCount > 0 &&
+            record.doseRows.none {
+                it.contextChip != WidgetDoseChip.LAST_NIGHT &&
+                    it.contextChip != WidgetDoseChip.COMING_UP &&
+                    !it.isAddressed()
+            }
 
         Column(modifier = GlanceModifier.fillMaxSize()) {
             // ── Top panel: progress ───────────────────────────────────────────
@@ -191,7 +202,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             text = doneCount.toString(),
                             style = TextStyle(
                                 color = if (allDone) colors.primary else colors.onSurface,
-                                fontSize = (32f * LocalWidgetScale.current).sp,
+                                fontSize = (36f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Bold,
                             ),
                         )
@@ -200,7 +211,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             text = "/$totalCount ${context.getString(R.string.main_today_summary_done_label)}",
                             style = TextStyle(
                                 color = colors.onSurfaceVariant,
-                                fontSize = (16f * LocalWidgetScale.current).sp,
+                                fontSize = (18f * LocalWidgetScale.current).sp,
                                 fontWeight = FontWeight.Medium,
                             ),
                             maxLines = 1,
@@ -210,9 +221,6 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ProgressRing(doneCount = doneCount, totalCount = totalCount)
                 }
             }
-
-            // ── Divider ───────────────────────────────────────────────────────
-            Spacer(GlanceModifier.height(8.dp))
 
             // ── Bottom panel: next dose ───────────────────────────────────────
             if (allDone && activeRow == null) {
@@ -268,6 +276,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
                     SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
+                    Spacer(modifier = GlanceModifier.height(4.dp))
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
