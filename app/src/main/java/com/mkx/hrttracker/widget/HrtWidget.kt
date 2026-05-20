@@ -209,8 +209,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             .firstOrNull { rows -> rows.any { !it.isAddressed() } }
         val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
-        val activeGroupSize = activeScheduledGroup?.size ?: 1
-        val isMultiMedGroup = activeGroupSize > 1
+        val isMultiMedGroup = (activeScheduledGroup?.size ?: 1) > 1
         val allDone = totalCount > 0 &&
             record.doseRows.none {
                 it.contextChip != WidgetDoseChip.LAST_NIGHT &&
@@ -304,8 +303,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 val displayName = when {
                     record.hideMedicationDetails && activeRow.isManualRecord ->
                         context.getString(R.string.widget_manual_record)
-                    isMultiMedGroup -> "${activeRow.groupName} · $activeGroupSize"
-                    record.hideMedicationDetails -> activeRow.groupName
+                    isMultiMedGroup || record.hideMedicationDetails -> activeRow.groupName
                     else -> activeRow.medicationName
                 }
                 // Preserve the underlying medicationUuid only for navigation, only when we're
