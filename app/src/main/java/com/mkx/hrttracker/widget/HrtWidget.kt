@@ -230,7 +230,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ) {
                         Box(
                             modifier = GlanceModifier.size((32f * scale).dp)
-                                .background(colors.secondaryContainer)
+                                .background(colors.primary)
                                 .cornerRadius(999.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -238,7 +238,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 provider = ImageProvider(R.drawable.ic_check),
                                 contentDescription = null,
                                 modifier = GlanceModifier.size((24f * scale).dp),
-                                colorFilter = ColorFilter.tint(colors.onSecondaryContainer),
+                                colorFilter = ColorFilter.tint(colors.onPrimary),
                             )
                         }
                         Spacer(GlanceModifier.height((4f * scale).dp))
