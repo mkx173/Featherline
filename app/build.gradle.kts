@@ -199,6 +199,8 @@ dependencies {
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.glance.appwidget.preview)
+    implementation(libs.androidx.glance.preview)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
@@ -211,6 +213,4 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    debugImplementation(libs.androidx.glance.appwidget.preview)
-    debugImplementation(libs.androidx.glance.preview)
 }
