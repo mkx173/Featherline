@@ -250,7 +250,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 }
             }
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(top = (-4 * LocalWidgetScale.current).dp, bottom = (-6 * LocalWidgetScale.current).dp),
+                modifier = GlanceModifier.fillMaxWidth().padding(top = (-6 * LocalWidgetScale.current).dp, bottom = (-4 * LocalWidgetScale.current).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
