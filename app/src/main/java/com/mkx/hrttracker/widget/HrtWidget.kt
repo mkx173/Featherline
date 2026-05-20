@@ -110,6 +110,37 @@ suspend fun updateAllHrtWidgets(context: Context) {
     }
 }
 
+// ── Group-aware row collapsing ────────────────────────────────────────────────
+
+// Aggregates several per-medication rows that belong to the same group + scheduled slot
+// into a single representative row. The output has medicationUuid = null so the widget's
+// quick-log action targets the entire group, and trailingText is sourced from a member
+// that still needs attention (so half-fulfilled groups don't display the addressed
+// member's empty trailing text).
+internal fun collapseToGroupRow(rows: List<WidgetDoseRow>): WidgetDoseRow {
+    require(rows.isNotEmpty()) { "collapseToGroupRow requires at least one row." }
+    val representativeStatus = when {
+        rows.all { it.status == WidgetDoseStatus.DONE } -> WidgetDoseStatus.DONE
+        rows.any { it.status == WidgetDoseStatus.OVERDUE } -> WidgetDoseStatus.OVERDUE
+        rows.any { it.status == WidgetDoseStatus.DUE_SOON } -> WidgetDoseStatus.DUE_SOON
+        rows.any { it.status == WidgetDoseStatus.UPCOMING } -> WidgetDoseStatus.UPCOMING
+        else -> WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
+    }
+    val identitySource = rows.firstOrNull { it.groupUuid != null } ?: rows.first()
+    val trailingText = when (representativeStatus) {
+        WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
+        else -> rows.firstOrNull { it.status == representativeStatus }?.trailingText
+            ?: rows.firstOrNull { it.trailingText != null }?.trailingText
+    }
+    return rows.first().copy(
+        status = representativeStatus,
+        trailingText = trailingText,
+        groupUuid = identitySource.groupUuid,
+        scheduleTimeUuid = identitySource.scheduleTimeUuid,
+        medicationUuid = null,
+    )
+}
+
 // ── State definition ──────────────────────────────────────────────────────────
 
 internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotState> {
@@ -166,9 +197,20 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         fun WidgetDoseRow.isAddressed(): Boolean =
             status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
 
-        val activeRow = record.doseRows
-            .firstOrNull { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isAddressed() }
+        // Group scheduled today rows by (groupName, scheduledAt) so the medium widget's
+        // single action button logs the entire group rather than one medication at a time.
+        // A group that's half-fulfilled still surfaces here because we only require *some*
+        // member to be unaddressed.
+        val activeScheduledGroup: List<WidgetDoseRow>? = record.doseRows
+            .filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
+            .groupBy { it.groupName to it.scheduledAt }
+            .values
+            .sortedBy { it.first().scheduledAt }
+            .firstOrNull { rows -> rows.any { !it.isAddressed() } }
+        val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
             ?: record.doseRows.firstOrNull { it.contextChip == WidgetDoseChip.COMING_UP }
+        val activeGroupSize = activeScheduledGroup?.size ?: 1
+        val isMultiMedGroup = activeGroupSize > 1
         val allDone = totalCount > 0 &&
             record.doseRows.none {
                 it.contextChip != WidgetDoseChip.LAST_NIGHT &&
@@ -262,15 +304,23 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 val displayName = when {
                     record.hideMedicationDetails && activeRow.isManualRecord ->
                         context.getString(R.string.widget_manual_record)
+                    isMultiMedGroup -> "${activeRow.groupName} · $activeGroupSize"
                     record.hideMedicationDetails -> activeRow.groupName
                     else -> activeRow.medicationName
                 }
-                val highlightRow = if (record.hideMedicationDetails && !activeRow.isManualRecord) {
-                    activeRow.copy(medicationUuid = null)
+                // Preserve the underlying medicationUuid only for navigation, only when we're
+                // actually showing a single specific medication. activeRow itself keeps
+                // medicationUuid = null so taps on the action button log the whole group.
+                val highlightIntentRow = if (
+                    !isMultiMedGroup &&
+                    !record.hideMedicationDetails &&
+                    !activeRow.isManualRecord
+                ) {
+                    activeRow.copy(medicationUuid = activeScheduledGroup?.firstOrNull()?.medicationUuid)
                 } else {
                     activeRow
                 }
-                val highlightIntent = widgetRowHighlightIntent(context, highlightRow)
+                val highlightIntent = widgetRowHighlightIntent(context, highlightIntentRow)
                 val cardClickModifier = if (highlightIntent != null) {
                     GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
                 } else {
@@ -308,7 +358,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                                 ),
                                 maxLines = 1,
                             )
-                            if (!record.hideMedicationDetails) {
+                            if (!record.hideMedicationDetails && !isMultiMedGroup) {
                                 val supporting = listOfNotNull(
                                     activeRow.routeLabel.takeIf(String::isNotBlank),
                                     activeRow.doseText.takeIf(String::isNotBlank),
@@ -403,7 +453,8 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     !it.isAddressed()
             }
 
-        // When hideMedicationDetails, collapse consecutive per-medication rows into per-group rows
+        // When hideMedicationDetails, collapse same-(group, slot) rows into per-group rows so
+        // the displayed name reflects group identity rather than a single medication.
         val displayRows: List<WidgetDoseRow> = if (record.hideMedicationDetails) {
             val regularRows = record.doseRows.filter { it.contextChip != WidgetDoseChip.COMING_UP }
             val collapsed = regularRows
@@ -412,28 +463,12 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 .values
                 .map { rows ->
                     val count = rows.size
-                    val representativeStatus = when {
-                        rows.all { it.status == WidgetDoseStatus.DONE } -> WidgetDoseStatus.DONE
-                        rows.any { it.status == WidgetDoseStatus.OVERDUE } -> WidgetDoseStatus.OVERDUE
-                        rows.any { it.status == WidgetDoseStatus.DUE_SOON } -> WidgetDoseStatus.DUE_SOON
-                        rows.any { it.status == WidgetDoseStatus.UPCOMING } -> WidgetDoseStatus.UPCOMING
-                        else -> WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
-                    }
-                    val isActionable = representativeStatus == WidgetDoseStatus.DUE_SOON ||
-                        representativeStatus == WidgetDoseStatus.OVERDUE
-                    val identitySource = rows.firstOrNull { it.groupUuid != null }
-                    val trailingText = when (representativeStatus) {
-                        WidgetDoseStatus.DONE, WidgetDoseStatus.LOGGED_OUT_OF_WINDOW -> null
-                        else -> rows.firstOrNull { it.status == representativeStatus }?.trailingText
-                            ?: rows.firstOrNull { it.trailingText != null }?.trailingText
-                    }
-                    rows.first().copy(
-                        medicationName = if (count > 1) "${rows.first().groupName} · $count" else rows.first().groupName,
-                        status = representativeStatus,
-                        trailingText = trailingText,
-                        groupUuid = identitySource?.groupUuid,
-                        scheduleTimeUuid = identitySource?.scheduleTimeUuid,
-                        medicationUuid = null,
+                    collapseToGroupRow(rows).copy(
+                        medicationName = if (count > 1) {
+                            "${rows.first().groupName} · $count"
+                        } else {
+                            rows.first().groupName
+                        },
                     )
                 }
             val manualRows = regularRows.filter { it.isManualRecord }
