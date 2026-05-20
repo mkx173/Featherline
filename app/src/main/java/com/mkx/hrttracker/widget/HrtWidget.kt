@@ -90,7 +90,7 @@ private suspend fun GlanceAppWidget.provideHrtContent(
 
 class HrtWidgetMedium : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
-    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(150.dp, 150.dp)))
+    override val sizeMode: SizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideHrtContent(context) { snapshot -> MediumWidgetContent(snapshot) }
     }
@@ -98,7 +98,7 @@ class HrtWidgetMedium : GlanceAppWidget() {
 
 class HrtWidgetLarge : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = HrtWidgetStateDefinition
-    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(DpSize(330.dp, 150.dp)))
+    override val sizeMode: SizeMode = SizeMode.Exact
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideHrtContent(context) { snapshot -> LargeWidgetContent(snapshot) }
     }
@@ -688,7 +688,7 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
 }
 
 @OptIn(ExperimentalGlancePreviewApi::class)
-@GlancePreview(widthDp = 150, heightDp = 150)
+@GlancePreview(widthDp = 306, heightDp = 276)
 @Composable
 private fun MediumWidgetPreview() {
     CompositionLocalProvider(LocalWidgetColors provides hardcodedWidgetColorScheme()) {
@@ -697,7 +697,7 @@ private fun MediumWidgetPreview() {
 }
 
 @OptIn(ExperimentalGlancePreviewApi::class)
-@GlancePreview(widthDp = 330, heightDp = 150)
+@GlancePreview(widthDp = 624, heightDp = 276)
 @Composable
 private fun LargeWidgetPreview() {
     CompositionLocalProvider(LocalWidgetColors provides hardcodedWidgetColorScheme()) {
