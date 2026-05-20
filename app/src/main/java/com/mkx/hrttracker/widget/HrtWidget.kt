@@ -339,7 +339,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                             Text(
                                 text = activeRow.trailingText,
                                 style = TextStyle(
-                                    color = colors.onSurfaceVariant,
+                                    color = colors.onSurface,
                                     fontSize = (20f * LocalWidgetScale.current).sp,
                                 ),
                                 maxLines = 1,
