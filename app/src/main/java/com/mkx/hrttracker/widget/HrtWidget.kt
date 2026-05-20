@@ -442,14 +442,14 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
         val totalCount = record.totalCount
         // Match the medium widget's "addressed" definition so the badge appears whenever
         // every today slot is either DONE or LOGGED_OUT_OF_WINDOW (no actionable rows left).
-        fun WidgetDoseRow.isAddressed(): Boolean =
-            status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
-        val allDone = totalCount > 0 &&
-            record.doseRows.none {
-                it.contextChip != WidgetDoseChip.LAST_NIGHT &&
-                    it.contextChip != WidgetDoseChip.COMING_UP &&
-                    !it.isAddressed()
-            }
+//        fun WidgetDoseRow.isAddressed(): Boolean =
+//            status == WidgetDoseStatus.DONE || status == WidgetDoseStatus.LOGGED_OUT_OF_WINDOW
+//        val allDone = totalCount > 0 &&
+//            record.doseRows.none {
+//                it.contextChip != WidgetDoseChip.LAST_NIGHT &&
+//                    it.contextChip != WidgetDoseChip.COMING_UP &&
+//                    !it.isAddressed()
+//            }
 
         // When hideMedicationDetails, collapse same-(group, slot) rows into per-group rows so
         // the displayed name reflects group identity rather than a single medication.
@@ -505,15 +505,15 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                 Column(modifier = GlanceModifier.defaultWeight().wrapContentHeight()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         WidgetLabel("${context.getString(R.string.widget_today)} · $doneCount/$totalCount ${context.getString(R.string.main_today_summary_done_label)}")
-                        if (allDone) {
-                            Spacer(GlanceModifier.width((8f * LocalWidgetScale.current).dp))
-                            Image(
-                                provider = ImageProvider(R.drawable.ic_check_circle_filled),
-                                contentDescription = null,
-                                modifier = GlanceModifier.size((22f * LocalWidgetScale.current).dp),
-                                colorFilter = ColorFilter.tint(colors.primary),
-                            )
-                        }
+//                        if (allDone) {
+//                            Spacer(GlanceModifier.width((8f * LocalWidgetScale.current).dp))
+//                            Image(
+//                                provider = ImageProvider(R.drawable.ic_check_circle_filled),
+//                                contentDescription = null,
+//                                modifier = GlanceModifier.size((22f * LocalWidgetScale.current).dp),
+//                                colorFilter = ColorFilter.tint(colors.primary),
+//                            )
+//                        }
                     }
                     Spacer(GlanceModifier.height(8.dp))
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
