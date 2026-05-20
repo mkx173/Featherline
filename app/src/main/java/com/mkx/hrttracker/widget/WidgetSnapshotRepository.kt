@@ -1,13 +1,16 @@
 package com.mkx.hrttracker.widget
 
 import android.content.Context
+import android.content.res.Configuration
 import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,8 +43,12 @@ class WidgetSnapshotRepository @Inject constructor(
     ) {
         val zoneId = ZoneId.systemDefault()
         val settings = settingsRepository.getCurrentSettings()
+        // Wrap with an explicitly-localized context so context.getString() inside the
+        // builder resolves against the user's chosen app language even on API levels
+        // where the application context lags AppCompatDelegate.setApplicationLocales.
+        val localizedContext = context.withAppLocale(settings)
         val widgetSnapshot = buildWidgetSnapshotRecord(
-            context = context,
+            context = localizedContext,
             homeSnapshot = homeSnapshot,
             settings = settings,
             now = now,
@@ -54,6 +61,12 @@ class WidgetSnapshotRepository @Inject constructor(
             "widget_snapshot_refreshed rows=${widgetSnapshot.doseRows.size} " +
                 "done=${widgetSnapshot.doneCount} total=${widgetSnapshot.totalCount}",
         )
+    }
+
+    private fun Context.withAppLocale(settings: SettingsState): Context {
+        val locale = Locale.forLanguageTag(settings.appLanguageOption.languageTag)
+        val config = Configuration(resources.configuration).apply { setLocale(locale) }
+        return createConfigurationContext(config)
     }
 
     suspend fun clearWidgetSnapshot() {
