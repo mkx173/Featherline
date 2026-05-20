@@ -39,7 +39,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -611,43 +611,49 @@ private fun WidgetAppearanceDialog(
                         valueRange = 0.5f..1f,
                     )
                 }
-                Box {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isDarkModeMenuExpanded = true }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_widget_dark_mode),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_widget_dark_mode),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    // Only the trailing chip is interactive, so the ripple is bounded to
+                    // the selection area. The popup anchors to this Box so the menu opens
+                    // beneath the current selection rather than at the row's start edge.
+                    Box {
+                        Row(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { isDarkModeMenuExpanded = true }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Text(
                                 text = stringResource(localDarkModeOption.labelRes),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Icon(
-                                imageVector = Icons.Filled.ArrowDropDown,
+                                imageVector = Icons.Rounded.ArrowDropDown,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        HrtDropdownMenu(
+                            expanded = isDarkModeMenuExpanded,
+                            onDismissRequest = { isDarkModeMenuExpanded = false },
+                            modifier = Modifier.width(IntrinsicSize.Min),
+                            items = DarkModeOption.entries.map { option ->
+                                HrtDropdownMenuItem(
+                                    text = stringResource(option.labelRes),
+                                    onClick = { localDarkModeOption = option },
+                                )
+                            },
+                        )
                     }
-                    HrtDropdownMenu(
-                        expanded = isDarkModeMenuExpanded,
-                        onDismissRequest = { isDarkModeMenuExpanded = false },
-                        modifier = Modifier.width(IntrinsicSize.Min),
-                        items = DarkModeOption.entries.map { option ->
-                            HrtDropdownMenuItem(
-                                text = stringResource(option.labelRes),
-                                onClick = { localDarkModeOption = option },
-                            )
-                        },
-                    )
                 }
             }
         },
