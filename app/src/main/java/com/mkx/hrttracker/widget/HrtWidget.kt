@@ -202,13 +202,14 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         // "still actionable" check that gates the final-state badge.
         fun WidgetDoseRow.isExpired(): Boolean = status == WidgetDoseStatus.OVERDUE
 
-        // Group scheduled today rows by (groupName, scheduledAt) so the medium widget's
+        // Group scheduled today rows by (groupUuid, scheduledAt) so the medium widget's
         // single action button logs the entire group rather than one medication at a time.
-        // A group only surfaces while it has at least one member that's still actionable
-        // (neither addressed nor past its grace period).
+        // groupName is not unique across groups; using groupUuid guarantees we collapse
+        // only true siblings. A group only surfaces while it has at least one member
+        // that's still actionable (neither addressed nor past its grace period).
         val activeScheduledGroup: List<WidgetDoseRow>? = record.doseRows
             .filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
-            .groupBy { it.groupName to it.scheduledAt }
+            .groupBy { it.groupUuid to it.scheduledAt }
             .values
             .sortedBy { it.first().scheduledAt }
             .firstOrNull { rows -> rows.any { !it.isAddressed() && !it.isExpired() } }
@@ -475,11 +476,12 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
 
         // When hideMedicationDetails, collapse same-(group, slot) rows into per-group rows so
         // the displayed name reflects group identity rather than a single medication.
+        // Keyed on groupUuid (not groupName) since group names are not unique.
         val displayRows: List<WidgetDoseRow> = if (record.hideMedicationDetails) {
             val regularRows = record.doseRows.filter { it.contextChip != WidgetDoseChip.COMING_UP }
             val collapsed = regularRows
                 .filter { !it.isManualRecord }
-                .groupBy { it.groupName to it.scheduledAt }
+                .groupBy { it.groupUuid to it.scheduledAt }
                 .values
                 .map { rows ->
                     val count = rows.size
