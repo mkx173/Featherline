@@ -28,7 +28,14 @@ class MedicationGroupScheduleOccurrencesTest {
     }
 
     @Test
-    fun isScheduledOn_groups_selected_days_within_same_iso_week_cycle() {
+    fun isScheduledOn_groups_selected_days_within_same_since_anchored_week() {
+        // since = Tue 2026-04-14, interval = 2 weeks, days = {Mon, Thu}.
+        // Cadence is anchored on `since`, so week 0 spans Apr 14..Apr 20.
+        // Both Thu Apr 16 (3 days after since) and Mon Apr 20 (6 days after)
+        // belong to week 0 and fire; week 1 (Apr 21..Apr 27) is off; week 2
+        // (Apr 28..May 4) fires again. With the old Monday-bucket anchor,
+        // Mon Apr 20 would have fallen into a different week than its
+        // preceding Thu — that coupling is gone now.
         val schedule = MedicationGroupSchedule(
             type = MedicationGroupScheduleType.WEEKLY,
             interval = 2,
@@ -39,14 +46,14 @@ class MedicationGroupScheduleOccurrencesTest {
 
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 13)))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 16)))
+        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 20)))
 
-        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 20)))
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 23)))
+        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 4, 27)))
 
-        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 27)))
         assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 4, 30)))
+        assertTrue(schedule.isScheduledOn(LocalDate.of(2026, 5, 4)))
 
-        assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 5, 4)))
         assertFalse(schedule.isScheduledOn(LocalDate.of(2026, 5, 7)))
     }
 

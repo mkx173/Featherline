@@ -45,6 +45,7 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
 import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -159,6 +160,7 @@ private fun ArchivedMedicationGroupsScreenContent(
                             dateFormatter = dateFormatter,
                             timeFormatter = timeFormatter,
                             today = uiState.today,
+                            firstDayOfWeek = uiState.firstDayOfWeek,
                             onClick = { onGroupClick(group.uuid) },
                             index = index,
                             itemCount = uiState.groups.size,
@@ -179,6 +181,7 @@ private fun ArchivedMedicationGroupCard(
     dateFormatter: (LocalDate) -> String,
     timeFormatter: DateTimeFormatter,
     today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
     onClick: () -> Unit,
     index: Int,
     itemCount: Int,
@@ -236,6 +239,7 @@ private fun ArchivedMedicationGroupCard(
         showNotificationIcon = false,
         showUpcomingSection = false,
         showStartDate = false,
+        firstDayOfWeek = firstDayOfWeek,
         metadataRows = metadataRows,
     )
 }

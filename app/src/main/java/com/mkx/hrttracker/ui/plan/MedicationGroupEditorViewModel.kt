@@ -35,6 +35,7 @@ import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toMedicationDetails
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.NonCancellable
@@ -142,11 +143,13 @@ class MedicationGroupEditorViewModel @Inject constructor(
 
         viewModelScope.launch {
             settingsRepository.settingsState.collect { settingsState ->
+                val resolvedFirstDayOfWeek = settingsState.firstDayOfWeekOption
+                    .resolve(systemLocale())
                 _uiState.update { currentState ->
                     applyReminderSettingsToEditorState(
                         currentState = currentState,
                         remindersEnabled = settingsState.remindersEnabled
-                    )
+                    ).copy(firstDayOfWeek = resolvedFirstDayOfWeek)
                 }
             }
         }
@@ -1729,6 +1732,7 @@ data class MedicationGroupEditorUiState(
         MedicationGroupScheduleTimeUiState(time = LocalTime.of(9, 0))
     ),
     val remindersEnabled: Boolean = true,
+    val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val notificationsEnabled: Boolean = false,
     val hasResolvedNotificationDefault: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),

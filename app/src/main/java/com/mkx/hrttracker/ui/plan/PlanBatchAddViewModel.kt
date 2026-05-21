@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import javax.inject.Inject
 
@@ -75,6 +75,7 @@ class PlanBatchAddViewModel @Inject constructor(
             endDate = endDate,
             today = today,
             remindersEnabled = settingsState.remindersEnabled,
+            firstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
             nextOccurrencesByGroup = buildNextOccurrencesByGroup(
                 groups = groups,
                 entries = entries,
@@ -229,6 +230,7 @@ data class PlanBatchAddUiState(
     val endDate: LocalDate = LocalDate.now(),
     val today: LocalDate = LocalDate.now(),
     val remindersEnabled: Boolean = true,
+    val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>> = emptyMap(),
     val entriesToAdd: List<MedicationLogEntryInput> = emptyList(),
     val manualEntryCount: Int = 0,
@@ -377,10 +379,15 @@ private fun MedicationGroupSchedule.isScheduledOnForBatchAdd(date: LocalDate): B
             if (weeklyDaysOfWeek.isEmpty() || date.dayOfWeek !in weeklyDaysOfWeek) {
                 return false
             }
-            val sinceWeekStart = since.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val dateWeekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val weeksBetween = ChronoUnit.WEEKS.between(sinceWeekStart, dateWeekStart)
-            weeksBetween % normalizedInterval.toLong() == 0L
+            // Mirrors MedicationGroupSchedule.isScheduledOn's since-anchored
+            // cadence. Diverges in that batch-add allows dates before `since`
+            // (for backfill), so the date.isBefore(since) guard is dropped
+            // and we use Math.floorDiv — JVM `/` truncates toward zero, which
+            // for negative deltas would lump dates in the 6 days before
+            // `since` into week 0 and push dates 7–13 days before into
+            // week -1, breaking every-N-weeks parity around the boundary.
+            val weekIndex = Math.floorDiv(ChronoUnit.DAYS.between(since, date), 7L)
+            weekIndex % normalizedInterval.toLong() == 0L
         }
     }
 }

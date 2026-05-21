@@ -340,6 +340,7 @@
     <string name="settings_reminders_notifications_unavailable">请在系统设置中开启应用通知</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_app_language">应用语言</string>
+    <string name="settings_first_day_of_week">每周第一天</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
     <string name="settings_widget_appearance">小部件</string>
@@ -351,7 +352,7 @@
     <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>
     <string name="settings_hide_reference_ranges">隐藏参考范围</string>
     <string name="settings_hide_medication_details">隐藏药物详情</string>
-    <string name="settings_hide_medication_details_summary">在通知中隐藏药物名称和剂量</string>
+    <string name="settings_hide_medication_details_summary">在应用外隐藏药物名称和剂量</string>
     <string name="settings_screen_lock_protection">应用锁</string>
     <string name="settings_screen_lock_protection_summary">打开应用时需要验证身份</string>
     <string name="settings_app_lock_grace_period">离开后保持解锁</string>
@@ -475,6 +476,10 @@
     <string name="personalization_weight_validation_invalid">请输入有效的体重</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
+    <string name="first_day_of_week_follow_system">默认</string>
+    <string name="first_day_of_week_saturday">星期六</string>
+    <string name="first_day_of_week_sunday">星期日</string>
+    <string name="first_day_of_week_monday">星期一</string>
     <string name="app_lock_grace_period_immediately">立即</string>
     <string name="app_lock_grace_period_15_seconds">15 秒</string>
     <string name="app_lock_grace_period_30_seconds">30 秒</string>

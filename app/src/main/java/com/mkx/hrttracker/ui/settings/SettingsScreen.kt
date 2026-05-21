@@ -95,6 +95,7 @@ import com.mkx.hrttracker.data.backup.IncompatibleBackupFileException
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -432,6 +433,7 @@ fun SettingsScreen(
         onAppLockGracePeriodOptionChange = viewModel::setAppLockGracePeriodOption,
         onHideScreenContentEnabledChange = viewModel::setHideScreenContentEnabled,
         onAppLanguageOptionChange = viewModel::setAppLanguageOption,
+        onFirstDayOfWeekOptionChange = viewModel::setFirstDayOfWeekOption,
         onDarkModeOptionChange = viewModel::setDarkModeOption,
         onAdaptiveColorEnabledChange = viewModel::setAdaptiveColorEnabled,
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
@@ -696,6 +698,7 @@ private fun SettingsScreenContent(
     onAppLockGracePeriodOptionChange: (AppLockGracePeriodOption) -> Unit,
     onHideScreenContentEnabledChange: (Boolean) -> Unit,
     onAppLanguageOptionChange: (AppLanguageOption) -> Unit,
+    onFirstDayOfWeekOptionChange: (FirstDayOfWeekOption) -> Unit,
     onDarkModeOptionChange: (DarkModeOption) -> Unit,
     onAdaptiveColorEnabledChange: (Boolean) -> Unit,
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
@@ -725,6 +728,8 @@ private fun SettingsScreenContent(
         remember { mutableStateOf(false) }
     val (isDarkModeMenuExpanded, setDarkModeMenuExpanded) = remember { mutableStateOf(false) }
     val (isLanguageMenuExpanded, setLanguageMenuExpanded) = remember { mutableStateOf(false) }
+    val (isFirstDayOfWeekMenuExpanded, setFirstDayOfWeekMenuExpanded) =
+        remember { mutableStateOf(false) }
     val appName = stringResource(R.string.app_name)
     val appVersionInfo = remember(context) { resolveAppVersionInfo(context) }
     val copyAppInfoMessage = stringResource(R.string.settings_about_app_info_copied)
@@ -1118,7 +1123,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
-                        count = 4,
+                        count = 5,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1141,10 +1146,36 @@ private fun SettingsScreenContent(
 
                 Box {
                     SettingsSegmentedListItem(
+                        title = stringResource(R.string.settings_first_day_of_week),
+                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
+                        index = 1,
+                        count = 5,
+                        onClick = { setFirstDayOfWeekMenuExpanded(true) },
+                        leadingContent = {
+                            SettingsLeadingIconSlot(
+                                painter = painterResource(R.drawable.ic_today)
+                            )
+                        }
+                    )
+                    HrtDropdownMenu(
+                        expanded = isFirstDayOfWeekMenuExpanded,
+                        onDismissRequest = { setFirstDayOfWeekMenuExpanded(false) },
+                        modifier = Modifier.width(IntrinsicSize.Min),
+                        items = FirstDayOfWeekOption.entries.map { option ->
+                            HrtDropdownMenuItem(
+                                text = stringResource(option.menuLabelRes),
+                                onClick = { onFirstDayOfWeekOptionChange(option) },
+                            )
+                        },
+                    )
+                }
+
+                Box {
+                    SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
-                        index = 1,
-                        count = 4,
+                        index = 2,
+                        count = 5,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1167,8 +1198,8 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
-                    index = 2,
-                    count = 4,
+                    index = 3,
+                    count = 5,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1187,8 +1218,8 @@ private fun SettingsScreenContent(
 
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_widget_appearance),
-                    index = 3,
-                    count = 4,
+                    index = 4,
+                    count = 5,
                     onClick = { showWidgetAppearanceDialog = true },
                     leadingContent = {
                         SettingsLeadingIconSlot(
@@ -1883,6 +1914,7 @@ private fun SettingsScreenPreview() {
             onAppLockGracePeriodOptionChange = { },
             onHideScreenContentEnabledChange = { },
             onAppLanguageOptionChange = { },
+            onFirstDayOfWeekOptionChange = { },
             onDarkModeOptionChange = { },
             onAdaptiveColorEnabledChange = { },
             onShowArchivedGroupRecordsChange = { },

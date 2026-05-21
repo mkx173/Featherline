@@ -1,11 +1,9 @@
 package com.mkx.hrttracker.model.medication
 
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 data class MedicationGroupSlotOccurrence(
@@ -29,9 +27,12 @@ fun MedicationGroupSchedule.isScheduledOn(date: LocalDate): Boolean {
             ) {
                 return false
             }
-            val sinceWeekStart = since.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val dateWeekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            ChronoUnit.WEEKS.between(sinceWeekStart, dateWeekStart) % normalizedInterval.toLong() == 0L
+            // Anchor the every-N-weeks cadence on `since` itself, not on a
+            // fixed Monday. This decouples cadence math from any locale
+            // first-day-of-week convention and keeps selected days that
+            // span a Mon boundary firing in the same week as `since`.
+            val weekIndex = ChronoUnit.DAYS.between(since, date) / 7L
+            weekIndex % normalizedInterval.toLong() == 0L
         }
     }
 }

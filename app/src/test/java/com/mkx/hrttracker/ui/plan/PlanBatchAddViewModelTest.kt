@@ -202,6 +202,39 @@ class PlanBatchAddViewModelTest {
     }
 
     @Test
+    fun buildPlanBatchAddEntries_appliesFloorDivisionAcrossBackfillWeekBoundary() {
+        // Regression for the truncate-toward-zero bug: with since = Wed Apr 15
+        // and selected day = Monday, the Mon two days before since (Apr 13)
+        // would mis-match week 0 under integer division (-2 / 7 == 0), and
+        // the Mon nine days before (Apr 6) would mis-match week -1
+        // (-9 / 7 == -1) and be skipped. Floor division puts Apr 13 in
+        // week -1 (skipped for interval=2) and Apr 6 in week -2 (matches),
+        // preserving every-other-week parity straddling `since`.
+        val groupUuid = UUID.fromString("4fe6dca6-7c4b-4be9-9b3f-83b7f50f0bd1")
+        val group = medicationGroup(
+            uuid = groupUuid,
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.WEEKLY,
+                interval = 2,
+                since = LocalDate.of(2026, 4, 15),
+                weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
+                times = listOf(LocalTime.of(10, 30)),
+            ),
+            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+        )
+
+        val entries = buildPlanBatchAddEntries(
+            group = group,
+            startDate = LocalDate.of(2026, 4, 1),
+            endDate = LocalDate.of(2026, 4, 14),
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(1, entries.size)
+        assertEquals(Instant.parse("2026-04-06T10:30:00Z"), entries.single().appliedAt)
+    }
+
+    @Test
     fun buildPlanBatchAddEntries_createsOneRecordPerMedicationForEachOccurrence() {
         val group = medicationGroup(
             schedule = MedicationGroupSchedule(

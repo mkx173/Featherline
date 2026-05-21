@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
@@ -51,6 +52,7 @@ internal fun WeeklyScheduleEditor(
     sinceDate: LocalDate,
     intervalWeeks: String,
     selectedDaysOfWeek: Set<DayOfWeek>,
+    firstDayOfWeek: DayOfWeek,
     time: LocalTime,
     originalTime: LocalTime? = null,
     previewOccurrences: List<LocalDateTime>,
@@ -134,9 +136,12 @@ internal fun WeeklyScheduleEditor(
                         enabled = daySelectionEnabled && !isDaySelectionAtDefault,
                     )
                 }
+                val orderedDaysOfWeek = remember(firstDayOfWeek) {
+                    List(DayOfWeek.entries.size) { offset -> firstDayOfWeek.plus(offset.toLong()) }
+                }
                 ConnectedButtonGroup(
                     modifier = Modifier.fillMaxWidth(),
-                    options = DayOfWeek.entries.toList(),
+                    options = orderedDaysOfWeek,
                     selectedOptions = selectedDaysOfWeek,
                     optionLabel = { weekday ->
                         weekday.getDisplayName(TextStyle.NARROW, appLocale)
@@ -248,6 +253,7 @@ private fun WeeklyScheduleEditorPreview() {
                 DayOfWeek.WEDNESDAY,
                 DayOfWeek.FRIDAY
             ),
+            firstDayOfWeek = DayOfWeek.MONDAY,
             time = LocalTime.of(9, 30),
             previewOccurrences = listOf(
                 LocalDateTime.of(2026, 4, 22, 9, 30),

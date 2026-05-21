@@ -312,6 +312,7 @@ private fun PlanBatchAddScreenContent(
                             showNotificationIcon = false,
                             showChevron = false,
                             showUpcomingSection = false,
+                            firstDayOfWeek = uiState.firstDayOfWeek,
                         )
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
                     }

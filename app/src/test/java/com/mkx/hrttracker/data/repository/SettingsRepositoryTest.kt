@@ -6,6 +6,7 @@ import com.mkx.hrttracker.model.bloodtest.AllowedAnalyteUnit
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.util.currentAppLocale
 import io.mockk.every
 import io.mockk.mockk
@@ -72,6 +73,26 @@ class SettingsRepositoryTest {
         )
 
         assertEquals(canonical, initial)
+    }
+
+    @Test
+    fun `firstDayOfWeekOption persists chosen value and round-trips back to FOLLOW_SYSTEM`() = runTest(testDispatcher) {
+        assertEquals(
+            FirstDayOfWeekOption.FOLLOW_SYSTEM,
+            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+        )
+
+        settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.SUNDAY)
+        assertEquals(
+            FirstDayOfWeekOption.SUNDAY,
+            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+        )
+
+        settingsRepository.setFirstDayOfWeekOption(FirstDayOfWeekOption.FOLLOW_SYSTEM)
+        assertEquals(
+            FirstDayOfWeekOption.FOLLOW_SYSTEM,
+            settingsRepository.getCurrentSettings().firstDayOfWeekOption,
+        )
     }
 
     @Test

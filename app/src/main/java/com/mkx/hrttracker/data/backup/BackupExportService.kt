@@ -189,6 +189,7 @@ class BackupExportService @Inject constructor(
                 widgetBackgroundAlpha = settings.widgetBackgroundAlpha,
                 widgetDarkModeOption = settings.widgetDarkModeOption.name,
                 groupNameCounter = settings.groupNameCounter,
+                firstDayOfWeekOption = settings.firstDayOfWeekOption.name,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = userProfile.weightKg,

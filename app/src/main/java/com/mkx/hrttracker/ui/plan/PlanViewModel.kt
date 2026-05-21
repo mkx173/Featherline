@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.isSlotFulfilled
 import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,7 +57,7 @@ class PlanViewModel @Inject constructor(
         val today = now.toLocalDate()
         val calendarRange = buildPlanCalendarRange(
             today = today,
-            firstDayOfWeek = DayOfWeek.MONDAY
+            firstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale())
         )
         val displayedDate = selection ?: today
         val daySchedule = buildPlanDaySchedule(

@@ -12,6 +12,7 @@ import com.mkx.hrttracker.model.medication.visibleMedicationEntries
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.model.medication.planCalendarDate
 import com.mkx.hrttracker.util.AppTimeSource
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -139,7 +140,7 @@ class HistoryViewModel @Inject constructor(
             medicationGroups = allGroups,
             activeMedicationGroups = activeGroups,
             calendarMedicationGroups = calendarGroups,
-            calendarFirstDayOfWeek = DayOfWeek.MONDAY,
+            calendarFirstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
             calendarStartMonth = calendarStartMonth,
             calendarEndMonth = calendarEndMonth,
             displayedMonth = visibleMonth,
