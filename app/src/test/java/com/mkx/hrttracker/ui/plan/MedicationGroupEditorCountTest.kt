@@ -4,6 +4,7 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -135,6 +136,55 @@ class MedicationGroupEditorCountTest {
         })
     }
 
+    @Test
+    fun upsertMedication_rejects_custom_medication_with_same_normalized_name() {
+        // Schedule aggregation and PK matching collapse meds by MedicationSignature,
+        // which normalizes custom names via trim().lowercase(). If the editor allowed
+        // through near-duplicate customs, the widget snapshot would aggregate them and
+        // the quick-log callback would under-log via the single uuid it carries.
+        val existingMedication = customMedication(
+            localId = "existing",
+            name = "Estradiol Valerate",
+            doseMg = 2.0,
+        )
+        val nearDuplicate = customMedication(
+            localId = "new",
+            name = "  estradiol valerate ",
+            doseMg = 2.0,
+        )
+
+        val result = upsertMedication(
+            medications = listOf(existingMedication),
+            savedMedication = nearDuplicate,
+        )
+
+        assertTrue(result.duplicateAlreadyExists)
+        assertEquals(1, result.medications.size)
+        assertEquals("existing", result.medications.single().localId)
+    }
+
+    @Test
+    fun upsertMedication_keeps_custom_medications_with_distinct_normalized_names() {
+        val existingMedication = customMedication(
+            localId = "existing",
+            name = "Estradiol Valerate",
+            doseMg = 2.0,
+        )
+        val distinctMedication = customMedication(
+            localId = "new",
+            name = "Estradiol Cypionate",
+            doseMg = 2.0,
+        )
+
+        val result = upsertMedication(
+            medications = listOf(existingMedication),
+            savedMedication = distinctMedication,
+        )
+
+        assertFalse(result.duplicateAlreadyExists)
+        assertEquals(2, result.medications.size)
+    }
+
     private fun medication(
         localId: String,
         count: Int,
@@ -148,6 +198,22 @@ class MedicationGroupEditorCountTest {
                 dose = MedicationDose.MgAsMedicine(doseMg)
             ),
             count = count
+        )
+    }
+
+    private fun customMedication(
+        localId: String,
+        name: String,
+        doseMg: Double,
+        count: Int = 1,
+    ): MedicationGroupMedicationItemUiState {
+        return MedicationGroupMedicationItemUiState(
+            localId = localId,
+            details = testCustomMedicationDetails(
+                medicationName = name,
+                dose = MedicationDose.MgAsMedicine(doseMg),
+            ),
+            count = count,
         )
     }
 }

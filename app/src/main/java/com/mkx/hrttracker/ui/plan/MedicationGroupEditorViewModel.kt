@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -1663,9 +1664,15 @@ internal fun upsertMedication(
     medications: List<MedicationGroupMedicationItemUiState>,
     savedMedication: MedicationGroupMedicationItemUiState,
 ): MedicationGroupMedicationSaveResult {
+    // Match by signature so the editor's notion of "duplicate" lines up with
+    // every downstream layer that treats same-signature meds as one dose
+    // (e.g. PlanDaySchedule aggregation, widget snapshot, PK matching).
+    // Raw details equality misses near-duplicates that differ only in
+    // signature-normalized fields like custom-name casing/whitespace.
+    val savedSignature = MedicationSignature.fromMedicationDetails(savedMedication.details)
     val duplicateMedication = medications.firstOrNull { medication ->
         medication.localId != savedMedication.localId &&
-            medication.details == savedMedication.details
+            MedicationSignature.fromMedicationDetails(medication.details) == savedSignature
     }
 
     if (duplicateMedication != null) {
