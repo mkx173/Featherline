@@ -476,7 +476,7 @@
     <string name="personalization_weight_validation_invalid">请输入有效的体重</string>
     <string name="app_language_english">English</string>
     <string name="app_language_simplified_chinese">简体中文</string>
-    <string name="first_day_of_week_follow_system">默认（%1$s）</string>
+    <string name="first_day_of_week_follow_system">默认</string>
     <string name="first_day_of_week_saturday">星期六</string>
     <string name="first_day_of_week_sunday">星期日</string>
     <string name="first_day_of_week_monday">星期一</string>

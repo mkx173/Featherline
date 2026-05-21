@@ -96,9 +96,6 @@ import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
-import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.systemLocale
-import java.time.format.TextStyle as JavaTextStyle
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -1148,21 +1145,9 @@ private fun SettingsScreenContent(
                 }
 
                 Box {
-                    val firstDayAppLocale = rememberAppLocale()
-                    val systemLocaleForRow = remember { systemLocale() }
-                    val resolvedFirstDay = remember(settingsState.firstDayOfWeekOption) {
-                        settingsState.firstDayOfWeekOption.resolve(systemLocaleForRow)
-                    }
-                    val firstDayOfWeekSupportingText = when (settingsState.firstDayOfWeekOption) {
-                        FirstDayOfWeekOption.FOLLOW_SYSTEM -> stringResource(
-                            R.string.first_day_of_week_follow_system,
-                            resolvedFirstDay.getDisplayName(JavaTextStyle.FULL, firstDayAppLocale)
-                        )
-                        else -> stringResource(settingsState.firstDayOfWeekOption.menuLabelRes)
-                    }
                     SettingsSegmentedListItem(
                         title = stringResource(R.string.settings_first_day_of_week),
-                        supportingText = firstDayOfWeekSupportingText,
+                        supportingText = stringResource(settingsState.firstDayOfWeekOption.menuLabelRes),
                         index = 1,
                         count = 5,
                         onClick = { setFirstDayOfWeekMenuExpanded(true) },

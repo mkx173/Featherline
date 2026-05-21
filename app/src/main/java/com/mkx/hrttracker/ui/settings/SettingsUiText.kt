@@ -25,7 +25,7 @@ val AppLanguageOption.labelRes: Int
 @get:StringRes
 val FirstDayOfWeekOption.menuLabelRes: Int
     get() = when (this) {
-        FirstDayOfWeekOption.FOLLOW_SYSTEM -> R.string.dark_mode_follow_system
+        FirstDayOfWeekOption.FOLLOW_SYSTEM -> R.string.first_day_of_week_follow_system
         FirstDayOfWeekOption.SATURDAY -> R.string.first_day_of_week_saturday
         FirstDayOfWeekOption.SUNDAY -> R.string.first_day_of_week_sunday
         FirstDayOfWeekOption.MONDAY -> R.string.first_day_of_week_monday
