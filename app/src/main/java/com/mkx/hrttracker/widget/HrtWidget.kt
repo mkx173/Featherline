@@ -52,6 +52,7 @@ import androidx.glance.text.TextStyle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -105,13 +106,19 @@ private suspend fun GlanceAppWidget.provideHrtPreviewContent(
 private fun HrtPreviewContent(
     content: @Composable (snapshot: WidgetSnapshotRecord?) -> Unit,
 ) {
+    val context = LocalContext.current
     GlanceTheme {
         CompositionLocalProvider(
             LocalWidgetColors provides hardcodedWidgetColorScheme(),
             LocalWidgetScale provides WIDGET_PREVIEW_CONTENT_SCALE,
             LocalPreviewBaselineHeight provides WIDGET_BASELINE_REFERENCE_DP,
+            LocalPreviewE2Text provides formatWidgetE2Text(
+                currentConcentration = WIDGET_PREVIEW_E2_PG_PER_ML,
+                concentrationUnit = PkConcentrationUnit.PG_PER_ML,
+                displayUnit = BloodUnitKey.PG_ML,
+            ),
         ) {
-            content(previewSnapshot())
+            content(previewSnapshot(context))
         }
     }
 }
@@ -213,7 +220,8 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
 private const val MEDIUM_WIDGET_PREVIEW_WIDTH_DP = 306
 private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
-private const val WIDGET_PREVIEW_CONTENT_SCALE = 0.75f
+private const val WIDGET_PREVIEW_CONTENT_SCALE = 0.6f
+private const val WIDGET_PREVIEW_E2_PG_PER_ML = 120.0
 private val MEDIUM_WIDGET_PREVIEW_SIZE = DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private val LARGE_WIDGET_PREVIEW_SIZE = DpSize(LARGE_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
@@ -227,6 +235,10 @@ private const val WIDGET_BASELINE_REFERENCE_DP = 276f
 private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
 private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
 private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
+// Pre-formatted E2 trend label shown in previews. Bypasses the real
+// PkProjection path (whose windowing is unfriendly to fabricated data) so the
+// preview can demonstrate the trend pill without seeding a full projection.
+private val LocalPreviewE2Text = compositionLocalOf<String?> { null }
 
 @Composable
 private fun widgetScale(widgetKey: String): Float {
@@ -270,7 +282,8 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
         val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
-        val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
+        val e2Text = LocalPreviewE2Text.current
+            ?: e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
         // Only treat the day as "nothing scheduled" when there are no rows at all to
@@ -456,12 +469,12 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ) {
                         Box(
                             modifier = GlanceModifier
-                                .width(6.dp)
+                                .width((6f * scale).dp)
                                 .height((44f * scale).dp)
                                 .background(groupAccentColor(activeRow.colorKey, LocalWidgetForcedDark.current))
                                 .cornerRadius(999.dp),
                         ) {}
-                        Spacer(GlanceModifier.width(10.dp))
+                        Spacer(GlanceModifier.width((10f * scale).dp))
                         Column(modifier = GlanceModifier.defaultWeight()) {
                             Text(
                                 text = displayName,
@@ -551,7 +564,8 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             ?.toPkProjectionResult(now, zoneId)
             ?.toMainEstradiolTrend(now, zoneId)
         val e2DisplayUnit = BloodUnitKey.fromStorageValue(record.e2DisplayUnit) ?: BloodUnitKey.PG_ML
-        val e2Text = e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
+        val e2Text = LocalPreviewE2Text.current
+            ?: e2Trend?.let { formatWidgetE2Text(it.currentConcentration, it.concentrationUnit, e2DisplayUnit) }
         val doneCount = record.doneCount
         val totalCount = record.totalCount
         // Only treat the day as "nothing scheduled" when there are no rows at all to
@@ -712,8 +726,16 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
-private fun previewSnapshot(): WidgetSnapshotRecord {
+private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
     val now = LocalDateTime.now()
+    val timeFormatter = localizedShortTimeFormatter(
+        Locale.getDefault(),
+        uses24HourFormat = android.text.format.DateFormat.is24HourFormat(context),
+    )
+    val estradiolName = context.getString(R.string.medication_name_estradiol)
+    val progesteroneName = context.getString(R.string.settings_calibration_analyte_prog)
+    val spironolactoneName = context.getString(R.string.medication_name_spironolactone)
+    val oralLabel = context.getString(R.string.medication_application_oral)
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = "UTC",
@@ -729,28 +751,14 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
         forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
-                medicationName = "Estradiol Valerate",
-                groupName = "Estradiol",
-                colorKey = MedicationGroupColorKey.ROSE,
-                routeLabel = "IM injection",
-                doseText = "4 mg",
-                status = WidgetDoseStatus.DONE,
-                scheduledAt = now.minusHours(2),
-                trailingText = null,
-                isManualRecord = false,
-                contextChip = null,
-                groupUuid = null,
-                scheduleTimeUuid = null,
-            ),
-            WidgetDoseRow(
-                medicationName = "Progesterone",
-                groupName = "Progesterone",
+                medicationName = progesteroneName,
+                groupName = progesteroneName,
                 colorKey = MedicationGroupColorKey.INDIGO,
-                routeLabel = "Oral",
+                routeLabel = oralLabel,
                 doseText = "200 mg",
-                status = WidgetDoseStatus.DUE_SOON,
+                status = WidgetDoseStatus.DONE,
                 scheduledAt = now.plusMinutes(30),
-                trailingText = "+30 min",
+                trailingText = null,
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = "g1",
@@ -758,16 +766,28 @@ private fun previewSnapshot(): WidgetSnapshotRecord {
                 medicationUuid = "m1",
             ),
             WidgetDoseRow(
-                medicationName = "Spironolactone",
-                groupName = "Spiro",
+                medicationName = context.getString(R.string.medication_name_estradiol_valerate),
+                groupName = estradiolName,
+                colorKey = MedicationGroupColorKey.ROSE,
+                routeLabel = oralLabel,
+                doseText = "2 mg",
+                status = WidgetDoseStatus.DUE_SOON,
+                scheduledAt = now.minusHours(2),
+                trailingText = now.plusMinutes(30).format(timeFormatter),
+                isManualRecord = false,
+                contextChip = null,
+                groupUuid = null,
+                scheduleTimeUuid = null,
+            ),
+            WidgetDoseRow(
+                medicationName = spironolactoneName,
+                groupName = spironolactoneName,
                 colorKey = MedicationGroupColorKey.TEAL,
-                routeLabel = "Oral",
+                routeLabel = oralLabel,
                 doseText = "100 mg",
                 status = WidgetDoseStatus.UPCOMING,
                 scheduledAt = now.plusHours(4),
-                trailingText = now.plusHours(4).format(
-                    localizedShortTimeFormatter(Locale.US, uses24HourFormat = false)
-                ),
+                trailingText = now.plusHours(4).format(timeFormatter),
                 isManualRecord = false,
                 contextChip = WidgetDoseChip.COMING_UP,
                 groupUuid = null,

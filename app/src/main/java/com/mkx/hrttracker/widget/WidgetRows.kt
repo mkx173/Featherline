@@ -433,13 +433,13 @@ internal fun DoseRow(
     ) {
         Box(
             modifier = GlanceModifier
-                .width(6.dp)
+                .width((6f * scale).dp)
                 .height((44f * scale).dp)
                 .background(groupAccentColor(row.colorKey, LocalWidgetForcedDark.current))
                 .cornerRadius(999.dp),
         ) {}
 
-        Spacer(GlanceModifier.width(10.dp))
+        Spacer(GlanceModifier.width((10f * scale).dp))
 
         Column(modifier = GlanceModifier.defaultWeight()) {
             val context = LocalContext.current
