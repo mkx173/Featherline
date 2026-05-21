@@ -7,8 +7,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,9 +51,7 @@ import com.mkx.hrttracker.HIGHLIGHT_KIND_SCHEDULED
 import com.mkx.hrttracker.MainActivity
 import com.mkx.hrttracker.R
 import androidx.core.graphics.createBitmap
-import androidx.glance.LocalSize
 import androidx.glance.unit.ColorProvider
-import kotlin.math.max
 
 internal fun isEmptySetup(snapshot: WidgetSnapshotRecord?): Boolean =
     snapshot == null || !snapshot.hasActiveGroups
@@ -64,18 +62,24 @@ internal sealed interface WidgetListItem {
 }
 
 @Composable
-internal fun WidgetShell(contentAlignment: Alignment = Alignment.TopStart, content: @Composable () -> Unit) {
+internal fun WidgetShell(
+    scale: Float,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable () -> Unit,
+) {
     val colors = LocalWidgetColors.current
-    Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(colors.surface)
-            .cornerRadius(22.dp)
-            .clickable(actionStartActivity<MainActivity>())
-            .padding(12.dp),
-        contentAlignment = contentAlignment,
-    ) {
-        content()
+    CompositionLocalProvider(LocalWidgetScale provides scale) {
+        Box(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(colors.surface)
+                .cornerRadius(22.dp)
+                .clickable(actionStartActivity<MainActivity>())
+                .padding(12.dp),
+            contentAlignment = contentAlignment,
+        ) {
+            content()
+        }
     }
 }
 
@@ -84,9 +88,9 @@ internal fun WidgetLabel(
     text: String,
     modifier: GlanceModifier = GlanceModifier,
     fontSize: TextUnit = 18.sp,
-    scale: Float
 ) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     Text(
         text = text.uppercase(),
         modifier = modifier,
@@ -106,10 +110,10 @@ internal fun EmptyWidgetContent(
     iconSize: Float = 24f,
     backgroundColor: ColorProvider = LocalWidgetColors.current.primary,
     foregroundColor: ColorProvider = LocalWidgetColors.current.onPrimary,
-    scale: Float
 ) {
     val colors = LocalWidgetColors.current
     val context = LocalContext.current
+    val scale = LocalWidgetScale.current
     Column(
         modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -146,9 +150,9 @@ internal fun ProgressBar(
     doneCount: Int,
     totalCount: Int,
     modifier: GlanceModifier = GlanceModifier.fillMaxWidth(),
-    scale: Float
 ) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     // Treat 0/0 as 0/1 so we still draw an empty track instead of collapsing the
     // top panel layout when nothing is scheduled today.
     val renderTotal = totalCount.coerceAtLeast(1)
@@ -172,10 +176,10 @@ internal fun ProgressRing(
     totalCount: Int,
     sizeDp: Float = 32f,
     strokeDp: Float = 4f,
-    scale: Float
 ) {
     val context = LocalContext.current
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     val density = context.resources.displayMetrics.density
 
     val scaledSizeDp = sizeDp * scale
@@ -245,13 +249,13 @@ internal fun ProgressRing(
 }
 
 @Composable
-internal fun SectionHeader(text: String, topPadding: Dp = 4.dp, scale: Float) {
+internal fun SectionHeader(text: String, topPadding: Dp = 4.dp) {
     val colors = LocalWidgetColors.current
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(top = topPadding, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        WidgetLabel(text, fontSize = 16.sp, scale = scale)
+        WidgetLabel(text, fontSize = 16.sp)
         Spacer(GlanceModifier.width(8.dp))
         Box(
             modifier = GlanceModifier
@@ -270,9 +274,9 @@ internal fun TrailingButton(
     buttonSizeDp: Float = 32f,
     iconSizeDp: Float = 24f,
     arrowIconSizeDp: Float = 20f,
-    scale: Float
 ) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     val buttonSize = (buttonSizeDp * scale).dp
     val iconSize = (iconSizeDp * scale).dp
     val arrowIconSize = (arrowIconSizeDp * scale).dp
@@ -407,9 +411,9 @@ internal fun DoseRow(
     showLogAction: Boolean,
     hideMedicationDetails: Boolean,
     highlightIntent: Intent? = null,
-    scale: Float
 ) {
     val colors = LocalWidgetColors.current
+    val scale = LocalWidgetScale.current
     val rowClickModifier = if (highlightIntent != null) {
         GlanceModifier.clickable(actionStartActivityFromIntent(highlightIntent))
     } else {
@@ -492,6 +496,6 @@ internal fun DoseRow(
             )
             Spacer(GlanceModifier.width(8.dp))
         }
-        TrailingButton(row, showLogAction, highlightIntent, scale = scale)
+        TrailingButton(row, showLogAction, highlightIntent)
     }
 }
