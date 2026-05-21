@@ -6,7 +6,7 @@ math on the widget thread, and how those surfaces stay current across
 home-data mutations, settings changes, alarms, time/date events, and
 quick-log taps. The whole subsystem lives in
 [`widget/`](https://github.com/mkx173/Featherline/tree/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget)
-(15 files). For where it sits in the layer map, see
+(14 files). For where it sits in the layer map, see
 [architecture.md](architecture.md).
 
 ## Sequence
@@ -99,12 +99,18 @@ cache to keep coherent.
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
 hosts two `GlanceAppWidget` subclasses:
 
-- `HrtWidgetMedium` — `SizeMode.Responsive` with a single
-  `150 × 150 dp` bucket. Renders a progress row over today's count
-  and a next-dose / done-badge panel below.
-- `HrtWidgetLarge` — `SizeMode.Responsive` anchored at `330 × 150 dp`
+- `HrtWidgetMedium` — `SizeMode.Exact`, targeting a 2×2 launcher cell.
+  Renders a progress row over today's count and a next-dose /
+  done-badge panel below.
+- `HrtWidgetLarge` — `SizeMode.Exact`, targeting a 4×2 launcher cell,
   with a scrollable `LazyColumn` of dose rows grouped under `Last
   night` / `Today` / `Tonight` headers.
+
+Each widget also declares a `previewSizeMode = SizeMode.Responsive(...)`
+that drives the launcher picker preview (via `providePreview`); the
+buckets there (306 × 276 / 624 × 276 dp) are independent of the live
+render size, which follows the launcher cell allocation declared in the
+`appwidget-provider` XML.
 
 Both widgets share a `provideHrtContent` shell that loads the snapshot,
 resolves the color scheme (dynamic Material 3 on API 31+ when adaptive
@@ -127,13 +133,14 @@ layout today, just launcher-side scaling.
 
 ## Update triggers
 
-The widget snapshot is rewritten from four independent sources, all
+The widget snapshot is rewritten from five independent sources, all
 funnelled through `WidgetSnapshotRepository`:
 
 ```mermaid
 graph TD
   homesnapshot[HomeSnapshotRepository<br/>.observeHomeSnapshot] --> manager
   settings[SettingsRepository<br/>.settingsState] --> manager
+  timeformat[Settings.System.TIME_12_24<br/>ContentObserver] --> manager
   worker[WidgetDailyRefreshWorker<br/>15-min periodic + on start] --> repo
   worker -.staleness-detected.-> homesnapshot
   datereceiver[WidgetDateReceiver<br/>DATE/TIME/TZ_CHANGED] --> homesnapshot
@@ -179,6 +186,14 @@ graph TD
   `ACTION_TIME_CHANGED`, and `ACTION_TIMEZONE_CHANGED`. It uses
   `goAsync()` to force a home refresh, again leaning on the snapshot
   observer to fan out.
+- **12-/24-hour preference toggles.** Android does not broadcast when
+  the user flips `Settings.System.TIME_12_24`, but the widget snapshot
+  carries pre-formatted trailing-time strings whose 12-/24-hour shape
+  is baked at build time. `HomeWidgetManager` registers a
+  `ContentObserver` on the setting URI via `observeUses24HourTimeFormat()`
+  and calls `refreshWidgetSnapshot()` on every change (after dropping
+  the initial replay) so the snapshot is rebuilt with the new
+  formatter without forcing a home rebuild.
 
 The convergence point is `updateAllHrtWidgets(context)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt#L106),
