@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.every
@@ -52,7 +53,9 @@ class PlanViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY)
+        )
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
     }
 
@@ -159,7 +162,7 @@ class PlanViewModelTest {
     @Test
     fun archivedRecordsAreShownAsPlannedRowsWithoutAddingArchivedGroupToRegimen() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = true))
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = true, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = medicationGroup(times = listOf(LocalTime.of(8, 0))).copy(
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),
@@ -199,7 +202,7 @@ class PlanViewModelTest {
     @Test
     fun hideArchivedGroupRecordsSettingHidesArchivedRecordsFromPlan() = runTest {
         val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 18, 10, 0))
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false))
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = medicationGroup(times = listOf(LocalTime.of(8, 0))).copy(
             archivedAt = Instant.parse("2026-04-18T09:00:00Z"),

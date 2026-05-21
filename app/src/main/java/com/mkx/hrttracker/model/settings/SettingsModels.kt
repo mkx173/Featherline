@@ -4,6 +4,8 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
+import java.time.DayOfWeek
+import java.time.temporal.WeekFields
 import java.util.Locale
 
 enum class DarkModeOption {
@@ -39,6 +41,26 @@ enum class AppLanguageOption(val languageTag: String) {
     }
 }
 
+enum class FirstDayOfWeekOption {
+    FOLLOW_SYSTEM,
+    SATURDAY,
+    SUNDAY,
+    MONDAY;
+
+    fun resolve(systemLocale: Locale): DayOfWeek = when (this) {
+        FOLLOW_SYSTEM -> WeekFields.of(systemLocale).firstDayOfWeek
+        SATURDAY -> DayOfWeek.SATURDAY
+        SUNDAY -> DayOfWeek.SUNDAY
+        MONDAY -> DayOfWeek.MONDAY
+    }
+
+    companion object {
+        fun fromStorageValue(value: String?): FirstDayOfWeekOption {
+            return entries.firstOrNull { it.name == value } ?: FOLLOW_SYSTEM
+        }
+    }
+}
+
 enum class AppLockGracePeriodOption(val durationMillis: Long) {
     IMMEDIATELY(durationMillis = 0L),
     FIFTEEN_SECONDS(durationMillis = 15_000L),
@@ -64,6 +86,7 @@ data class SettingsState(
     val darkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
     val adaptiveColorEnabled: Boolean = true,
     val appLanguageOption: AppLanguageOption = AppLanguageOption.ENGLISH,
+    val firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     val calibrationDefaultUnits: Map<BloodAnalyteKey, BloodUnitKey> = emptyMap(),
     val homeE2DisplayUnit: BloodUnitKey = BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
     val homeE2ChartWindowOption: HomeE2ChartWindowOption = HomeE2ChartWindowOption.SEVEN_DAYS,

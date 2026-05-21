@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -203,6 +204,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setAppLanguageOption(option: AppLanguageOption) {
         settingsRepository.setAppLanguageOption(option)
+    }
+
+    fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
+        viewModelScope.launch {
+            settingsRepository.setFirstDayOfWeekOption(option)
+        }
     }
 
     fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {

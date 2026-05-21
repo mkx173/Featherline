@@ -469,6 +469,7 @@ private fun PlanScreenContent(
                     timeFormatter = timeFormatter,
                     nextOccurrencesByGroup = uiState.nextOccurrencesByGroup,
                     today = uiState.today,
+                    firstDayOfWeek = uiState.calendarFirstDayOfWeek,
                     onGroupClick = onGroupClick
                 )
             }
@@ -676,6 +677,7 @@ private fun RegimenSection(
     timeFormatter: DateTimeFormatter,
     nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>>,
     today: LocalDate,
+    firstDayOfWeek: DayOfWeek,
     onGroupClick: (UUID) -> Unit
 ) {
     val dailyCount = remember(groups) {
@@ -759,7 +761,8 @@ private fun RegimenSection(
                         today = today,
                         onClick = { onGroupClick(group.uuid) },
                         index = index,
-                        itemCount = groups.size
+                        itemCount = groups.size,
+                        firstDayOfWeek = firstDayOfWeek,
                     )
                 }
             }

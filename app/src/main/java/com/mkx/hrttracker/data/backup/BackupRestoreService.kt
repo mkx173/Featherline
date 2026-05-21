@@ -30,6 +30,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.settings.AppLanguageOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -200,6 +201,7 @@ class BackupRestoreService @Inject constructor(
             widgetBackgroundAlpha = validatedSnapshot.settings.widgetBackgroundAlpha,
             widgetDarkModeOption = validatedSnapshot.settings.widgetDarkModeOption,
             groupNameCounter = validatedSnapshot.settings.groupNameCounter,
+            firstDayOfWeekOption = validatedSnapshot.settings.firstDayOfWeekOption,
         )
 
         // Reminder rescheduling is a best-effort side effect — the data is
@@ -642,6 +644,10 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         appLanguageOption,
         "app language option",
     )
+    val firstDayOfWeekOption = requireEnumName<FirstDayOfWeekOption>(
+        firstDayOfWeekOption,
+        "first day of week option",
+    )
     val calibrationDefaultUnits = calibrationDefaultUnits.map { (analyteStorageValue, unitStorageValue) ->
         val analyteKey = checkNotNull(BloodAnalyteKey.fromStorageValue(analyteStorageValue)) {
             "Unsupported calibration analyte key $analyteStorageValue."
@@ -679,6 +685,7 @@ private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSetting
         widgetBackgroundAlpha = widgetBackgroundAlpha.requireFiniteIn(0.5f..1f, "widget background opacity"),
         widgetDarkModeOption = widgetDarkModeOption,
         groupNameCounter = groupNameCounter,
+        firstDayOfWeekOption = firstDayOfWeekOption,
     )
 }
 
@@ -803,6 +810,7 @@ internal data class ValidatedBackupSettings(
     val widgetBackgroundAlpha: Float,
     val widgetDarkModeOption: DarkModeOption,
     val groupNameCounter: Int,
+    val firstDayOfWeekOption: FirstDayOfWeekOption,
 )
 
 private data class ValidatedMedicationData(

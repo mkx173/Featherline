@@ -5,6 +5,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 
 @get:StringRes
 val DarkModeOption.labelRes: Int
@@ -19,6 +20,15 @@ val AppLanguageOption.labelRes: Int
     get() = when (this) {
         AppLanguageOption.ENGLISH -> R.string.app_language_english
         AppLanguageOption.SIMPLIFIED_CHINESE -> R.string.app_language_simplified_chinese
+    }
+
+@get:StringRes
+val FirstDayOfWeekOption.menuLabelRes: Int
+    get() = when (this) {
+        FirstDayOfWeekOption.FOLLOW_SYSTEM -> R.string.dark_mode_follow_system
+        FirstDayOfWeekOption.SATURDAY -> R.string.first_day_of_week_saturday
+        FirstDayOfWeekOption.SUNDAY -> R.string.first_day_of_week_sunday
+        FirstDayOfWeekOption.MONDAY -> R.string.first_day_of_week_monday
     }
 
 @get:StringRes

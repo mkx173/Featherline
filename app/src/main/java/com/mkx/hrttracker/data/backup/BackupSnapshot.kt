@@ -40,6 +40,7 @@ data class BackupSettingsSnapshot(
     val widgetBackgroundAlpha: Float = 1.0f,
     val widgetDarkModeOption: String = "FOLLOW_SYSTEM",
     val groupNameCounter: Int = 0,
+    val firstDayOfWeekOption: String = "FOLLOW_SYSTEM",
 )
 
 

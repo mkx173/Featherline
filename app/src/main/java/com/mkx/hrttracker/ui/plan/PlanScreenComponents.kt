@@ -70,6 +70,7 @@ import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.formatEntryWallTime
 import com.mkx.hrttracker.util.isCrossZone
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -455,6 +456,7 @@ internal fun RegimenGroupCard(
     showUpcomingSection: Boolean = true,
     showStartDate: Boolean = true,
     metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
+    firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
@@ -539,7 +541,8 @@ internal fun RegimenGroupCard(
                                     group.schedule.interval,
                                     group.schedule.interval
                                 )
-                            )
+                            ),
+                            firstDayOfWeek = firstDayOfWeek,
                         )
                         Text(
                             text = groupScheduleSummary,

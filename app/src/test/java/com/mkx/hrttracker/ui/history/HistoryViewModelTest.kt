@@ -14,6 +14,7 @@ import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
@@ -61,7 +62,9 @@ class HistoryViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        every { settingsRepository.settingsState } returns MutableStateFlow(SettingsState())
+        every { settingsRepository.settingsState } returns MutableStateFlow(
+            SettingsState(firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY)
+        )
     }
 
     @After
@@ -348,7 +351,7 @@ class HistoryViewModelTest {
 
     @Test
     fun hiddenArchivedGroupRecords_areCountedForDeleteAllWarning() = runTest {
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false))
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = testGroup(
             uuid = UUID.fromString("5130b7b7-50dd-4a62-bd08-15f35b7863de"),
@@ -392,7 +395,7 @@ class HistoryViewModelTest {
 
     @Test
     fun deleteAllEntries_deletesHiddenArchivedOnlyRecords() = runTest {
-        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false))
+        val settingsState = MutableStateFlow(SettingsState(showArchivedGroupRecords = false, firstDayOfWeekOption = FirstDayOfWeekOption.MONDAY))
         every { settingsRepository.settingsState } returns settingsState
         val archivedGroup = testGroup(
             uuid = UUID.fromString("0e26438c-d4b6-4ee0-a4e9-91f9affebf11"),

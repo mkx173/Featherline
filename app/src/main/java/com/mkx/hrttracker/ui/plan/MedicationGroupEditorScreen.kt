@@ -1414,6 +1414,7 @@ private fun MedicationGroupEditorScreenContent(
                             sinceDate = uiState.sinceDate,
                             intervalWeeks = uiState.weeklyIntervalWeeks,
                             selectedDaysOfWeek = uiState.weeklyDaysOfWeek,
+                            firstDayOfWeek = uiState.firstDayOfWeek,
                             time = uiState.weeklyTime,
                             originalTime = uiState.originalWeeklyTime.takeIf {
                                 uiState.originalScheduleType ==

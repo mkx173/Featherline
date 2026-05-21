@@ -21,6 +21,7 @@ import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
 import com.mkx.hrttracker.model.settings.DarkModeOption
+import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.currentAppLocale
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -86,6 +87,7 @@ class SettingsRepository @Inject constructor(
     private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
     private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
+    private val firstDayOfWeekKey = stringPreferencesKey("first_day_of_week")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
 
     private fun activeDataStore(): DataStore<Preferences> =
@@ -211,6 +213,16 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setFirstDayOfWeekOption(option: FirstDayOfWeekOption) {
+        activeDataStore().edit { preferences ->
+            if (option == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
+                preferences.remove(firstDayOfWeekKey)
+            } else {
+                preferences[firstDayOfWeekKey] = option.name
+            }
+        }
+    }
+
     suspend fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
         activeDataStore().edit { preferences ->
             preferences[appLockGracePeriodKey] = option.name
@@ -294,6 +306,7 @@ class SettingsRepository @Inject constructor(
         widgetBackgroundAlpha: Float = 1.0f,
         widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
+        firstDayOfWeekOption: FirstDayOfWeekOption = FirstDayOfWeekOption.FOLLOW_SYSTEM,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
@@ -338,6 +351,12 @@ class SettingsRepository @Inject constructor(
             preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
             preferences[widgetDarkModeKey] = widgetDarkModeOption.name
             preferences[groupNameCounterKey] = groupNameCounter
+
+            if (firstDayOfWeekOption == FirstDayOfWeekOption.FOLLOW_SYSTEM) {
+                preferences.remove(firstDayOfWeekKey)
+            } else {
+                preferences[firstDayOfWeekKey] = firstDayOfWeekOption.name
+            }
         }
 
         setAppLanguageOption(appLanguageOption)
@@ -383,6 +402,7 @@ class SettingsRepository @Inject constructor(
             widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(0.5f, 1.0f),
             widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
+            firstDayOfWeekOption = FirstDayOfWeekOption.fromStorageValue(preferences[firstDayOfWeekKey]),
         )
     }
 
