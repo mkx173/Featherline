@@ -47,10 +47,18 @@ class QuickLogActionCallback : ActionCallback {
         }
 
         // Restrict to the tapped medication so the callback doesn't log all
-        // medications in the group when only one row was tapped.
+        // medications in the group when only one row was tapped. A non-null
+        // uuid that no longer resolves means the snapshot is stale (e.g. the
+        // medication was removed) — refresh and bail rather than logging the
+        // remaining siblings.
         val targetGroup = if (medicationUuid != null) {
             val match = group.medications.firstOrNull { it.uuid == medicationUuid }
-            if (match != null) group.copy(medications = listOf(match)) else group
+            if (match == null) {
+                diagnosticsLogger.warning(TAG, "widget_quick_log_medication_not_found uuid=$medicationUuid")
+                updateAllHrtWidgets(context.applicationContext)
+                return
+            }
+            group.copy(medications = listOf(match))
         } else {
             group
         }
