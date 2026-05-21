@@ -68,7 +68,7 @@ The full architecture, data model, and reminder pipeline are documented in [docs
 - Replace the pharmacokinetic engine with a more general multi-medication model
 - Personal-PK calibration tuned from your own lab results
 - Optional encrypted cloud backup (off by default, end-to-end encrypted)
-- Additional languages — translation contributions welcomed
+- Additional languages — translation contributions welcomed (see [docs/localization.md](docs/localization.md))
 
 ## Tech stack
 

@@ -77,7 +77,10 @@ locale or the 12/24-hour preference at compose time.
 language and `context.uses24HourTimeFormat()` and threads it into
 `buildWidgetSnapshotRecord(timeFormatter = …)`. The `TIME_12_24`
 observer in [Update triggers](#update-triggers) drives a refresh when
-the preference flips.
+the preference flips. See [Localization](localization.md) for the
+widget-specific hard-coded compositions (`/$totalCount <DONE>`,
+`" · "` separators, `"E2 ~"` summary) that need review when adding a
+new language.
 
 ### Persist
 

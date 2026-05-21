@@ -68,7 +68,7 @@ Featherline 是一个基于 Kotlin 与 Jetpack Compose 的单模块 Android 应�
 - 用更通用的多药物模型替换当前药代引擎
 - 基于个人化验数据校准的个体化药代参数
 - 可选的端到端加密云备份（默认关闭）
-- 更多语言——欢迎翻译贡献
+- 更多语言——欢迎翻译贡献（请参阅 [docs/localization.md](docs/localization.md)）
 
 ## 技术栈
 

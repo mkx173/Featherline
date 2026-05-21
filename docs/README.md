@@ -30,6 +30,8 @@ download links, see the [repo README](../README.md).
   flavor purpose, changelog discipline.
 - [Testing](testing.md) — test suite layout, conventions, benchmark
   and baseline-profile usage.
+- [Localization](localization.md) — adding a new app language,
+  resource layout, locale-aware formatters, and validation steps.
 
 ## User-facing & legal
 

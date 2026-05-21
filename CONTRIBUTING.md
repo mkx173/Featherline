@@ -59,6 +59,10 @@ This repo follows conventional-commits. The prefixes that have appeared so far:
 
 Keep the subject line under ~72 characters. Use the body to explain *why* the change is needed; the *what* is usually obvious from the diff. Named-thing density (concrete class/function names rather than vague pronouns) is appreciated — the same convention the `docs/` pages follow.
 
+## Translations
+
+New language translations are welcome. The full workflow — picking the resource qualifier, copying `strings.xml`, registering the locale in `AppLanguageOption`, reviewing date/time and widget formatters, and the post-translation validation checklist — is in [`docs/localization.md`](docs/localization.md).
+
 ## License
 
 Featherline is released under [GPL-3.0](LICENSE). By opening a pull request, you confirm that you have the right to license your changes under GPL-3.0 and that you intend to do so. No CLA, no copyright assignment.
