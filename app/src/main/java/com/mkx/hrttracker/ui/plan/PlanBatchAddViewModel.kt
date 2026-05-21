@@ -21,12 +21,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import javax.inject.Inject
 
@@ -377,10 +375,11 @@ private fun MedicationGroupSchedule.isScheduledOnForBatchAdd(date: LocalDate): B
             if (weeklyDaysOfWeek.isEmpty() || date.dayOfWeek !in weeklyDaysOfWeek) {
                 return false
             }
-            val sinceWeekStart = since.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val dateWeekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val weeksBetween = ChronoUnit.WEEKS.between(sinceWeekStart, dateWeekStart)
-            weeksBetween % normalizedInterval.toLong() == 0L
+            // Mirrors MedicationGroupSchedule.isScheduledOn's since-anchored
+            // cadence. Diverges only in that batch-add allows dates before
+            // `since` (for backfill), so we drop the date.isBefore(since) guard.
+            val weekIndex = ChronoUnit.DAYS.between(since, date) / 7L
+            weekIndex % normalizedInterval.toLong() == 0L
         }
     }
 }
