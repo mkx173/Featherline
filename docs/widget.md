@@ -70,6 +70,15 @@ Manual (off-schedule) log entries take a separate path
 `groupUuid = null` and `scheduleTimeUuid = null`, which is the
 invariant that makes [group collapsing](#group-collapsing) safe.
 
+Trailing times are pre-formatted into the snapshot rather than stored
+as `LocalDateTime`, because Glance composables can't read the host
+locale or the 12/24-hour preference at compose time.
+`WidgetSnapshotRepository` builds a `DateTimeFormatter` from the app
+language and `context.uses24HourTimeFormat()` and threads it into
+`buildWidgetSnapshotRecord(timeFormatter = …)`. The `TIME_12_24`
+observer in [Update triggers](#update-triggers) drives a refresh when
+the preference flips.
+
 ### Persist
 
 [`WidgetSnapshotStore.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetSnapshotStore.kt)
@@ -125,11 +134,69 @@ live in
 The `appwidget-provider` XML
 ([`hrt_widget_medium_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_medium_info.xml),
 [`hrt_widget_large_info.xml`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/res/xml/hrt_widget_large_info.xml))
-declares `resizeMode="horizontal|vertical"` plus smaller `minWidth` /
-`minHeight` than the responsive bucket, so the launcher can resize the
-widget down. Because each widget exposes only one bucket, the Glance
-composition itself does not branch on size — there is no compact
-layout today, just launcher-side scaling.
+declares `resizeMode="horizontal|vertical"` plus a `minWidth` /
+`minHeight` smaller than the target cell, so the launcher can resize
+the widget down. The Glance composition does not branch on size — it
+scales (see below) rather than swapping to a compact layout.
+
+#### Per-device baseline scaling
+
+`SizeMode.Exact` means the live widget renders at whatever dp size the
+launcher hands out for the 2×2 / 4×2 cell, which varies by device and
+launcher. To keep the visual scale stable across devices and resizes,
+`widgetScale(widgetKey)` in
+[`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
+reads `LocalSize.current.height` on first render, persists it to the
+`hrt_widget_baseline` SharedPreferences (`medium_height_dp` /
+`large_height_dp`) as the device baseline, and on every subsequent
+render returns `(baselineDp / WIDGET_BASELINE_REFERENCE_DP) *
+LocalWidgetScale.current` — so resize shrinks the underlying cell but
+not the rendered scale. `WidgetShell` republishes the resulting value
+through `LocalWidgetScale` so every child composable picks it up.
+
+Heights outside `[50, 400]` dp are treated as transient (e.g. 0dp
+loading frames) and *not* persisted; the render falls back to
+`WIDGET_BASELINE_REFERENCE_DP = 276f` until a sane size shows up.
+During launcher-picker previews, `LocalPreviewBaselineHeight` is
+provided in `HrtPreviewContent` and short-circuits this whole path.
+
+## Launcher preview
+
+The widget picker has its own rendering path — independent of the
+live snapshot — fed by two delivery channels:
+
+- **Static XML (Android 12+ fallback).** Each `appwidget-provider`
+  declares `android:previewLayout="@layout/hrt_widget_medium_preview"`
+  / `hrt_widget_large_preview`. These are hand-built `RemoteViews`
+  layouts (under `res/layout/`) that mirror the Compose output with
+  hardcoded sample data and translatable strings; they are what the
+  picker shows when no generated preview is available.
+- **Generated dynamic preview (Android 15+).** `HrtWidgetMedium` /
+  `HrtWidgetLarge` override `providePreview(context, widgetCategory)`,
+  which routes through `provideHrtPreviewContent`. That host runs the
+  same Compose content as the live widget but supplies a fabricated
+  `previewSnapshot(context)` plus three preview-only locals:
+  `LocalWidgetScale = WIDGET_PREVIEW_CONTENT_SCALE`,
+  `LocalPreviewBaselineHeight = WIDGET_BASELINE_REFERENCE_DP`, and
+  `LocalPreviewE2Text` (a pre-formatted trend pill that bypasses
+  `PkProjection`, whose windowing dislikes fabricated data).
+
+  `HomeWidgetManager.publishGeneratedWidgetPreviews()` publishes the
+  dynamic preview once at startup via
+  `GlanceAppWidgetManager.setWidgetPreviews(receiver,
+  [WIDGET_CATEGORY_HOME_SCREEN])`. The success result is recorded in
+  `hrt_widget_generated_previews` SharedPreferences under
+  `home_screen_preview_version_<class>` with the current
+  `GENERATED_PREVIEW_VERSION`, so it does not re-publish on every
+  launch (and so we respect Android's `setWidgetPreviews` rate limit).
+  **Bump `GENERATED_PREVIEW_VERSION` whenever the preview content
+  changes** — otherwise the previously cached preview keeps showing
+  in the picker.
+
+The Compose preview path also drives `@GlancePreview`-annotated
+composables in `HrtWidget.kt` (`MediumWidgetPreview`,
+`LargeWidgetPreview`) so the preview matches what the picker renders
+at design time.
 
 ## Update triggers
 
