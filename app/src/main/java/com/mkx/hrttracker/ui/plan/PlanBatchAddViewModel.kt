@@ -376,9 +376,13 @@ private fun MedicationGroupSchedule.isScheduledOnForBatchAdd(date: LocalDate): B
                 return false
             }
             // Mirrors MedicationGroupSchedule.isScheduledOn's since-anchored
-            // cadence. Diverges only in that batch-add allows dates before
-            // `since` (for backfill), so we drop the date.isBefore(since) guard.
-            val weekIndex = ChronoUnit.DAYS.between(since, date) / 7L
+            // cadence. Diverges in that batch-add allows dates before `since`
+            // (for backfill), so the date.isBefore(since) guard is dropped
+            // and we use Math.floorDiv — JVM `/` truncates toward zero, which
+            // for negative deltas would lump dates in the 6 days before
+            // `since` into week 0 and push dates 7–13 days before into
+            // week -1, breaking every-N-weeks parity around the boundary.
+            val weekIndex = Math.floorDiv(ChronoUnit.DAYS.between(since, date), 7L)
             weekIndex % normalizedInterval.toLong() == 0L
         }
     }
