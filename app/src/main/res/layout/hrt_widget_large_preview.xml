@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static appwidget-provider previewLayout for the large widget on Android
+  12–14 (API 31–34). API 35+ uses providePreview() in HrtWidget.kt.
+  Mirrors LargeWidgetContent at WIDGET_PREVIEW_CONTENT_SCALE (0.6×) with the
+  three rows from previewSnapshot(): CPA done, Estradiol due-soon, Progesterone
+  upcoming. Keep status/color/trailing-text choices in sync with the snapshot.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_preview_shell_bg"
+    android:padding="12dp">
+
+    <!-- Header row: TODAY · 1/3 DONE label + 3-segment progress bar in a
+         column, E2 trend text vertically centered to the right. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_large_header"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="5dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_preview_progress_done" />
+
+                <FrameLayout
+                    android:layout_width="2dp"
+                    android:layout_height="match_parent" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_preview_progress_track" />
+
+                <FrameLayout
+                    android:layout_width="2dp"
+                    android:layout_height="match_parent" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_preview_progress_track" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="20dp"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_preview_e2_label"
+            android:textColor="@color/widget_preview_on_surface_variant"
+            android:textSize="10sp"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="7dp" />
+
+    <!-- Card 1: Cyproterone acetate, DONE, TEAL accent. No trailing text;
+         action button shows a check on primaryContainer. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/widget_preview_card_bg"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
+
+        <LinearLayout
+            android:layout_width="4dp"
+            android:layout_height="26dp"
+            android:background="@drawable/widget_preview_accent_teal" />
+
+        <FrameLayout
+            android:layout_width="6dp"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/medication_name_cyproterone_acetate"
+                android:textColor="@color/widget_preview_on_surface"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_dose_supporting_cpa"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="8sp"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:layout_width="19dp"
+            android:layout_height="19dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/widget_preview_done_circle"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_check"
+                android:tint="@color/widget_preview_on_primary_container"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="2dp" />
+
+    <!-- Card 2: Estradiol valerate, DUE_SOON, ROSE accent. Trailing time;
+         action button shows a plus on tertiaryContainer. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/widget_preview_card_bg"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
+
+        <LinearLayout
+            android:layout_width="4dp"
+            android:layout_height="26dp"
+            android:background="@drawable/widget_preview_accent_rose" />
+
+        <FrameLayout
+            android:layout_width="6dp"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/medication_name_estradiol_valerate"
+                android:textColor="@color/widget_preview_on_surface"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_dose_supporting"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="8sp"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_preview_dose_time"
+            android:textColor="@color/widget_preview_on_surface"
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:layout_width="19dp"
+            android:layout_height="19dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/widget_preview_action_circle"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_add"
+                android:tint="@color/widget_preview_on_tertiary_container"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="2dp" />
+
+    <!-- Card 3: Progesterone, UPCOMING, INDIGO accent. Trailing evening time;
+         action button shows a navigate arrow on surfaceVariant. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/widget_preview_card_bg"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
+
+        <LinearLayout
+            android:layout_width="4dp"
+            android:layout_height="26dp"
+            android:background="@drawable/widget_preview_accent_indigo" />
+
+        <FrameLayout
+            android:layout_width="6dp"
+            android:layout_height="match_parent" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_calibration_analyte_prog"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_dose_supporting_progesterone"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="8sp"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_preview_dose_time_evening"
+            android:textColor="@color/widget_preview_on_surface"
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent" />
+
+        <FrameLayout
+            android:layout_width="19dp"
+            android:layout_height="19dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/widget_preview_navigate_circle"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_arrow_forward"
+                android:tint="@color/widget_preview_on_surface_variant"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

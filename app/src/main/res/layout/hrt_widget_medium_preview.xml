@@ -148,7 +148,7 @@
             <LinearLayout
                 android:layout_width="4dp"
                 android:layout_height="26dp"
-                android:background="@drawable/widget_preview_accent_bar" />
+                android:background="@drawable/widget_preview_accent_rose" />
 
             <FrameLayout
                 android:layout_width="6dp"

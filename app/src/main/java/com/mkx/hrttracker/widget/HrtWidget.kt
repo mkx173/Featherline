@@ -455,7 +455,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     GlanceModifier
                 }
                 Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
-                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = 0.dp)
+                    SectionHeader(text = context.getString(R.string.widget_upcoming), topPadding = ((2 * scale).dp))
                     Spacer(modifier = GlanceModifier.height((4 * scale).dp))
                     Row(
                         modifier = GlanceModifier
