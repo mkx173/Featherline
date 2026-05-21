@@ -336,7 +336,7 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
             // ── Top panel: progress ───────────────────────────────────────────
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
             ) {
                 WidgetLabel(context.getString(R.string.widget_today))
                 if (e2Text != null) {

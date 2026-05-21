@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static appwidget-provider previewLayout used by Android 12–14 (API 31–34)
+  widget pickers. API 35+ uses providePreview() in HrtWidget.kt instead.
+  Sample data mirrors previewSnapshot() in HrtWidget.kt — keep them in sync.
+  Interior dimensions are pre-scaled by WIDGET_PREVIEW_CONTENT_SCALE (0.6×) to
+  match the Compose preview; outer shell (22dp corners, 12dp padding) stays
+  unscaled, matching the live widget.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_preview_shell_bg"
+    android:padding="12dp">
+
+    <!-- Top: TODAY label + E2 trend -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="bottom">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_today"
+            android:textAllCaps="true"
+            android:textColor="@color/widget_preview_on_surface_variant"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_preview_e2_label"
+            android:textColor="@color/widget_preview_on_surface_variant"
+            android:textSize="10sp"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <!-- Progress count + ring -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1"
+                android:textColor="@color/widget_preview_on_surface"
+                android:textSize="25sp"
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
+
+            <FrameLayout
+                android:layout_width="2dp"
+                android:layout_height="match_parent" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_done_count_label"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:maxLines="1" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+        <ImageView
+            android:layout_width="19dp"
+            android:layout_height="19dp"
+            android:src="@drawable/widget_preview_progress_ring"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+
+    <!-- Bottom: section header + active dose card + trailing row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginTop="3dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_upcoming"
+                android:textAllCaps="true"
+                android:textColor="@color/widget_preview_on_surface_variant"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+
+            <FrameLayout
+                android:layout_width="8dp"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/widget_preview_outline_variant" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="2dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/widget_preview_card_bg"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+
+            <LinearLayout
+                android:layout_width="4dp"
+                android:layout_height="26dp"
+                android:background="@drawable/widget_preview_accent_bar" />
+
+            <FrameLayout
+                android:layout_width="6dp"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/medication_name_estradiol_valerate"
+                    android:textColor="@color/widget_preview_on_surface"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/widget_preview_dose_supporting"
+                    android:textColor="@color/widget_preview_on_surface_variant"
+                    android:textSize="8sp"
+                    android:maxLines="1" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end|center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/widget_preview_dose_time"
+                android:textColor="@color/widget_preview_on_surface"
+                android:textSize="11sp"
+                android:maxLines="1" />
+
+            <FrameLayout
+                android:layout_width="8dp"
+                android:layout_height="match_parent" />
+
+            <FrameLayout
+                android:layout_width="26dp"
+                android:layout_height="26dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/widget_preview_action_circle"
+                    android:importantForAccessibility="no" />
+
+                <ImageView
+                    android:layout_width="19dp"
+                    android:layout_height="19dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_add"
+                    android:tint="@color/widget_preview_on_tertiary_container"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>
