@@ -22,7 +22,7 @@ The model uses population-average parameters: absorption rates, distribution vol
 
 Known limitations of the v1 model:
 
-- **Single-analyte.** It projects estradiol only. It does not track testosterone, progesterone, SHBG, prolactin, or any other hormone, even when those are part of your regimen and relevant to interpretation.
+- **Estradiol-only projection.** The simulated curve covers estradiol only. The app *records* blood tests for testosterone, progesterone, prolactin, FSH, LH, and user-defined custom analytes — and tracks the medications that affect them — but it does not simulate or project levels for anything other than estradiol. Use the projection as an E2 reference; read every other analyte from your actual lab results.
 - **Three-compartment approximation.** Real human pharmacokinetics involves many more compartments and pathways. The three-compartment model is a tractable simplification, not a faithful biological simulation.
 - **No personal calibration.** The model is not tuned to your own lab results. There is no Bayesian update from your blood tests back into the model parameters in v1.
 

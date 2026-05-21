@@ -67,9 +67,13 @@ points all funnel through the same `scheduleReminder` worker:
 - `rescheduleAll(now)` — full rebuild from `medicationGroupRepository`
   and `medicationLogRepository`. Used by the capability reconciler.
 - `rescheduleFromHomeSnapshot(snapshot, now)` — reuses an already-built
-  `HomeSnapshotRecord` instead of re-reading the DB. Mutation paths in
-  `data/` call this so a single home refresh covers both UI and
-  scheduling.
+  `HomeSnapshotRecord` instead of re-reading the DB. The only caller
+  is
+  [`StartupPreloader`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/startup/StartupPreloader.kt),
+  which seeds the alarm set from the persisted home snapshot before
+  the database is warm — a single read covers both home paint and
+  reminder rebuild. UI mutation paths still call `rescheduleAll()` (or
+  `rescheduleGroup()` for a known edit) after saving.
 - `rescheduleGroup(groupUuid, after)` — single-group path used after a
   reminder fires or a group is edited.
 

@@ -3,11 +3,13 @@ package com.mkx.hrttracker.data.repository
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -32,10 +34,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,6 +53,18 @@ private val Context.dataStore by preferencesDataStore(
 class SettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) {
+    internal constructor(
+        context: Context,
+        dataStore: DataStore<Preferences>,
+    ) : this(context) {
+        storedPreferencesOverride = dataStore
+    }
+
+    // Null in production (activeDataStore() is used); set by the internal test constructor before
+    // storedPreferences is accessed.  Must be assigned before any flow property is first collected.
+    @Volatile
+    private var storedPreferencesOverride: DataStore<Preferences>? = null
+
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val appLockGracePeriodKey = stringPreferencesKey("app_lock_grace_period")
     private val calibrationDefaultUnitKeys = BloodAnalyteKey.entries.associateWith { analyteKey ->
@@ -65,14 +82,21 @@ class SettingsRepository @Inject constructor(
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val lastSeenTimeZoneIdKey = stringPreferencesKey("last_seen_time_zone_id")
     private val hideMedicationDetailsKey = booleanPreferencesKey("hide_medication_details")
+    private val widgetContentScaleKey = floatPreferencesKey("widget_content_scale")
+    private val widgetBackgroundAlphaKey = floatPreferencesKey("widget_background_alpha")
+    private val widgetDarkModeKey = stringPreferencesKey("widget_dark_mode")
     private val groupNameCounterKey = intPreferencesKey("group_name_counter")
     private val appLanguageOption = MutableStateFlow(resolveCurrentAppLanguage())
+
+    private fun activeDataStore(): DataStore<Preferences> =
+        storedPreferencesOverride ?: context.dataStore
 
     // Transient IOException (low memory, EBUSY during fsync) would otherwise tear
     // down the upstream combine. SupervisorJob protects sibling jobs but not the
     // inner pipeline, so a per-flow .catch is required.
-    private val storedPreferences: Flow<Preferences> = context.dataStore.data
-        .catch { cause ->
+    private val storedPreferences: Flow<Preferences> = flow {
+        emitAll(activeDataStore().data)
+    }.catch { cause ->
             if (cause is IOException) {
                 emit(emptyPreferences())
             } else {
@@ -95,6 +119,10 @@ class SettingsRepository @Inject constructor(
         }
         .distinctUntilChanged()
 
+    val homeE2DisplayUnitFlow: Flow<AllowedAnalyteUnit> = storedPreferences
+        .map { preferences -> resolveHomeE2DisplayUnit(preferences[homeE2DisplayUnitKey]) }
+        .distinctUntilChanged()
+
     val settingsState: StateFlow<SettingsState> = combine(
         storedPreferences.map(::preferencesToStoredSettingsState),
         appLanguageOption
@@ -108,24 +136,24 @@ class SettingsRepository @Inject constructor(
         )
 
     suspend fun getCurrentSettings(): SettingsState {
-        return preferencesToStoredSettingsState(context.dataStore.data.first())
+        return preferencesToStoredSettingsState(activeDataStore().data.first())
             .copy(appLanguageOption = appLanguageOption.value)
     }
 
     suspend fun setDarkModeOption(option: DarkModeOption) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[darkModeKey] = option.name
         }
     }
 
     suspend fun setAdaptiveColorEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[adaptiveColorKey] = enabled
         }
     }
 
     suspend fun setCalibrationDefaultUnit(choice: AllowedAnalyteUnit) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             val key = calibrationDefaultUnitKeys.getValue(choice.analyte)
             if (choice.unit == BloodTestCatalog.canonicalUnitFor(choice.analyte)) {
                 preferences.remove(key)
@@ -140,7 +168,7 @@ class SettingsRepository @Inject constructor(
             "Home E2 display unit must reference analyte E2; got ${choice.analyte.storageValue}."
         }
 
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             if (choice.unit == BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)) {
                 preferences.remove(homeE2DisplayUnitKey)
             } else {
@@ -150,7 +178,7 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setHomeE2ChartWindowOption(option: HomeE2ChartWindowOption) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             if (option == HomeE2ChartWindowOption.SEVEN_DAYS) {
                 preferences.remove(homeE2ChartWindowKey)
             } else {
@@ -160,50 +188,74 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setRemindersEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[remindersEnabledKey] = enabled
         }
     }
 
     suspend fun setShowArchivedGroupRecords(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[showArchivedGroupRecordsKey] = enabled
         }
     }
 
     suspend fun setHideReferenceRanges(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[hideReferenceRangesKey] = enabled
         }
     }
 
     suspend fun setScreenLockProtectionEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[screenLockProtectionKey] = enabled
         }
     }
 
     suspend fun setAppLockGracePeriodOption(option: AppLockGracePeriodOption) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[appLockGracePeriodKey] = option.name
         }
     }
 
     suspend fun setHideScreenContentEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[hideScreenContentKey] = enabled
         }
     }
 
     suspend fun setHideMedicationDetails(hidden: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[hideMedicationDetailsKey] = hidden
+        }
+    }
+
+    suspend fun setWidgetContentScale(value: Float) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetContentScaleKey] = value
+        }
+    }
+
+    suspend fun setWidgetBackgroundAlpha(value: Float) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetBackgroundAlphaKey] = value.coerceIn(0.5f, 1.0f)
+        }
+    }
+
+    suspend fun setWidgetAppearance(
+        contentScale: Float,
+        backgroundAlpha: Float,
+        darkModeOption: DarkModeOption,
+    ) {
+        activeDataStore().edit { preferences ->
+            preferences[widgetContentScaleKey] = contentScale
+            preferences[widgetBackgroundAlphaKey] = backgroundAlpha.coerceIn(0.5f, 1.0f)
+            preferences[widgetDarkModeKey] = darkModeOption.name
         }
     }
 
     suspend fun nextGroupNameIndex(): Int {
         var result = 0
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             val next = (preferences[groupNameCounterKey] ?: 0) + 1
             preferences[groupNameCounterKey] = next
             result = next
@@ -212,13 +264,13 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[onboardingCompletedKey] = completed
         }
     }
 
     suspend fun acknowledgeTimeZone(zoneId: String) {
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[lastSeenTimeZoneIdKey] = zoneId
         }
     }
@@ -238,13 +290,16 @@ class SettingsRepository @Inject constructor(
         homeE2ChartWindowOption: HomeE2ChartWindowOption,
         lastSeenTimeZoneId: String? = null,
         hideMedicationDetails: Boolean = false,
+        widgetContentScale: Float = 1.0f,
+        widgetBackgroundAlpha: Float = 1.0f,
+        widgetDarkModeOption: DarkModeOption = DarkModeOption.FOLLOW_SYSTEM,
         groupNameCounter: Int = 0,
     ) {
         require(homeE2DisplayUnit.analyte == BloodAnalyteKey.E2) {
             "Home E2 display unit must reference analyte E2; got ${homeE2DisplayUnit.analyte.storageValue}."
         }
 
-        context.dataStore.edit { preferences ->
+        activeDataStore().edit { preferences ->
             preferences[darkModeKey] = darkModeOption.name
             preferences[adaptiveColorKey] = adaptiveColorEnabled
             preferences[remindersEnabledKey] = remindersEnabled
@@ -279,6 +334,9 @@ class SettingsRepository @Inject constructor(
             }
 
             preferences[hideMedicationDetailsKey] = hideMedicationDetails
+            preferences[widgetContentScaleKey] = widgetContentScale
+            preferences[widgetBackgroundAlphaKey] = widgetBackgroundAlpha.coerceIn(0.5f, 1.0f)
+            preferences[widgetDarkModeKey] = widgetDarkModeOption.name
             preferences[groupNameCounterKey] = groupNameCounter
         }
 
@@ -287,6 +345,10 @@ class SettingsRepository @Inject constructor(
 
     fun setAppLanguageOption(option: AppLanguageOption) {
         appLanguageOption.value = option
+        val locale = Locale.forLanguageTag(option.languageTag)
+        // Number formatters (e.g. medicationDoseText) read Locale.getDefault() directly,
+        // so syncing it here keeps formatted doses aligned with the chosen UI language.
+        Locale.setDefault(locale)
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(option.languageTag))
     }
 
@@ -304,10 +366,7 @@ class SettingsRepository @Inject constructor(
                     ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(analyteKey, unit) }
                     ?.let { unit -> analyteKey to unit }
             }.toMap(),
-            homeE2DisplayUnit = preferences[homeE2DisplayUnitKey]
-                ?.let(BloodUnitKey::fromStorageValue)
-                ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit) }
-                ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2),
+            homeE2DisplayUnit = resolveHomeE2DisplayUnit(preferences[homeE2DisplayUnitKey]).unit,
             homeE2ChartWindowOption = HomeE2ChartWindowOption
                 .fromStorageValue(preferences[homeE2ChartWindowKey]),
             remindersEnabled = preferences[remindersEnabledKey] ?: true,
@@ -320,8 +379,19 @@ class SettingsRepository @Inject constructor(
             screenLockProtectionEnabled = preferences[screenLockProtectionKey] ?: false,
             lastSeenTimeZoneId = preferences[lastSeenTimeZoneIdKey],
             hideMedicationDetails = preferences[hideMedicationDetailsKey] ?: false,
+            widgetContentScale = preferences[widgetContentScaleKey] ?: 1.0f,
+            widgetBackgroundAlpha = (preferences[widgetBackgroundAlphaKey] ?: 1.0f).coerceIn(0.5f, 1.0f),
+            widgetDarkModeOption = DarkModeOption.fromStorageValue(preferences[widgetDarkModeKey]),
             groupNameCounter = preferences[groupNameCounterKey] ?: 0,
         )
+    }
+
+    private fun resolveHomeE2DisplayUnit(storedValue: String?): AllowedAnalyteUnit {
+        val unit = storedValue
+            ?.let(BloodUnitKey::fromStorageValue)
+            ?.takeIf { unit -> BloodTestCatalog.isUnitAllowed(BloodAnalyteKey.E2, unit) }
+            ?: BloodTestCatalog.canonicalUnitFor(BloodAnalyteKey.E2)
+        return AllowedAnalyteUnit.of(BloodAnalyteKey.E2, unit)
     }
 
     private fun resolveCurrentAppLanguage(): AppLanguageOption {

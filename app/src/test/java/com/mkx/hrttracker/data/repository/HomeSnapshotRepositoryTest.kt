@@ -3,9 +3,20 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HomeDao
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
+import com.mkx.hrttracker.data.local.MedicationGroupEntity
+import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
+import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
+import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationDoseKind
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
+import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -36,7 +47,9 @@ import org.junit.Test
 import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.util.UUID
 
 class HomeSnapshotRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
@@ -46,6 +59,7 @@ class HomeSnapshotRepositoryTest {
     private val diagnosticsLogger: AppDiagnosticsLogger = mockk(relaxed = true)
     private val generationState = MutableStateFlow(0L)
     private val chartWindowOptionState = MutableStateFlow(HomeE2ChartWindowOption.SEVEN_DAYS)
+    private val settingsState = MutableStateFlow(SettingsState())
 
     @Before
     fun setUp() {
@@ -61,6 +75,8 @@ class HomeSnapshotRepositoryTest {
             nextGeneration
         }
         every { settingsRepository.homeE2ChartWindowOptionFlow } returns chartWindowOptionState
+        every { settingsRepository.settingsState } returns settingsState
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
     }
 
     @Test
@@ -569,6 +585,7 @@ class HomeSnapshotRepositoryTest {
         coVerify(exactly = 1) { homeSnapshotStore.writeSnapshot(any()) }
         coVerify(exactly = 1) { homeSnapshotStore.clearSnapshot() }
     }
+
 
     private fun homeSnapshotRecord(
         generation: Long,

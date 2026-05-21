@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.findLastEstradiolEntry
+import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.nextScheduledForAfter
 import com.mkx.hrttracker.model.medication.occurrencesBetweenInPlanWindow
 import com.mkx.hrttracker.model.medication.previousScheduledForBefore
@@ -17,11 +18,11 @@ import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkTrendResult
-import com.mkx.hrttracker.ui.calibration.calibrationUnitLabel
-import com.mkx.hrttracker.ui.calibration.formatCalibrationConvertedValue
+import com.mkx.hrttracker.util.calibrationUnitLabel
+import com.mkx.hrttracker.util.formatCalibrationConvertedValue
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
-import com.mkx.hrttracker.ui.plan.buildPlanDaySchedule
 import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.util.appliedAtAsLocalDateTime
 import java.time.Duration
@@ -562,24 +563,6 @@ internal fun buildMainLastNightSection(
     )
 }
 
-internal fun formatMainE2ConcentrationValue(
-    value: Double,
-    displayUnit: BloodUnitKey,
-): String {
-    return when (displayUnit) {
-        BloodUnitKey.PG_ML,
-        BloodUnitKey.PMOL_L,
-        -> value.roundToLong().toString()
-
-        BloodUnitKey.NG_DL -> {
-            val roundedValue = (value * 10.0).roundToLong() / 10.0
-            String.format(Locale.US, "%.1f", roundedValue)
-        }
-
-        else -> formatCalibrationConvertedValue(value)
-    }
-}
-
 internal fun formatMainE2TrendDeltaValue(
     changeSinceYesterday: Double,
     displayUnit: BloodUnitKey,
@@ -981,3 +964,37 @@ private fun List<Pair<Double, Float>>.exactOrInterpolatedPointAt(
         else -> null
     }
 }
+
+// ── Widget dose row deep link ──────────────────────────────────────────────────
+
+sealed interface DoseRowHighlightKey {
+    data class Scheduled(
+        val groupUuid: UUID,
+        val scheduleTimeUuid: UUID?,
+        val scheduledAt: LocalDateTime,
+        val medicationUuid: UUID?,
+    ) : DoseRowHighlightKey
+
+    data class Manual(
+        val entryUuid: UUID,
+    ) : DoseRowHighlightKey
+}
+
+internal fun DoseRowHighlightKey.matches(row: MainTodayDoseRowUiState): Boolean =
+    when (this) {
+        is DoseRowHighlightKey.Scheduled ->
+            row.groupUuid == groupUuid &&
+                row.scheduleTimeUuid == scheduleTimeUuid &&
+                row.scheduledAt == scheduledAt &&
+                (medicationUuid == null || row.medication.uuid == medicationUuid)
+
+        is DoseRowHighlightKey.Manual ->
+            row.isManualRecord && entryUuid in row.fulfillingEntryUuids
+    }
+
+internal fun DoseRowHighlightKey.matches(row: MainUpcomingDoseRowUiState): Boolean =
+    this is DoseRowHighlightKey.Scheduled &&
+        row.groupUuid == groupUuid &&
+        row.scheduleTimeUuid == scheduleTimeUuid &&
+        row.scheduledAt == scheduledAt &&
+        (medicationUuid == null || row.medication.uuid == medicationUuid)

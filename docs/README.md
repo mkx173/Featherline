@@ -14,6 +14,8 @@ download links, see the [repo README](../README.md).
 
 - [Reminders](reminders.md) — AlarmManager pipeline, notification
   channels, snooze, exact-alarm permission handling.
+- [Widget](widget.md) — Glance app-widget pipeline, snapshot
+  persistence, refresh triggers, quick-log action contract.
 - [PK differences](pk-differences.md) — upstream PK reference and the
   specific differences in Featherline.
 - [Blood tests](blood-tests.md) — analyte catalog, unit-conversion
@@ -28,6 +30,8 @@ download links, see the [repo README](../README.md).
   flavor purpose, changelog discipline.
 - [Testing](testing.md) — test suite layout, conventions, benchmark
   and baseline-profile usage.
+- [Localization](localization.md) — adding a new app language,
+  resource layout, locale-aware formatters, and validation steps.
 
 ## User-facing & legal
 

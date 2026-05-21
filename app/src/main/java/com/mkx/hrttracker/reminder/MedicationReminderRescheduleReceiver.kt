@@ -71,13 +71,15 @@ internal fun handleReminderRescheduleBroadcast(
     appScope.launch {
         runCatching {
             reminderCapabilityReconciler.reconcile(reason = "receiver_$action")
-            // The snapshot's stored zoneId is captured at write time; a TZ or wall-clock
-            // change leaves it mismatched. isSnapshotUsable correctly rejects it for
-            // display, but no refresh would otherwise be enqueued — so the snapshot
-            // stays stale on disk until the next mutation. Force a refresh here.
+            // Force a full refresh for events that leave the snapshot stale or invalid:
+            // - TZ/time change: stored zoneId mismatches the new wall clock
+            // - Boot: projection may have expired while the device was off
+            // - Package replaced: schema version bump silently rejects the old snapshot
             if (
                 action == Intent.ACTION_TIMEZONE_CHANGED ||
-                action == Intent.ACTION_TIME_CHANGED
+                action == Intent.ACTION_TIME_CHANGED ||
+                action == Intent.ACTION_BOOT_COMPLETED ||
+                action == Intent.ACTION_MY_PACKAGE_REPLACED
             ) {
                 homeSnapshotRepository.refreshHomeSnapshotAsync(force = true)
             }

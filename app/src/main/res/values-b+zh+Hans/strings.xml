@@ -16,8 +16,8 @@
     <string name="main_upcoming_title">即将到来</string>
     <string name="main_today_summary_done_label">已完成</string>
     <string name="main_today_summary_manual_label">手动</string>
-    <string name="main_today_empty_state">今天暂无计划</string>
-    <string name="main_upcoming_empty_state">接下来 90 天内暂无计划</string>
+    <string name="main_today_empty_state">今天没有计划</string>
+    <string name="main_upcoming_empty_state">接下来 90 天内没有计划</string>
     <string name="main_today_quick_log">快速记录</string>
     <string name="main_today_range_night">夜间</string>
     <string name="main_today_range_morning">上午</string>
@@ -31,7 +31,6 @@
     </plurals>
     <string name="main_e2_title">雌二醇 · 估算</string>
     <string name="main_e2_estimate_info">显示雌二醇估算说明</string>
-    <string name="main_e2_chart_title">7 天趋势</string>
     <string name="main_e2_chart_title_seven_days">7 天趋势</string>
     <string name="main_e2_chart_title_thirty_days">30 天趋势</string>
     <string name="main_e2_chart_window_toggle_cd">切换图表窗口</string>
@@ -273,6 +272,7 @@
     <string name="quick_add_group_planned_slot_today">今天</string>
     <string name="cancel">取消</string>
     <string name="save">保存</string>
+    <string name="done">完成</string>
     <string name="archive">归档</string>
     <string name="archived_group_record_indicator">来自已归档分组</string>
     <string name="cross_timezone_entry_indicator">在其他时区记录</string>
@@ -342,6 +342,10 @@
     <string name="settings_app_language">应用语言</string>
     <string name="settings_dark_mode">深色模式</string>
     <string name="settings_adaptive_color">自适应配色</string>
+    <string name="settings_widget_appearance">小部件</string>
+    <string name="settings_widget_content_scale">内容大小</string>
+    <string name="settings_widget_background_opacity">背景不透明度</string>
+    <string name="settings_widget_dark_mode">深色模式</string>
     <string name="settings_display">显示</string>
     <string name="settings_hide_archived_group_records">隐藏已归档分组的记录</string>
     <string name="settings_hide_archived_group_records_summary">在计划和历史中隐藏已归档分组的记录</string>
@@ -461,9 +465,7 @@
     <string name="personalization_weight">体重</string>
     <string name="personalization_weight_not_set">未设置</string>
     <string name="personalization_weight_display">%1$s %2$s</string>
-    <string name="personalization_weight_unit_kg">千克 (kg)</string>
     <string name="personalization_weight_unit_kg_short">kg</string>
-    <string name="personalization_weight_unit_lb">磅 (lb)</string>
     <string name="personalization_weight_unit_lb_short">lb</string>
     <string name="personalization_weight_dialog_title">体重</string>
     <string name="personalization_weight_dialog_description">用于改进血药浓度估算</string>
@@ -580,4 +582,24 @@
     <string name="confirm">确定</string>
     <string name="select_date">选择日期</string>
     <string name="select_time">选择时间</string>
+    <string name="widget_medium_description">剂量概览</string>
+    <string name="widget_large_description">剂量列表</string>
+    <string name="widget_all_done">全部完成</string>
+    <string name="widget_all_logged">已全部记录</string>
+    <string name="widget_nothing_more_today">没有更多计划</string>
+    <string name="widget_no_medications">未设置用药计划</string>
+    <string name="widget_no_doses_today">今天没有计划</string>
+    <string name="widget_last_night">昨晚</string>
+    <string name="widget_today">今天</string>
+    <string name="widget_tonight">今晚</string>
+    <string name="widget_manual_record">手动记录</string>
+    <string name="widget_upcoming">即将到来</string>
+    <string name="widget_preview_e2_label">E2 ~120 pg/mL</string>
+    <string name="widget_preview_done_count_label">/3 已完成</string>
+    <string name="widget_preview_dose_supporting">口服 · 2 mg</string>
+    <string name="widget_preview_dose_time">09:00</string>
+    <string name="widget_preview_large_header">今天 · 1/3 已完成</string>
+    <string name="widget_preview_dose_supporting_cpa">口服 · 12.5 mg</string>
+    <string name="widget_preview_dose_supporting_progesterone">口服 · 200 mg</string>
+    <string name="widget_preview_dose_time_evening">21:00</string>
 </resources>

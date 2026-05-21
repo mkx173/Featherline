@@ -16,7 +16,7 @@
     <string name="main_upcoming_title">Upcoming</string>
     <string name="main_today_summary_done_label">DONE</string>
     <string name="main_today_summary_manual_label">MANUAL</string>
-    <string name="main_today_empty_state">Nothing scheduled for today.</string>
+    <string name="main_today_empty_state">Nothing scheduled today.</string>
     <string name="main_upcoming_empty_state">Nothing scheduled in the next 90 days.</string>
     <string name="main_today_quick_log">Quick log</string>
     <string name="main_today_range_night">Night</string>
@@ -33,7 +33,6 @@
     </plurals>
     <string name="main_e2_title">Estradiol · estimated</string>
     <string name="main_e2_estimate_info">Show estradiol estimate information</string>
-    <string name="main_e2_chart_title">7-day trend</string>
     <string name="main_e2_chart_title_seven_days">7-day trend</string>
     <string name="main_e2_chart_title_thirty_days">30-day trend</string>
     <string name="main_e2_chart_window_toggle_cd">Switch chart window</string>
@@ -282,6 +281,7 @@
     <string name="quick_add_group_planned_slot_today">Today</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
+    <string name="done">Done</string>
     <string name="archive">Archive</string>
     <string name="archived_group_record_indicator">From archived group</string>
     <string name="cross_timezone_entry_indicator">Recorded in a different timezone</string>
@@ -351,6 +351,10 @@
     <string name="settings_app_language">App language</string>
     <string name="settings_dark_mode">Dark mode</string>
     <string name="settings_adaptive_color">Adaptive color</string>
+    <string name="settings_widget_appearance">Widgets</string>
+    <string name="settings_widget_content_scale">Content scale</string>
+    <string name="settings_widget_background_opacity">Background opacity</string>
+    <string name="settings_widget_dark_mode">Dark mode</string>
     <string name="settings_display">Display</string>
     <string name="settings_hide_archived_group_records">Hide archived group records</string>
     <string name="settings_hide_archived_group_records_summary">Hide records from archived groups in plan and history.</string>
@@ -473,9 +477,7 @@
     <string name="personalization_weight">Body weight</string>
     <string name="personalization_weight_not_set">Not set</string>
     <string name="personalization_weight_display">%1$s %2$s</string>
-    <string name="personalization_weight_unit_kg">Kilograms (kg)</string>
     <string name="personalization_weight_unit_kg_short">kg</string>
-    <string name="personalization_weight_unit_lb">Pounds (lb)</string>
     <string name="personalization_weight_unit_lb_short">lb</string>
     <string name="personalization_weight_dialog_title">Body weight</string>
     <string name="personalization_weight_dialog_description">Used to improve plasma concentration estimates.</string>
@@ -605,4 +607,28 @@
     <string name="confirm">OK</string>
     <string name="select_date">Select date</string>
     <string name="select_time">Select time</string>
+
+    <string name="widget_medium_description">Dose summary</string>
+    <string name="widget_large_description">Dose list</string>
+    <string name="widget_all_done">All done</string>
+    <string name="widget_all_logged">All logged</string>
+    <string name="widget_nothing_more_today">Nothing more today</string>
+    <string name="widget_no_medications">No regimen set up</string>
+    <string name="widget_no_doses_today">Nothing scheduled today</string>
+    <string name="widget_last_night">Last night</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_tonight">Tonight</string>
+    <string name="widget_manual_record">Manual record</string>
+    <string name="widget_upcoming">Upcoming</string>
+    <!-- Hardcoded sample strings rendered in the static appwidget previewLayout
+         on Android 12–14. The live Compose widget formats these dynamically; the
+         picker preview can't, so translators commit to one canonical form. -->
+    <string name="widget_preview_e2_label">E2 ~120 pg/mL</string>
+    <string name="widget_preview_done_count_label">/3 DONE</string>
+    <string name="widget_preview_dose_supporting">Oral · 2 mg</string>
+    <string name="widget_preview_dose_time">9:00 AM</string>
+    <string name="widget_preview_large_header">Today · 1/3 done</string>
+    <string name="widget_preview_dose_supporting_cpa">Oral · 12.5 mg</string>
+    <string name="widget_preview_dose_supporting_progesterone">Oral · 200 mg</string>
+    <string name="widget_preview_dose_time_evening">9:00 PM</string>
 </resources>

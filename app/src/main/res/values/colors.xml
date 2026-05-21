@@ -1,2 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources></resources>
+<resources>
+    <!-- Tokens used by the static appwidget-provider previewLayout on Android
+         12–14 (API 31–34). API 35+ uses the Compose-rendered providePreview()
+         path and never references these. Values mirror the light variant of
+         the widget's hardcodedWidgetColorScheme(). -->
+    <color name="widget_preview_surface">#FFF8F7</color>
+    <color name="widget_preview_surface_container_low">#FFF0F1</color>
+    <color name="widget_preview_on_surface">#22191B</color>
+    <color name="widget_preview_on_surface_variant">#524345</color>
+    <color name="widget_preview_outline_variant">#D6C2C4</color>
+    <color name="widget_preview_primary">#8D4959</color>
+    <color name="widget_preview_on_primary">#FFFFFF</color>
+    <color name="widget_preview_primary_container">#FFD9DF</color>
+    <color name="widget_preview_on_primary_container">#713342</color>
+    <color name="widget_preview_tertiary_container">#FFDCBC</color>
+    <color name="widget_preview_on_tertiary_container">#5F401D</color>
+    <color name="widget_preview_surface_variant">#F3DDE0</color>
+    <color name="widget_preview_accent_rose">#CE2C31</color>
+    <color name="widget_preview_accent_teal">#00826D</color>
+    <color name="widget_preview_accent_indigo">#3A5BC7</color>
+</resources>

@@ -196,6 +196,11 @@ dependencies {
     implementation(libs.vico.compose.m3)
     implementation(libs.material.kolor)
     implementation(libs.swmansion.kmp.wheel.picker)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.glance.appwidget.preview)
+    implementation(libs.androidx.glance.preview)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

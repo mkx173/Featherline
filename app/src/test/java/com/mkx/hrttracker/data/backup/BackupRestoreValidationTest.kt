@@ -45,6 +45,8 @@ class BackupRestoreValidationTest {
                 calibrationDefaultUnits = mapOf(
                     BloodAnalyteKey.E2.storageValue to BloodUnitKey.PMOL_L.storageValue,
                 ),
+                widgetContentScale = 0.8f,
+                widgetBackgroundAlpha = 0.6f,
             ),
             userProfile = BackupUserProfileSnapshot(
                 weightKg = 52.16312255,
@@ -183,6 +185,8 @@ class BackupRestoreValidationTest {
             setOf(AllowedAnalyteUnit.of(BloodAnalyteKey.E2, BloodUnitKey.PMOL_L)),
             validatedSnapshot.settings.calibrationDefaultUnits,
         )
+        assertEquals(0.8f, validatedSnapshot.settings.widgetContentScale, 0f)
+        assertEquals(0.6f, validatedSnapshot.settings.widgetBackgroundAlpha, 0f)
 
         checkNotNull(validatedSnapshot.userProfile)
         assertEquals(52.16312255, validatedSnapshot.userProfile.weightKg!!, 1e-9)

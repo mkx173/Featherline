@@ -18,6 +18,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSignature
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -260,7 +261,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(scheduleType = scheduleType)
+                editorStateWithUpdatedScheduleType(it, scheduleType)
             }
         }
     }
@@ -280,7 +281,10 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek))
+                it.copy(
+                    weeklyDaysOfWeek = toggleWeeklyDaySelection(it.weeklyDaysOfWeek, dayOfWeek),
+                    hasUserCustomizedWeeklyDays = true,
+                )
             }
         }
     }
@@ -290,7 +294,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
             if (it.areScheduleShapeFieldsLocked) {
                 it
             } else {
-                it.copy(weeklyDaysOfWeek = setOf(it.sinceDate.dayOfWeek))
+                editorStateWithResetWeeklyDaysOfWeek(it)
             }
         }
     }
@@ -1326,6 +1330,8 @@ private fun MedicationGroup.toEditorState(
         weeklyDaysOfWeek = schedule.weeklyDaysOfWeek.ifEmpty {
             setOf(LocalDate.now().dayOfWeek)
         },
+        hasUserCustomizedWeeklyDays = schedule.type == MedicationGroupScheduleType.WEEKLY &&
+            schedule.weeklyDaysOfWeek.isNotEmpty(),
         weeklyTimeLocalId = if (schedule.type == MedicationGroupScheduleType.WEEKLY) {
             normalizedScheduleTimeSlots.firstOrNull()?.uuid?.toString() ?: UUID.randomUUID().toString()
         } else {
@@ -1506,6 +1512,29 @@ internal fun toggleWeeklyDaySelection(
     }
 }
 
+internal fun editorStateWithUpdatedScheduleType(
+    uiState: MedicationGroupEditorUiState,
+    scheduleType: MedicationGroupScheduleType,
+): MedicationGroupEditorUiState {
+    val isEnteringWeekly = scheduleType == MedicationGroupScheduleType.WEEKLY &&
+        uiState.scheduleType != MedicationGroupScheduleType.WEEKLY
+    val withType = uiState.copy(scheduleType = scheduleType)
+    return if (isEnteringWeekly && !uiState.hasUserCustomizedWeeklyDays) {
+        editorStateWithResetWeeklyDaysOfWeek(withType)
+    } else {
+        withType
+    }
+}
+
+internal fun editorStateWithResetWeeklyDaysOfWeek(
+    uiState: MedicationGroupEditorUiState,
+): MedicationGroupEditorUiState {
+    return uiState.copy(
+        weeklyDaysOfWeek = setOf(uiState.sinceDate.dayOfWeek),
+        hasUserCustomizedWeeklyDays = false,
+    )
+}
+
 internal fun editorStateWithUpdatedSinceDate(
     uiState: MedicationGroupEditorUiState,
     date: LocalDate,
@@ -1525,10 +1554,7 @@ internal fun editorStateWithUpdatedSinceDate(
     }
 
     return if (uiState.scheduleType == MedicationGroupScheduleType.WEEKLY) {
-        uiState.copy(
-            sinceDate = date,
-            weeklyDaysOfWeek = setOf(date.dayOfWeek),
-        )
+        editorStateWithResetWeeklyDaysOfWeek(uiState.copy(sinceDate = date))
     } else {
         uiState.copy(sinceDate = date)
     }
@@ -1638,9 +1664,15 @@ internal fun upsertMedication(
     medications: List<MedicationGroupMedicationItemUiState>,
     savedMedication: MedicationGroupMedicationItemUiState,
 ): MedicationGroupMedicationSaveResult {
+    // Match by signature so the editor's notion of "duplicate" lines up with
+    // every downstream layer that treats same-signature meds as one dose
+    // (e.g. PlanDaySchedule aggregation, widget snapshot, PK matching).
+    // Raw details equality misses near-duplicates that differ only in
+    // signature-normalized fields like custom-name casing/whitespace.
+    val savedSignature = MedicationSignature.fromMedicationDetails(savedMedication.details)
     val duplicateMedication = medications.firstOrNull { medication ->
         medication.localId != savedMedication.localId &&
-            medication.details == savedMedication.details
+            MedicationSignature.fromMedicationDetails(medication.details) == savedSignature
     }
 
     if (duplicateMedication != null) {
@@ -1689,6 +1721,7 @@ data class MedicationGroupEditorUiState(
     val sinceDate: LocalDate = LocalDate.now(),
     val weeklyIntervalWeeks: String = "1",
     val weeklyDaysOfWeek: Set<DayOfWeek> = setOf(LocalDate.now().dayOfWeek),
+    val hasUserCustomizedWeeklyDays: Boolean = false,
     val weeklyTimeLocalId: String = UUID.randomUUID().toString(),
     val weeklyTime: LocalTime = LocalTime.of(9, 0),
     val dailyIntervalDays: String = "1",

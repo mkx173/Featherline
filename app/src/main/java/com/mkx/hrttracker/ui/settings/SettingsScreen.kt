@@ -23,10 +23,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +40,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -99,6 +105,7 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.BackupPasswordDialog
 import com.mkx.hrttracker.ui.components.ExactAlarmAccessDialog
+import com.mkx.hrttracker.ui.components.HrtDropdownAnchor
 import com.mkx.hrttracker.ui.components.HrtDropdownMenu
 import com.mkx.hrttracker.ui.components.HrtDropdownMenuItem
 import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
@@ -111,6 +118,7 @@ import com.mkx.hrttracker.ui.security.AppLockViewModel
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -429,6 +437,7 @@ fun SettingsScreen(
         onShowArchivedGroupRecordsChange = viewModel::setShowArchivedGroupRecords,
         onHideReferenceRangesChange = viewModel::setHideReferenceRanges,
         onHideMedicationDetailsChange = viewModel::setHideMedicationDetails,
+        onWidgetAppearanceChange = viewModel::setWidgetAppearance,
         onBackupToFileClick = {
             if (!isBackupActionBlocked) {
                 showBackupPasswordDialog = true
@@ -545,6 +554,133 @@ fun SettingsScreen(
     }
 }
 
+@Composable
+private fun WidgetAppearanceDialog(
+    contentScale: Float,
+    backgroundAlpha: Float,
+    darkModeOption: DarkModeOption,
+    onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.5f, 1.5f)) }
+    var localBackgroundAlpha by remember { mutableStateOf(backgroundAlpha.coerceIn(0.5f, 1f)) }
+    var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
+    var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_widget_appearance)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_content_scale),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localContentScale * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localContentScale,
+                        onValueChange = { localContentScale = it },
+                        valueRange = 0.5f..1.5f,
+                    )
+                }
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_widget_background_opacity),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${(localBackgroundAlpha * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Slider(
+                        value = localBackgroundAlpha,
+                        onValueChange = { localBackgroundAlpha = it },
+                        valueRange = 0.5f..1f,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    val widgetDarkModeText = stringResource(R.string.settings_widget_dark_mode)
+                    Text(
+                        text = widgetDarkModeText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.cjkTextOffset(widgetDarkModeText)
+                    )
+                    // Only the trailing chip is interactive, so the ripple is bounded to
+                    // the selection area. The popup anchors to this Box so the menu opens
+                    // beneath the current selection rather than at the row's start edge.
+                    Box {
+                        Row(
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .clickable { isDarkModeMenuExpanded = true }
+                                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val widgetDarkModeLabelText = stringResource(localDarkModeOption.labelRes)
+                            Text(
+                                text = widgetDarkModeLabelText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.cjkTextOffset(widgetDarkModeLabelText)
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        HrtDropdownMenu(
+                            expanded = isDarkModeMenuExpanded,
+                            onDismissRequest = { isDarkModeMenuExpanded = false },
+                            modifier = Modifier.width(IntrinsicSize.Min),
+                            anchor = HrtDropdownAnchor.EndAlignedBelow,
+                            items = DarkModeOption.entries.map { option ->
+                                HrtDropdownMenuItem(
+                                    text = stringResource(option.labelRes),
+                                    onClick = { localDarkModeOption = option },
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onAppearanceChange(localContentScale, localBackgroundAlpha, localDarkModeOption)
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreenContent(
@@ -565,6 +701,7 @@ private fun SettingsScreenContent(
     onShowArchivedGroupRecordsChange: (Boolean) -> Unit,
     onHideReferenceRangesChange: (Boolean) -> Unit,
     onHideMedicationDetailsChange: (Boolean) -> Unit,
+    onWidgetAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onBackupToFileClick: () -> Unit,
     onRestoreFromFileClick: () -> Unit,
     isBackupActionBlocked: Boolean,
@@ -581,6 +718,7 @@ private fun SettingsScreenContent(
     var showExactAlarmRecoveryDialog by rememberSaveable { mutableStateOf(false) }
     var pendingExternalUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingExternalLinkTitleRes by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showWidgetAppearanceDialog by rememberSaveable { mutableStateOf(false) }
     val privacyPolicyUrl = stringResource(R.string.privacy_policy_url)
     var showFeedbackEmailDialog by rememberSaveable { mutableStateOf(false) }
     val (isAppLockGracePeriodMenuExpanded, setAppLockGracePeriodMenuExpanded) =
@@ -980,7 +1118,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_app_language),
                         supportingText = stringResource(settingsState.appLanguageOption.labelRes),
                         index = 0,
-                        count = 3,
+                        count = 4,
                         onClick = { setLanguageMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1006,7 +1144,7 @@ private fun SettingsScreenContent(
                         title = stringResource(R.string.settings_dark_mode),
                         supportingText = stringResource(settingsState.darkModeOption.labelRes),
                         index = 1,
-                        count = 3,
+                        count = 4,
                         onClick = { setDarkModeMenuExpanded(true) },
                         leadingContent = {
                             SettingsLeadingIconSlot(
@@ -1030,7 +1168,7 @@ private fun SettingsScreenContent(
                 SettingsSegmentedListItem(
                     title = stringResource(R.string.settings_adaptive_color),
                     index = 2,
-                    count = 3,
+                    count = 4,
                     onClick = {
                         onAdaptiveColorEnabledChange(!settingsState.adaptiveColorEnabled)
                     },
@@ -1044,6 +1182,21 @@ private fun SettingsScreenContent(
                             checked = settingsState.adaptiveColorEnabled,
                             onCheckedChange = onAdaptiveColorEnabledChange
                         )
+                    }
+                )
+
+                SettingsSegmentedListItem(
+                    title = stringResource(R.string.settings_widget_appearance),
+                    index = 3,
+                    count = 4,
+                    onClick = { showWidgetAppearanceDialog = true },
+                    leadingContent = {
+                        SettingsLeadingIconSlot(
+                            painter = painterResource(R.drawable.ic_widgets)
+                        )
+                    },
+                    trailingContent = {
+                        SettingsChevronTrailingIcon()
                     }
                 )
             }
@@ -1331,6 +1484,16 @@ private fun SettingsScreenContent(
                 onRequestExactAlarmAccess()
             },
             onDismiss = { showExactAlarmRecoveryDialog = false }
+        )
+    }
+
+    if (showWidgetAppearanceDialog) {
+        WidgetAppearanceDialog(
+            contentScale = settingsState.widgetContentScale,
+            backgroundAlpha = settingsState.widgetBackgroundAlpha,
+            darkModeOption = settingsState.widgetDarkModeOption,
+            onAppearanceChange = onWidgetAppearanceChange,
+            onDismiss = { showWidgetAppearanceDialog = false },
         )
     }
 
@@ -1725,6 +1888,7 @@ private fun SettingsScreenPreview() {
             onShowArchivedGroupRecordsChange = { },
             onHideReferenceRangesChange = { },
             onHideMedicationDetailsChange = { },
+            onWidgetAppearanceChange = { _, _, _ -> },
             onBackupToFileClick = { },
             onRestoreFromFileClick = { },
             isBackupActionBlocked = false,

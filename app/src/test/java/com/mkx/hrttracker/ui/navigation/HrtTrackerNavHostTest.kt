@@ -13,8 +13,10 @@ import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.log.AddEntryEditSnapshot
 import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDateTime
@@ -122,6 +124,87 @@ class HrtTrackerNavHostTest {
             topLevelRootBackAction(
                 selectedBottomScreen = Screen.Settings,
                 currentRoute = Screen.SettingsCalibration.baseRoute,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkNavigationAction_ignoresAlreadyHandledSignal() {
+        assertEquals(
+            HomeDeepLinkNavigationAction.NONE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 2,
+                lastHandledHomeDeepLinkSignal = 2,
+                currentRoute = Screen.Settings.route,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkNavigationAction_waitsForCurrentRouteBeforeHandlingNewSignal() {
+        assertEquals(
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = null,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkNavigationAction_marksHandledWithoutNavigationWhenAlreadyOnHome() {
+        assertEquals(
+            HomeDeepLinkNavigationAction.NONE,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.Main.route,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkNavigationAction_navigatesHomeFromOtherRoutes() {
+        assertEquals(
+            HomeDeepLinkNavigationAction.NAVIGATE_HOME,
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = 1,
+                lastHandledHomeDeepLinkSignal = 0,
+                currentRoute = Screen.SettingsCalibration.route,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkHighlightEffectsEnabled_waitsForReadySignal() {
+        assertFalse(
+            homeDeepLinkHighlightEffectsEnabled(
+                shellHighlightEffectsEnabled = true,
+                homeDeepLinkSignal = 2,
+                readyHomeDeepLinkHighlightSignal = 1,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkHighlightEffectsEnabled_enablesAfterReadySignal() {
+        assertTrue(
+            homeDeepLinkHighlightEffectsEnabled(
+                shellHighlightEffectsEnabled = true,
+                homeDeepLinkSignal = 2,
+                readyHomeDeepLinkHighlightSignal = 2,
+            )
+        )
+    }
+
+    @Test
+    fun homeDeepLinkHighlightEffectsEnabled_staysDisabledWhenShellDisabled() {
+        assertFalse(
+            homeDeepLinkHighlightEffectsEnabled(
+                shellHighlightEffectsEnabled = false,
+                homeDeepLinkSignal = 2,
+                readyHomeDeepLinkHighlightSignal = 2,
             )
         )
     }

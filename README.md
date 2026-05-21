@@ -35,6 +35,7 @@ Featherline logs doses across injection, patch, gel, oral, and sublingual routes
 - Blood test catalog with automatic unit conversion (pg/mL ↔ pmol/L, ng/dL ↔ nmol/L)
 - Encrypted, compressed backup format with restore validation
 - App lock with biometric unlock
+- Home-screen quick-log widget in two sizes, with progress, next-dose, and tap-to-log
 - No accounts, no telemetry, no network calls — everything stays on device
 - English and Simplified Chinese
 - Material 3 with dynamic color
@@ -67,8 +68,7 @@ The full architecture, data model, and reminder pipeline are documented in [docs
 - Replace the pharmacokinetic engine with a more general multi-medication model
 - Personal-PK calibration tuned from your own lab results
 - Optional encrypted cloud backup (off by default, end-to-end encrypted)
-- Quick-log widget for the home screen
-- Additional languages — translation contributions welcomed
+- Additional languages — translation contributions welcomed (see [docs/localization.md](docs/localization.md))
 
 ## Tech stack
 

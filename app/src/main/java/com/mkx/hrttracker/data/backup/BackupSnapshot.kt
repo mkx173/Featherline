@@ -36,6 +36,9 @@ data class BackupSettingsSnapshot(
     val calibrationDefaultUnits: Map<String, String>,
     val lastSeenTimeZoneId: String? = null,
     val hideMedicationDetails: Boolean = false,
+    val widgetContentScale: Float = 1.0f,
+    val widgetBackgroundAlpha: Float = 1.0f,
+    val widgetDarkModeOption: String = "FOLLOW_SYSTEM",
     val groupNameCounter: Int = 0,
 )
 

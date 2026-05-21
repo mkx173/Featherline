@@ -3,11 +3,25 @@ package com.mkx.hrttracker.util
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -42,11 +56,55 @@ fun rememberLocalizedShortTimeFormatter(locale: Locale): DateTimeFormatter {
 @Composable
 fun rememberUses24HourTimeFormat(): Boolean {
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    return remember(context, configuration) {
-        context.uses24HourTimeFormat()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // Settings.System.TIME_12_24 is not part of Configuration, so a plain
+    // LocalConfiguration-keyed remember would never invalidate when the user
+    // toggles the system 24-hour preference. Observe the setting URI for
+    // foreground changes, and additionally re-read on ON_RESUME because
+    // ContentObserver delivery is not guaranteed while the host is stopped.
+    var value by remember(context) { mutableStateOf(context.uses24HourTimeFormat()) }
+    DisposableEffect(context, lifecycleOwner) {
+        val appContext = context.applicationContext
+        val resolver = appContext.contentResolver
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                value = appContext.uses24HourTimeFormat()
+            }
+        }
+        resolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.TIME_12_24),
+            false,
+            observer,
+        )
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                value = appContext.uses24HourTimeFormat()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+        onDispose {
+            resolver.unregisterContentObserver(observer)
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+        }
     }
+    return value
 }
+
+fun Context.observeUses24HourTimeFormat(): Flow<Boolean> = callbackFlow {
+    val appContext = applicationContext
+    trySend(appContext.uses24HourTimeFormat())
+    val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            trySend(appContext.uses24HourTimeFormat())
+        }
+    }
+    appContext.contentResolver.registerContentObserver(
+        Settings.System.getUriFor(Settings.System.TIME_12_24),
+        false,
+        observer,
+    )
+    awaitClose { appContext.contentResolver.unregisterContentObserver(observer) }
+}.distinctUntilChanged()
 
 fun dateLabelFormatter(
     locale: Locale,

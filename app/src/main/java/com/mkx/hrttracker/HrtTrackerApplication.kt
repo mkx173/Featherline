@@ -12,6 +12,7 @@ import com.mkx.hrttracker.reminder.ReminderNotificationManager
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import com.mkx.hrttracker.util.ToastManager
+import com.mkx.hrttracker.widget.HomeWidgetManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,9 @@ class HrtTrackerApplication : Application() {
 
     @Inject
     lateinit var timeZoneChangeNoticeController: TimeZoneChangeNoticeController
+
+    @Inject
+    lateinit var homeWidgetManager: HomeWidgetManager
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate() {
@@ -92,6 +96,8 @@ class HrtTrackerApplication : Application() {
         diagnosticsLogger.info(TAG, "application_notification_channel_requested")
         timeZoneChangeNoticeController.attachToProcessLifecycle()
         diagnosticsLogger.info(TAG, "application_timezone_notice_controller_attached")
+        homeWidgetManager.start()
+        diagnosticsLogger.info(TAG, "application_home_widget_manager_started")
         diagnosticsLogger.info(TAG, "application_on_create_complete")
     }
 

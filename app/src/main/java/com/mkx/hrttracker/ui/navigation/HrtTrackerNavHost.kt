@@ -14,6 +14,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -64,6 +66,7 @@ import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
 import com.mkx.hrttracker.ui.plan.PlanBatchAddScreen
 import com.mkx.hrttracker.ui.plan.PlanScreen
 import com.mkx.hrttracker.ui.settings.SettingsScreen
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -246,9 +249,40 @@ internal fun topLevelRootBackAction(
     }
 }
 
+internal enum class HomeDeepLinkNavigationAction {
+    AWAIT_ROUTE,
+    NAVIGATE_HOME,
+    NONE,
+}
+
+internal fun homeDeepLinkNavigationAction(
+    homeDeepLinkSignal: Int,
+    lastHandledHomeDeepLinkSignal: Int,
+    currentRoute: String?,
+): HomeDeepLinkNavigationAction {
+    if (homeDeepLinkSignal <= lastHandledHomeDeepLinkSignal) {
+        return HomeDeepLinkNavigationAction.NONE
+    }
+
+    return when (normalizeNavigationRoute(currentRoute)) {
+        null -> HomeDeepLinkNavigationAction.AWAIT_ROUTE
+        Screen.Main.route -> HomeDeepLinkNavigationAction.NONE
+        else -> HomeDeepLinkNavigationAction.NAVIGATE_HOME
+    }
+}
+
+internal fun homeDeepLinkHighlightEffectsEnabled(
+    shellHighlightEffectsEnabled: Boolean,
+    homeDeepLinkSignal: Int,
+    readyHomeDeepLinkHighlightSignal: Int,
+): Boolean =
+    shellHighlightEffectsEnabled && homeDeepLinkSignal <= readyHomeDeepLinkHighlightSignal
+
 @Composable
 fun HrtTrackerNavHost(
     navController: NavHostController,
+    homeDeepLinkSignal: Int = 0,
+    highlightEffectsEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var addEntrySheetRequest by rememberSaveable(stateSaver = AddEntrySheetRequestSaver) {
@@ -270,6 +304,80 @@ fun HrtTrackerNavHost(
                 currentDestination?.hierarchy?.any { it.route == navItem.screen.route } == true
             }?.screen
             ?: Screen.Main
+
+    var lastHandledHomeDeepLinkSignal by rememberSaveable { mutableIntStateOf(0) }
+    var pendingHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
+    var pendingHomeDeepLinkHighlightRequiresNavigation by rememberSaveable { mutableStateOf(false) }
+    var readyHomeDeepLinkHighlightSignal by rememberSaveable { mutableIntStateOf(0) }
+
+    LaunchedEffect(homeDeepLinkSignal, currentRoute) {
+        val hasUnhandledSignal = homeDeepLinkSignal > lastHandledHomeDeepLinkSignal
+        when (
+            homeDeepLinkNavigationAction(
+                homeDeepLinkSignal = homeDeepLinkSignal,
+                lastHandledHomeDeepLinkSignal = lastHandledHomeDeepLinkSignal,
+                currentRoute = currentRoute,
+            )
+        ) {
+            HomeDeepLinkNavigationAction.AWAIT_ROUTE -> Unit
+            HomeDeepLinkNavigationAction.NONE -> {
+                if (hasUnhandledSignal) {
+                    pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
+                    pendingHomeDeepLinkHighlightRequiresNavigation = false
+                }
+                lastHandledHomeDeepLinkSignal = maxOf(
+                    lastHandledHomeDeepLinkSignal,
+                    homeDeepLinkSignal,
+                )
+            }
+            HomeDeepLinkNavigationAction.NAVIGATE_HOME -> {
+                lastHandledHomeDeepLinkSignal = homeDeepLinkSignal
+                pendingHomeDeepLinkHighlightSignal = homeDeepLinkSignal
+                pendingHomeDeepLinkHighlightRequiresNavigation = true
+                navController.navigateToTopLevelScreen(
+                    targetScreen = Screen.Main,
+                    selectedBottomScreen = selectedBottomScreen,
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(
+        pendingHomeDeepLinkHighlightSignal,
+        pendingHomeDeepLinkHighlightRequiresNavigation,
+        currentRoute,
+        highlightEffectsEnabled,
+    ) {
+        val pendingSignal = pendingHomeDeepLinkHighlightSignal
+        if (
+            pendingSignal <= 0 ||
+            !highlightEffectsEnabled ||
+            normalizeNavigationRoute(currentRoute) != Screen.Main.route
+        ) {
+            return@LaunchedEffect
+        }
+
+        if (pendingHomeDeepLinkHighlightRequiresNavigation) {
+            delay(topLevelTransitionDurationMillis.toLong())
+        }
+        withFrameNanos { }
+        withFrameNanos { }
+
+        if (pendingHomeDeepLinkHighlightSignal == pendingSignal) {
+            readyHomeDeepLinkHighlightSignal = maxOf(
+                readyHomeDeepLinkHighlightSignal,
+                pendingSignal,
+            )
+            pendingHomeDeepLinkHighlightSignal = 0
+            pendingHomeDeepLinkHighlightRequiresNavigation = false
+        }
+    }
+
+    val homeDeepLinkHighlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled(
+        shellHighlightEffectsEnabled = highlightEffectsEnabled,
+        homeDeepLinkSignal = homeDeepLinkSignal,
+        readyHomeDeepLinkHighlightSignal = readyHomeDeepLinkHighlightSignal,
+    )
 
     BackHandler(
         enabled = topLevelRootBackAction(
@@ -356,10 +464,11 @@ fun HrtTrackerNavHost(
                 popEnterTransition = { hrtNavHostPopEnterTransition(density, layoutDirection) },
                 popExitTransition = { hrtNavHostPopExitTransition(density, layoutDirection) },
             ) {
-                composable(Screen.Main.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Main.route) {
                     MainScreen(
                         modifier,
                         scrollToTopSignal = mainScrollToTopSignal,
+                        highlightEffectsEnabled = homeDeepLinkHighlightEffectsEnabled,
                         onEntryClick = { request ->
                             addEntrySheetRequest = AddEntrySheetRequest(
                                 entryIds = request.entryUuids.map(UUID::toString),
@@ -388,7 +497,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 }
-                composable(Screen.Plan.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Plan.route) {
                     PlanScreen(
                         modifier = modifier,
                         scrollToTopSignal = planScrollToTopSignal,
@@ -449,8 +558,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     PlanBatchAddScreen(
                         modifier = modifier,
@@ -464,8 +572,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     ArchivedMedicationGroupsScreen(
                         modifier = modifier,
@@ -488,8 +595,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Plan.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     HistoryScreen(
                         modifier = modifier,
@@ -501,7 +607,7 @@ fun HrtTrackerNavHost(
                         }
                     )
                 }
-                composable(Screen.Settings.route, sizeTransform = hrtSizeTransform) {
+                composable(Screen.Settings.route) {
                     SettingsScreen(
                         modifier = modifier,
                         scrollToTopSignal = settingsScrollToTopSignal,
@@ -519,8 +625,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationScreen(
                         modifier = modifier,
@@ -552,8 +657,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationUnitsScreen(
                         modifier = modifier,
@@ -572,8 +676,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = Screen.Settings.route
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) {
                     CalibrationEditorScreen(
                         modifier = modifier,
@@ -597,8 +700,7 @@ fun HrtTrackerNavHost(
                             type = NavType.StringType
                             defaultValue = ""
                         }
-                    ),
-                    sizeTransform = hrtSizeTransform,
+                    )
                 ) { backStackEntry ->
                     val openedFromArchivedGroupsPage =
                         backStackEntry.arguments?.getString(MEDICATION_GROUP_EDITOR_SOURCE_ARG) ==

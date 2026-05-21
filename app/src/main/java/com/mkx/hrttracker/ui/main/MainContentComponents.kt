@@ -8,10 +8,12 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -56,6 +58,8 @@ import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +71,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -113,7 +118,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
-import com.mkx.hrttracker.ui.medication.labelRes
+import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -121,6 +126,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
+import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
@@ -129,6 +135,7 @@ import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
 import com.mkx.hrttracker.ui.medication.medicationDoseText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -2782,6 +2789,9 @@ internal fun MainTodaySection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
+    highlightRequest: DoseRowHighlightKey? = null,
+    highlightEffectsEnabled: Boolean = true,
+    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -2841,15 +2851,19 @@ internal fun MainTodaySection(
                         verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                     ) {
                         rows.forEachIndexed { index, row ->
-                            MainTodayDoseRow(
-                                row = row,
-                                index = index,
-                                itemCount = rows.size,
-                                now = now,
-                                timeFormatter = timeFormatter,
-                                onQuickLogDoseClick = onQuickLogDoseClick,
-                                onEntryClick = onEntryClick
-                            )
+                            key(mainTodayDoseRowCompositionKey(row)) {
+                                MainTodayDoseRow(
+                                    row = row,
+                                    index = index,
+                                    itemCount = rows.size,
+                                    now = now,
+                                    timeFormatter = timeFormatter,
+                                    isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                                    onHighlightConsumed = onHighlightConsumed,
+                                    onQuickLogDoseClick = onQuickLogDoseClick,
+                                    onEntryClick = onEntryClick
+                                )
+                            }
                         }
                     }
                 }
@@ -2864,6 +2878,9 @@ internal fun MainLastNightSection(
     now: LocalDateTime,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
+    highlightRequest: DoseRowHighlightKey? = null,
+    highlightEffectsEnabled: Boolean = true,
+    onHighlightConsumed: () -> Unit = { },
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
     modifier: Modifier = Modifier
@@ -2893,15 +2910,19 @@ internal fun MainLastNightSection(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
         ) {
             section.rows.forEachIndexed { index, row ->
-                MainTodayDoseRow(
-                    row = row,
-                    index = index,
-                    itemCount = section.rows.size,
-                    now = now,
-                    timeFormatter = timeFormatter,
-                    onQuickLogDoseClick = onQuickLogDoseClick,
-                    onEntryClick = onEntryClick
-                )
+                key(mainTodayDoseRowCompositionKey(row)) {
+                    MainTodayDoseRow(
+                        row = row,
+                        index = index,
+                        itemCount = section.rows.size,
+                        now = now,
+                        timeFormatter = timeFormatter,
+                        isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                        onHighlightConsumed = onHighlightConsumed,
+                        onQuickLogDoseClick = onQuickLogDoseClick,
+                        onEntryClick = onEntryClick
+                    )
+                }
             }
         }
     }
@@ -2912,6 +2933,9 @@ internal fun MainUpcomingSection(
     section: MainUpcomingSectionUiState,
     dateFormatter: LocalDateFormatter,
     timeFormatter: DateTimeFormatter,
+    highlightRequest: DoseRowHighlightKey? = null,
+    highlightEffectsEnabled: Boolean = true,
+    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
     val title = when (section.title) {
@@ -2940,17 +2964,44 @@ internal fun MainUpcomingSection(
                 verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
             ) {
                 section.rows.forEachIndexed { index, row ->
-                    MainUpcomingDoseRow(
-                        row = row,
-                        index = index,
-                        itemCount = section.rows.size,
-                        timeFormatter = timeFormatter
-                    )
+                    key(mainUpcomingDoseRowCompositionKey(row)) {
+                        MainUpcomingDoseRow(
+                            row = row,
+                            index = index,
+                            itemCount = section.rows.size,
+                            timeFormatter = timeFormatter,
+                            isHighlighted = highlightRequest?.matches(row) == true && highlightEffectsEnabled,
+                            onHighlightConsumed = onHighlightConsumed,
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+internal fun mainTodayDoseRowCompositionKey(row: MainTodayDoseRowUiState): String {
+    val entryIdentity = (row.fulfillingEntryUuids + row.outsideScheduleWindowEntryUuids)
+        .sorted()
+        .joinToString(separator = ",")
+    return listOf(
+        if (row.isManualRecord) "manual" else "scheduled",
+        row.groupUuid,
+        row.scheduleTimeUuid,
+        row.scheduledAt,
+        row.medication.uuid,
+        entryIdentity,
+    ).joinToString(separator = "|")
+}
+
+internal fun mainUpcomingDoseRowCompositionKey(row: MainUpcomingDoseRowUiState): String =
+    listOf(
+        "upcoming",
+        row.groupUuid,
+        row.scheduleTimeUuid,
+        row.scheduledAt,
+        row.medication.uuid,
+    ).joinToString(separator = "|")
 
 @Composable
 private fun MainTodayDoseRow(
@@ -2961,8 +3012,32 @@ private fun MainTodayDoseRow(
     timeFormatter: DateTimeFormatter,
     onQuickLogDoseClick: (MainQuickLogDoseRequest) -> Unit,
     onEntryClick: (MainEditEntryRequest) -> Unit,
+    isHighlighted: Boolean = false,
+    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var flashActive by remember { mutableStateOf(false) }
+    val flashAlpha by animateFloatAsState(
+        targetValue = if (flashActive) 1f else 0f,
+        animationSpec = if (flashActive) tween(150) else tween(600),
+        label = "dose-row-highlight",
+    )
+    LaunchedEffect(isHighlighted) {
+        if (!isHighlighted) {
+            flashActive = false
+            return@LaunchedEffect
+        }
+
+        try {
+            flashActive = true
+            bringIntoViewRequester.bringIntoView()
+            delay(300)
+        } finally {
+            flashActive = false
+        }
+        onHighlightConsumed()
+    }
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationDisplayName(details)
@@ -3006,65 +3081,80 @@ private fun MainTodayDoseRow(
         }
     }
 
-    EditorSegmentedListItem(
-        index = index,
-        count = itemCount,
-        onClick = onStatusClick,
-        modifier = modifier.fillMaxWidth(),
-        trailingContent = {
-            MainTodayTrailingContent(
-                row = row,
-                now = now,
-                timeFormatter = timeFormatter,
-                onStatusClick = onStatusClick
-            )
-        }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+    val rowShape = segmentedListItemShape(index = index, count = itemCount)
+    Box {
+        EditorSegmentedListItem(
+            index = index,
+            count = itemCount,
+            onClick = onStatusClick,
+            modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
+            trailingContent = {
+                MainTodayTrailingContent(
+                    row = row,
+                    now = now,
+                    timeFormatter = timeFormatter,
+                    onStatusClick = onStatusClick
+                )
+            }
         ) {
-            MainRouteIconSurface(
-                applicationType = details.applicationType,
-                groupColorScheme = groupColorScheme,
-                outlinedIcon = routeIconOutlined
-            )
-
-            Column(
-                modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                MainRouteIconSurface(
+                    applicationType = details.applicationType,
+                    groupColorScheme = groupColorScheme,
+                    outlinedIcon = routeIconOutlined
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f),
                 ) {
-                    Text(
-                        text = headline,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(headline),
-                        fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = supportingText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = headline,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(headline),
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = supportingText,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
+        }
+        if (flashAlpha > 0f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(rowShape)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
+                            alpha = 0.55f * flashAlpha,
+                        )
+                    )
+            )
         }
     }
 }
@@ -3075,8 +3165,32 @@ private fun MainUpcomingDoseRow(
     index: Int,
     itemCount: Int,
     timeFormatter: DateTimeFormatter,
+    isHighlighted: Boolean = false,
+    onHighlightConsumed: () -> Unit = { },
     modifier: Modifier = Modifier
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var flashActive by remember { mutableStateOf(false) }
+    val flashAlpha by animateFloatAsState(
+        targetValue = if (flashActive) 1f else 0f,
+        animationSpec = if (flashActive) tween(150) else tween(1000),
+        label = "dose-row-highlight",
+    )
+    LaunchedEffect(isHighlighted) {
+        if (!isHighlighted) {
+            flashActive = false
+            return@LaunchedEffect
+        }
+
+        try {
+            flashActive = true
+            bringIntoViewRequester.bringIntoView()
+            delay(600)
+        } finally {
+            flashActive = false
+        }
+        onHighlightConsumed()
+    }
     val details = row.medication.details
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationDisplayName(details)
@@ -3088,56 +3202,71 @@ private fun MainUpcomingDoseRow(
         medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
+    val rowShape = segmentedListItemShape(index = index, count = itemCount)
 
-    EditorSegmentedListItem(
-        index = index,
-        count = itemCount,
-        onClick = { },
-        modifier = modifier.fillMaxWidth(),
-        trailingContent = {
-            Text(
-                text = timeLabel,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.End,
-                maxLines = 1
-            )
-        }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MainRouteIconSurface(
-                applicationType = details.applicationType,
-                groupColorScheme = groupColorScheme,
-            )
-
-            Column(
-                modifier = Modifier.weight(1f),
-            ) {
+    Box {
+        EditorSegmentedListItem(
+            index = index,
+            count = itemCount,
+            onClick = { },
+            modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
+            trailingContent = {
                 Text(
-                    text = headline,
+                    text = timeLabel,
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.cjkTextOffset(headline),
                     fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    textAlign = TextAlign.End,
+                    maxLines = 1
                 )
-                if (supportingText.isNotBlank()) {
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MainRouteIconSurface(
+                    applicationType = details.applicationType,
+                    groupColorScheme = groupColorScheme,
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                ) {
                     Text(
-                        text = supportingText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.cjkTextOffset(supportingText),
+                        text = headline,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.cjkTextOffset(headline),
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (supportingText.isNotBlank()) {
+                        Text(
+                            text = supportingText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.cjkTextOffset(supportingText),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
+        }
+        if (flashAlpha > 0f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(rowShape)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(
+                            alpha = 0.55f * flashAlpha,
+                        )
+                    )
+            )
         }
     }
 }

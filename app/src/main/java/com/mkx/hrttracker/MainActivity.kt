@@ -46,6 +46,7 @@ import com.mkx.hrttracker.reminder.ReminderCapabilityReconciler
 import com.mkx.hrttracker.startup.StartupPreloader
 import com.mkx.hrttracker.startup.StartupTiming
 import com.mkx.hrttracker.ui.HrtTrackerApp
+import com.mkx.hrttracker.ui.main.DoseRowHighlightKey
 import com.mkx.hrttracker.ui.main.MainViewModel
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterFadeEasing
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterOffset
@@ -66,8 +67,19 @@ import com.mkx.hrttracker.ui.security.appLockContentLayers
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.LocalDateTime
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
+
+const val EXTRA_HIGHLIGHT_KIND = "highlight_kind"
+const val EXTRA_HIGHLIGHT_GROUP_UUID = "highlight_group_uuid"
+const val EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID = "highlight_schedule_time_uuid"
+const val EXTRA_HIGHLIGHT_SCHEDULED_AT = "highlight_scheduled_at"
+const val EXTRA_HIGHLIGHT_MEDICATION_UUID = "highlight_medication_uuid"
+const val EXTRA_HIGHLIGHT_ENTRY_UUID = "highlight_entry_uuid"
+const val HIGHLIGHT_KIND_SCHEDULED = "scheduled"
+const val HIGHLIGHT_KIND_MANUAL = "manual"
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -96,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
 
         super.onCreate(savedInstanceState)
+        parseWidgetHighlightIntent(intent)
         diagnosticsLogger.info(
             TAG,
             "main_activity_on_create_after_super " +
@@ -152,6 +165,7 @@ class MainActivity : AppCompatActivity() {
                 val appLockUiState by appLockViewModel.uiState.collectAsStateWithLifecycle()
                 val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
                 val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
+                val homeDeepLinkSignal by mainViewModel.homeDeepLinkSignal.collectAsStateWithLifecycle()
                 val context = LocalContext.current
                 val density = LocalDensity.current
                 val layoutDirection = LocalLayoutDirection.current
@@ -275,7 +289,14 @@ class MainActivity : AppCompatActivity() {
                                         }
                                     )
                             ) {
-                                HrtTrackerApp(navController = navController)
+                                val highlightEffectsEnabled =
+                                    !contentLayers.showInWindowLockScreen &&
+                                        !onboardingUiState.shouldShowOnboarding
+                                HrtTrackerApp(
+                                    navController = navController,
+                                    homeDeepLinkSignal = homeDeepLinkSignal,
+                                    highlightEffectsEnabled = highlightEffectsEnabled,
+                                )
                             }
 
                             AnimatedVisibility(
@@ -358,6 +379,38 @@ class MainActivity : AppCompatActivity() {
             setRecentsScreenshotEnabled(!enabled)
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        parseWidgetHighlightIntent(intent)
+    }
+
+    private fun parseWidgetHighlightIntent(intent: Intent) {
+        val key = when (intent.getStringExtra(EXTRA_HIGHLIGHT_KIND)) {
+            HIGHLIGHT_KIND_MANUAL -> {
+                val entryUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_ENTRY_UUID) ?: return
+                DoseRowHighlightKey.Manual(entryUuid)
+            }
+            HIGHLIGHT_KIND_SCHEDULED -> {
+                val groupUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_GROUP_UUID) ?: return
+                val scheduledAt = intent.localDateTimeExtra(EXTRA_HIGHLIGHT_SCHEDULED_AT) ?: return
+                DoseRowHighlightKey.Scheduled(
+                    groupUuid = groupUuid,
+                    scheduleTimeUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_SCHEDULE_TIME_UUID),
+                    scheduledAt = scheduledAt,
+                    medicationUuid = intent.uuidExtra(EXTRA_HIGHLIGHT_MEDICATION_UUID),
+                )
+            }
+            else -> return
+        }
+        mainViewModel.requestWidgetDoseRowHighlight(key)
+    }
+
+    private fun Intent.uuidExtra(key: String): UUID? =
+        getStringExtra(key)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+
+    private fun Intent.localDateTimeExtra(key: String): LocalDateTime? =
+        getStringExtra(key)?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
 
     private companion object {
         const val TAG = "MainActivity"

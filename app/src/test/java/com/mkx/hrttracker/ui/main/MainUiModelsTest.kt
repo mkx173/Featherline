@@ -17,6 +17,7 @@ import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkDoseMarker
 import com.mkx.hrttracker.model.pk.PkTrendResult
+import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

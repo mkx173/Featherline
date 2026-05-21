@@ -18,9 +18,12 @@ import com.mkx.hrttracker.util.TimeZoneChangeNoticeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -77,6 +80,21 @@ class MainViewModel @Inject constructor(
                 now = currentDateTime.value,
             )
         )
+
+    private val _highlightRequest = MutableStateFlow<DoseRowHighlightKey?>(null)
+    val highlightRequest: StateFlow<DoseRowHighlightKey?> = _highlightRequest.asStateFlow()
+
+    private val _homeDeepLinkSignal = MutableStateFlow(0)
+    val homeDeepLinkSignal: StateFlow<Int> = _homeDeepLinkSignal.asStateFlow()
+
+    fun requestWidgetDoseRowHighlight(key: DoseRowHighlightKey) {
+        _highlightRequest.value = key
+        _homeDeepLinkSignal.update { it + 1 }
+    }
+
+    fun consumeHighlightRequest() {
+        _highlightRequest.value = null
+    }
 
     fun dismissTimeZoneChangeNotice() {
         timeZoneChangeNoticeController.dismiss()

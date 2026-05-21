@@ -177,21 +177,6 @@ internal fun normalizeNavigationRoute(route: String?): String? {
     return route?.substringBefore("?")
 }
 
-/**
- * Defeat the default [androidx.compose.animation.AnimatedContent] SizeTransform that
- * navigation-compose installs. The default has clip = true, which on any momentary
- * size delta between outgoing/incoming destinations (different Scaffold configs,
- * inset changes, first-frame measurement) animates a clip rectangle from the top-left
- * corner — exposing the surface color as a growing white rectangle.
- *
- * Returning `null` is *not* sufficient: navigation-compose falls back to
- * SizeTransform() (clip = true). We must return a non-null SizeTransform with
- * clip = false, plus snap() so the size tween itself is a no-op.
- */
-internal val hrtSizeTransform: AnimatedContentTransitionScope<NavBackStackEntry>.() -> SizeTransform? = {
-    SizeTransform(clip = false) { _, _ -> snap() }
-}
-
 // Mirrors MaterialFadeThrough's alpha split: outgoing finishes before the
 // threshold, incoming starts after it, both using one shared motion progress.
 internal fun fadeThroughAppearingAlphaProgress(progress: Float): Float {

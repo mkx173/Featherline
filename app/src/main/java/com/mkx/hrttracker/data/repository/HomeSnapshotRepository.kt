@@ -5,6 +5,7 @@ import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.di.DefaultDispatcher
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.nextOccurrencesInPlanWindowFrom
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -17,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -391,7 +394,7 @@ class HomeSnapshotRepository @Inject constructor(
                 diagnosticsLogger.info(
                     TAG,
                     "home_snapshot_refresh_continuing reason=pk_projection_expired " +
-                        "${existingSnapshot?.diagnosticSummary() ?: "none"} now=$now"
+                        "${existingSnapshot.diagnosticSummary()} now=$now"
                 )
             }
             gen
@@ -448,15 +451,32 @@ class HomeSnapshotRepository @Inject constructor(
             horizon = horizon,
             zoneId = zoneId,
         )
-        val projection = withContext(defaultDispatcher) {
-            PkMedicationSimulation.simulateMainEstradiolProjection(
-                entries = simulationEntries.real,
-                plannedEntries = simulationEntries.planned,
-                bodyWeightKg = inputs.profile.weightKg,
-                generatedAt = now,
-                zoneId = zoneId,
-                option = option,
-            )
+        // Home chart includes planned future doses; the widget shows the current
+        // body state from already-logged doses only, so its projection must
+        // exclude `plannedEntries`. Otherwise a planned dose 30 min from now
+        // would inflate the widget's "current" reading.
+        val (projection, widgetProjection) = coroutineScope {
+            val homeAsync = async(defaultDispatcher) {
+                PkMedicationSimulation.simulateMainEstradiolProjection(
+                    entries = simulationEntries.real,
+                    plannedEntries = simulationEntries.planned,
+                    bodyWeightKg = inputs.profile.weightKg,
+                    generatedAt = now,
+                    zoneId = zoneId,
+                    option = option,
+                )
+            }
+            val widgetAsync = async(defaultDispatcher) {
+                PkMedicationSimulation.simulateMainEstradiolProjection(
+                    entries = simulationEntries.real,
+                    plannedEntries = emptyList(),
+                    bodyWeightKg = inputs.profile.weightKg,
+                    generatedAt = now,
+                    zoneId = zoneId,
+                    option = option,
+                )
+            }
+            homeAsync.await() to widgetAsync.await()
         }
         // Expire at the soonest planned dose after generation time — the
         // moment a slot transitions from "future" to "should be logged by now"
@@ -494,6 +514,27 @@ class HomeSnapshotRepository @Inject constructor(
             densePolicy = option.densePolicy.toRecord(),
             includesPostDoseOffsets = option.includesPostDoseOffsets,
         )
+        // No planned doses → nothing to "go stale" mid-window; expire at windowEnd.
+        val widgetPkProjectionRecord = HomePkProjectionRecord(
+            generatedAtEpochMillis = widgetProjection.generatedAt.toEpochMilli(),
+            windowStartEpochMillis = widgetProjection.windowStart.toEpochMilli(),
+            windowEndEpochMillis = widgetProjection.windowEnd.toEpochMilli(),
+            pkProjectionExpiresAtEpochMillis = widgetProjection.windowEnd.toEpochMilli(),
+            concentrationUnit = widgetProjection.concentrationUnit.name,
+            timeH = widgetProjection.timeH,
+            concentrations = widgetProjection.concentrations,
+            doseMarkers = widgetProjection.doseMarkers.map { marker ->
+                HomePkProjectionDoseMarkerRecord(
+                    timeH = marker.timeH,
+                    concentration = marker.concentration,
+                    isPlanned = marker.isPlanned,
+                )
+            },
+            latestEstradiolEntry = inputs.latestEstradiolEntry,
+            chartWindowHours = option.chartWindowHours.toInt(),
+            densePolicy = option.densePolicy.toRecord(),
+            includesPostDoseOffsets = option.includesPostDoseOffsets,
+        )
         val snapshotRecord = HomeSnapshotRecord(
             schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
             generation = refreshGeneration,
@@ -501,6 +542,7 @@ class HomeSnapshotRepository @Inject constructor(
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = zoneId.id,
             pkProjection = pkProjectionRecord,
+            widgetPkProjection = widgetPkProjectionRecord,
             activeGroups = inputs.activeGroups,
             scheduleEntries = inputs.scheduleEntries,
             antiandrogenHistoryEntries = inputs.antiandrogenHistoryEntries,
@@ -677,6 +719,7 @@ class HomeSnapshotRepository @Inject constructor(
             diagnosticsLogger.warning(TAG, "home_snapshot_clear_failed", throwable)
         }
     }
+
 }
 
 private fun HomeSnapshotRecord.diagnosticSummary(): String {
@@ -690,7 +733,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 5
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 6
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

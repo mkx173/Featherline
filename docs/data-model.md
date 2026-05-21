@@ -106,11 +106,14 @@ slot-fulfillment link `sourceGroupUuid` / `scheduleTimeUuid` /
 `scheduledForIso` (all nullable — a manual dose has no source group).
 No FK to `medication_groups` so deleting a group does not cascade
 into the log; instead the repository nulls these columns out via
-`reclassifyEntriesForDeletedGroup`. The entity has no declared
-indices; the indexed-on-PK lookup powers
-`HomeDao.getLatestEstradiolEntryOnOrBefore` (the home-screen fast
-path; `MedicationLogDao.getLatestEntryByCategoryOnOrBefore` is the
-more general category-filtered variant).
+`reclassifyEntriesForDeletedGroup`. The entity declares no secondary
+indices — only the `@PrimaryKey` on `uuid` — so the home-screen fast
+path `HomeDao.getLatestEstradiolEntryOnOrBefore` and the more general
+`MedicationLogDao.getLatestEntryByCategoryOnOrBefore` both filter by
+`category` and order by `appliedAtEpochMillis DESC LIMIT 1` against an
+unindexed scan. The log table stays small enough that this is
+acceptable; revisit if a future feature retains the full history at
+scale.
 
 ### `BloodTestPanelEntity`
 

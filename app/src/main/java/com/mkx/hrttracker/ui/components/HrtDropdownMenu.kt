@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.components
 
+import androidx.collection.intListOf
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -8,9 +9,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorPosition
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.window.PopupProperties
@@ -23,6 +26,18 @@ data class HrtDropdownMenuItem(
     val trailingIcon: (@Composable () -> Unit)? = null,
 )
 
+/**
+ * Anchor position for [HrtDropdownMenu]. Wraps the experimental
+ * [MenuAnchorPosition] so callers don't need to opt in.
+ */
+sealed class HrtDropdownAnchor {
+    /** Menu's start edge aligns with the anchor's start edge (Material default). */
+    object Below : HrtDropdownAnchor()
+
+    /** Menu's end edge aligns with the anchor's end edge. */
+    object EndAlignedBelow : HrtDropdownAnchor()
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HrtDropdownMenu(
@@ -32,16 +47,37 @@ fun HrtDropdownMenu(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuGroupContentPadding,
     properties: PopupProperties = PopupProperties(focusable = true),
+    anchor: HrtDropdownAnchor = HrtDropdownAnchor.Below,
 ) {
     if (items.isEmpty()) {
         return
     }
     val scrollState = rememberScrollState()
+    val anchorPosition: MenuAnchorPosition = when (anchor) {
+        HrtDropdownAnchor.Below -> MenuAnchorPosition.Below
+        HrtDropdownAnchor.EndAlignedBelow -> remember {
+            MenuAnchorPosition.Custom(
+                xCandidates = { anchorBounds, _, menuSize ->
+                    intListOf(
+                        (anchorBounds.right - menuSize.width).coerceAtLeast(0),
+                        anchorBounds.left,
+                    )
+                },
+                yCandidates = { anchorBounds, _, menuSize ->
+                    intListOf(
+                        anchorBounds.bottom,
+                        (anchorBounds.top - menuSize.height).coerceAtLeast(0),
+                    )
+                },
+            )
+        }
+    }
 
     DropdownMenuPopup(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
+        popupPositionProvider = MenuDefaults.rememberDropdownMenuPopupPositionProvider(anchorPosition),
         properties = properties,
     ) {
         DropdownMenuGroup(
