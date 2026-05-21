@@ -455,8 +455,8 @@ internal fun RegimenGroupCard(
     showChevron: Boolean = true,
     showUpcomingSection: Boolean = true,
     showStartDate: Boolean = true,
+    firstDayOfWeek: DayOfWeek,
     metadataRows: List<RegimenGroupCardMetadata> = emptyList(),
-    firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = group.colorKey)
     val groupStartDate = remember(group.schedule.since, dateFormatter) {
@@ -1046,7 +1046,8 @@ private fun RegimenGroupCardPreview() {
             timeFormatter = timeFormatter,
             upcomingOccurrences = uiState.nextOccurrencesByGroup[group.uuid].orEmpty(),
             today = uiState.today,
-            onClick = { }
+            onClick = { },
+            firstDayOfWeek = DayOfWeek.MONDAY,
         )
     }
 }

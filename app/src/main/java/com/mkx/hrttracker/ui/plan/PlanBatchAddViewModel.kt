@@ -13,6 +13,7 @@ import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.ownsUnloggedOccurrence
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import com.mkx.hrttracker.util.systemLocale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -73,6 +75,7 @@ class PlanBatchAddViewModel @Inject constructor(
             endDate = endDate,
             today = today,
             remindersEnabled = settingsState.remindersEnabled,
+            firstDayOfWeek = settingsState.firstDayOfWeekOption.resolve(systemLocale()),
             nextOccurrencesByGroup = buildNextOccurrencesByGroup(
                 groups = groups,
                 entries = entries,
@@ -227,6 +230,7 @@ data class PlanBatchAddUiState(
     val endDate: LocalDate = LocalDate.now(),
     val today: LocalDate = LocalDate.now(),
     val remindersEnabled: Boolean = true,
+    val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val nextOccurrencesByGroup: Map<UUID, List<LocalDateTime>> = emptyMap(),
     val entriesToAdd: List<MedicationLogEntryInput> = emptyList(),
     val manualEntryCount: Int = 0,
