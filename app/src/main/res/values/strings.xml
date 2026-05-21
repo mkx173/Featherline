@@ -361,7 +361,7 @@
     <string name="settings_hide_archived_group_records_summary">Hide records from archived groups in plan and history.</string>
     <string name="settings_hide_reference_ranges">Hide reference ranges</string>
     <string name="settings_hide_medication_details">Hide medication details</string>
-    <string name="settings_hide_medication_details_summary">Hides medication name and dose in notifications</string>
+    <string name="settings_hide_medication_details_summary">Hides medication name and dose outside the app</string>
     <string name="settings_screen_lock_protection">App lock</string>
     <string name="settings_screen_lock_protection_summary">Require device authentication to open the app.</string>
     <string name="settings_app_lock_grace_period">Stay unlocked after leaving</string>
