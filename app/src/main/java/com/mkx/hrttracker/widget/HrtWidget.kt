@@ -727,14 +727,15 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
 // ── Previews ──────────────────────────────────────────────────────────────────
 
 private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
-    val now = LocalDateTime.now()
+    val morningDoseTime = LocalDateTime.of(2026, 1, 1, 9, 0)
+    val eveningDoseTime = LocalDateTime.of(2026, 1, 1, 21, 0)
     val timeFormatter = localizedShortTimeFormatter(
         Locale.getDefault(),
         uses24HourFormat = android.text.format.DateFormat.is24HourFormat(context),
     )
     val estradiolName = context.getString(R.string.medication_name_estradiol)
     val progesteroneName = context.getString(R.string.settings_calibration_analyte_prog)
-    val spironolactoneName = context.getString(R.string.medication_name_spironolactone)
+    val cpaName = context.getString(R.string.medication_name_cyproterone_acetate)
     val oralLabel = context.getString(R.string.medication_application_oral)
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
@@ -751,19 +752,18 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
         forcedDark = null,
         doseRows = listOf(
             WidgetDoseRow(
-                medicationName = progesteroneName,
-                groupName = progesteroneName,
-                colorKey = MedicationGroupColorKey.INDIGO,
+                medicationName = cpaName,
+                groupName = cpaName,
+                colorKey = MedicationGroupColorKey.TEAL,
                 routeLabel = oralLabel,
-                doseText = "200 mg",
+                doseText = "12.5 mg",
                 status = WidgetDoseStatus.DONE,
-                scheduledAt = now.plusMinutes(30),
+                scheduledAt = morningDoseTime,
                 trailingText = null,
                 isManualRecord = false,
                 contextChip = null,
-                groupUuid = "g1",
-                scheduleTimeUuid = "s1",
-                medicationUuid = "m1",
+                groupUuid = null,
+                scheduleTimeUuid = null,
             ),
             WidgetDoseRow(
                 medicationName = context.getString(R.string.medication_name_estradiol_valerate),
@@ -772,26 +772,27 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
                 routeLabel = oralLabel,
                 doseText = "2 mg",
                 status = WidgetDoseStatus.DUE_SOON,
-                scheduledAt = now.minusHours(2),
-                trailingText = now.plusMinutes(30).format(timeFormatter),
+                scheduledAt = morningDoseTime,
+                trailingText = morningDoseTime.format(timeFormatter),
                 isManualRecord = false,
                 contextChip = null,
                 groupUuid = null,
                 scheduleTimeUuid = null,
             ),
             WidgetDoseRow(
-                medicationName = spironolactoneName,
-                groupName = spironolactoneName,
-                colorKey = MedicationGroupColorKey.TEAL,
+                medicationName = progesteroneName,
+                groupName = progesteroneName,
+                colorKey = MedicationGroupColorKey.INDIGO,
                 routeLabel = oralLabel,
-                doseText = "100 mg",
+                doseText = "200 mg",
                 status = WidgetDoseStatus.UPCOMING,
-                scheduledAt = now.plusHours(4),
-                trailingText = now.plusHours(4).format(timeFormatter),
+                scheduledAt = eveningDoseTime,
+                trailingText = eveningDoseTime.format(timeFormatter),
                 isManualRecord = false,
-                contextChip = WidgetDoseChip.COMING_UP,
-                groupUuid = null,
-                scheduleTimeUuid = null,
+                contextChip = null,
+                groupUuid = "g1",
+                scheduleTimeUuid = "s1",
+                medicationUuid = "m1",
             ),
         ),
         pkProjection = null,
