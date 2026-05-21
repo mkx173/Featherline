@@ -400,10 +400,10 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
                         ) {
                             Image(
                                 provider = ImageProvider(
-                                    if (everythingLogged && !nothingScheduledToday) {
-                                        R.drawable.ic_done_all
-                                    } else {
-                                        R.drawable.ic_check
+                                    when {
+                                        nothingScheduledToday || allInWindow -> R.drawable.ic_check
+                                        everythingLogged -> R.drawable.ic_done_all
+                                        else -> R.drawable.ic_exclamation
                                     }
                                 ),
                                 contentDescription = null,
