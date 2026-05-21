@@ -562,7 +562,7 @@ private fun WidgetAppearanceDialog(
     onAppearanceChange: (Float, Float, DarkModeOption) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.7f, 1.3f)) }
+    var localContentScale by remember { mutableStateOf(contentScale.coerceIn(0.5f, 1.5f)) }
     var localBackgroundAlpha by remember { mutableStateOf(backgroundAlpha.coerceIn(0.5f, 1f)) }
     var localDarkModeOption by remember { mutableStateOf(darkModeOption) }
     var isDarkModeMenuExpanded by remember { mutableStateOf(false) }
@@ -589,7 +589,7 @@ private fun WidgetAppearanceDialog(
                     Slider(
                         value = localContentScale,
                         onValueChange = { localContentScale = it },
-                        valueRange = 0.7f..1.3f,
+                        valueRange = 0.5f..1.5f,
                     )
                 }
                 Column {

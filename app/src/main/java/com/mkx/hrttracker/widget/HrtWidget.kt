@@ -74,7 +74,7 @@ private suspend fun GlanceAppWidget.provideHrtContent(
         val snapshot = state.record?.takeIf { it.schemaVersion == WIDGET_SNAPSHOT_SCHEMA_VERSION }
         val adaptiveEnabled = snapshot?.adaptiveColorEnabled ?: true
         val alpha = snapshot?.widgetBackgroundAlpha?.coerceIn(0.5f, 1f) ?: 1.0f
-        val scale = snapshot?.widgetContentScale?.coerceIn(0.7f, 1.3f) ?: 1.0f
+        val scale = snapshot?.widgetContentScale?.coerceIn(0.5f, 1.5f) ?: 1.0f
         val forcedDark = snapshot?.forcedDark
         val widgetColors = if (adaptiveEnabled) {
             dynamicWidgetColorScheme(context, alpha, forcedDark)
