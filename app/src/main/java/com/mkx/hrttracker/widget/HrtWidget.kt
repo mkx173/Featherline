@@ -189,6 +189,20 @@ internal fun collapseToGroupRow(rows: List<WidgetDoseRow>): WidgetDoseRow {
     )
 }
 
+private sealed interface WidgetRowGroupKey {
+    data class GroupSlot(val groupUuid: String, val scheduledAt: LocalDateTime) : WidgetRowGroupKey
+    data class SingleRow(val index: Int) : WidgetRowGroupKey
+}
+
+internal fun groupRowsByScheduledGroupSlot(rows: List<WidgetDoseRow>): List<List<WidgetDoseRow>> =
+    rows.withIndex()
+        .groupBy { (index, row) ->
+            row.groupUuid?.let { WidgetRowGroupKey.GroupSlot(it, row.scheduledAt) }
+                ?: WidgetRowGroupKey.SingleRow(index)
+        }
+        .values
+        .map { indexedRows -> indexedRows.map { it.value } }
+
 // ── State definition ──────────────────────────────────────────────────────────
 
 internal object HrtWidgetStateDefinition : GlanceStateDefinition<WidgetSnapshotState> {
@@ -307,10 +321,9 @@ private fun MediumWidgetContent(snapshot: WidgetSnapshotRecord?) {
         // groupName is not unique across groups; using groupUuid guarantees we collapse
         // only true siblings. A group only surfaces while it has at least one member
         // that's still actionable (neither addressed nor past its grace period).
-        val activeScheduledGroup: List<WidgetDoseRow>? = record.doseRows
-            .filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
-            .groupBy { it.groupUuid to it.scheduledAt }
-            .values
+        val activeScheduledGroup: List<WidgetDoseRow>? = groupRowsByScheduledGroupSlot(
+            record.doseRows.filter { it.contextChip != WidgetDoseChip.LAST_NIGHT && !it.isManualRecord }
+        )
             .sortedBy { it.first().scheduledAt }
             .firstOrNull { rows -> rows.any { !it.isAddressed() && !it.isExpired() } }
         val activeRow: WidgetDoseRow? = activeScheduledGroup?.let { collapseToGroupRow(it) }
@@ -590,8 +603,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
             val regularRows = record.doseRows.filter { it.contextChip != WidgetDoseChip.COMING_UP }
             val collapsed = regularRows
                 .filter { !it.isManualRecord }
-                .groupBy { it.groupUuid to it.scheduledAt }
-                .values
+                .let(::groupRowsByScheduledGroupSlot)
                 .map { rows ->
                     val count = rows.size
                     collapseToGroupRow(rows).copy(
@@ -652,7 +664,7 @@ private fun LargeWidgetContent(snapshot: WidgetSnapshotRecord?) {
                     ProgressBar(doneCount = doneCount, totalCount = totalCount)
                 }
                 if (e2Text != null) {
-                    Spacer(GlanceModifier.width((64f / scale).dp))
+                    Spacer(GlanceModifier.width((64f * scale).dp))
                     Text(
                         text = e2Text,
                         style = TextStyle(
@@ -762,8 +774,9 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
                 trailingText = null,
                 isManualRecord = false,
                 contextChip = null,
-                groupUuid = null,
-                scheduleTimeUuid = null,
+                groupUuid = "00000000-0000-0000-0000-000000000101",
+                scheduleTimeUuid = "00000000-0000-0000-0000-000000000201",
+                medicationUuid = "00000000-0000-0000-0000-000000000301",
             ),
             WidgetDoseRow(
                 medicationName = context.getString(R.string.medication_name_estradiol_valerate),
@@ -776,8 +789,9 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
                 trailingText = morningDoseTime.format(timeFormatter),
                 isManualRecord = false,
                 contextChip = null,
-                groupUuid = null,
-                scheduleTimeUuid = null,
+                groupUuid = "00000000-0000-0000-0000-000000000102",
+                scheduleTimeUuid = "00000000-0000-0000-0000-000000000202",
+                medicationUuid = "00000000-0000-0000-0000-000000000302",
             ),
             WidgetDoseRow(
                 medicationName = progesteroneName,
@@ -790,9 +804,9 @@ private fun previewSnapshot(context: Context): WidgetSnapshotRecord {
                 trailingText = eveningDoseTime.format(timeFormatter),
                 isManualRecord = false,
                 contextChip = null,
-                groupUuid = "g1",
-                scheduleTimeUuid = "s1",
-                medicationUuid = "m1",
+                groupUuid = "00000000-0000-0000-0000-000000000103",
+                scheduleTimeUuid = "00000000-0000-0000-0000-000000000203",
+                medicationUuid = "00000000-0000-0000-0000-000000000303",
             ),
         ),
         pkProjection = null,
