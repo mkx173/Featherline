@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -12,11 +13,14 @@ import java.time.Instant
 import java.util.UUID
 
 internal fun MedicineEntity.toMedicineModel(): Medicine {
+    val selection = toMedicineSelection()
+    val preparation = toMedicinePreparation()
+    validateIdentityFields(selection, preparation)
     return Medicine(
         uuid = UUID.fromString(uuid),
-        selection = toMedicineSelection(),
+        selection = selection,
         category = MedicationCategory.fromStorageValue(category),
-        preparation = toMedicinePreparation(),
+        preparation = preparation,
         displayName = displayName,
         identityKey = identityKey,
         createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
@@ -129,6 +133,32 @@ private fun MedicineEntity.toMedicineSelection(): MedicineSelection {
                 "Custom medicine $uuid is missing customMedicationName."
             }
         )
+    }
+}
+
+private fun MedicineEntity.validateIdentityFields(
+    selection: MedicineSelection,
+    preparation: MedicinePreparation,
+) {
+    val expectedIdentityKey = when (selection) {
+        is MedicineSelection.Catalog -> {
+            MedicineIdentityKey.catalog(selection.medicationKey, preparation)
+        }
+
+        is MedicineSelection.Custom -> {
+            val expectedNormalizedName = selection.normalizedMedicationName
+            val storedNormalizedName = checkNotNull(customMedicationNameNormalized) {
+                "Custom medicine $uuid is missing customMedicationNameNormalized."
+            }
+            check(storedNormalizedName == expectedNormalizedName) {
+                "Custom medicine $uuid normalized name does not match selection."
+            }
+            MedicineIdentityKey.custom(selection.medicationName, preparation)
+        }
+    }
+
+    check(identityKey == expectedIdentityKey) {
+        "Medicine $uuid identityKey does not match selection and preparation."
     }
 }
 

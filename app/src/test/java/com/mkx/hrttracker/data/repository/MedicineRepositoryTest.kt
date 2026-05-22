@@ -223,6 +223,46 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun toMedicineModel_rejectsCatalogMedicineWithMismatchedIdentityKey() {
+        val entity = medicineEntity().copy(
+            identityKey = "C|ESTRADIOL|PILL|strengthMgPerTablet=4",
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsCustomMedicineWithMismatchedIdentityKey() {
+        val entity = customMedicineEntity().copy(
+            identityKey = "X|progesterone|PILL|strengthMgPerTablet=200",
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsCustomMedicineWithMissingNormalizedName() {
+        val entity = customMedicineEntity().copy(customMedicationNameNormalized = null)
+
+        assertThrows(IllegalStateException::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsCustomMedicineWithMismatchedNormalizedName() {
+        val entity = customMedicineEntity().copy(customMedicationNameNormalized = "progesteron")
+
+        assertThrows(IllegalStateException::class.java) {
+            entity.toMedicineModel()
+        }
+    }
+
+    @Test
     fun toMedicineModel_rejectsPillWithIrrelevantPreparationFields() {
         val entity = medicineEntity().copy(strengthMgPerVial = 10.0)
 
@@ -285,6 +325,18 @@ class MedicineRepositoryTest {
             createdAtEpochMillis = 100,
             updatedAtEpochMillis = 200,
             archivedAtEpochMillis = archivedAtEpochMillis,
+        )
+    }
+
+    private fun customMedicineEntity(): MedicineEntity {
+        return medicineEntity().copy(
+            selectionKind = "CUSTOM",
+            medicationKey = null,
+            customMedicationName = "  Progesterone  ",
+            customMedicationNameNormalized = "progesterone",
+            category = MedicationCategory.CUSTOM.name,
+            strengthMgPerTablet = 100.0,
+            identityKey = "X|progesterone|PILL|strengthMgPerTablet=100",
         )
     }
 }
