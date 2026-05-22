@@ -10,6 +10,7 @@ import java.time.Instant
 import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class DoseInstructionCalculatorTest {
@@ -24,11 +25,12 @@ class DoseInstructionCalculatorTest {
             doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 4),
         )
 
-        assertEquals(0.5, perUnitAmountMg ?: 0.0, 0.0001)
+        assertEquals(0.5, requireNotNull(perUnitAmountMg), 0.0001)
         assertEquals(
             1.0,
-            DoseInstructionCalculator.totalAmountMg(perUnitAmountMg = perUnitAmountMg, count = 2)
-                ?: 0.0,
+            requireNotNull(
+                DoseInstructionCalculator.totalAmountMg(perUnitAmountMg = perUnitAmountMg, count = 2),
+            ),
             0.0001,
         )
     }
@@ -48,7 +50,22 @@ class DoseInstructionCalculatorTest {
             doseInstruction = DoseInstruction.VolumeMl(valueMl = 0.2),
         )
 
-        assertEquals(4.0, result ?: 0.0, 0.0001)
+        assertEquals(4.0, requireNotNull(result), 0.0001)
+    }
+
+    @Test
+    fun valerateEquivalentE2UsesMolecularWeightRatio() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+        )
+
+        val result = DoseInstructionCalculator.perUnitEquivalentE2Mg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
+        )
+
+        assertEquals(4.0 * 272.4 / 356.5, requireNotNull(result), 0.0001)
     }
 
     @Test
@@ -66,7 +83,7 @@ class DoseInstructionCalculatorTest {
             doseInstruction = DoseInstruction.WeightGrams(valueGrams = 2.5),
         )
 
-        assertEquals(1.5, result ?: 0.0, 0.0001)
+        assertEquals(1.5, requireNotNull(result), 0.0001)
     }
 
     @Test
@@ -84,6 +101,17 @@ class DoseInstructionCalculatorTest {
         )
 
         assertNull(result)
+    }
+
+    @Test
+    fun catalogMedicineRejectsCategoryMismatch() {
+        assertThrows(IllegalArgumentException::class.java) {
+            medicine(
+                selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+                category = MedicationCategory.ANTIANDROGEN,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            )
+        }
     }
 
     @Test

@@ -25,11 +25,11 @@ sealed interface MedicineSelection {
         override val kind: MedicationSelectionKind = MedicationSelectionKind.CATALOG
     }
 
-    data class Custom(
-        val medicationName: String,
-        val normalizedMedicationName: String = normalizeCustomMedicationName(medicationName),
-    ) : MedicineSelection {
+    data class Custom(val medicationName: String) : MedicineSelection {
         override val kind: MedicationSelectionKind = MedicationSelectionKind.CUSTOM
+
+        val normalizedMedicationName: String
+            get() = normalizeCustomMedicationName(medicationName)
     }
 }
 
@@ -37,10 +37,18 @@ sealed interface MedicinePreparation {
     val type: MedicinePreparationType
 
     data class Pill(val strengthMgPerTablet: Double) : MedicinePreparation {
+        init {
+            require(strengthMgPerTablet.isFinitePositive())
+        }
+
         override val type: MedicinePreparationType = MedicinePreparationType.PILL
     }
 
     data class InjectionSingleUseVial(val strengthMgPerVial: Double) : MedicinePreparation {
+        init {
+            require(strengthMgPerVial.isFinitePositive())
+        }
+
         override val type: MedicinePreparationType = MedicinePreparationType.INJECTION_SINGLE_USE_VIAL
     }
 
@@ -48,6 +56,11 @@ sealed interface MedicinePreparation {
         val concentrationMgPerMl: Double,
         val vialVolumeMl: Double,
     ) : MedicinePreparation {
+        init {
+            require(concentrationMgPerMl.isFinitePositive())
+            require(vialVolumeMl.isFinitePositive())
+        }
+
         override val type: MedicinePreparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL
     }
 
@@ -55,6 +68,11 @@ sealed interface MedicinePreparation {
         val concentrationPercent: Double,
         val sachetWeightGrams: Double,
     ) : MedicinePreparation {
+        init {
+            require(concentrationPercent.isFinitePositive())
+            require(sachetWeightGrams.isFinitePositive())
+        }
+
         override val type: MedicinePreparationType = MedicinePreparationType.GEL_SACHET
     }
 
@@ -62,6 +80,11 @@ sealed interface MedicinePreparation {
         val concentrationPercent: Double,
         val containerWeightGrams: Double,
     ) : MedicinePreparation {
+        init {
+            require(concentrationPercent.isFinitePositive())
+            require(containerWeightGrams.isFinitePositive())
+        }
+
         override val type: MedicinePreparationType = MedicinePreparationType.GEL_CONTAINER
     }
 
@@ -70,8 +93,17 @@ sealed interface MedicinePreparation {
     }
 
     sealed interface PatchSpecification {
-        data class TotalMg(val valueMg: Double) : PatchSpecification
-        data class ReleaseRateMcgPerDay(val valueMcgPerDay: Double) : PatchSpecification
+        data class TotalMg(val valueMg: Double) : PatchSpecification {
+            init {
+                require(valueMg.isFinitePositive())
+            }
+        }
+
+        data class ReleaseRateMcgPerDay(val valueMcgPerDay: Double) : PatchSpecification {
+            init {
+                require(valueMcgPerDay.isFinitePositive())
+            }
+        }
     }
 }
 
@@ -140,6 +172,12 @@ data class Medicine(
     val updatedAt: Instant,
     val archivedAt: Instant?,
 ) {
+    init {
+        if (selection is MedicineSelection.Catalog) {
+            require(category == selection.medicationKey.category)
+        }
+    }
+
     val isArchived: Boolean
         get() = archivedAt != null
 }
