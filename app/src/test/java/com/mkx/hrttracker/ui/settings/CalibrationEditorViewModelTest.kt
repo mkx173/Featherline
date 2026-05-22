@@ -11,11 +11,11 @@ import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.bloodtest.CustomBloodAnalyte
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.ui.calibration.CalibrationAddAnalyteOption
 import com.mkx.hrttracker.ui.calibration.CalibrationDeleteEntryResult
@@ -149,11 +149,10 @@ class CalibrationEditorViewModelTest {
     @Test
     fun init_usesObservedMedicationEntriesForInitialElapsedDose() = runTest {
         val observedEntry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = Instant.EPOCH,
         )
@@ -572,11 +571,10 @@ class CalibrationEditorViewModelTest {
         coEvery {
             medicationLogRepository.getLatestEstradiolEntryOnOrBefore(selectedCollectedAt)
         } returns testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),
         )

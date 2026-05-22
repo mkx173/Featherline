@@ -403,29 +403,49 @@ class HomeSnapshotRepository @Inject constructor(
         val inputs = withContext(Dispatchers.IO) {
             val database = databaseHolder.get()
             val homeDao = database.homeDao()
-            val activeGroups = homeDao.getActiveGroups()
-                .map { group -> group.toMedicationGroupModel() }
-            val scheduleEntries = homeDao.getScheduleEntries(
+            val activeGroupEntities = homeDao.getActiveGroups()
+            val scheduleEntryEntities = homeDao.getScheduleEntries(
                 scheduledStartIso = snapshotWindow.bufferedScheduledStart.toString(),
                 scheduledEndIso = snapshotWindow.bufferedScheduledEnd.toString(),
                 manualStartEpochMillis = snapshotWindow.bufferedManualStartEpochMillis,
                 manualEndEpochMillis = snapshotWindow.bufferedManualEndEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
-            val antiandrogenHistoryEntries = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
+            )
+            val antiandrogenHistoryEntities = homeDao.getLatestAntiandrogenEntriesOnOrBefore(
                 onOrBeforeEpochMillis = snapshotWindow.onOrBeforeEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
+            )
             val pkEntries = homeDao.getEstradiolPkEntries(
                 startEpochMillis = cacheWindow.inputStartEpochMillis,
                 endEpochMillis = cacheWindow.windowEndEpochMillis,
-            ).map { entry -> entry.toMedicationLogEntryModel() }
-            val latestEstradiolEntry = homeDao.getLatestEstradiolEntryOnOrBefore(
+            )
+            val latestEstradiolEntryEntity = homeDao.getLatestEstradiolEntryOnOrBefore(
                 onOrBeforeEpochMillis = cacheWindow.generatedAtEpochMillis,
-            )?.toMedicationLogEntryModel()
+            )
+
+            val groupMedicinesByUuid = database.resolveMedicinesForGroups(activeGroupEntities)
+            val entryMedicinesByUuid = database.resolveMedicinesForEntries(
+                scheduleEntryEntities + antiandrogenHistoryEntities + pkEntries +
+                    listOfNotNull(latestEstradiolEntryEntity)
+            )
+            val activeGroups = activeGroupEntities.map { group ->
+                group.toMedicationGroupModel(groupMedicinesByUuid)
+            }
+            val scheduleEntries = scheduleEntryEntities.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val antiandrogenHistoryEntries = antiandrogenHistoryEntities.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val pkEntryModels = pkEntries.map { entry ->
+                entry.toMedicationLogEntryModel(entryMedicinesByUuid)
+            }
+            val latestEstradiolEntry = latestEstradiolEntryEntity?.toMedicationLogEntryModel(
+                entryMedicinesByUuid
+            )
             HomeSnapshotBuildInputs(
                 activeGroups = activeGroups,
                 scheduleEntries = scheduleEntries,
                 antiandrogenHistoryEntries = antiandrogenHistoryEntries,
-                pkEntries = pkEntries,
+                pkEntries = pkEntryModels,
                 latestEstradiolEntry = latestEstradiolEntry,
                 profile = database.userProfileDao()
                     .getProfile()
@@ -733,7 +753,7 @@ private fun HomeSnapshotRecord.diagnosticSummary(): String {
         "hasPkProjection=${pkProjection != null}"
 }
 
-internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 6
+internal const val HOME_SNAPSHOT_SCHEMA_VERSION = 7
 
 // Cache-input lookback past the visible chart window. 180 d is enough for
 // steady-state PK history regardless of option; the forward span is owned

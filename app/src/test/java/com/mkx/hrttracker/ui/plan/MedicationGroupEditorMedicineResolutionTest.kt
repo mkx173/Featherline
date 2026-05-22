@@ -102,8 +102,13 @@ class MedicationGroupEditorMedicineResolutionTest {
 
         // The existing-medicine slot needs the picker to know that this
         // medicine is selectable. Without it, `selectEditingExistingMedicine`
-        // is a no-op (it only operates on `activeMedicines`).
-        every { medicineRepository.observeAllActive() } returns flowOf(
+        // is a no-op (it only operates on `activeMedicines`). The viewmodel
+        // subscribes to this flow exactly once in init, so the override must
+        // be in place before the viewmodel is constructed *and* the flow
+        // must keep emitting (MutableStateFlow vs flowOf, which completes
+        // after one emission and may not have run by the time
+        // selectEditingExistingMedicine is invoked).
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(
             listOf(existingCustomMedicine)
         )
         coEvery { medicineRepository.getByUuid(existingMedicineUuid) } returns existingCustomMedicine
@@ -111,11 +116,12 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository.findOrCreateForCatalog(
                 medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                 preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                now = any(),
             )
         } returns resolvedCatalogMedicine
         coEvery {
             medicationGroupRepository.saveGroup(
-                uuid = null,
+                uuid = any(),
                 name = any(),
                 colorKey = any(),
                 schedule = any(),
@@ -139,6 +145,11 @@ class MedicationGroupEditorMedicineResolutionTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
+
+        // hasSaveableMedicationGroupContent requires a non-blank user-entered
+        // group name (defaultGroupName alone doesn't satisfy the guard).
+        // Without this, saveGroup() short-circuits and isSaved stays false.
+        viewModel.updateGroupName("Resolution test group")
 
         // Slot #1: a brand-new catalog draft (no selectedMedicineUuid) — its
         // pill strength matches the catalog medicine the repository will
@@ -185,10 +196,11 @@ class MedicationGroupEditorMedicineResolutionTest {
             medicineRepository.findOrCreateForCatalog(
                 medicationKey = MedicationKey.ESTRADIOL_VALERATE,
                 preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                now = any(),
             )
             medicineRepository.getByUuid(existingMedicineUuid)
             medicationGroupRepository.saveGroup(
-                uuid = null,
+                uuid = any(),
                 name = any(),
                 colorKey = any(),
                 schedule = any(),

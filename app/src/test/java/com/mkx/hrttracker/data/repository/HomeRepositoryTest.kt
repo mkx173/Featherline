@@ -156,6 +156,9 @@ class HomeRepositoryTest {
             category = MedicationCategory.ANTIANDROGEN,
             medicationKey = MedicationKey.SPIRONOLACTONE,
         )
+        val medicinesByUuid = medicineEntities().associate { entity ->
+            entity.uuid to entity.toMedicineModel()
+        }
         val pkSnapshot = HomePkProjectionRecord(
             generatedAtEpochMillis = now.atZone(zoneId).toInstant().toEpochMilli(),
             windowStartEpochMillis = LocalDate.of(2026, 5, 1)
@@ -174,7 +177,7 @@ class HomeRepositoryTest {
             timeH = emptyList(),
             concentrations = emptyList(),
             doseMarkers = emptyList(),
-            latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(),
+            latestEstradiolEntry = pkEntry.toMedicationLogEntryModel(medicinesByUuid),
             chartWindowHours = 168,
             densePolicy = HomePkDenseSamplePolicyRecord.Interval(hours = 0.1),
             includesPostDoseOffsets = false,
@@ -185,9 +188,11 @@ class HomeRepositoryTest {
             anchorDateEpochDay = now.toLocalDate().toEpochDay(),
             zoneId = ZoneId.systemDefault().id,
             pkProjection = pkSnapshot,
-            activeGroups = listOf(groupWithItems().toMedicationGroupModel()),
-            scheduleEntries = listOf(scheduleEntry.toMedicationLogEntryModel()),
-            antiandrogenHistoryEntries = listOf(antiandrogenHistoryEntry.toMedicationLogEntryModel()),
+            activeGroups = listOf(groupWithItems().toMedicationGroupModel(medicinesByUuid)),
+            scheduleEntries = listOf(scheduleEntry.toMedicationLogEntryModel(medicinesByUuid)),
+            antiandrogenHistoryEntries = listOf(
+                antiandrogenHistoryEntry.toMedicationLogEntryModel(medicinesByUuid)
+            ),
         )
 
         every { homeSnapshotStore.observeSnapshot() } returns flowOf(snapshot)

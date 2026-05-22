@@ -3,17 +3,17 @@ package com.mkx.hrttracker.ui.history
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.FirstDayOfWeekOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
@@ -77,11 +77,9 @@ class HistoryViewModelTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                     sourceGroupUuid = null,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -123,11 +121,9 @@ class HistoryViewModelTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                     sourceGroupUuid = null,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -162,11 +158,9 @@ class HistoryViewModelTest {
     @Test
     fun deleteSelectedEntries_updatesUiStateWithSuccessResult() = runTest {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -208,11 +202,9 @@ class HistoryViewModelTest {
     @Test
     fun deleteSelectedEntries_whenSchedulerFails_stillReportsSuccessAndClearsSelection() = runTest {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -249,11 +241,9 @@ class HistoryViewModelTest {
     @Test
     fun deleteSelectedEntries_whenRepositoryFails_updatesUiStateWithFailureResult() = runTest {
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -359,17 +349,17 @@ class HistoryViewModelTest {
             archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
         )
         val visibleEntry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
         val hiddenEntry = testMedicationLogEntry(
-            details = archivedGroup.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = archivedGroup.medications.single().medicine,
+            applicationType = archivedGroup.medications.single().applicationType,
+            doseInstruction = archivedGroup.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = archivedGroup.uuid,
             appliedAt = Instant.parse("2026-04-19T00:00:00Z"),
             scheduledFor = LocalDateTime.of(2026, 4, 19, 9, 0),
@@ -403,8 +393,10 @@ class HistoryViewModelTest {
             archivedAt = Instant.parse("2026-04-20T00:00:00Z"),
         )
         val hiddenEntry = testMedicationLogEntry(
-            details = archivedGroup.medications.single().details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = archivedGroup.medications.single().medicine,
+            applicationType = archivedGroup.medications.single().applicationType,
+            doseInstruction = archivedGroup.medications.single().doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = archivedGroup.uuid,
             appliedAt = Instant.parse("2026-04-19T00:00:00Z"),
             scheduledFor = LocalDateTime.of(2026, 4, 19, 9, 0),
@@ -574,11 +566,9 @@ class HistoryViewModelTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                 )
             ),
             createdAt = testInstant(since.atStartOfDay()),

@@ -45,6 +45,17 @@ class MedicineRepository @Inject constructor(
         }
     }
 
+    /**
+     * One-shot read of every medicine row, active and archived. Used by the
+     * backup export path which serialises the full table so restore can rebuild
+     * referential integrity for both live and historical-log references.
+     */
+    suspend fun getAll(): List<Medicine> {
+        return databaseHolder.get().medicineDao()
+            .getAll()
+            .map(MedicineEntity::toMedicineModel)
+    }
+
     suspend fun getByUuid(uuid: UUID): Medicine? {
         return databaseHolder.get().medicineDao()
             .getByUuid(uuid.toString())

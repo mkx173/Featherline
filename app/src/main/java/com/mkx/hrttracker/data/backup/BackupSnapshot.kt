@@ -9,6 +9,9 @@ data class BackupSnapshot(
     val app: BackupAppSnapshot,
     val settings: BackupSettingsSnapshot,
     val userProfile: BackupUserProfileSnapshot,
+    // Medicines are written before groups/logs so the restore path can build
+    // its FK-validation set before mapping any item or log referencing one.
+    val medicines: List<BackupMedicineSnapshot>,
     val medicationGroups: List<BackupMedicationGroupSnapshot>,
     val medicationLogs: List<BackupMedicationLogSnapshot>,
     val customBloodAnalytes: List<BackupCustomBloodAnalyteSnapshot>,
@@ -53,6 +56,31 @@ data class BackupUserProfileSnapshot(
 )
 
 @JsonClass(generateAdapter = true)
+data class BackupMedicineSnapshot(
+    val uuid: String,
+    val selectionKind: String,
+    val medicationKey: String?,
+    val customMedicationName: String?,
+    val customMedicationNameNormalized: String?,
+    val category: String,
+    val preparationType: String,
+    val strengthMgPerTablet: Double?,
+    val strengthMgPerVial: Double?,
+    val concentrationMgPerMl: Double?,
+    val vialVolumeMl: Double?,
+    val concentrationPercent: Double?,
+    val sachetWeightGrams: Double?,
+    val containerWeightGrams: Double?,
+    val patchTotalMg: Double?,
+    val patchReleaseRateMcgPerDay: Double?,
+    val displayName: String?,
+    val identityKey: String,
+    val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
+    val archivedAtEpochMillis: Long?,
+)
+
+@JsonClass(generateAdapter = true)
 data class BackupMedicationGroupSnapshot(
     val uuid: String,
     val name: String,
@@ -90,36 +118,38 @@ data class BackupMedicationGroupScheduleTimeSnapshot(
 data class BackupMedicationGroupItemSnapshot(
     val uuid: String,
     val count: Int,
-    val category: String,
+    // Nullable per PATCH_OFF cross-cutting rule: only patch-off slots may omit
+    // their medicine reference. Every other application type carries a valid
+    // medicineUuid present in the same backup's `medicines` collection.
+    val medicineUuid: String?,
     val applicationType: String,
-    val selectionKind: String,
-    val medicationKey: String?,
-    val customMedicationName: String?,
-    val doseKind: String,
-    val doseValueMg: Double?,
-    val customDoseUnit: String,
-    val doseValuePercent: Double?,
+    val doseInstructionKind: String,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
     val gelApplicationArea: String,
 )
 
 @JsonClass(generateAdapter = true)
 data class BackupMedicationLogSnapshot(
     val uuid: String,
+    // Logs preserve the historical category so we still know how to classify
+    // them even if the referenced medicine is later archived or recategorised.
     val category: String,
+    // Nullable per PATCH_OFF cross-cutting rule: patch-off logs alone may omit
+    // a medicine reference. Restore validation rejects any other null.
+    val medicineUuid: String?,
     val applicationType: String,
-    val selectionKind: String,
-    val medicationKey: String?,
-    val customMedicationName: String?,
-    val doseKind: String,
-    val doseValueMg: Double?,
-    val customDoseUnit: String,
-    val doseValuePercent: Double?,
+    val doseInstructionKind: String,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
     val doseWeightGrams: Double?,
-    val doseReleaseRateMcgPerDay: Double?,
     val gelApplicationArea: String,
-    val dosageMgAsEstradiol: Double?,
+    // Snapshotted PK input — null for PATCH_OFF and for custom medicines whose
+    // estradiol equivalence is unknown.
+    val equivalentE2Mg: Double?,
     val sourceGroupUuid: String?,
     val scheduleTimeUuid: String? = null,
     val appliedAtEpochMillis: Long,
@@ -164,4 +194,4 @@ data class BackupBloodTestResultSnapshot(
     val canonicalValue: Double,
 )
 
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 1
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 2

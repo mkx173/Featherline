@@ -1,16 +1,16 @@
 package com.mkx.hrttracker.reminder
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -21,6 +21,11 @@ import java.time.LocalTime
 import java.util.UUID
 
 class MedicationReminderBundlePlannerTest {
+    // Shared so the (medicineUuid, applicationType, doseInstruction) signature
+    // matches between scheduled slots and the fulfilling log entry below — a
+    // random per-call UUID would always mismatch and the test would never
+    // exercise its actual fulfillment branch.
+    private val estradiolMedicineUuid = UUID.fromString("11111111-1111-1111-1111-111111111111")
     @Test
     fun buildMedicationReminderBundle_merges_unfulfilled_groups_at_the_same_time() {
         val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
@@ -142,11 +147,12 @@ class MedicationReminderBundlePlannerTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
                         key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    )
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                 )
             ),
             notificationsEnabled = true,
@@ -161,12 +167,13 @@ class MedicationReminderBundlePlannerTest {
         scheduledFor: LocalDateTime,
     ): MedicationLogEntry {
         return testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
+            medicine = testMedicine(
+                uuid = estradiolMedicineUuid,
                 key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
             ),
-            dosageMgAsEstradiol = 2.0,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,

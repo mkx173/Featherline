@@ -28,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -1120,31 +1121,38 @@ class MedicationGroupRepositoryTest {
         )
         coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
 
-        assertThrows(LockedMedicationGroupSlotRepointException::class.java) {
-            runTest {
-                repository.saveGroup(
-                    uuid = groupUuid,
-                    name = "Locked group",
-                    colorKey = MedicationGroupColorKey.ROSE,
-                    schedule = MedicationGroupScheduleInput(
-                        type = MedicationGroupScheduleType.WEEKLY,
-                        interval = 1,
-                        since = LocalDate.of(2026, 5, 22),
-                        weeklyDaysOfWeek = setOf(java.time.DayOfWeek.FRIDAY),
-                        times = listOf(LocalTime.of(8, 0)),
-                    ),
-                    medications = listOf(
-                        MedicationGroupMedicationInput(
-                            uuid = itemUuid,
-                            medicineUuid = replacementMedicineUuid,
-                            applicationType = MedicationApplicationType.ORAL,
-                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
-                            count = 1,
-                        )
-                    ),
-                )
-            }
-        }
+        // The outer `runTest` already drives this coroutine; using
+        // `assertThrows { runTest { ... } }` here would start a *nested*
+        // TestScope and immediately fail with the "Only a single call to
+        // runTest" guard before the repository code can throw its
+        // LockedMedicationGroupSlotRepointException.
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = groupUuid,
+                name = "Locked group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.WEEKLY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 5, 22),
+                    weeklyDaysOfWeek = setOf(java.time.DayOfWeek.FRIDAY),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        uuid = itemUuid,
+                        medicineUuid = replacementMedicineUuid,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                        count = 1,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+        assertTrue(
+            "Expected LockedMedicationGroupSlotRepointException but got $thrown",
+            thrown is LockedMedicationGroupSlotRepointException,
+        )
     }
 
     private fun testGroupEntity(

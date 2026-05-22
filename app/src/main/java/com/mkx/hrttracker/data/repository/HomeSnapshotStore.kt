@@ -11,13 +11,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
-import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -26,11 +23,15 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import com.mkx.hrttracker.model.pk.DenseSamplePolicy
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -413,14 +414,18 @@ internal object HomeSnapshotCodec {
 
     private fun DataOutputStream.writeMedicationGroupMedication(medication: MedicationGroupMedication) {
         writeString(medication.uuid.toString())
-        writeMedicationDetails(medication.details)
+        writeNullableMedicine(medication.medicine)
+        writeString(medication.applicationType.name)
+        writeDoseInstruction(medication.doseInstruction)
         writeInt(medication.count)
     }
 
     private fun DataInputStream.readMedicationGroupMedication(): MedicationGroupMedication {
         return MedicationGroupMedication(
             uuid = UUID.fromString(readString()),
-            details = readMedicationDetails(),
+            medicine = readNullableMedicine(),
+            applicationType = MedicationApplicationType.fromStorageValue(readString()),
+            doseInstruction = readDoseInstruction(),
             count = readInt(),
         )
     }
@@ -429,8 +434,11 @@ internal object HomeSnapshotCodec {
         writeBoolean(entry != null)
         entry ?: return
         writeString(entry.uuid.toString())
-        writeMedicationDetails(entry.details)
-        writeNullableDouble(entry.dosageMgAsEstradiol)
+        writeNullableMedicine(entry.medicine)
+        writeString(entry.category.name)
+        writeString(entry.applicationType.name)
+        writeDoseInstruction(entry.doseInstruction)
+        writeNullableDouble(entry.equivalentE2Mg)
         writeNullableString(entry.sourceGroupUuid?.toString())
         writeNullableString(entry.scheduleTimeUuid?.toString())
         writeLong(entry.appliedAt.toEpochMilli())
@@ -445,8 +453,11 @@ internal object HomeSnapshotCodec {
         }
         return MedicationLogEntry(
             uuid = UUID.fromString(readString()),
-            details = readMedicationDetails(),
-            dosageMgAsEstradiol = readNullableDouble(),
+            medicine = readNullableMedicine(),
+            category = MedicationCategory.fromStorageValue(readString()),
+            applicationType = MedicationApplicationType.fromStorageValue(readString()),
+            doseInstruction = readDoseInstruction(),
+            equivalentE2Mg = readNullableDouble(),
             sourceGroupUuid = readNullableString()?.let(UUID::fromString),
             scheduleTimeUuid = readNullableString()?.let(UUID::fromString),
             appliedAt = Instant.ofEpochMilli(readLong()),
@@ -456,76 +467,171 @@ internal object HomeSnapshotCodec {
         )
     }
 
-    private fun DataOutputStream.writeMedicationDetails(details: MedicationDetails) {
-        writeString(details.category.name)
-        writeString(details.applicationType.name)
-        writeMedicationSelection(details.selection)
-        writeMedicationDose(details.dose)
-        writeString(details.gelApplicationArea.name)
-        writeString(details.customDoseUnit.storageValue)
+    private fun DataOutputStream.writeNullableMedicine(medicine: Medicine?) {
+        writeBoolean(medicine != null)
+        medicine ?: return
+        writeMedicine(medicine)
     }
 
-    private fun DataInputStream.readMedicationDetails(): MedicationDetails {
-        return MedicationDetails(
-            category = MedicationCategory.fromStorageValue(readString()),
-            applicationType = MedicationApplicationType.fromStorageValue(readString()),
-            selection = readMedicationSelection(),
-            dose = readMedicationDose(),
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(readString()),
-            customDoseUnit = MedicationDoseUnit.fromStorageValue(readString()),
+    private fun DataInputStream.readNullableMedicine(): Medicine? {
+        if (!readBoolean()) {
+            return null
+        }
+        return readMedicine()
+    }
+
+    private fun DataOutputStream.writeMedicine(medicine: Medicine) {
+        writeString(medicine.uuid.toString())
+        writeMedicineSelection(medicine.selection)
+        writeString(medicine.category.name)
+        writeMedicinePreparation(medicine.preparation)
+        writeNullableString(medicine.displayName)
+        writeString(medicine.identityKey)
+        writeLong(medicine.createdAt.toEpochMilli())
+        writeLong(medicine.updatedAt.toEpochMilli())
+        writeNullableLong(medicine.archivedAt?.toEpochMilli())
+    }
+
+    private fun DataInputStream.readMedicine(): Medicine {
+        val uuid = UUID.fromString(readString())
+        val selection = readMedicineSelection()
+        val category = MedicationCategory.fromStorageValue(readString())
+        val preparation = readMedicinePreparation()
+        val displayName = readNullableString()
+        val storedIdentityKey = readString()
+        val createdAt = Instant.ofEpochMilli(readLong())
+        val updatedAt = Instant.ofEpochMilli(readLong())
+        val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
+        val expectedIdentityKey = when (selection) {
+            is MedicineSelection.Catalog ->
+                MedicineIdentityKey.catalog(selection.medicationKey, preparation)
+            is MedicineSelection.Custom ->
+                MedicineIdentityKey.custom(selection.medicationName, preparation)
+        }
+        check(storedIdentityKey == expectedIdentityKey) {
+            "Cached medicine $uuid identityKey does not match selection and preparation."
+        }
+        return Medicine(
+            uuid = uuid,
+            selection = selection,
+            category = category,
+            preparation = preparation,
+            displayName = displayName,
+            identityKey = storedIdentityKey,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            archivedAt = archivedAt,
         )
     }
 
-    private fun DataOutputStream.writeMedicationSelection(selection: MedicationSelection) {
+    private fun DataOutputStream.writeMedicineSelection(selection: MedicineSelection) {
         writeString(selection.kind.name)
         when (selection) {
-            is MedicationSelection.Catalog -> writeString(selection.medicationKey.name)
-            is MedicationSelection.Custom -> writeString(selection.medicationName)
+            is MedicineSelection.Catalog -> writeString(selection.medicationKey.name)
+            is MedicineSelection.Custom -> writeString(selection.medicationName)
         }
     }
 
-    private fun DataInputStream.readMedicationSelection(): MedicationSelection {
+    private fun DataInputStream.readMedicineSelection(): MedicineSelection {
         return when (MedicationSelectionKind.fromStorageValue(readString())) {
-            MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
+            MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
                 medicationKey = checkNotNull(MedicationKey.fromStorageValue(readString()))
             )
 
-            MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
+            MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
                 medicationName = readString()
             )
         }
     }
 
-    private fun DataOutputStream.writeMedicationDose(dose: MedicationDose) {
-        writeString(dose.kind.name)
-        when (dose) {
-            is MedicationDose.MgAsMedicine -> writeDouble(dose.valueMg)
-            is MedicationDose.GelEquivalentEstradiolMg -> writeDouble(dose.valueMg)
-            is MedicationDose.GelPercentAndWeight -> {
-                writeDouble(dose.percent)
-                writeDouble(dose.weightGrams)
+    private fun DataOutputStream.writeMedicinePreparation(preparation: MedicinePreparation) {
+        writeString(preparation.type.name)
+        when (preparation) {
+            is MedicinePreparation.Pill -> writeDouble(preparation.strengthMgPerTablet)
+            is MedicinePreparation.InjectionSingleUseVial -> writeDouble(preparation.strengthMgPerVial)
+            is MedicinePreparation.InjectionMultiUseVial -> {
+                writeDouble(preparation.concentrationMgPerMl)
+                writeDouble(preparation.vialVolumeMl)
             }
-            is MedicationDose.PatchTotalMg -> writeDouble(dose.valueMg)
-            is MedicationDose.PatchReleaseRateMcgPerDay -> writeDouble(dose.valueMcgPerDay)
-            MedicationDose.None -> Unit
+            is MedicinePreparation.GelSachet -> {
+                writeDouble(preparation.concentrationPercent)
+                writeDouble(preparation.sachetWeightGrams)
+            }
+            is MedicinePreparation.GelContainer -> {
+                writeDouble(preparation.concentrationPercent)
+                writeDouble(preparation.containerWeightGrams)
+            }
+            is MedicinePreparation.Patch -> when (val specification = preparation.specification) {
+                is MedicinePreparation.PatchSpecification.TotalMg -> {
+                    writeByte(PATCH_SPECIFICATION_TOTAL_MG)
+                    writeDouble(specification.valueMg)
+                }
+                is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> {
+                    writeByte(PATCH_SPECIFICATION_RELEASE_RATE)
+                    writeDouble(specification.valueMcgPerDay)
+                }
+            }
         }
     }
 
-    private fun DataInputStream.readMedicationDose(): MedicationDose {
-        return when (MedicationDoseKind.fromStorageValue(readString())) {
-            MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(readDouble())
-            MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
-                readDouble()
+    private fun DataInputStream.readMedicinePreparation(): MedicinePreparation {
+        return when (MedicinePreparationType.fromStorageValue(readString())) {
+            MedicinePreparationType.PILL -> MedicinePreparation.Pill(
+                strengthMgPerTablet = readDouble()
             )
-            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
-                percent = readDouble(),
-                weightGrams = readDouble(),
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = readDouble()
             )
-            MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(readDouble())
-            MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
-                readDouble()
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = readDouble(),
+                vialVolumeMl = readDouble(),
             )
-            MedicationDoseKind.NONE -> MedicationDose.None
+            MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
+                concentrationPercent = readDouble(),
+                sachetWeightGrams = readDouble(),
+            )
+            MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
+                concentrationPercent = readDouble(),
+                containerWeightGrams = readDouble(),
+            )
+            MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
+                specification = when (val discriminator = readByte().toInt()) {
+                    PATCH_SPECIFICATION_TOTAL_MG ->
+                        MedicinePreparation.PatchSpecification.TotalMg(valueMg = readDouble())
+                    PATCH_SPECIFICATION_RELEASE_RATE ->
+                        MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                            valueMcgPerDay = readDouble()
+                        )
+                    else -> error("Unknown patch specification discriminator: $discriminator")
+                }
+            )
+        }
+    }
+
+    private fun DataOutputStream.writeDoseInstruction(instruction: DoseInstruction) {
+        writeString(instruction.kind.name)
+        when (instruction) {
+            is DoseInstruction.TabletFraction -> {
+                writeInt(instruction.numerator)
+                writeInt(instruction.denominator)
+            }
+            DoseInstruction.WholeUnit -> Unit
+            is DoseInstruction.VolumeMl -> writeDouble(instruction.valueMl)
+            is DoseInstruction.WeightGrams -> writeDouble(instruction.valueGrams)
+            DoseInstruction.Noop -> Unit
+        }
+    }
+
+    private fun DataInputStream.readDoseInstruction(): DoseInstruction {
+        return when (DoseInstructionKind.fromStorageValue(readString())) {
+            DoseInstructionKind.TABLET_FRACTION -> DoseInstruction.TabletFraction(
+                numerator = readInt(),
+                denominator = readInt(),
+            )
+            DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
+            DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(valueMl = readDouble())
+            DoseInstructionKind.WEIGHT_GRAMS -> DoseInstruction.WeightGrams(valueGrams = readDouble())
+            DoseInstructionKind.NOOP -> DoseInstruction.Noop
         }
     }
 
@@ -691,9 +797,11 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 10
+private const val SNAPSHOT_CODEC_VERSION = 11
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
+private const val PATCH_SPECIFICATION_TOTAL_MG = 0
+private const val PATCH_SPECIFICATION_RELEASE_RATE = 1
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

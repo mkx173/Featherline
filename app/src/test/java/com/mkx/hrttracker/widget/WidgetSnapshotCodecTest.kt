@@ -199,6 +199,19 @@ class WidgetSnapshotCodecTest {
     }
 
     @Test
+    fun codecRoundTripsMedicineUuidOnDoseRow() {
+        // medicineUuid is the deep-link target the widget hands to MainActivity
+        // for "edit this entry". The round-trip must preserve it byte-for-byte
+        // or row taps after a process death will fail to resolve their entry.
+        val row = baseRecord.doseRows.first().copy(
+            medicationUuid = "aaaaaaaa-0000-0000-0000-000000000000",
+        )
+        val record = baseRecord.copy(doseRows = listOf(row))
+
+        assertEquals(record, WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)))
+    }
+
+    @Test
     fun `codec round-trips a manual row with entryUuid set`() {
         val row = WidgetDoseRow(
             medicationName = "Estradiol",

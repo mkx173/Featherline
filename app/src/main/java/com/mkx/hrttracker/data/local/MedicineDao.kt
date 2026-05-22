@@ -29,6 +29,14 @@ interface MedicineDao {
     @Query(
         """
         SELECT * FROM medicines
+        ORDER BY createdAtEpochMillis ASC, uuid ASC
+        """
+    )
+    suspend fun getAll(): List<MedicineEntity>
+
+    @Query(
+        """
+        SELECT * FROM medicines
         WHERE uuid = :uuid
         LIMIT 1
         """

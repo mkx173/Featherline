@@ -714,8 +714,12 @@ data class AddEntryUiState(
     val isBulkEditing: Boolean
         get() = editingEntryIds.size > 1
 
+    // Identity is editable only for fresh, free-form manual entries:
+    // - Editing an existing entry (any number) preserves its medicine identity.
+    // - Quick-log entries are bound to a group slot's medicine; users change
+    //   what's in the slot via the group editor, not the log editor.
     val canEditMedicationIdentity: Boolean
-        get() = !isEditing
+        get() = !isEditing && sourceGroupUuid == null
 
     val canDelete: Boolean
         get() = isEditing

@@ -127,7 +127,7 @@ class PkPlannedEntriesTest {
             testMedicationLogEntry(
                 medicine = estradiolMedicine(),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(fulfilledSlot.plusMinutes(5)),
                 scheduledFor = fulfilledSlot,
@@ -167,7 +167,7 @@ class PkPlannedEntriesTest {
             testMedicationLogEntry(
                 medicine = estradiolMedicine(),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(now.minusHours(2)),
                 scheduledFor = LocalDateTime.of(2026, 5, 6, 8, 0),
@@ -201,7 +201,7 @@ class PkPlannedEntriesTest {
             testMedicationLogEntry(
                 medicine = estradiolMedicine(),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = null,
                 appliedAt = testInstant(now.minusHours(2)),
                 scheduledFor = null,
@@ -240,7 +240,7 @@ class PkPlannedEntriesTest {
                     uuid = UUID.fromString("0b0d3c8f-1d11-4d10-9c9c-e51d9b09a222"),
                     medicine = spironolactoneMedicine(),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -269,13 +269,13 @@ class PkPlannedEntriesTest {
             uuid = UUID.fromString("aaa3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
             medicine = estradiolMedicine(),
             applicationType = MedicationApplicationType.SUBLINGUAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val medB = testMedicationGroupMedication(
             uuid = UUID.fromString("bbb3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
             medicine = estradiolMedicine(),
             applicationType = MedicationApplicationType.SUBLINGUAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val group = MedicationGroup(
             uuid = UUID.fromString("ccc3c8f0-1d11-4d10-9c9c-e51d9b09a000"),
@@ -319,13 +319,13 @@ class PkPlannedEntriesTest {
             uuid = UUID.fromString("11111111-1d11-4d10-9c9c-e51d9b09a000"),
             medicine = estradiolMedicine(),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val sublingualMed = testMedicationGroupMedication(
             uuid = UUID.fromString("22222222-1d11-4d10-9c9c-e51d9b09a000"),
             medicine = estradiolMedicine(),
             applicationType = MedicationApplicationType.SUBLINGUAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val group = MedicationGroup(
             uuid = groupUuid,
@@ -456,7 +456,7 @@ class PkPlannedEntriesTest {
             testMedicationLogEntry(
                 medicine = estradiolMedicine(),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = group.uuid,
                 appliedAt = testInstant(fulfilledSlot),
                 scheduledFor = fulfilledSlot,
@@ -528,7 +528,7 @@ class PkPlannedEntriesTest {
         testMedicationLogEntry(
             medicine = estradiolMedicine(),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(appliedAt),
         )
@@ -552,7 +552,11 @@ class PkPlannedEntriesTest {
                     uuid = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa"),
                     medicine = estradiolMedicine(),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    // Pills carry their dose via TabletFraction;
+                    // DoseInstructionCalculator returns null mg for
+                    // Pill + WholeUnit, which would flatten the PK projection
+                    // to zero and the integration assertions would fail.
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
