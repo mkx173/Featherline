@@ -541,14 +541,33 @@ private fun MedicinePickerContent(
         )
 
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    }
 
-        if (doseInstructionDraft != null) {
-            DoseInstructionForm(
-                doseInstructionDraft = doseInstructionDraft,
-                onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-                errorMessageRes = errorMessageRes,
-            )
+    // The dose instruction form must render whenever the route requires per-
+    // instruction dose data (VolumeMl for INJECTION_MULTI_USE_VIAL,
+    // WeightGrams for GEL_CONTAINER, TabletFraction for PILL), regardless of
+    // whether the user is creating a new medicine or selecting an existing one.
+    // Routes whose dose is fully determined by the medicine (WholeUnit /
+    // patch-off Noop) need no editable dose form. See
+    // DoseInstructionDraftUiState.validationErrorRes(): the editor is otherwise
+    // unsaveable when the user picks an existing multi-use vial / gel container.
+    val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
+    val showsDoseWarning = remember(medicineDraft, doseInstructionDraft, resolvedCount) {
+        doseInstructionDraft != null &&
+            medicineDraft.exceedsDoseWarningThreshold(doseInstructionDraft, resolvedCount)
+    }
+    if (doseInstructionDraft != null &&
+        requiresEditableDoseInstructionForm(doseInstructionDraft.preparationType)
+    ) {
+        if (!showsNewForm) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         }
+        DoseInstructionForm(
+            doseInstructionDraft = doseInstructionDraft,
+            onDoseInstructionDraftChange = onDoseInstructionDraftChange,
+            errorMessageRes = errorMessageRes,
+            showsDoseWarning = showsDoseWarning,
+        )
     }
 
     if (medicineDraft.showsMedicationCountEditor()) {
@@ -802,6 +821,7 @@ private fun DoseInstructionForm(
     doseInstructionDraft: DoseInstructionDraftUiState,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
+    showsDoseWarning: Boolean = false,
 ) {
     when (doseInstructionDraft.preparationType) {
         MedicinePreparationType.PILL -> {
@@ -816,6 +836,7 @@ private fun DoseInstructionForm(
                 errorMessageRes = R.string.validation_dose_tablet_fraction_required
                     .takeIf { errorMessageRes == it },
                 keyboardType = KeyboardType.Number,
+                showWarningIcon = showsDoseWarning,
                 onValueChange = { value ->
                     val numerator = value.filter(Char::isDigit).toIntOrNull() ?: 0
                     onDoseInstructionDraftChange {
@@ -1136,6 +1157,7 @@ private fun NumericField(
     isError: Boolean = false,
     @StringRes errorMessageRes: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
+    showWarningIcon: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
     OutlinedTextField(
@@ -1144,6 +1166,17 @@ private fun NumericField(
         isError = isError,
         label = { Text(text = label) },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        trailingIcon = if (showWarningIcon) {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = stringResource(R.string.medication_editor_dose_warning),
+                    tint = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        } else {
+            null
+        },
         supportingText = errorMessageRes?.let { messageRes ->
             {
                 Text(

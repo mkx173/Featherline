@@ -267,4 +267,90 @@ class MedicationEditorModelsTest {
         val doseDraft = draft.toDoseInstructionDraft().copy(weightGrams = "1.25")
         assertEquals(DoseInstruction.WeightGrams(1.25), doseDraft.toDoseInstruction())
     }
+
+    // --- Antiandrogen dose-warning (Fix 4) ---------------------------------
+    //
+    // The old draft compared a typed per-dose mg directly against the threshold.
+    // The new draft has no mg field — `exceedsDoseWarningThreshold` derives
+    // mg from strengthMgPerTablet × tabletFractionNumerator/denominator × count.
+    // The threshold is exclusive: strictly greater than fires the warning.
+
+    @Test
+    fun antiandrogen_dose_warning_fires_only_above_the_strict_threshold() {
+        // Spironolactone at exactly 200 mg / dose: no warning. Two pills = 400 mg
+        // exceeds threshold and warns. CPA and bicalutamide thresholds verified
+        // in the same way.
+        val spiroAtThreshold = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.SPIRONOLACTONE)
+            .copy(pillStrengthMg = "200")
+        val cpaAtThreshold = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+            .copy(pillStrengthMg = "12.5")
+        val bicaAboveThreshold = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.BICALUTAMIDE)
+            .copy(pillStrengthMg = "50.1")
+
+        assertFalse(spiroAtThreshold.exceedsDoseWarningThreshold(spiroAtThreshold.toDoseInstructionDraft()))
+        assertTrue(
+            spiroAtThreshold.exceedsDoseWarningThreshold(
+                spiroAtThreshold.toDoseInstructionDraft(),
+                count = 2,
+            ),
+        )
+        assertFalse(cpaAtThreshold.exceedsDoseWarningThreshold(cpaAtThreshold.toDoseInstructionDraft()))
+        assertTrue(
+            cpaAtThreshold.exceedsDoseWarningThreshold(
+                cpaAtThreshold.toDoseInstructionDraft(),
+                count = 2,
+            ),
+        )
+        assertTrue(
+            bicaAboveThreshold.exceedsDoseWarningThreshold(
+                bicaAboveThreshold.toDoseInstructionDraft(),
+            ),
+        )
+    }
+
+    @Test
+    fun non_antiandrogen_medications_never_show_dose_warning() {
+        // No threshold defined for estradiol or for custom medicines, so a
+        // 999 mg-per-pill draft must not warn — the warning is intentionally
+        // scoped to the three antiandrogen catalog entries.
+        val estradiol = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).copy(pillStrengthMg = "999")
+        val custom = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+            .copy(pillStrengthMg = "999", customMedicationName = "Whatever")
+
+        assertFalse(estradiol.exceedsDoseWarningThreshold(estradiol.toDoseInstructionDraft()))
+        assertFalse(custom.exceedsDoseWarningThreshold(custom.toDoseInstructionDraft()))
+    }
+
+    @Test
+    fun antiandrogen_dose_warning_scales_with_tablet_fraction_and_count() {
+        // CPA at 12.5 mg per tablet, half a tablet per instruction = 6.25 mg.
+        // Count of 1 stays under threshold; count of 3 = 18.75 mg, exceeds it.
+        // Encodes the intent: the warning tracks per-instruction × count, not
+        // a raw mg field.
+        val cpaHalfTablet = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+            .copy(pillStrengthMg = "12.5")
+        val halfTabletDose = cpaHalfTablet.toDoseInstructionDraft().copy(
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 2,
+        )
+
+        assertFalse(cpaHalfTablet.exceedsDoseWarningThreshold(halfTabletDose, count = 1))
+        assertFalse(cpaHalfTablet.exceedsDoseWarningThreshold(halfTabletDose, count = 2))
+        assertTrue(cpaHalfTablet.exceedsDoseWarningThreshold(halfTabletDose, count = 3))
+    }
 }

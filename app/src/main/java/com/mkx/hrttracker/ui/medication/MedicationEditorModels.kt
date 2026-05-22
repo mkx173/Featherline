@@ -318,6 +318,14 @@ fun resolvedMedicationCountForSave(
 
 // ---------------------------------------------------------------------------
 // Dose-warning threshold (antiandrogen safety) — keyed on the total per-dose mg.
+//
+// The old draft compared per-dose mg (typed directly into a single field) to
+// the threshold. The new draft has no per-dose mg field: the dose is computed
+// from the medicine's preparation strength + the dose instruction. For
+// antiandrogens the only path is PILL + TabletFraction, so we derive
+// per-instruction mg as `strengthMgPerTablet × numerator / denominator`, then
+// multiply by `count` per the old semantics (warning fires on the total taken
+// per occurrence). Strictly-greater-than comparison is preserved.
 // ---------------------------------------------------------------------------
 
 fun MedicinePickerUiState.doseWarningThresholdMg(): Double? {
@@ -329,6 +337,59 @@ fun MedicinePickerUiState.doseWarningThresholdMg(): Double? {
         MedicationKey.CYPROTERONE_ACETATE -> 12.5
         MedicationKey.BICALUTAMIDE -> 50.0
         else -> null
+    }
+}
+
+// Per-instruction mg derivable from the picker draft, when the route is a
+// pill + tablet fraction. Other routes/preparations are not antiandrogen paths
+// and return null so the warning never fires for them.
+private fun MedicinePickerUiState.pickerPillPerInstructionMgOrNull(
+    doseInstructionDraft: DoseInstructionDraftUiState,
+): Double? {
+    if (inferredOrSelectedPreparationType() != MedicinePreparationType.PILL) {
+        return null
+    }
+    if (doseInstructionDraft.preparationType != MedicinePreparationType.PILL) {
+        return null
+    }
+    val numerator = doseInstructionDraft.tabletFractionNumerator
+    val denominator = doseInstructionDraft.tabletFractionDenominator
+    if (numerator <= 0 || denominator <= 0) {
+        return null
+    }
+    val strength = parsePositiveDouble(pillStrengthMg) ?: return null
+    return strength * numerator / denominator
+}
+
+fun MedicinePickerUiState.exceedsDoseWarningThreshold(
+    doseInstructionDraft: DoseInstructionDraftUiState,
+    count: Int = 1,
+): Boolean {
+    val thresholdMg = doseWarningThresholdMg() ?: return false
+    val perInstructionMg = pickerPillPerInstructionMgOrNull(doseInstructionDraft) ?: return false
+    val resolvedCount = count.coerceAtLeast(1)
+    return perInstructionMg * resolvedCount > thresholdMg
+}
+
+// Routes whose dose is fully determined by the medicine identity (whole-unit
+// patches/single-use vials/gel sachets, plus PATCH_OFF's Noop) need no
+// editable dose form. Routes where the dose is a per-instruction quantity
+// (mg per fraction of a pill, ml per multi-use-vial draw, grams per gel
+// container dose) must keep the form visible even when the user has selected
+// an existing medicine — otherwise the dose-instruction draft has no UI to
+// populate volumeMl/weightGrams/tablet-fraction and validation blocks the
+// save.
+internal fun requiresEditableDoseInstructionForm(
+    preparationType: MedicinePreparationType,
+): Boolean {
+    return when (preparationType) {
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.GEL_CONTAINER -> true
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.PATCH -> false
     }
 }
 

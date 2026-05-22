@@ -1,9 +1,9 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,6 +65,9 @@ class MedicationGroupEditorNameTest {
 
     @Test
     fun hasSaveableMedicationGroupContent_rejects_blank_group_name_even_with_default_name() {
+        // A populated medication slot can't rescue a blank group name from
+        // failing the "saveable" check. Encodes the requirement that group
+        // identity is non-blank in addition to any medications it contains.
         assertFalse(
             hasSaveableMedicationGroupContent(
                 MedicationGroupEditorUiState(
@@ -72,11 +75,9 @@ class MedicationGroupEditorNameTest {
                     defaultGroupName = "Group 1",
                     medications = listOf(
                         MedicationGroupMedicationItemUiState(
-                            details = testCatalogMedicationDetails(
-                                key = MedicationKey.ESTRADIOL,
-                                applicationType = MedicationApplicationType.ORAL,
-                                dose = MedicationDose.MgAsMedicine(2.0)
-                            )
+                            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                            applicationType = MedicationApplicationType.ORAL,
+                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
                         )
                     )
                 )

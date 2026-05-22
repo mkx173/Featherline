@@ -7,18 +7,20 @@ import com.mkx.hrttracker.data.repository.MedicationGroupMedicationInput
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -57,6 +59,7 @@ import java.util.UUID
 class MedicationGroupEditorDeleteRecordsTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineRepository: MedicineRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
@@ -97,12 +100,12 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 ),
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                 ),
@@ -112,6 +115,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -137,19 +141,19 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 26, 9, 0),
                 ),
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
                 ),
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = null,
                     appliedAt = Instant.parse("2026-04-24T00:00:00Z"),
                 ),
@@ -161,6 +165,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -207,7 +212,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -219,6 +224,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -254,7 +260,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -266,6 +272,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -311,6 +318,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -357,6 +365,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -397,6 +406,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -455,6 +465,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -490,7 +501,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T01:30:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 11, 0),
@@ -503,6 +514,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -534,7 +546,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T01:00:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 10, 0),
@@ -547,6 +559,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -578,7 +591,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T01:30:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 11, 0),
@@ -603,6 +616,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -646,7 +660,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                     scheduledFor = LocalDateTime.of(2026, 4, 25, 9, 0),
@@ -659,6 +673,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -721,6 +736,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -816,6 +832,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -866,6 +883,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -913,6 +931,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -978,6 +997,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -987,7 +1007,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
 
         viewModel.saveGroup()
@@ -1040,6 +1060,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1049,7 +1070,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
 
         viewModel.saveGroup()
@@ -1099,6 +1120,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1108,7 +1130,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
@@ -1188,6 +1210,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1200,7 +1223,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         }
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
@@ -1270,6 +1293,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1335,6 +1359,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1344,7 +1369,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
@@ -1403,6 +1428,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1412,7 +1438,7 @@ class MedicationGroupEditorDeleteRecordsTest {
         )
         advanceUntilIdle()
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicationDraft { draft -> draft.copy(doseMg = "2") }
+        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
         viewModel.saveEditingMedication()
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
@@ -1453,7 +1479,9 @@ private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {
         medications = listOf(
             MedicationGroupMedication(
                 uuid = UUID.fromString("2fd98ab6-f411-43bc-9a87-d943b42ff54b"),
-                details = testMedicationDetails(),
+                medicine = editorEstradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 count = 1,
             )
         ),
@@ -1463,11 +1491,11 @@ private fun testMedicationGroup(groupUuid: UUID): MedicationGroup {
     )
 }
 
-private fun testMedicationDetails(): MedicationDetails {
-    return MedicationDetails(
-        category = MedicationKey.ESTRADIOL.category,
-        applicationType = MedicationApplicationType.ORAL,
-        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-        dose = MedicationDose.MgAsMedicine(2.0),
-    )
-}
+// Single shared estradiol medicine: log entries and group medications both
+// reference the same UUID so related-entry counting/aggregation lines up the
+// way the ViewModel expects.
+private val editorEstradiolMedicine: Medicine = testMedicine(
+    uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+    key = MedicationKey.ESTRADIOL,
+    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+)
