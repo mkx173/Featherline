@@ -6,17 +6,18 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -50,6 +51,7 @@ import java.util.UUID
 class MedicationGroupEditorLoadStateTest {
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineRepository: MedicineRepository = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
@@ -89,6 +91,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -115,6 +118,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -146,6 +150,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -180,6 +185,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -232,7 +238,8 @@ class MedicationGroupEditorLoadStateTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                 )
@@ -242,6 +249,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -277,6 +285,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -325,7 +334,8 @@ class MedicationGroupEditorLoadStateTest {
         every { medicationLogRepository.observeEntries() } returns flowOf(
             listOf(
                 testMedicationLogEntry(
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                 )
@@ -335,6 +345,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -371,6 +382,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -402,21 +414,24 @@ class MedicationGroupEditorLoadStateTest {
             listOf(
                 testMedicationLogEntry(
                     uuid = UUID.fromString("8aebd8c3-9431-4b93-86c7-444ac75759ab"),
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T01:30:00Z"),
                     scheduledFor = futureSlot,
                 ),
                 testMedicationLogEntry(
                     uuid = UUID.fromString("0a374d56-982b-44d5-8569-0cd824d34210"),
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T01:31:00Z"),
                     scheduledFor = futureSlot,
                 ),
                 testMedicationLogEntry(
                     uuid = UUID.fromString("dcd1f6c7-b47b-41a2-9343-c7bb8a530802"),
-                    details = testMedicationDetails(),
+                    medicine = editorEstradiolMedicine,
+                    applicationType = MedicationApplicationType.ORAL,
                     sourceGroupUuid = groupUuid,
                     appliedAt = Instant.parse("2026-04-25T00:00:00Z"),
                     scheduledFor = currentSlot,
@@ -427,6 +442,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -457,6 +473,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -499,6 +516,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -524,6 +542,7 @@ class MedicationGroupEditorLoadStateTest {
         val viewModel = MedicationGroupEditorViewModel(
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
@@ -1333,7 +1352,9 @@ private fun testMedicationGroup(
         medications = listOf(
             MedicationGroupMedication(
                 uuid = UUID.fromString("2fd98ab6-f411-43bc-9a87-d943b42ff54b"),
-                details = testMedicationDetails(),
+                medicine = editorEstradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 count = 1,
             )
         ),
@@ -1345,14 +1366,10 @@ private fun testMedicationGroup(
     )
 }
 
-private fun testMedicationDetails(): MedicationDetails {
-    return MedicationDetails(
-        category = MedicationKey.ESTRADIOL.category,
-        applicationType = MedicationApplicationType.ORAL,
-        selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-        dose = MedicationDose.MgAsMedicine(2.0),
-    )
-}
+private val editorEstradiolMedicine: Medicine = testMedicine(
+    uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+    key = MedicationKey.ESTRADIOL,
+)
 
 private fun saveableMedicationGroupEditorState(
     isSaved: Boolean = false,
@@ -1363,7 +1380,9 @@ private fun saveableMedicationGroupEditorState(
         groupName = "Morning meds",
         medications = listOf(
             MedicationGroupMedicationItemUiState(
-                details = testMedicationDetails(),
+                resolvedMedicine = editorEstradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
             )
         ),
         isSaved = isSaved,

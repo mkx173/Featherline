@@ -104,15 +104,12 @@ import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.nextOccurrencesFrom
 import com.mkx.hrttracker.reminder.canScheduleExactAlarms
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
@@ -134,13 +131,12 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.dismissInputAndRun
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.medication.MedicationDefinitionEditorSheet
-import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
-import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
-import com.mkx.hrttracker.ui.medication.changeDoseKind
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import kotlinx.coroutines.launch
@@ -409,7 +405,9 @@ fun MedicationGroupEditorScreen(
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,
         onConsumeMedicationEditorSaved = viewModel::consumeMedicationEditorSaved,
         onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
-        onMedicationDraftChange = viewModel::updateEditingMedicationDraft,
+        onMedicineDraftChange = viewModel::updateEditingMedicineDraft,
+        onDoseInstructionDraftChange = viewModel::updateEditingDoseInstructionDraft,
+        onExistingMedicineSelected = viewModel::selectEditingExistingMedicine,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
@@ -478,7 +476,9 @@ private fun MedicationGroupEditorScreenContent(
     onDismissMedicationEditor: () -> Unit,
     onConsumeMedicationEditorSaved: () -> Unit,
     onConsumeMedicationEditorInfoMessage: () -> Unit,
-    onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
+    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
+    onExistingMedicineSelected: (java.util.UUID) -> Unit,
     onEditingMedicationCountTextChange: (String) -> Unit,
     onDecreaseEditingMedicationCount: () -> Unit,
     onIncreaseEditingMedicationCount: () -> Unit,
@@ -1290,10 +1290,15 @@ private fun MedicationGroupEditorScreenContent(
                             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap))
                         ) {
                             uiState.medications.forEachIndexed { index, medication ->
-                                val medicationName = medicationDisplayName(medication.details)
+                                val medicationName = medicationEntryTitle(
+                                    medication.resolvedMedicine,
+                                    medication.applicationType,
+                                )
                                 val medicationEditable = !areFieldsRenderedLocked
                                 MedicationCard(
-                                    details = medication.details,
+                                    medicine = medication.resolvedMedicine,
+                                    doseInstruction = medication.doseInstruction,
+                                    applicationType = medication.applicationType,
                                     medicationCount = medication.count,
                                     groupColorKey = uiState.groupColorKey,
                                     onClick = {
@@ -1619,39 +1624,13 @@ private fun MedicationGroupEditorScreenContent(
             onCloseClick = {
                 hideBottomSheet(scope, sheetState, onDismissMedicationEditor)
             },
-            draft = medication.draft,
-            onCategoryChange = { category ->
-                onMedicationDraftChange { draft -> draft.changeCategory(category) }
-            },
-            onApplicationTypeChange = { applicationType ->
-                onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
-            },
-            onMedicationKeyChange = { medicationKey ->
-                onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }
-            },
-            onCustomMedicationNameChange = { medicationName ->
-                onMedicationDraftChange { draft -> draft.copy(customMedicationName = medicationName) }
-            },
-            onDoseKindChange = { doseKind ->
-                onMedicationDraftChange { draft -> draft.changeDoseKind(doseKind) }
-            },
-            onCustomDoseUnitChange = { customDoseUnit ->
-                onMedicationDraftChange { draft -> draft.changeCustomDoseUnit(customDoseUnit) }
-            },
-            onDoseMgChange = { doseMg ->
-                onMedicationDraftChange { draft -> draft.copy(doseMg = doseMg) }
-            },
-            onGelPercentChange = { gelPercent ->
-                onMedicationDraftChange { draft -> draft.copy(gelPercent = gelPercent) }
-            },
-            onGelWeightChange = { gelWeight ->
-                onMedicationDraftChange { draft -> draft.copy(gelWeightGrams = gelWeight) }
-            },
-            onPatchReleaseRateChange = { releaseRate ->
-                onMedicationDraftChange { draft ->
-                    draft.copy(patchReleaseRateMcgPerDay = releaseRate)
-                }
-            },
+            medicineDraft = medication.medicineDraft,
+            doseInstructionDraft = medication.doseInstructionDraft,
+            existingMedicines = uiState.activeMedicines,
+            canEditMedicationIdentity = !areFieldsRenderedLocked,
+            onMedicineDraftChange = onMedicineDraftChange,
+            onDoseInstructionDraftChange = onDoseInstructionDraftChange,
+            onExistingMedicineSelected = onExistingMedicineSelected,
             countText = medication.countText,
             onCountTextChange = onEditingMedicationCountTextChange,
             onDecreaseCountClick = onDecreaseEditingMedicationCount,
@@ -2235,7 +2214,9 @@ private fun MedicationGroupEditorDailyPreview() {
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onConsumeMedicationEditorInfoMessage = { },
-            onMedicationDraftChange = { },
+            onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onExistingMedicineSelected = { },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2308,7 +2289,9 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onDismissMedicationEditor = { },
             onConsumeMedicationEditorSaved = { },
             onConsumeMedicationEditorInfoMessage = { },
-            onMedicationDraftChange = { },
+            onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onExistingMedicineSelected = { },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2422,7 +2405,9 @@ private fun MedicationGroupEditorPreviewContent(
         onDismissMedicationEditor = { },
         onConsumeMedicationEditorSaved = { },
         onConsumeMedicationEditorInfoMessage = { },
-        onMedicationDraftChange = { },
+        onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onExistingMedicineSelected = { },
         onEditingMedicationCountTextChange = { },
         onDecreaseEditingMedicationCount = { },
         onIncreaseEditingMedicationCount = { },
@@ -2490,35 +2475,41 @@ private fun buildMedicationGroupEditorPreviewUiState(
             MedicationGroupMedicationItemUiState(
                 localId = "med-1",
                 persistedMedicationId = UUID.fromString("a5a8da0b-2510-4f7c-8bf3-fbc74b409321").toString(),
-                details = MedicationDetails(
-                    category = MedicationCategory.ESTRADIOL,
-                    applicationType = if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                        MedicationApplicationType.INJECTION
-                    } else {
-                        MedicationApplicationType.ORAL
-                    },
-                    selection = MedicationSelection.Catalog(
-                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) {
-                            MedicationKey.ESTRADIOL_VALERATE
-                        } else {
-                            MedicationKey.ESTRADIOL
-                        }
-                    ),
-                    dose = MedicationDose.MgAsMedicine(
-                        if (scheduleType == MedicationGroupScheduleType.WEEKLY) 5.0 else 2.0
-                    )
-                )
+                resolvedMedicine = previewEditorMedicine(MedicationKey.ESTRADIOL),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                count = 1,
             ),
             MedicationGroupMedicationItemUiState(
                 localId = "med-2",
                 persistedMedicationId = UUID.fromString("73ceca25-8547-43cf-8517-0d1e46a95d56").toString(),
-                details = MedicationDetails(
-                    category = MedicationCategory.ANTIANDROGEN,
-                    applicationType = MedicationApplicationType.ORAL,
-                    selection = MedicationSelection.Catalog(MedicationKey.SPIRONOLACTONE),
-                    dose = MedicationDose.MgAsMedicine(50.0)
-                )
+                resolvedMedicine = previewEditorMedicine(MedicationKey.SPIRONOLACTONE),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                count = 1,
             )
         )
+    )
+}
+
+private fun previewEditorMedicine(
+    medicationKey: MedicationKey,
+): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(medicationKey)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.fromString("00000000-0000-0000-0000-000000000002"),
+        selection = selection,
+        category = medicationKey.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            medicationKey, preparation,
+        ),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
     )
 }

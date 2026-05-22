@@ -76,16 +76,15 @@ import com.kizitonwose.calendar.core.Week
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.PlanDayScheduleEntry
 import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.isArchived
 import com.mkx.hrttracker.reminder.rememberReminderCapabilityReconciler
 import com.mkx.hrttracker.ui.components.AppContentContainer
@@ -122,7 +121,7 @@ fun PlanScreen(
     modifier: Modifier = Modifier,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
-    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationGroupMedication, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
@@ -157,7 +156,7 @@ private fun PlanScreenContent(
     uiState: PlanUiState,
     onGroupClick: (UUID) -> Unit,
     onEntryClick: (Set<UUID>) -> Unit,
-    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationDetails, Int) -> Unit,
+    onQuickLogClick: (UUID, UUID?, LocalDateTime, MedicationGroupMedication, Int) -> Unit,
     onAddGroupClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
@@ -442,7 +441,7 @@ private fun PlanScreenContent(
                                     scheduled.groupUuid,
                                     scheduled.scheduleTimeUuid,
                                     scheduled.scheduledFor,
-                                    scheduled.medication.details,
+                                    scheduled.medication,
                                     remainingQuickLogCount(
                                         totalCount = scheduled.medication.count,
                                         fulfilledCount = scheduled.loggedCount
@@ -1212,11 +1211,9 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("072753ea-3f23-457e-b0f3-a102ff318f37"),
-                    details = previewCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0)
-                    )
+                    medicine = previewMedicine(MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = true,
@@ -1228,24 +1225,22 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
     val entries = listOf(
         MedicationLogEntry(
             uuid = UUID.fromString("06aa8f47-e08b-489f-8700-13421995cae1"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = previewMedicine(MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = morningGroupId,
             appliedAt = previewInstant(today, LocalTime.of(8, 2), zoneId),
             scheduledFor = LocalDateTime.of(today, LocalTime.of(8, 0))
         ),
         MedicationLogEntry(
             uuid = UUID.fromString("5e8d60cc-4df3-4a88-a14e-3cb35c4f6fc6"),
-            details = previewCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_GEL,
-                applicationType = MedicationApplicationType.GEL,
-                dose = MedicationDose.GelEquivalentEstradiolMg(1.5)
-            ),
-            dosageMgAsEstradiol = 1.5,
+            medicine = previewMedicine(MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 1.5,
             sourceGroupUuid = null,
             appliedAt = previewInstant(today, LocalTime.of(13, 30), zoneId)
         ),
@@ -1287,16 +1282,23 @@ internal fun buildPlanPreviewUiState(): PlanUiState {
     )
 }
 
-private fun previewCatalogMedicationDetails(
-    key: MedicationKey,
-    applicationType: MedicationApplicationType,
-    dose: MedicationDose,
-): MedicationDetails {
-    return MedicationDetails(
+private fun previewMedicine(key: MedicationKey): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.fromString("00000000-0000-0000-0000-000000000003"),
+        selection = selection,
         category = key.category,
-        applicationType = applicationType,
-        selection = MedicationSelection.Catalog(key),
-        dose = dose
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            key, preparation,
+        ),
+        createdAt = Instant.EPOCH,
+        updatedAt = Instant.EPOCH,
+        archivedAt = null,
     )
 }
 

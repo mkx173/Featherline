@@ -10,8 +10,8 @@ import com.mkx.hrttracker.model.medication.buildPlanDaySchedule
 import com.mkx.hrttracker.model.settings.DarkModeOption
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
-import com.mkx.hrttracker.util.medicationDisplayName
-import com.mkx.hrttracker.util.medicationDoseText
+import com.mkx.hrttracker.util.doseInstructionText
+import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -128,11 +128,11 @@ private fun MedicationLogEntry.toManualWidgetDoseRow(
     contextChip: WidgetDoseChip?,
 ): WidgetDoseRow {
     return WidgetDoseRow(
-        medicationName = medicationDisplayName(details, context),
+        medicationName = medicationEntryTitle(medicine, applicationType, context),
         groupName = "",
         colorKey = colorKey,
-        routeLabel = medicationRouteLabel(details, context),
-        doseText = medicationDoseText(context, details) ?: "",
+        routeLabel = medicationRouteLabel(applicationType, context),
+        doseText = doseInstructionText(context, medicine, doseInstruction) ?: "",
         status = WidgetDoseStatus.DONE,
         scheduledAt = appliedAt.atZone(zoneId).toLocalDateTime(),
         trailingText = context.getString(R.string.plan_entry_label_manual),
@@ -163,11 +163,15 @@ private fun PlanDayScheduleEntry.toWidgetDoseRow(
         else -> scheduledFor.format(timeFormatter)
     }
     return WidgetDoseRow(
-        medicationName = medicationDisplayName(medication.details, context),
+        medicationName = medicationEntryTitle(
+            medication.medicine, medication.applicationType, context,
+        ),
         groupName = groupName,
         colorKey = groupColorKey,
-        routeLabel = medicationRouteLabel(medication.details, context),
-        doseText = medicationDoseText(context, medication.details) ?: "",
+        routeLabel = medicationRouteLabel(medication.applicationType, context),
+        doseText = doseInstructionText(
+            context, medication.medicine, medication.doseInstruction,
+        ) ?: "",
         status = status,
         scheduledAt = scheduledFor,
         trailingText = displayTime,

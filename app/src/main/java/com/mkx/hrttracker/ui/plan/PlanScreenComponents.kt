@@ -60,10 +60,11 @@ import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.history.HistoryEntryGroupHeader
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationLogScheduleOffset
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
-import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
+import com.mkx.hrttracker.ui.medication.doseInstructionSummary
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
+import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.medication.medicationLogScheduleOffset
-import com.mkx.hrttracker.ui.medication.medicationSupportingText
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.dateLabelFormatter
@@ -275,9 +276,11 @@ private fun SelectedDayRow(
         SelectedDayRowState.PLANNED,
         SelectedDayRowState.MANUAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val supportingText = medicationSupportingText(
-        details = row.details,
-        medicationCount = row.medicationCount,
+    val supportingText = medicationEntrySupportingText(
+        medicine = row.medicine,
+        doseInstruction = row.doseInstruction,
+        applicationType = row.applicationType,
+        count = row.medicationCount,
         extraSupportingText = row.groupName
     )
     val timeLabel = when (row) {
@@ -297,7 +300,7 @@ private fun SelectedDayRow(
         is SelectedDayRowModel.Unplanned -> isCrossZone(row.entry)
         is SelectedDayRowModel.Scheduled -> row.entry.isLastFulfillingEntryCrossZone
     }
-    val titleText = medicationDisplayName(row.details)
+    val titleText = medicationEntryTitle(row.medicine, row.applicationType)
 
     EditorSegmentedListItem(
         index = index,
@@ -312,7 +315,7 @@ private fun SelectedDayRow(
         ) {
             SelectedDayMedicationIconSurface(
                 state = rowState,
-                applicationType = row.details.applicationType,
+                applicationType = row.applicationType,
                 colorScheme = rowColorScheme,
                 showUnreadLoggedBadge = outsideScheduleWindowLoggedAt != null
             )
@@ -622,14 +625,19 @@ internal fun RegimenGroupCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 group.medications.forEach { medication ->
+                    val doseSummary = listOfNotNull(
+                        medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) },
+                        medicationCountIndicatorText(medication.count)
+                            .takeIf { medication.count > 1 },
+                    ).joinToString(separator = " · ")
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,
-                        applicationType = medication.details.applicationType,
-                        medicationName = medicationDisplayName(medication.details),
-                        doseSummary = medicationDoseSupportingText(
-                            details = medication.details,
-                            medicationCount = medication.count
-                        )
+                        applicationType = medication.applicationType,
+                        medicationName = medicationEntryTitle(
+                            medication.medicine,
+                            medication.applicationType,
+                        ),
+                        doseSummary = doseSummary
                     )
                 }
             }
@@ -913,7 +921,10 @@ private fun UpcomingOccurrenceChip(
 
 private sealed interface SelectedDayRowModel {
     val sortTime: LocalTime
-    val details: com.mkx.hrttracker.model.medication.MedicationDetails
+    // PATCH_OFF rows carry no medicine; null medicine suppresses the dose line.
+    val medicine: com.mkx.hrttracker.model.medication.Medicine?
+    val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction
+    val applicationType: MedicationApplicationType
     val medicationCount: Int
     val groupName: String?
     val groupColorKey: MedicationGroupColorKey?
@@ -922,7 +933,9 @@ private sealed interface SelectedDayRowModel {
         val entry: PlanDayScheduleEntry
     ) : SelectedDayRowModel {
         override val sortTime: LocalTime = entry.scheduledTime
-        override val details = entry.medication.details
+        override val medicine = entry.medication.medicine
+        override val doseInstruction = entry.medication.doseInstruction
+        override val applicationType = entry.medication.applicationType
         override val medicationCount: Int = entry.medication.count
         override val groupName: String = entry.groupName
         override val groupColorKey: MedicationGroupColorKey = entry.groupColorKey
@@ -932,7 +945,9 @@ private sealed interface SelectedDayRowModel {
         val entry: MedicationLogEntry,
         override val sortTime: LocalTime
     ) : SelectedDayRowModel {
-        override val details = entry.details
+        override val medicine = entry.medicine
+        override val doseInstruction = entry.doseInstruction
+        override val applicationType = entry.applicationType
         override val medicationCount: Int = entry.count
         override val groupName: String? = null
         override val groupColorKey: MedicationGroupColorKey? = null

@@ -115,24 +115,21 @@ import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.util.labelRes
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.segmentedListItemShape
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.medication.doseInstructionSummary
 import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
-import com.mkx.hrttracker.ui.medication.medicationDoseSupportingText
-import com.mkx.hrttracker.ui.medication.medicationDoseText
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 import com.mkx.hrttracker.util.formatMainE2ConcentrationValue
@@ -2631,14 +2628,22 @@ private fun MainAntiandrogenMedicationSubCard(
     timeFormatter: DateTimeFormatter,
     modifier: Modifier = Modifier
 ) {
-    val displayedDetails = card.lastDoseDetails ?: card.medication.details
+    // The last logged dose, if any, is the most accurate; else fall back to the
+    // slot definition. A null medicine means PATCH_OFF — no dose line.
+    val displayedMedicine = card.lastDose?.medicine ?: card.medication.medicine
+    val displayedApplicationType = card.lastDose?.applicationType
+        ?: card.medication.applicationType
+    val displayedDoseInstruction = card.lastDose?.doseInstruction
+        ?: card.medication.doseInstruction
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
-    val medicationName = medicationDisplayName(displayedDetails)
-    val routeLabel = stringResource(displayedDetails.applicationType.labelRes)
-    val summaryText = medicationDoseSupportingText(
-        details = displayedDetails,
-        medicationCount = card.medication.count,
-    )
+    val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
+    val routeLabel = stringResource(displayedApplicationType.labelRes)
+    val doseSummary = displayedMedicine?.let { doseInstructionSummary(displayedDoseInstruction) }
+    val summaryText = listOfNotNull(
+        doseSummary,
+        medicationCountIndicatorText(card.medication.count)
+            .takeIf { card.medication.count > 1 },
+    ).joinToString(separator = " · ")
     val supportingText = listOfNotNull(
         routeLabel,
         summaryText.takeIf(String::isNotBlank)
@@ -2690,7 +2695,7 @@ private fun MainAntiandrogenMedicationSubCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = displayedDetails.applicationType,
+                    applicationType = displayedApplicationType,
                     groupColorScheme = groupColorScheme,
                 )
 
@@ -3038,11 +3043,11 @@ private fun MainTodayDoseRow(
         }
         onHighlightConsumed()
     }
-    val details = row.medication.details
+    val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
-    val headline = medicationDisplayName(details)
-    val routeLabel = stringResource(details.applicationType.labelRes)
-    val doseText = medicationDoseText(details)
+    val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
+    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val doseText = medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
@@ -3060,7 +3065,9 @@ private fun MainTodayDoseRow(
                     groupUuid = quickLogGroupUuid,
                     scheduleTimeUuid = row.scheduleTimeUuid,
                     scheduledAt = row.scheduledAt,
-                    medicationDetails = row.medication.details,
+                    medicine = row.medication.medicine,
+                    applicationType = row.medication.applicationType,
+                    doseInstruction = row.medication.doseInstruction,
                     medicationCount = remainingQuickLogCount(
                         totalCount = row.medication.count,
                         fulfilledCount = row.loggedCount
@@ -3103,7 +3110,7 @@ private fun MainTodayDoseRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = details.applicationType,
+                    applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
                     outlinedIcon = routeIconOutlined
                 )
@@ -3191,11 +3198,11 @@ private fun MainUpcomingDoseRow(
         }
         onHighlightConsumed()
     }
-    val details = row.medication.details
+    val medication = row.medication
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
-    val headline = medicationDisplayName(details)
-    val routeLabel = stringResource(details.applicationType.labelRes)
-    val doseText = medicationDoseText(details)
+    val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
+    val routeLabel = stringResource(medication.applicationType.labelRes)
+    val doseText = medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
@@ -3227,7 +3234,7 @@ private fun MainUpcomingDoseRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 MainRouteIconSurface(
-                    applicationType = details.applicationType,
+                    applicationType = medication.applicationType,
                     groupColorScheme = groupColorScheme,
                 )
 
@@ -4074,25 +4081,21 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
         uuid = "e0d4fc52-8a75-4cf5-9ab3-f28fbd9a5ea7",
         key = MedicationKey.ESTRADIOL,
         applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(2.0)
     )
     val estradiolSublingual = previewMedication(
         uuid = "98f22e3e-ef38-4701-9f73-94a6b3430d9b",
         key = MedicationKey.ESTRADIOL_VALERATE,
         applicationType = MedicationApplicationType.SUBLINGUAL,
-        dose = MedicationDose.MgAsMedicine(1.0)
     )
     val estradiolPatch = previewMedication(
         uuid = "e483ee93-976d-445a-9b0d-78ee8753d59e",
         key = MedicationKey.ESTRADIOL_PATCH,
         applicationType = MedicationApplicationType.PATCH_ON,
-        dose = MedicationDose.PatchReleaseRateMcgPerDay(100.0)
     )
     val spironolactone = previewMedication(
         uuid = "be598126-5d8f-4daa-bdc6-54d45035f3f3",
         key = MedicationKey.SPIRONOLACTONE,
         applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(100.0)
     )
 
     return MainUiState(
@@ -4102,7 +4105,7 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
             changeSinceYesterday = 8.0,
             targetMin = 100.0,
             targetMax = 200.0,
-            lastDoseDetails = estradiolTablet.details,
+            lastDose = estradiolTablet.toPreviewLastDose(),
             lastDoseAt = now.minusHours(2).minusMinutes(25)
         ),
         e2Chart = MainE2ChartUiState(
@@ -4115,7 +4118,7 @@ internal fun buildMainContentPreviewUiState(): MainUiState {
                 groupName = "Antiandrogen",
                 groupColorKey = MedicationGroupColorKey.INDIGO,
                 medication = spironolactone,
-                lastDoseDetails = spironolactone.details,
+                lastDose = spironolactone.toPreviewLastDose(),
                 lastDoseAt = now.minusHours(1).minusMinutes(10),
                 nextDoseAt = now.plusHours(11).plusMinutes(30)
             )
@@ -4233,17 +4236,43 @@ private fun previewMedication(
     uuid: String,
     key: MedicationKey,
     applicationType: MedicationApplicationType,
-    dose: MedicationDose,
     count: Int = 1
 ): MedicationGroupMedication {
     return MedicationGroupMedication(
         uuid = UUID.fromString(uuid),
-        details = MedicationDetails(
-            category = key.category,
-            applicationType = applicationType,
-            selection = MedicationSelection.Catalog(key),
-            dose = dose
-        ),
+        medicine = previewMedicineFor(key),
+        applicationType = applicationType,
+        doseInstruction = DoseInstruction.TabletFraction(1, 1),
         count = count
+    )
+}
+
+private fun MedicationGroupMedication.toPreviewLastDose(): LastDoseDisplay {
+    return LastDoseDisplay(
+        medicine = medicine,
+        applicationType = applicationType,
+        doseInstruction = doseInstruction,
+    )
+}
+
+private fun previewMedicineFor(
+    key: MedicationKey,
+): com.mkx.hrttracker.model.medication.Medicine {
+    val selection = com.mkx.hrttracker.model.medication.MedicineSelection.Catalog(key)
+    val preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+        strengthMgPerTablet = 2.0,
+    )
+    return com.mkx.hrttracker.model.medication.Medicine(
+        uuid = UUID.nameUUIDFromBytes("preview-${key.name}".toByteArray()),
+        selection = selection,
+        category = key.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = com.mkx.hrttracker.model.medication.MedicineIdentityKey.catalog(
+            key, preparation,
+        ),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
     )
 }

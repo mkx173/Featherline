@@ -1,17 +1,27 @@
 package com.mkx.hrttracker.ui.plan
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
-import com.mkx.hrttracker.model.medication.testCustomMedicationDetails
+import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.UUID
 
 class MedicationGroupEditorCountTest {
+
+    // A shared estradiol medicine: two slots resolving to the same medicine,
+    // route, and dose instruction collapse to one MedicationSignature.
+    private val estradiolMedicine = testMedicine(
+        uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+        key = MedicationKey.ESTRADIOL,
+    )
+
     @Test
     fun removeMedicationItem_removes_only_target_row() {
         val unchanged = medication(localId = "keep", count = 3)
@@ -29,11 +39,9 @@ class MedicationGroupEditorCountTest {
     fun medicationItem_toEditorUiState_coerces_unsupported_routes_to_count_one() {
         val editorState = MedicationGroupMedicationItemUiState(
             localId = "injection",
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_VALERATE,
-                applicationType = MedicationApplicationType.INJECTION,
-                dose = MedicationDose.MgAsMedicine(5.0)
-            ),
+            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE),
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
             count = 3
         ).toEditorUiState()
 
@@ -57,12 +65,12 @@ class MedicationGroupEditorCountTest {
         val existingMedication = medication(
             localId = "existing",
             count = 2,
-            doseMg = 1.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val duplicateAdd = medication(
             localId = "new",
             count = 1,
-            doseMg = 1.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
 
         val result = upsertMedication(
@@ -81,12 +89,12 @@ class MedicationGroupEditorCountTest {
         val existingMedication = medication(
             localId = "existing",
             count = 2,
-            doseMg = 1.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val distinctDoseMedication = medication(
             localId = "new",
             count = 1,
-            doseMg = 2.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 2),
         )
 
         val result = upsertMedication(
@@ -96,9 +104,13 @@ class MedicationGroupEditorCountTest {
 
         assertFalse(result.duplicateAlreadyExists)
         assertEquals(2, result.medications.size)
-        assertEquals(listOf(1.0, 2.0), result.medications.map { medication ->
-            (medication.details.dose as MedicationDose.MgAsMedicine).valueMg
-        })
+        assertEquals(
+            listOf(
+                DoseInstruction.TabletFraction(1, 1),
+                DoseInstruction.TabletFraction(1, 2),
+            ),
+            result.medications.map { medication -> medication.doseInstruction }
+        )
     }
 
     @Test
@@ -106,22 +118,18 @@ class MedicationGroupEditorCountTest {
         val existingMedication = medication(
             localId = "existing",
             count = 3,
-            doseMg = 1.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
         )
         val editedMedication = medication(
             localId = "edited",
             count = 2,
-            doseMg = 2.0
+            doseInstruction = DoseInstruction.TabletFraction(1, 2),
         )
 
         val result = upsertMedication(
             medications = listOf(existingMedication, editedMedication),
             savedMedication = editedMedication.copy(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(1.0)
-                )
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
             )
         )
 
@@ -131,9 +139,13 @@ class MedicationGroupEditorCountTest {
             medication.localId
         })
         assertEquals(listOf(3, 2), result.medications.map { medication -> medication.count })
-        assertEquals(listOf(1.0, 2.0), result.medications.map { medication ->
-            (medication.details.dose as MedicationDose.MgAsMedicine).valueMg
-        })
+        assertEquals(
+            listOf(
+                DoseInstruction.TabletFraction(1, 1),
+                DoseInstruction.TabletFraction(1, 2),
+            ),
+            result.medications.map { medication -> medication.doseInstruction }
+        )
     }
 
     @Test
@@ -145,12 +157,10 @@ class MedicationGroupEditorCountTest {
         val existingMedication = customMedication(
             localId = "existing",
             name = "Estradiol Valerate",
-            doseMg = 2.0,
         )
         val nearDuplicate = customMedication(
             localId = "new",
             name = "  estradiol valerate ",
-            doseMg = 2.0,
         )
 
         val result = upsertMedication(
@@ -168,12 +178,10 @@ class MedicationGroupEditorCountTest {
         val existingMedication = customMedication(
             localId = "existing",
             name = "Estradiol Valerate",
-            doseMg = 2.0,
         )
         val distinctMedication = customMedication(
             localId = "new",
             name = "Estradiol Cypionate",
-            doseMg = 2.0,
         )
 
         val result = upsertMedication(
@@ -188,31 +196,31 @@ class MedicationGroupEditorCountTest {
     private fun medication(
         localId: String,
         count: Int,
-        doseMg: Double = 2.0,
+        doseInstruction: DoseInstruction = DoseInstruction.TabletFraction(1, 1),
     ): MedicationGroupMedicationItemUiState {
         return MedicationGroupMedicationItemUiState(
             localId = localId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(doseMg)
-            ),
+            resolvedMedicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             count = count
         )
     }
 
+    // A brand-new "+ New" custom slot — no resolved medicine yet; the editor's
+    // duplicate key falls back to the picker draft's normalized custom name.
     private fun customMedication(
         localId: String,
         name: String,
-        doseMg: Double,
         count: Int = 1,
     ): MedicationGroupMedicationItemUiState {
         return MedicationGroupMedicationItemUiState(
             localId = localId,
-            details = testCustomMedicationDetails(
-                medicationName = name,
-                dose = MedicationDose.MgAsMedicine(doseMg),
-            ),
+            resolvedMedicine = null,
+            medicineDraft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+                .copy(customMedicationName = name),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             count = count,
         )
     }

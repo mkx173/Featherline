@@ -6,15 +6,16 @@ import com.mkx.hrttracker.data.repository.HomeRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import com.mkx.hrttracker.model.pk.PkMedicationSimulation
@@ -290,12 +291,11 @@ class MainViewModelTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         val latestEstradiolEntry = MedicationLogEntry(
             uuid = UUID.fromString("9b24ff3a-fc93-4fd1-8760-81a9ae8eae04"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-30T00:00:00Z"),
             appliedAtTimeZoneId = "UTC",
@@ -374,12 +374,11 @@ class MainViewModelTest {
         val now = LocalDateTime.of(2026, 4, 30, 12, 0)
         val pastDuePlanned = MedicationLogEntry(
             uuid = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
-            dosageMgAsEstradiol = null,
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            equivalentE2Mg = null,
             sourceGroupUuid = UUID.fromString("bbbbbbbb-1111-2222-3333-444444444444"),
             appliedAt = Instant.parse("2026-04-30T01:00:00Z"),
             appliedAtTimeZoneId = "UTC",
@@ -520,11 +519,8 @@ class MainViewModelTest {
             medications = listOf(
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("bf3e810c-0ade-4db7-8ca6-ef85b93b2c3f"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    )
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

@@ -25,15 +25,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.hideBottomSheet
-import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
-import com.mkx.hrttracker.ui.medication.changeApplicationType
-import com.mkx.hrttracker.ui.medication.changeCategory
-import com.mkx.hrttracker.ui.medication.changeCustomDoseUnit
-import com.mkx.hrttracker.ui.medication.changeDoseKind
-import com.mkx.hrttracker.ui.medication.changeMedicationKey
-import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
+import java.util.UUID
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -74,7 +71,9 @@ fun AddEntryScreen(
                 groupId = quickLogRequest.groupId,
                 scheduleTimeUuid = quickLogRequest.scheduleTimeUuid,
                 scheduledFor = quickLogRequest.scheduledFor,
-                medicationDetails = quickLogRequest.medicationDetails,
+                medicine = quickLogRequest.medicine,
+                applicationType = quickLogRequest.applicationType,
+                doseInstruction = quickLogRequest.doseInstruction,
                 medicationCount = quickLogRequest.medicationCount,
                 sourceGroupName = quickLogRequest.sourceGroupName,
                 sourceGroupColorKey = quickLogRequest.sourceGroupColorKey,
@@ -150,7 +149,9 @@ fun AddEntryScreen(
                 hideBottomSheet(scope, sheetState, onDismissRequest)
             }
         },
-        onMedicationDraftChange = viewModel::updateMedicationDraft,
+        onMedicineDraftChange = viewModel::updateMedicineDraft,
+        onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
+        onExistingMedicineSelected = viewModel::selectExistingMedicine,
         onCountTextChange = viewModel::updateCountText,
         onDecreaseCountClick = viewModel::decreaseCount,
         onIncreaseCountClick = viewModel::increaseCount,
@@ -173,7 +174,9 @@ private fun AddEntryScreenContent(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
-    onMedicationDraftChange: ((MedicationDraftUiState) -> MedicationDraftUiState) -> Unit,
+    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
+    onExistingMedicineSelected: (UUID) -> Unit,
     onCountTextChange: (String) -> Unit,
     onDecreaseCountClick: () -> Unit,
     onIncreaseCountClick: () -> Unit,
@@ -194,46 +197,20 @@ private fun AddEntryScreenContent(
         confirmButtonText = stringResource(R.string.save),
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
-        draft = uiState.medicationDraft,
+        medicineDraft = uiState.medicineDraft,
+        doseInstructionDraft = uiState.doseInstructionDraft,
+        existingMedicines = uiState.activeMedicines,
         canEditMedicationIdentity = uiState.canEditMedicationIdentity,
+        lockedMedicine = uiState.resolvedMedicine,
         sourceGroupName = uiState.sourceGroupName,
         sourceGroupColorKey = uiState.sourceGroupColorKey,
         sourceGroupScheduledFor = uiState.scheduledFor,
         sourceGroupScheduleOffsetOutsideFulfillmentWindow = uiState.shouldWarnScheduleWillNotBeFulfilled(
             LocalDateTime.of(uiState.appliedDate, uiState.appliedTime)
         ),
-        onCategoryChange = { category ->
-            onMedicationDraftChange { draft -> draft.changeCategory(category) }
-        },
-        onApplicationTypeChange = { applicationType ->
-            onMedicationDraftChange { draft -> draft.changeApplicationType(applicationType) }
-        },
-        onMedicationKeyChange = { medicationKey ->
-            onMedicationDraftChange { draft -> draft.changeMedicationKey(medicationKey) }
-        },
-        onCustomMedicationNameChange = { medicationName ->
-            onMedicationDraftChange { draft -> draft.copy(customMedicationName = medicationName) }
-        },
-        onDoseKindChange = { doseKind ->
-            onMedicationDraftChange { draft -> draft.changeDoseKind(doseKind) }
-        },
-        onCustomDoseUnitChange = { customDoseUnit ->
-            onMedicationDraftChange { draft -> draft.changeCustomDoseUnit(customDoseUnit) }
-        },
-        onDoseMgChange = { doseMg ->
-            onMedicationDraftChange { draft -> draft.copy(doseMg = doseMg) }
-        },
-        onGelPercentChange = { gelPercent ->
-            onMedicationDraftChange { draft -> draft.copy(gelPercent = gelPercent) }
-        },
-        onGelWeightChange = { gelWeight ->
-            onMedicationDraftChange { draft -> draft.copy(gelWeightGrams = gelWeight) }
-        },
-        onPatchReleaseRateChange = { releaseRate ->
-            onMedicationDraftChange { draft ->
-                draft.copy(patchReleaseRateMcgPerDay = releaseRate)
-            }
-        },
+        onMedicineDraftChange = onMedicineDraftChange,
+        onDoseInstructionDraftChange = onDoseInstructionDraftChange,
+        onExistingMedicineSelected = onExistingMedicineSelected,
         countText = uiState.countText,
         onCountTextChange = onCountTextChange,
         onDecreaseCountClick = onDecreaseCountClick,
@@ -334,18 +311,16 @@ private fun AddEntryScreenPreview() {
         AddEntryScreenContent(
             uiState = AddEntryUiState(
                 editingEntryIds = listOf("f16ec8a7-5115-410a-b12d-f376fdb6f76b"),
-                medicationDraft = defaultMedicationDraft().changeApplicationType(
-                    com.mkx.hrttracker.model.medication.MedicationApplicationType.INJECTION
-                ).changeMedicationKey(
-                    com.mkx.hrttracker.model.medication.MedicationKey.ESTRADIOL_CYPIONATE
-                ).copy(doseMg = "4.0"),
+                medicineDraft = defaultMedicineDraft(),
                 appliedDate = LocalDate.of(2026, 4, 16),
                 appliedTime = LocalTime.of(21, 15),
             ),
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             onDismissRequest = { },
             onCloseClick = { },
-            onMedicationDraftChange = { },
+            onMedicineDraftChange = { },
+            onDoseInstructionDraftChange = { },
+            onExistingMedicineSelected = { },
             onCountTextChange = { },
             onDecreaseCountClick = { },
             onIncreaseCountClick = { },

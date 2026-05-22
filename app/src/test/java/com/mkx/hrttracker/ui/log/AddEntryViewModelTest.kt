@@ -2,17 +2,20 @@ package com.mkx.hrttracker.ui.log
 
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import io.mockk.coEvery
@@ -45,14 +48,28 @@ import java.util.UUID
 class AddEntryViewModelTest {
     private val medicationLogRepository: MedicationLogRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
+    private val medicineRepository: MedicineRepository = mockk(relaxed = true)
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler =
         mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
 
+    // Shared estradiol medicine with a fixed UUID so logged entries and the
+    // group medications they fulfil resolve to the same MedicationSignature.
+    private val estradiolMedicine = testMedicine(
+        uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001"),
+        key = MedicationKey.ESTRADIOL,
+    )
+
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // A quick-log/new-log save resolves the picker draft into a medicine.
+        // The shared estradiol draft selects an existing medicine by uuid.
+        coEvery { medicineRepository.getByUuid(estradiolMedicine.uuid) } returns estradiolMedicine
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(any(), any(), any())
+        } returns estradiolMedicine
     }
 
     @After
@@ -91,24 +108,18 @@ class AddEntryViewModelTest {
         val entries = listOf(
             testMedicationLogEntry(
                 uuid = firstId,
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
-                dosageMgAsEstradiol = 2.0,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                equivalentE2Mg = 2.0,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(appliedAt),
                 scheduledFor = scheduledFor
             ),
             testMedicationLogEntry(
                 uuid = secondId,
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
-                dosageMgAsEstradiol = 2.0,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                equivalentE2Mg = 2.0,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(appliedAt),
                 scheduledFor = scheduledFor
@@ -131,12 +142,9 @@ class AddEntryViewModelTest {
     fun buildEditingUiState_keeps_source_group_metadata_for_group_linked_entries() {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
@@ -162,12 +170,9 @@ class AddEntryViewModelTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
         val entry = testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = scheduledFor
@@ -197,24 +202,18 @@ class AddEntryViewModelTest {
         val entries = listOf(
             testMedicationLogEntry(
                 uuid = firstId,
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
-                dosageMgAsEstradiol = 2.0,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                equivalentE2Mg = 2.0,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
                 scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
             ),
             testMedicationLogEntry(
                 uuid = secondId,
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
-                dosageMgAsEstradiol = 2.0,
+                medicine = estradiolMedicine,
+                applicationType = MedicationApplicationType.ORAL,
+                equivalentE2Mg = 2.0,
                 sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
                 appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 22, 0)),
                 scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
@@ -230,15 +229,14 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun buildEditingUiState_keeps_medication_identity_editable_for_manual_entries() {
+    fun editingManualLogCannotEditMedicationIdentity() {
+        // Medicine identity is immutable once a log exists — editing any
+        // log, manual or group-linked, locks the picker (Task 7 Step 5).
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("3885b7c7-45db-44ae-b512-429145f3bc6f"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -246,19 +244,88 @@ class AddEntryViewModelTest {
         val uiState = buildEditingUiState(listOf(entry))
 
         requireNotNull(uiState)
-        assertTrue(uiState.canEditMedicationIdentity)
+        assertFalse(uiState.canEditMedicationIdentity)
+    }
+
+    @Test
+    fun newManualLogFindsOrCreatesMedicineBeforeSaving() = runTest {
+        // A brand-new manual log resolves the picker draft into a persisted
+        // Medicine (find-or-create) before the log row is written.
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                now = any(),
+            )
+        } returns estradiolMedicine
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+        viewModel.initialize(emptyList())
+        viewModel.updateMedicineDraft {
+            it.copy(
+                selectionKind = MedicationSelectionKind.CATALOG,
+                medicationKey = MedicationKey.ESTRADIOL,
+                pillStrengthMg = "2",
+            )
+        }
+        viewModel.updateDoseInstructionDraft {
+            it.copy(tabletFractionNumerator = 1, tabletFractionDenominator = 1)
+        }
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicineRepository.findOrCreateForCatalog(
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                now = any(),
+            )
+        }
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = estradiolMedicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                sourceGroupUuid = null,
+                scheduleTimeUuid = null,
+                appliedAt = any(),
+                scheduledFor = null,
+                count = 1,
+                appliedAtTimeZoneId = any(),
+            )
+        }
     }
 
     @Test
     fun buildEditingUiState_preserves_existing_count_for_single_counted_entry() {
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("3ed5b4b7-fca2-4dff-ae06-e74cb15508a9"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
@@ -277,12 +344,9 @@ class AddEntryViewModelTest {
     fun buildEditingUiState_locks_count_editing_for_group_linked_entries() {
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("8b41b3a6-0d87-4f4f-94e2-d3f4a5b6c7d8"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             count = 2
@@ -299,12 +363,9 @@ class AddEntryViewModelTest {
     fun buildEditingUiState_coerces_unsupported_routes_to_count_one() {
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("62f549eb-3870-4ce8-b476-6dd44759d78d"),
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL_VALERATE,
-                applicationType = MedicationApplicationType.INJECTION,
-                dose = MedicationDose.MgAsMedicine(5.0)
-            ),
-            dosageMgAsEstradiol = 5.0,
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE),
+            applicationType = MedicationApplicationType.INJECTION,
+            equivalentE2Mg = 5.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             count = 3
@@ -334,11 +395,8 @@ class AddEntryViewModelTest {
             name = "Nightly estradiol",
             colorKey = MedicationGroupColorKey.INDIGO
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
         val appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15, 30)
 
@@ -346,7 +404,9 @@ class AddEntryViewModelTest {
             groupId = groupId,
             group = group,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2,
             appliedAt = appliedAt
         )
@@ -496,11 +556,8 @@ class AddEntryViewModelTest {
             name = "Nightly estradiol",
             colorKey = MedicationGroupColorKey.INDIGO
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
 
         val viewModel = AddEntryViewModel(
@@ -508,11 +565,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2
         )
 
@@ -531,12 +591,9 @@ class AddEntryViewModelTest {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
-            dosageMgAsEstradiol = 2.0,
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = scheduledFor,
@@ -548,6 +605,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -582,11 +640,8 @@ class AddEntryViewModelTest {
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
         val previousScheduledFor = LocalDateTime.of(2026, 4, 21, 21, 0)
         val nextScheduledFor = LocalDateTime.of(2026, 4, 23, 21, 0)
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns null
         coEvery { medicationGroupRepository.getGroup(groupId) } returns null
 
@@ -595,11 +650,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2,
             sourceGroupName = "Snapshot estradiol",
             sourceGroupColorKey = MedicationGroupColorKey.PLUM,
@@ -630,15 +688,14 @@ class AddEntryViewModelTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val entryId = UUID.fromString("59c02f09-381d-47df-8512-cf3af70d4eaf")
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = scheduledFor,
@@ -648,7 +705,9 @@ class AddEntryViewModelTest {
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -662,6 +721,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -680,7 +740,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 0) {
             medicationLogRepository.saveEntry(
                 uuid = any(),
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = any(),
                 appliedAt = any(),
                 scheduledFor = any(),
@@ -698,7 +760,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -712,15 +776,14 @@ class AddEntryViewModelTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val entryId = UUID.fromString("59c02f09-381d-47df-8512-cf3af70d4eaf")
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
             scheduledFor = scheduledFor,
@@ -732,6 +795,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(
             entryIds = listOf(entryId.toString()),
@@ -752,7 +816,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 0) {
             medicationLogRepository.saveEntry(
                 uuid = any(),
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = any(),
                 appliedAt = any(),
                 scheduledFor = any(),
@@ -770,17 +836,16 @@ class AddEntryViewModelTest {
             name = "Nightly estradiol",
             colorKey = MedicationGroupColorKey.INDIGO,
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns null
         coEvery { medicationGroupRepository.getGroup(groupId) } returns group
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -794,11 +859,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2,
         )
         viewModel.updateAppliedDate(scheduledFor.toLocalDate())
@@ -812,7 +880,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 0) {
             medicationLogRepository.saveEntry(
                 uuid = any(),
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = any(),
                 appliedAt = any(),
                 scheduledFor = any(),
@@ -829,7 +899,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -847,16 +919,15 @@ class AddEntryViewModelTest {
             name = "Nightly estradiol",
             colorKey = MedicationGroupColorKey.INDIGO
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -870,11 +941,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2
         )
         advanceUntilIdle()
@@ -888,7 +962,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 appliedAt = any(),
                 scheduledFor = scheduledFor,
@@ -908,11 +984,8 @@ class AddEntryViewModelTest {
             colorKey = MedicationGroupColorKey.INDIGO,
             times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
 
         val viewModel = AddEntryViewModel(
@@ -920,11 +993,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2
         )
         advanceUntilIdle()
@@ -939,7 +1015,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 0) {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = any(),
                 appliedAt = any(),
                 scheduledFor = any(),
@@ -958,16 +1036,15 @@ class AddEntryViewModelTest {
             colorKey = MedicationGroupColorKey.INDIGO,
             times = listOf(LocalTime.of(9, 0), LocalTime.of(11, 0))
         )
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         every { medicationGroupRepository.getCachedGroup(groupId) } returns group
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 scheduleTimeUuid = null,
                 appliedAt = any(),
@@ -982,11 +1059,14 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initializeQuickLog(
             groupId = groupId,
             scheduledFor = scheduledFor,
-            medicationDetails = details,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
             medicationCount = 2
         )
         advanceUntilIdle()
@@ -1002,7 +1082,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = null,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 scheduleTimeUuid = null,
                 appliedAt = any(),
@@ -1018,15 +1100,14 @@ class AddEntryViewModelTest {
         val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
         val entryId = UUID.fromString("73ef6a29-2149-4f13-8b2c-7f4baf23e3a6")
         val scheduledFor = LocalDateTime.of(2026, 4, 22, 9, 0)
-        val details = testCatalogMedicationDetails(
-            key = MedicationKey.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            dose = MedicationDose.MgAsMedicine(2.0)
-        )
+        val medicine = estradiolMedicine
+        val doseInstruction = DoseInstruction.TabletFraction(1, 1)
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = details,
-            dosageMgAsEstradiol = 2.0,
+            medicine = medicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = doseInstruction,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = groupId,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 9, 15)),
             scheduledFor = scheduledFor
@@ -1042,7 +1123,9 @@ class AddEntryViewModelTest {
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 scheduleTimeUuid = null,
                 appliedAt = any(),
@@ -1057,6 +1140,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1072,7 +1156,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = details,
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = groupId,
                 scheduleTimeUuid = null,
                 appliedAt = any(),
@@ -1088,11 +1174,8 @@ class AddEntryViewModelTest {
         val entryId = UUID.fromString("8cc17f1e-3343-45dd-b3ce-5c8f20686f2d")
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -1100,7 +1183,9 @@ class AddEntryViewModelTest {
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = null,
                 appliedAt = any(),
                 scheduledFor = null,
@@ -1113,6 +1198,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1129,7 +1215,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = null,
                 appliedAt = any(),
                 scheduledFor = null,
@@ -1144,11 +1232,8 @@ class AddEntryViewModelTest {
         val entryId = UUID.fromString("fa9154d0-af8d-44f8-a565-46d6708ebcf2")
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -1156,7 +1241,9 @@ class AddEntryViewModelTest {
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = null,
                 appliedAt = any(),
                 scheduledFor = null,
@@ -1170,6 +1257,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1183,7 +1271,9 @@ class AddEntryViewModelTest {
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = null,
                 appliedAt = any(),
                 scheduledFor = null,
@@ -1198,11 +1288,8 @@ class AddEntryViewModelTest {
         val entryId = UUID.fromString("20de422b-b620-474f-b2d0-0e56389ebf74")
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -1214,6 +1301,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1240,11 +1328,8 @@ class AddEntryViewModelTest {
         val originalInstant = tokyoApplied.atZone(tokyo).toInstant()
         val existingEntry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = originalInstant,
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -1253,7 +1338,9 @@ class AddEntryViewModelTest {
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = any(),
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = any(),
                 scheduleTimeUuid = any(),
                 appliedAt = any(),
@@ -1269,6 +1356,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository,
             medicationReminderScheduler,
             medicationReminderSnoozeScheduler,
+            medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1289,7 +1377,9 @@ class AddEntryViewModelTest {
         coVerify {
             medicationLogRepository.saveEntry(
                 uuid = entryId,
-                medication = any(),
+                medicineUuid = any(),
+                applicationType = any(),
+                doseInstruction = any(),
                 sourceGroupUuid = null,
                 scheduleTimeUuid = any(),
                 appliedAt = expectedInstant,
@@ -1308,11 +1398,8 @@ class AddEntryViewModelTest {
         val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(newYork).toInstant()
         val existingEntry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = originalInstant,
             appliedAtTimeZoneId = "America/New_York"
@@ -1320,7 +1407,9 @@ class AddEntryViewModelTest {
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
         coEvery { medicationLogRepository.saveEntry(
-            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            uuid = any(), medicineUuid = any(),
+ applicationType = any(),
+ doseInstruction = any(), sourceGroupUuid = any(),
             scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
             count = any(), appliedAtTimeZoneId = any()
         ) } returns Unit
@@ -1331,6 +1420,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository,
             medicationReminderScheduler,
             medicationReminderSnoozeScheduler,
+            medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1356,11 +1446,8 @@ class AddEntryViewModelTest {
         val originalInstant = LocalDateTime.of(2026, 4, 15, 9, 0).atZone(deviceZone).toInstant()
         val existingEntry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = originalInstant,
             appliedAtTimeZoneId = deviceZone.id
@@ -1368,7 +1455,9 @@ class AddEntryViewModelTest {
         coEvery { medicationLogRepository.getEntries(listOf(entryId)) } returns listOf(existingEntry)
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
         coEvery { medicationLogRepository.saveEntry(
-            uuid = any(), medication = any(), sourceGroupUuid = any(),
+            uuid = any(), medicineUuid = any(),
+ applicationType = any(),
+ doseInstruction = any(), sourceGroupUuid = any(),
             scheduleTimeUuid = any(), appliedAt = any(), scheduledFor = any(),
             count = any(), appliedAtTimeZoneId = any()
         ) } returns Unit
@@ -1379,6 +1468,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository,
             medicationReminderScheduler,
             medicationReminderSnoozeScheduler,
+            medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()
@@ -1393,11 +1483,8 @@ class AddEntryViewModelTest {
         val entryId = UUID.fromString("d800fa8b-71a6-48f7-9424-275d6bb56243")
         val entry = testMedicationLogEntry(
             uuid = entryId,
-            details = testCatalogMedicationDetails(
-                key = MedicationKey.ESTRADIOL,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0)
-            ),
+            medicine = estradiolMedicine,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15))
         )
@@ -1410,6 +1497,7 @@ class AddEntryViewModelTest {
             medicationGroupRepository = medicationGroupRepository,
             medicationReminderScheduler = medicationReminderScheduler,
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
         )
         viewModel.initialize(listOf(entryId.toString()))
         advanceUntilIdle()

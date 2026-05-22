@@ -11,28 +11,37 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleInput
 import com.mkx.hrttracker.data.repository.MedicationGroupScheduleTimeInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.model.medication.MedicationDetails
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
+import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSignature
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
-import com.mkx.hrttracker.ui.medication.MedicationDraftUiState
-import com.mkx.hrttracker.ui.medication.defaultMedicationDraft
+import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
+import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
+import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
-import com.mkx.hrttracker.ui.medication.medicationDraftFromDetails
+import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
-import com.mkx.hrttracker.ui.medication.toMedicationDetails
+import com.mkx.hrttracker.ui.medication.toDoseInstruction
+import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
+import com.mkx.hrttracker.ui.medication.toNewMedicineRequest
 import com.mkx.hrttracker.ui.medication.validationErrorRes
 import com.mkx.hrttracker.util.AppTimeSource
 import com.mkx.hrttracker.util.systemLocale
@@ -64,6 +73,7 @@ import javax.inject.Inject
 class MedicationGroupEditorViewModel @Inject constructor(
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineRepository: MedicineRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
     private val medicationReminderSnoozeScheduler: MedicationReminderSnoozeScheduler,
@@ -139,6 +149,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         PENDING_REPLACEMENT_GROUP_ID_KEY
                     ] = value
                 }
+        }
+
+        viewModelScope.launch {
+            medicineRepository.observeAllActive().collect { medicines ->
+                _uiState.update { current -> current.copy(activeMedicines = medicines) }
+            }
         }
 
         viewModelScope.launch {
@@ -453,7 +469,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         updateEditingMedication { medication ->
             medication.copy(
                 countText = stepMedicationCount(
-                    applicationType = medication.draft.applicationType,
+                    applicationType = medication.medicineDraft.applicationType,
                     countText = medication.countText,
                     delta = -1
                 ).toString()
@@ -465,7 +481,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         updateEditingMedication { medication ->
             medication.copy(
                 countText = stepMedicationCount(
-                    applicationType = medication.draft.applicationType,
+                    applicationType = medication.medicineDraft.applicationType,
                     countText = medication.countText,
                     delta = 1
                 ).toString()
@@ -524,18 +540,51 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
-    fun updateEditingMedicationDraft(
-        transform: (MedicationDraftUiState) -> MedicationDraftUiState
+    fun updateEditingMedicineDraft(
+        transform: (MedicinePickerUiState) -> MedicinePickerUiState
     ) {
         updateEditingMedication { medication ->
-            val updatedDraft = transform(medication.draft)
+            val updatedDraft = transform(medication.medicineDraft)
             medication.copy(
-                draft = updatedDraft,
+                medicineDraft = updatedDraft,
+                // A picker edit invalidates a previously-resolved medicine.
+                resolvedMedicine = if (updatedDraft.selectedMedicineUuid == null) {
+                    null
+                } else {
+                    medication.resolvedMedicine
+                },
+                doseInstructionDraft = medication.doseInstructionDraft.copy(
+                    applicationType = updatedDraft.applicationType,
+                    preparationType = updatedDraft.inferredOrSelectedPreparationType()
+                        ?: medication.doseInstructionDraft.preparationType,
+                ),
                 countText = resolveMedicationCountTextAfterDraftChange(
-                    previousDraft = medication.draft,
+                    previousDraft = medication.medicineDraft,
                     updatedDraft = updatedDraft,
                     currentCountText = medication.countText
                 )
+            )
+        }
+    }
+
+    fun updateEditingDoseInstructionDraft(
+        transform: (DoseInstructionDraftUiState) -> DoseInstructionDraftUiState
+    ) {
+        updateEditingMedication { medication ->
+            medication.copy(doseInstructionDraft = transform(medication.doseInstructionDraft))
+        }
+    }
+
+    fun selectEditingExistingMedicine(medicineUuid: UUID) {
+        val medicine = _uiState.value.activeMedicines.firstOrNull { it.uuid == medicineUuid }
+            ?: return
+        updateEditingMedication { medication ->
+            medication.copy(
+                resolvedMedicine = medicine,
+                medicineDraft = com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(
+                    medicine = medicine,
+                    applicationType = medication.medicineDraft.applicationType,
+                ),
             )
         }
     }
@@ -546,9 +595,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
             return
         }
         val editingMedication = currentState.editingMedication ?: return
-        val errorRes = editingMedication.draft.validationErrorRes()
+        val isPatchOff = editingMedication.medicineDraft.applicationType ==
+            MedicationApplicationType.PATCH_OFF
+        val errorRes = editingMedication.medicineDraft.validationErrorRes()
+            ?: editingMedication.doseInstructionDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
-                applicationType = editingMedication.draft.applicationType,
+                applicationType = editingMedication.medicineDraft.applicationType,
                 countText = editingMedication.countText
             )
 
@@ -562,12 +614,22 @@ class MedicationGroupEditorViewModel @Inject constructor(
             return
         }
 
+        // Identity is resolved into a Medicine lazily at saveGroup; the slot draft
+        // keeps the picker/dose drafts so the picker can be reopened for editing.
         val savedMedication = MedicationGroupMedicationItemUiState(
             localId = editingMedication.localId,
             persistedMedicationId = editingMedication.persistedMedicationId,
-            details = editingMedication.draft.toMedicationDetails(),
+            resolvedMedicine = editingMedication.resolvedMedicine,
+            medicineDraft = editingMedication.medicineDraft,
+            doseInstructionDraft = editingMedication.doseInstructionDraft,
+            applicationType = editingMedication.medicineDraft.applicationType,
+            doseInstruction = if (isPatchOff) {
+                DoseInstruction.Noop
+            } else {
+                editingMedication.doseInstructionDraft.toDoseInstruction()
+            },
             count = resolvedMedicationCountForSave(
-                applicationType = editingMedication.draft.applicationType,
+                applicationType = editingMedication.medicineDraft.applicationType,
                 countText = editingMedication.countText
             )
         )
@@ -594,6 +656,43 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 medicationEditorInfoMessageRes = null,
             )
         }
+    }
+
+    // Resolves a slot draft into a persisted Medicine. PATCH_OFF slots carry no
+    // medicine; this returns null for them (see PATCH_OFF cross-cutting rule).
+    private suspend fun resolveMedicineForDraft(draft: MedicinePickerUiState): Medicine? {
+        if (draft.applicationType == MedicationApplicationType.PATCH_OFF) {
+            return null
+        }
+        val selectedUuid = draft.selectedMedicineUuid
+        if (selectedUuid != null) {
+            return checkNotNull(medicineRepository.getByUuid(selectedUuid))
+        }
+        val request = draft.toNewMedicineRequest()
+        return when (request.selectionKind) {
+            MedicationSelectionKind.CATALOG -> medicineRepository.findOrCreateForCatalog(
+                medicationKey = checkNotNull(request.medicationKey),
+                preparation = request.preparation,
+            )
+
+            MedicationSelectionKind.CUSTOM -> medicineRepository.findOrCreateForCustom(
+                customMedicationName = checkNotNull(request.customMedicationName),
+                displayName = request.displayName,
+                category = request.category,
+                preparation = request.preparation,
+            )
+        }
+    }
+
+    private suspend fun MedicationGroupMedicationItemUiState.toInput(): MedicationGroupMedicationInput {
+        val medicine = resolveMedicineForDraft(medicineDraft)
+        return MedicationGroupMedicationInput(
+            uuid = persistedMedicationId?.let(UUID::fromString),
+            medicineUuid = medicine?.uuid,
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
+            count = count,
+        )
     }
 
     fun saveGroup(
@@ -682,11 +781,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                         )
                     },
                     medications = currentState.medications.map { medication ->
-                        MedicationGroupMedicationInput(
-                            uuid = medication.persistedMedicationId?.let(UUID::fromString),
-                            details = medication.details,
-                            count = medication.count
-                        )
+                        medication.toInput()
                     },
                     notificationsEnabled = currentState.notificationsEnabled,
                     includePastScheduledSlots = currentState.includePastScheduledSlots,
@@ -1049,11 +1144,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 colorKey = draftState.groupColorKey,
                 schedule = scheduleInput,
                 medications = draftState.medications.map { medication ->
-                    MedicationGroupMedicationInput(
-                        uuid = medication.persistedMedicationId?.let(UUID::fromString),
-                        details = medication.details,
-                        count = medication.count,
-                    )
+                    medication.toInput()
                 },
                 notificationsEnabled = draftState.notificationsEnabled,
                 includePastScheduledSlots = draftState.includePastScheduledSlots,
@@ -1308,15 +1399,7 @@ private fun MedicationGroup.toEditorState(
         .sortedBy { slot -> slot.time }
     val normalizedScheduleTimes = normalizedScheduleTimeSlots.map { slot -> slot.time }
     val editorMedications = medications.map { medication ->
-        MedicationGroupMedicationItemUiState(
-            localId = medication.uuid.toString(),
-            persistedMedicationId = medication.uuid.toString(),
-            details = medication.details,
-            count = normalizeMedicationCount(
-                medication.details.applicationType,
-                medication.count
-            )
-        )
+        medication.toItemUiState()
     }
     return MedicationGroupEditorUiState(
         editingGroupId = uuid.toString(),
@@ -1663,19 +1746,37 @@ internal data class MedicationGroupMedicationSaveResult(
     val duplicateAlreadyExists: Boolean,
 )
 
+// A draft-aware duplicate key. Two slots are "the same dose" when they resolve
+// to the same medicine identity, route, and dose instruction. We compare picker
+// identity (catalog key / normalized custom name) since brand-new "+ New" slots
+// have no medicine uuid yet; a resolved medicine collapses to its uuid.
+internal fun MedicationGroupMedicationItemUiState.duplicateKey(): String {
+    val resolved = resolvedMedicine
+    val identity = if (resolved != null) {
+        "M:${resolved.uuid}"
+    } else {
+        val draft = medicineDraft
+        if (draft.requiresCustomName()) {
+            "X:${com.mkx.hrttracker.model.medication.normalizeCustomMedicationName(
+                draft.customMedicationName,
+            )}:${draft.inferredOrSelectedPreparationType()}"
+        } else {
+            "C:${draft.medicationKey}:${draft.inferredOrSelectedPreparationType()}"
+        }
+    }
+    return "$identity|${applicationType.name}|${doseInstruction}"
+}
+
 internal fun upsertMedication(
     medications: List<MedicationGroupMedicationItemUiState>,
     savedMedication: MedicationGroupMedicationItemUiState,
 ): MedicationGroupMedicationSaveResult {
-    // Match by signature so the editor's notion of "duplicate" lines up with
-    // every downstream layer that treats same-signature meds as one dose
-    // (e.g. PlanDaySchedule aggregation, widget snapshot, PK matching).
-    // Raw details equality misses near-duplicates that differ only in
-    // signature-normalized fields like custom-name casing/whitespace.
-    val savedSignature = MedicationSignature.fromMedicationDetails(savedMedication.details)
+    // Match by identity/route/dose so the editor's notion of "duplicate" lines up
+    // with downstream layers that treat same-signature meds as one dose.
+    val savedKey = savedMedication.duplicateKey()
     val duplicateMedication = medications.firstOrNull { medication ->
         medication.localId != savedMedication.localId &&
-            MedicationSignature.fromMedicationDetails(medication.details) == savedSignature
+            medication.duplicateKey() == savedKey
     }
 
     if (duplicateMedication != null) {
@@ -1736,6 +1837,7 @@ data class MedicationGroupEditorUiState(
     val notificationsEnabled: Boolean = false,
     val hasResolvedNotificationDefault: Boolean = false,
     val medications: List<MedicationGroupMedicationItemUiState> = emptyList(),
+    val activeMedicines: List<Medicine> = emptyList(),
     val editingMedication: MedicationGroupMedicationEditorUiState? = null,
     val isMedicationEditorSaved: Boolean = false,
     val medicationEditorErrorMessageRes: Int? = null,
@@ -2045,18 +2147,28 @@ internal fun shouldShowLockedScheduleTimeNote(uiState: MedicationGroupEditorUiSt
     return uiState.isLocked && lockedScheduleTimesChanged(uiState)
 }
 
+// A slot draft inside the group editor. `resolvedMedicine` is set when the slot
+// references an existing medicine (loaded from DB, or picked from the existing
+// cards); a brand-new "+ New" slot keeps it null until `saveGroup` resolves it.
 data class MedicationGroupMedicationItemUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
-    val details: MedicationDetails = defaultMedicationDraft().toMedicationDetails(),
+    val resolvedMedicine: Medicine? = null,
+    val medicineDraft: MedicinePickerUiState = defaultMedicineDraft(),
+    val doseInstructionDraft: DoseInstructionDraftUiState =
+        defaultMedicineDraft().toDoseInstructionDraft(),
+    val applicationType: MedicationApplicationType = medicineDraft.applicationType,
+    val doseInstruction: DoseInstruction = DoseInstruction.Noop,
     val count: Int = 1,
 ) {
     fun toEditorUiState(): MedicationGroupMedicationEditorUiState {
         return MedicationGroupMedicationEditorUiState(
             localId = localId,
             persistedMedicationId = persistedMedicationId,
-            draft = medicationDraftFromDetails(details),
-            countText = normalizeMedicationCount(details.applicationType, count).toString()
+            resolvedMedicine = resolvedMedicine,
+            medicineDraft = medicineDraft,
+            doseInstructionDraft = doseInstructionDraft,
+            countText = normalizeMedicationCount(applicationType, count).toString(),
         )
     }
 }
@@ -2064,11 +2176,42 @@ data class MedicationGroupMedicationItemUiState(
 data class MedicationGroupMedicationEditorUiState(
     val localId: String = UUID.randomUUID().toString(),
     val persistedMedicationId: String? = null,
-    val draft: MedicationDraftUiState = defaultMedicationDraft(),
+    val resolvedMedicine: Medicine? = null,
+    val medicineDraft: MedicinePickerUiState = defaultMedicineDraft(),
+    val doseInstructionDraft: DoseInstructionDraftUiState =
+        defaultMedicineDraft().toDoseInstructionDraft(),
     val countText: String = "1",
 ) {
     val count: Int
         get() = parseMedicationCountText(countText)
+}
+
+// Builds an editor slot draft from a loaded domain medication. A PATCH_OFF slot
+// carries no medicine; its picker draft keeps `resolvedMedicine` null.
+internal fun MedicationGroupMedication.toItemUiState(): MedicationGroupMedicationItemUiState {
+    val medicineDraft = if (medicine != null) {
+        com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(medicine, applicationType)
+    } else {
+        com.mkx.hrttracker.ui.medication.defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+        )
+    }
+    return MedicationGroupMedicationItemUiState(
+        localId = uuid.toString(),
+        persistedMedicationId = uuid.toString(),
+        resolvedMedicine = medicine,
+        medicineDraft = medicineDraft,
+        doseInstructionDraft = com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction(
+            applicationType = applicationType,
+            preparationType = medicine?.preparation?.type
+                ?: com.mkx.hrttracker.model.medication.MedicinePreparationType.PILL,
+            doseInstruction = doseInstruction,
+        ),
+        applicationType = applicationType,
+        doseInstruction = doseInstruction,
+        count = normalizeMedicationCount(applicationType, count),
+    )
 }
 
 data class MedicationGroupScheduleTimeUiState(

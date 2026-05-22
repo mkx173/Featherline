@@ -32,24 +32,27 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.util.labelRes
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
-import com.mkx.hrttracker.ui.medication.medicationDisplayName
-import com.mkx.hrttracker.ui.medication.medicationSupportingText
+import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
+import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal fun MedicationCard(
-    details: MedicationDetails,
+    medicine: Medicine?,
+    doseInstruction: DoseInstruction,
+    applicationType: MedicationApplicationType,
     medicationCount: Int,
     groupColorKey: MedicationGroupColorKey?,
     onClick: () -> Unit,
@@ -67,11 +70,13 @@ internal fun MedicationCard(
     itemCount: Int = 1
 ) {
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
-    val applicationTypeLabel = stringResource(details.applicationType.labelRes)
-    val medicationName = medicationDisplayName(details)
-    val supportingText = medicationSupportingText(
-        details = details,
-        medicationCount = medicationCount,
+    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    val medicationName = medicationEntryTitle(medicine, applicationType)
+    val supportingText = medicationEntrySupportingText(
+        medicine = medicine,
+        doseInstruction = doseInstruction,
+        applicationType = applicationType,
+        count = medicationCount,
         extraSupportingText = extraSupportingText
     )
     val leadingSurfaceColor = if (isSelected) {
@@ -147,7 +152,7 @@ internal fun MedicationCard(
                         )
                     } else {
                         MedicationApplicationIcon(
-                            applicationType = details.applicationType,
+                            applicationType = applicationType,
                             contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
                             modifier = Modifier.size(20.dp),
                         )
@@ -189,11 +194,9 @@ internal fun MedicationCard(
 private fun MedicationCardPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         MedicationCard(
-            details = previewMedicationCardDetails(
-                applicationType = MedicationApplicationType.ORAL,
-                medicationKey = MedicationKey.ESTRADIOL,
-                dose = MedicationDose.MgAsMedicine(1.0)
-            ),
+            medicine = previewMedicine(MedicationKey.ESTRADIOL),
+            doseInstruction = DoseInstruction.TabletFraction(1, 2),
+            applicationType = MedicationApplicationType.ORAL,
             medicationCount = 2,
             groupColorKey = MedicationGroupColorKey.TEAL,
             onClick = { },
@@ -212,11 +215,9 @@ private fun MedicationCardPreview() {
 private fun HistoryMedicationCardPreview() {
     HrtTrackerTheme(dynamicColor = false) {
         MedicationCard(
-            details = previewMedicationCardDetails(
-                applicationType = MedicationApplicationType.SUBLINGUAL,
-                medicationKey = MedicationKey.ESTRADIOL,
-                dose = MedicationDose.MgAsMedicine(1.0)
-            ),
+            medicine = previewMedicine(MedicationKey.ESTRADIOL),
+            doseInstruction = DoseInstruction.TabletFraction(1, 2),
+            applicationType = MedicationApplicationType.SUBLINGUAL,
             medicationCount = 2,
             groupColorKey = MedicationGroupColorKey.INDIGO,
             extraSupportingText = "Nightly estradiol",
@@ -234,15 +235,18 @@ private fun HistoryMedicationCardPreview() {
     }
 }
 
-private fun previewMedicationCardDetails(
-    applicationType: MedicationApplicationType,
-    medicationKey: MedicationKey,
-    dose: MedicationDose,
-): MedicationDetails {
-    return MedicationDetails(
-        category = MedicationCategory.ESTRADIOL,
-        applicationType = applicationType,
-        selection = MedicationSelection.Catalog(medicationKey),
-        dose = dose
+private fun previewMedicine(medicationKey: MedicationKey): Medicine {
+    val selection = MedicineSelection.Catalog(medicationKey)
+    val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)
+    return Medicine(
+        uuid = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),
+        selection = selection,
+        category = medicationKey.category,
+        preparation = preparation,
+        displayName = null,
+        identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+        createdAt = java.time.Instant.EPOCH,
+        updatedAt = java.time.Instant.EPOCH,
+        archivedAt = null,
     )
 }

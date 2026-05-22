@@ -3,85 +3,140 @@ package com.mkx.hrttracker.ui.medication
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.customDoseDisplayUnit
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
-import com.mkx.hrttracker.model.medication.formatDoseFromCanonicalMg
 import com.mkx.hrttracker.util.labelRes
 import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.shortLabelRes
 
 @Composable
-fun medicationDisplayName(details: MedicationDetails): String {
-    return when (val selection = details.selection) {
-        is MedicationSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
-        is MedicationSelection.Custom -> selection.medicationName
+fun medicineDisplayName(medicine: Medicine): String {
+    medicine.displayName?.takeIf(String::isNotBlank)?.let { return it }
+    return when (val selection = medicine.selection) {
+        is MedicineSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
+        is MedicineSelection.Custom -> selection.medicationName
     }
 }
 
 @Composable
-fun medicationDoseText(details: MedicationDetails): String? {
+fun medicinePreparationSummary(medicine: Medicine): String {
     val appLocale = rememberAppLocale()
-    return when (val dose = details.dose) {
-        is MedicationDose.MgAsMedicine -> {
-            val doseUnit = details.customDoseDisplayUnit()
-            stringResource(
-                R.string.medication_dose_with_unit,
-                doseUnit.formatDoseFromCanonicalMg(dose.valueMg, appLocale),
-                stringResource(doseUnit.shortLabelRes)
+    return when (val preparation = medicine.preparation) {
+        is MedicinePreparation.Pill -> stringResource(
+            R.string.medication_preparation_summary_pill,
+            preparation.strengthMgPerTablet.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.InjectionSingleUseVial -> stringResource(
+            R.string.medication_preparation_summary_single_use_vial,
+            preparation.strengthMgPerVial.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.InjectionMultiUseVial -> stringResource(
+            R.string.medication_preparation_summary_multi_use_vial,
+            preparation.concentrationMgPerMl.formatDose(appLocale),
+            preparation.vialVolumeMl.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.GelSachet -> stringResource(
+            R.string.medication_preparation_summary_gel_sachet,
+            preparation.concentrationPercent.formatDose(appLocale),
+            preparation.sachetWeightGrams.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.GelContainer -> stringResource(
+            R.string.medication_preparation_summary_gel_container,
+            preparation.concentrationPercent.formatDose(appLocale),
+            preparation.containerWeightGrams.formatDose(appLocale),
+        )
+
+        is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
+            is MedicinePreparation.PatchSpecification.TotalMg -> stringResource(
+                R.string.medication_preparation_summary_patch_total,
+                spec.valueMg.formatDose(appLocale),
+            )
+
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> stringResource(
+                R.string.medication_preparation_summary_patch_release_rate,
+                spec.valueMcgPerDay.formatDose(appLocale),
             )
         }
-
-        is MedicationDose.GelEquivalentEstradiolMg -> stringResource(
-            R.string.medication_dose_mg_e2,
-            dose.valueMg.formatDose(appLocale)
-        )
-
-        is MedicationDose.GelPercentAndWeight -> stringResource(
-            R.string.medication_dose_percent_and_weight,
-            dose.percent.formatDose(appLocale),
-            dose.weightGrams.formatDose(appLocale)
-        )
-
-        is MedicationDose.PatchTotalMg -> stringResource(
-            R.string.medication_dose_mg_e2,
-            dose.valueMg.formatDose(appLocale)
-        )
-
-        is MedicationDose.PatchReleaseRateMcgPerDay -> stringResource(
-            R.string.medication_dose_release_rate_mcg_day,
-            dose.valueMcgPerDay.formatDose(appLocale)
-        )
-
-        MedicationDose.None -> null
     }
 }
 
 @Composable
-internal fun medicationSupportingText(
-    details: MedicationDetails,
-    medicationCount: Int,
-    extraSupportingText: String? = null,
+fun doseInstructionSummary(instruction: DoseInstruction): String? {
+    val appLocale = rememberAppLocale()
+    return when (instruction) {
+        is DoseInstruction.TabletFraction -> stringResource(
+            R.string.dose_instruction_summary_tablet_fraction,
+            formatTabletFraction(instruction, appLocale),
+        )
+
+        DoseInstruction.WholeUnit -> stringResource(R.string.dose_instruction_summary_whole_unit)
+
+        is DoseInstruction.VolumeMl -> stringResource(
+            R.string.dose_instruction_summary_volume_ml,
+            instruction.valueMl.formatDose(appLocale),
+        )
+
+        is DoseInstruction.WeightGrams -> stringResource(
+            R.string.dose_instruction_summary_weight_grams,
+            instruction.valueGrams.formatDose(appLocale),
+        )
+
+        DoseInstruction.Noop -> null
+    }
+}
+
+private fun formatTabletFraction(
+    fraction: DoseInstruction.TabletFraction,
+    appLocale: java.util.Locale,
 ): String {
-    val applicationTypeLabel = stringResource(details.applicationType.labelRes)
-    return listOfNotNull(
-        applicationTypeLabel,
-        medicationDoseText(details),
-        medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
-        extraSupportingText?.takeIf(String::isNotBlank)
-    ).joinToString(separator = " · ")
+    return if (fraction.denominator == 1) {
+        fraction.numerator.toString()
+    } else {
+        (fraction.numerator.toDouble() / fraction.denominator.toDouble()).formatDose(appLocale)
+    }
+}
+
+// Nullable-aware composers. A null `medicine` means PATCH_OFF — no medicine,
+// no dose line; the entry is identified by application type alone.
+
+@Composable
+fun medicationEntryTitle(
+    medicine: Medicine?,
+    applicationType: MedicationApplicationType,
+): String {
+    return if (medicine != null) {
+        medicineDisplayName(medicine)
+    } else {
+        stringResource(applicationType.labelRes)
+    }
 }
 
 @Composable
-internal fun medicationDoseSupportingText(
-    details: MedicationDetails,
-    medicationCount: Int,
+fun medicationEntrySupportingText(
+    medicine: Medicine?,
+    doseInstruction: DoseInstruction,
+    applicationType: MedicationApplicationType,
+    count: Int,
+    extraSupportingText: String? = null,
 ): String {
+    val applicationTypeLabel = stringResource(applicationType.labelRes)
+    val doseText = if (medicine != null) {
+        doseInstructionSummary(doseInstruction)
+    } else {
+        null
+    }
     return listOfNotNull(
-        medicationDoseText(details),
-        medicationCountIndicatorText(medicationCount).takeIf { medicationCount > 1 },
+        applicationTypeLabel,
+        doseText,
+        medicationCountIndicatorText(count).takeIf { count > 1 },
+        extraSupportingText?.takeIf(String::isNotBlank),
     ).joinToString(separator = " · ")
 }
 

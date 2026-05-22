@@ -4,7 +4,6 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestCatalog
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -53,13 +52,21 @@ data class MainLastNightSectionUiState(
     val rows: List<MainTodayDoseRowUiState> = emptyList(),
 )
 
+// Pure view state for the home-screen last-dose line (Q2). A null `medicine`
+// means PATCH_OFF; no serialization, so a small holder beats three loose fields.
+data class LastDoseDisplay(
+    val medicine: com.mkx.hrttracker.model.medication.Medicine?,
+    val applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType,
+    val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction,
+)
+
 data class MainE2HeroUiState(
     val currentValue: Double = 0.0,
     val changeSinceYesterday: Double = 0.0,
     val targetMin: Double = E2_TARGET_MIN_CANONICAL,
     val targetMax: Double = E2_TARGET_MAX_CANONICAL,
     val unit: String = E2_UNIT_PG_ML,
-    val lastDoseDetails: MedicationDetails? = null,
+    val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
 )
 
@@ -98,7 +105,7 @@ data class MainAntiandrogenCardUiState(
     val groupName: String,
     val groupColorKey: MedicationGroupColorKey,
     val medication: MedicationGroupMedication,
-    val lastDoseDetails: MedicationDetails? = null,
+    val lastDose: LastDoseDisplay? = null,
     val lastDoseAt: LocalDateTime? = null,
     val nextDoseAt: LocalDateTime? = null,
     val isNextDosePastDue: Boolean = false,
@@ -156,7 +163,10 @@ data class MainQuickLogDoseRequest(
     val groupUuid: UUID,
     val scheduleTimeUuid: UUID?,
     val scheduledAt: LocalDateTime,
-    val medicationDetails: MedicationDetails,
+    // medicine is null for a PATCH_OFF quick-log (see the PATCH_OFF rule).
+    val medicine: com.mkx.hrttracker.model.medication.Medicine?,
+    val applicationType: com.mkx.hrttracker.model.medication.MedicationApplicationType,
+    val doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction,
     val medicationCount: Int,
     val sourceGroupName: String,
     val sourceGroupColorKey: MedicationGroupColorKey?,
@@ -214,7 +224,7 @@ internal fun buildMainE2Hero(
             unit = displayUnit,
         ),
         unit = mainE2DisplayUnitLabel(displayUnit),
-        lastDoseDetails = lastEstradiolEntry?.details,
+        lastDose = lastEstradiolEntry?.toLastDoseDisplay(),
         lastDoseAt = lastEstradiolEntry
             ?.appliedAt
             ?.atZone(zoneId)
@@ -481,7 +491,7 @@ internal fun buildMainAntiandrogenCards(
                     .filter { entry ->
                         entry.category == MedicationCategory.ANTIANDROGEN &&
                             (entry.sourceGroupUuid == null || entry.sourceGroupUuid == group.uuid) &&
-                            entry.details.isSameMedicationTrackingIdentity(medication.details)
+                            entry.isSameMedicationTrackingIdentity(medication)
                     }
                     .maxByOrNull { entry -> entry.appliedAt }
 
@@ -491,7 +501,7 @@ internal fun buildMainAntiandrogenCards(
                     groupName = group.name,
                     groupColorKey = group.colorKey,
                     medication = medication,
-                    lastDoseDetails = lastMatchingEntry?.details,
+                    lastDose = lastMatchingEntry?.toLastDoseDisplay(),
                     lastDoseAt = lastMatchingEntry
                         ?.appliedAt
                         ?.atZone(zoneId)
@@ -717,7 +727,9 @@ private fun buildMainTodayRowsForDate(
             scheduledAt = appliedAt,
             medication = MedicationGroupMedication(
                 uuid = entry.uuid,
-                details = entry.details,
+                medicine = entry.medicine,
+                applicationType = entry.applicationType,
+                doseInstruction = entry.doseInstruction,
                 count = entry.count
             ),
             status = MainTodayDoseStatus.DONE,
@@ -825,10 +837,22 @@ internal fun buildMainPreviewRowsForDate(
         .toList()
 }
 
-private fun MedicationDetails.isSameMedicationTrackingIdentity(other: MedicationDetails): Boolean {
-    return category == other.category &&
-        applicationType == other.applicationType &&
-        selection == other.selection
+// Two doses track the same medication when their medicine and route match.
+// Dose amount is intentionally excluded — a different amount of the same
+// medicine still belongs to the same tracking identity.
+private fun MedicationLogEntry.isSameMedicationTrackingIdentity(
+    medication: MedicationGroupMedication,
+): Boolean {
+    return medicineUuid == medication.medicineUuid &&
+        applicationType == medication.applicationType
+}
+
+private fun MedicationLogEntry.toLastDoseDisplay(): LastDoseDisplay {
+    return LastDoseDisplay(
+        medicine = medicine,
+        applicationType = applicationType,
+        doseInstruction = doseInstruction,
+    )
 }
 
 private data class MainAntiandrogenDueSlot(

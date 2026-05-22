@@ -1,121 +1,224 @@
 package com.mkx.hrttracker.ui.medication
 
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
-import com.mkx.hrttracker.model.medication.MedicationCatalogEntry
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
-import com.mkx.hrttracker.model.medication.fromCanonicalMg
-import com.mkx.hrttracker.model.medication.toCanonicalMg
-import java.math.BigDecimal
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import java.util.UUID
 
-data class MedicationDraftUiState(
+// ---------------------------------------------------------------------------
+// New UI draft types (Task 6). The picker resolves a Medicine before producing
+// a DoseInstruction; the two concerns are tracked by two focused draft types.
+// ---------------------------------------------------------------------------
+
+data class MedicinePickerUiState(
     val category: MedicationCategory = MedicationCategory.ESTRADIOL,
     val applicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
     val selectionKind: MedicationSelectionKind = MedicationSelectionKind.CATALOG,
     val medicationKey: MedicationKey? = MedicationKey.ESTRADIOL_VALERATE,
     val customMedicationName: String = "",
-    val doseKind: MedicationDoseKind = MedicationDoseKind.MG_AS_MEDICINE,
-    val doseMg: String = "",
-    val customDoseUnit: MedicationDoseUnit = MedicationDoseUnit.MG,
-    val gelPercent: String = "",
-    val gelWeightGrams: String = "",
+    val customCategory: MedicationCategory = MedicationCategory.CUSTOM,
+    val selectedMedicineUuid: UUID? = null,
+    val preparationType: MedicinePreparationType? = null,
+    val pillStrengthMg: String = "",
+    val singleUseVialStrengthMg: String = "",
+    val concentrationMgPerMl: String = "",
+    val vialVolumeMl: String = "",
+    val gelConcentrationPercent: String = "",
+    val sachetWeightGrams: String = "",
+    val containerWeightGrams: String = "",
+    val patchTotalMg: String = "",
     val patchReleaseRateMcgPerDay: String = "",
+    val displayName: String = "",
 )
+
+data class DoseInstructionDraftUiState(
+    val applicationType: MedicationApplicationType,
+    val preparationType: MedicinePreparationType,
+    val tabletFractionNumerator: Int = 1,
+    val tabletFractionDenominator: Int = 1,
+    val volumeMl: String = "",
+    val weightGrams: String = "",
+)
+
+data class ResolvedMedicationDraft(
+    val medicineUuid: UUID,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+)
+
+data class NewMedicineRequest(
+    val selectionKind: MedicationSelectionKind,
+    val medicationKey: MedicationKey?,
+    val customMedicationName: String?,
+    val displayName: String?,
+    val category: MedicationCategory,
+    val preparation: MedicinePreparation,
+)
+
+// ---------------------------------------------------------------------------
+// Categories / catalog helpers
+// ---------------------------------------------------------------------------
 
 fun editorMedicationCategories(): List<MedicationCategory> {
     return MedicationCategory.entries.filterNot { it == MedicationCategory.TESTOSTERONE }
 }
 
-fun defaultMedicationDraft(
+fun MedicinePickerUiState.catalog(): MedicationApplicationCatalog {
+    return MedicationCatalog.catalogFor(category, applicationType)
+}
+
+fun MedicinePickerUiState.supportsCatalogSelection(): Boolean {
+    return catalog().entries.any { it.medicationKey != null }
+}
+
+fun MedicinePickerUiState.supportsCustomName(): Boolean {
+    return catalog().allowCustomMedicationName
+}
+
+fun MedicinePickerUiState.requiresCustomName(): Boolean {
+    return !supportsCatalogSelection() || selectionKind == MedicationSelectionKind.CUSTOM
+}
+
+fun MedicinePickerUiState.availableCatalogKeys(): List<MedicationKey> {
+    return catalog().entries.mapNotNull { it.medicationKey }
+}
+
+// ---------------------------------------------------------------------------
+// Default-draft construction
+// ---------------------------------------------------------------------------
+
+fun defaultMedicineDraft(
     category: MedicationCategory = MedicationCategory.ESTRADIOL,
-    applicationType: MedicationApplicationType = MedicationCatalog.applicationTypesFor(category).first(),
-): MedicationDraftUiState {
-    return buildMedicationDraft(category, applicationType) { entry ->
-        entry.defaultDoseKind
-    }
-}
-
-private fun firstAvailableMedicationDraft(
-    category: MedicationCategory,
-    applicationType: MedicationApplicationType,
-): MedicationDraftUiState {
-    return buildMedicationDraft(category, applicationType) { entry ->
-        entry.doseKinds.first()
-    }
-}
-
-private fun buildMedicationDraft(
-    category: MedicationCategory,
-    applicationType: MedicationApplicationType,
-    doseKindResolver: (MedicationCatalogEntry) -> MedicationDoseKind,
-): MedicationDraftUiState {
+    applicationType: MedicationApplicationType =
+        MedicationCatalog.applicationTypesFor(category).first(),
+): MedicinePickerUiState {
     val resolvedApplicationType = MedicationCatalog.applicationTypesFor(category)
         .firstOrNull { it == applicationType }
         ?: MedicationCatalog.applicationTypesFor(category).first()
     val catalog = MedicationCatalog.catalogFor(category, resolvedApplicationType)
-    val defaultEntry = catalog.entries.first()
-    val selectionKind = if (catalog.entries.any { it.medicationKey != null }) {
+    val supportsCatalog = catalog.entries.any { it.medicationKey != null }
+    val selectionKind = if (supportsCatalog) {
         MedicationSelectionKind.CATALOG
     } else {
         MedicationSelectionKind.CUSTOM
     }
-
-    return MedicationDraftUiState(
+    return MedicinePickerUiState(
         category = category,
         applicationType = resolvedApplicationType,
         selectionKind = selectionKind,
-        medicationKey = defaultEntry.medicationKey,
-        doseKind = doseKindResolver(defaultEntry),
+        medicationKey = catalog.entries.firstOrNull { it.medicationKey != null }?.medicationKey,
+        customCategory = if (category == MedicationCategory.CUSTOM) {
+            MedicationCategory.CUSTOM
+        } else {
+            category
+        },
+        preparationType = inferredPreparationType(resolvedApplicationType),
     )
 }
 
-fun MedicationDraftUiState.catalog(): MedicationApplicationCatalog {
-    return MedicationCatalog.catalogFor(category, applicationType)
-}
+// ---------------------------------------------------------------------------
+// Preparation-type inference
+// ---------------------------------------------------------------------------
 
-fun MedicationDraftUiState.supportsCatalogSelection(): Boolean {
-    return catalog().entries.any { it.medicationKey != null }
-}
+// PILL and PATCH are inferred straight from the application route; INJECTION
+// and GEL are ambiguous (single/multi vial, sachet/container) so the user must
+// pick. PATCH_OFF carries no medicine, so it has no preparation.
+internal fun inferredPreparationType(
+    applicationType: MedicationApplicationType,
+): MedicinePreparationType? {
+    return when (applicationType) {
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL -> MedicinePreparationType.PILL
 
-fun MedicationDraftUiState.supportsCustomName(): Boolean {
-    return catalog().allowCustomMedicationName
-}
+        MedicationApplicationType.PATCH_ON -> MedicinePreparationType.PATCH
 
-fun MedicationDraftUiState.requiresCustomName(): Boolean {
-    return !supportsCatalogSelection() || selectionKind == MedicationSelectionKind.CUSTOM
-}
-
-fun MedicationDraftUiState.selectedCatalogEntry(): MedicationCatalogEntry {
-    val catalog = catalog()
-    return if (selectionKind == MedicationSelectionKind.CATALOG) {
-        catalog.entries.firstOrNull { it.medicationKey == medicationKey } ?: catalog.entries.first()
-    } else {
-        catalog.entries.first()
+        MedicationApplicationType.INJECTION,
+        MedicationApplicationType.GEL,
+        MedicationApplicationType.PATCH_OFF -> null
     }
 }
 
-fun MedicationDraftUiState.availableDoseKinds(): List<MedicationDoseKind> {
-    return selectedCatalogEntry().doseKinds.toList()
+internal fun ambiguousPreparationTypes(
+    applicationType: MedicationApplicationType,
+): List<MedicinePreparationType> {
+    return when (applicationType) {
+        MedicationApplicationType.INJECTION -> listOf(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        )
+
+        MedicationApplicationType.GEL -> listOf(
+            MedicinePreparationType.GEL_SACHET,
+            MedicinePreparationType.GEL_CONTAINER,
+        )
+
+        else -> emptyList()
+    }
 }
 
-fun MedicationDraftUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPreset> {
-    return selectedCatalogEntry().doseAssistPresets[doseKind].orEmpty()
+fun MedicinePickerUiState.requiresPreparationTypeSelection(): Boolean {
+    return inferredPreparationType(applicationType) == null &&
+        ambiguousPreparationTypes(applicationType).isNotEmpty()
 }
 
-fun MedicationDraftUiState.showsCustomDoseUnitSelector(): Boolean {
-    return selectionKind == MedicationSelectionKind.CUSTOM &&
-        doseKind == MedicationDoseKind.MG_AS_MEDICINE
+fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparationType? {
+    return inferredPreparationType(applicationType) ?: preparationType
 }
+
+// ---------------------------------------------------------------------------
+// Draft transforms
+// ---------------------------------------------------------------------------
+
+fun MedicinePickerUiState.changeCategory(category: MedicationCategory): MedicinePickerUiState {
+    return defaultMedicineDraft(
+        category = category,
+        applicationType = MedicationCatalog.applicationTypesFor(category).first(),
+    ).copy(customMedicationName = customMedicationName)
+}
+
+fun MedicinePickerUiState.changeApplicationType(
+    applicationType: MedicationApplicationType,
+): MedicinePickerUiState {
+    return defaultMedicineDraft(
+        category = category,
+        applicationType = applicationType,
+    ).copy(customMedicationName = customMedicationName)
+}
+
+fun MedicinePickerUiState.changeMedicationKey(
+    medicationKey: MedicationKey,
+): MedicinePickerUiState {
+    if (availableCatalogKeys().none { it == medicationKey }) {
+        return this
+    }
+    return copy(
+        selectionKind = MedicationSelectionKind.CATALOG,
+        medicationKey = medicationKey,
+        selectedMedicineUuid = null,
+    )
+}
+
+fun MedicinePickerUiState.changePreparationType(
+    preparationType: MedicinePreparationType,
+): MedicinePickerUiState {
+    if (preparationType !in ambiguousPreparationTypes(applicationType)) {
+        return this
+    }
+    return copy(preparationType = preparationType)
+}
+
+// ---------------------------------------------------------------------------
+// Count handling — preserved from the previous draft model, keyed on route.
+// ---------------------------------------------------------------------------
 
 fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
     return when (this) {
@@ -129,7 +232,7 @@ fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
     }
 }
 
-fun MedicationDraftUiState.showsMedicationCountEditor(): Boolean {
+fun MedicinePickerUiState.showsMedicationCountEditor(): Boolean {
     return applicationType.supportsMedicationCountEditor()
 }
 
@@ -167,13 +270,13 @@ fun stepMedicationCount(
 ): Int {
     return normalizeMedicationCount(
         applicationType = applicationType,
-        count = countStepBase(countText) + delta
+        count = countStepBase(countText) + delta,
     )
 }
 
 fun resolveMedicationCountTextAfterDraftChange(
-    previousDraft: MedicationDraftUiState,
-    updatedDraft: MedicationDraftUiState,
+    previousDraft: MedicinePickerUiState,
+    updatedDraft: MedicinePickerUiState,
     currentCountText: String,
 ): String {
     return if (
@@ -188,22 +291,6 @@ fun resolveMedicationCountTextAfterDraftChange(
     }
 }
 
-fun resolveMedicationCountAfterDraftChange(
-    previousDraft: MedicationDraftUiState,
-    updatedDraft: MedicationDraftUiState,
-    currentCount: Int,
-): Int {
-    val nextCount = if (
-        previousDraft.category != updatedDraft.category ||
-        previousDraft.applicationType != updatedDraft.applicationType
-    ) {
-        1
-    } else {
-        currentCount
-    }
-    return normalizeMedicationCount(updatedDraft.applicationType, nextCount)
-}
-
 fun medicationCountValidationErrorRes(
     applicationType: MedicationApplicationType,
     countText: String,
@@ -211,7 +298,6 @@ fun medicationCountValidationErrorRes(
     if (!applicationType.supportsMedicationCountEditor()) {
         return null
     }
-
     return if (parsePositiveMedicationCountOrNull(countText) == null) {
         R.string.validation_count_required
     } else {
@@ -230,22 +316,15 @@ fun resolvedMedicationCountForSave(
     }
 }
 
-fun MedicationDraftUiState.displayDoseUnit(): MedicationDoseUnit {
-    return if (showsCustomDoseUnitSelector()) {
-        customDoseUnit
-    } else {
-        MedicationDoseUnit.MG
-    }
-}
+// ---------------------------------------------------------------------------
+// Dose-warning threshold (antiandrogen safety) — keyed on the total per-dose mg.
+// ---------------------------------------------------------------------------
 
-fun MedicationDraftUiState.doseWarningThresholdMg(): Double? {
-    if (doseKind != MedicationDoseKind.MG_AS_MEDICINE ||
-        selectionKind != MedicationSelectionKind.CATALOG
-    ) {
+fun MedicinePickerUiState.doseWarningThresholdMg(): Double? {
+    if (selectionKind != MedicationSelectionKind.CATALOG) {
         return null
     }
-
-    return when (selectedCatalogEntry().medicationKey) {
+    return when (medicationKey) {
         MedicationKey.SPIRONOLACTONE -> 200.0
         MedicationKey.CYPROTERONE_ACETATE -> 12.5
         MedicationKey.BICALUTAMIDE -> 50.0
@@ -253,265 +332,298 @@ fun MedicationDraftUiState.doseWarningThresholdMg(): Double? {
     }
 }
 
-fun MedicationDraftUiState.exceedsDoseWarningThreshold(count: Int = 1): Boolean {
-    val thresholdMg = doseWarningThresholdMg() ?: return false
-    val resolvedCount = count.coerceAtLeast(1)
-    return doseMg.toDoubleOrNull()
-        ?.let { valueMg -> (valueMg * resolvedCount) > thresholdMg } == true
+// ---------------------------------------------------------------------------
+// Conversion helpers
+// ---------------------------------------------------------------------------
+
+private fun parsePositiveDouble(text: String): Double? {
+    return text.trim().toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
 }
 
-fun MedicationDraftUiState.changeCategory(category: MedicationCategory): MedicationDraftUiState {
-    return firstAvailableMedicationDraft(
-        category = category,
-        applicationType = MedicationCatalog.applicationTypesFor(category).first(),
-    ).copy(
-        customMedicationName = customMedicationName
-    )
-}
-
-fun MedicationDraftUiState.changeApplicationType(
-    applicationType: MedicationApplicationType,
-): MedicationDraftUiState {
-    return firstAvailableMedicationDraft(
-        category = category,
-        applicationType = applicationType
-    ).copy(
-        customMedicationName = customMedicationName
-    )
-}
-
-fun MedicationDraftUiState.changeMedicationKey(
-    medicationKey: MedicationKey,
-): MedicationDraftUiState {
-    val entry = catalog().entries.firstOrNull { it.medicationKey == medicationKey }
-        ?: return this
-    return copy(
-        selectionKind = MedicationSelectionKind.CATALOG,
-        medicationKey = medicationKey,
-        doseKind = if (doseKind in entry.doseKinds) doseKind else entry.defaultDoseKind,
-        customDoseUnit = MedicationDoseUnit.MG,
-    )
-}
-
-fun MedicationDraftUiState.changeDoseKind(
-    doseKind: MedicationDoseKind,
-): MedicationDraftUiState {
-    if (this.doseKind == doseKind) {
-        return this
-    }
-    // Clear every dose-value field on a real switch so leftover values from the
-    // previous kind don't reappear if the user toggles back. Without this, e.g.
-    // typing 100 in MG_AS_MEDICINE, switching to PATCH_RELEASE_RATE_MCG_DAY, then
-    // back, would resurrect "100" instead of starting fresh.
-    val next = copy(
-        doseKind = doseKind,
-        doseMg = "",
-        gelPercent = "",
-        gelWeightGrams = "",
-        patchReleaseRateMcgPerDay = "",
-    )
-    return if (next.showsCustomDoseUnitSelector()) {
-        next
+fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {
+    val resolvedSelectionKind = if (requiresCustomName()) {
+        MedicationSelectionKind.CUSTOM
     } else {
-        next.copy(customDoseUnit = MedicationDoseUnit.MG)
+        MedicationSelectionKind.CATALOG
     }
-}
-
-fun MedicationDraftUiState.changeCustomDoseUnit(
-    customDoseUnit: MedicationDoseUnit,
-): MedicationDraftUiState {
-    if (!showsCustomDoseUnitSelector() || this.customDoseUnit == customDoseUnit) {
-        return this
-    }
-
-    return copy(
-        customDoseUnit = customDoseUnit,
-    )
-}
-
-fun MedicationDraftUiState.applyDoseAssistPreset(
-    preset: MedicationDoseAssistPreset,
-): MedicationDraftUiState {
-    return when (preset) {
-        is MedicationDoseAssistPreset.MgAsMedicine -> copy(
-            doseKind = MedicationDoseKind.MG_AS_MEDICINE,
-            doseMg = preset.valueMg
-        )
-
-        is MedicationDoseAssistPreset.GelEquivalentEstradiolMg -> copy(
-            doseKind = MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
-            doseMg = preset.valueMg
-        )
-
-        is MedicationDoseAssistPreset.GelPercent -> copy(
-            doseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
-            gelPercent = preset.percent
-        )
-
-        is MedicationDoseAssistPreset.GelWeightGrams -> copy(
-            doseKind = MedicationDoseKind.GEL_PERCENT_AND_WEIGHT,
-            gelWeightGrams = preset.weightGrams
-        )
-
-        is MedicationDoseAssistPreset.PatchTotalMg -> copy(
-            doseKind = MedicationDoseKind.PATCH_TOTAL_MG,
-            doseMg = preset.valueMg
-        )
-
-        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> copy(
-            doseKind = MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY,
-            patchReleaseRateMcgPerDay = preset.valueMcgPerDay
-        )
-    }
-}
-
-fun MedicationDraftUiState.validationErrorRes(): Int? {
-    return validationErrors().firstOrNull()
-}
-
-internal fun MedicationDraftUiState.validationErrors(): List<Int> {
-    val errors = mutableListOf<Int>()
-
-    if (requiresCustomName() && customMedicationName.trim().isEmpty()) {
-        errors += R.string.validation_name_required
-    }
-
-    if (selectionKind == MedicationSelectionKind.CATALOG &&
-        supportsCatalogSelection() &&
-        selectedCatalogEntry().medicationKey == null
+    val resolvedCategory = if (resolvedSelectionKind == MedicationSelectionKind.CUSTOM &&
+        category == MedicationCategory.CUSTOM
     ) {
-        errors += R.string.validation_medication_selection_required
+        customCategory
+    } else {
+        category
     }
-
-    when (doseKind) {
-        MedicationDoseKind.MG_AS_MEDICINE,
-        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG,
-        MedicationDoseKind.PATCH_TOTAL_MG -> {
-            if (doseMg.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                errors += R.string.validation_dose_required
-            }
-        }
-
-        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> {
-            if (gelPercent.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                errors += R.string.validation_gel_percent_required
-            }
-            if (gelWeightGrams.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                errors += R.string.validation_gel_weight_required
-            }
-        }
-
-        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> {
-            if (patchReleaseRateMcgPerDay.toDoubleOrNull()?.let { it > 0.0 } != true) {
-                errors += R.string.validation_patch_release_rate_required
-            }
-        }
-
-        MedicationDoseKind.NONE -> Unit
-    }
-
-    return errors
+    return NewMedicineRequest(
+        selectionKind = resolvedSelectionKind,
+        medicationKey = if (resolvedSelectionKind == MedicationSelectionKind.CATALOG) {
+            medicationKey
+        } else {
+            null
+        },
+        customMedicationName = if (resolvedSelectionKind == MedicationSelectionKind.CUSTOM) {
+            customMedicationName.trim()
+        } else {
+            null
+        },
+        displayName = displayName.trim().takeIf(String::isNotBlank),
+        category = resolvedCategory,
+        preparation = toMedicinePreparation(),
+    )
 }
 
-fun MedicationDraftUiState.toMedicationDetails(): MedicationDetails {
-    val selection = if (requiresCustomName()) {
-        MedicationSelection.Custom(customMedicationName.trim())
-    } else {
-        MedicationSelection.Catalog(checkNotNull(selectedCatalogEntry().medicationKey))
+internal fun MedicinePickerUiState.toMedicinePreparation(): MedicinePreparation {
+    return when (checkNotNull(inferredOrSelectedPreparationType())) {
+        MedicinePreparationType.PILL -> MedicinePreparation.Pill(
+            strengthMgPerTablet = checkNotNull(parsePositiveDouble(pillStrengthMg)),
+        )
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = checkNotNull(parsePositiveDouble(singleUseVialStrengthMg)),
+            )
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
+            MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = checkNotNull(parsePositiveDouble(concentrationMgPerMl)),
+                vialVolumeMl = checkNotNull(parsePositiveDouble(vialVolumeMl)),
+            )
+
+        MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
+            concentrationPercent = checkNotNull(parsePositiveDouble(gelConcentrationPercent)),
+            sachetWeightGrams = checkNotNull(parsePositiveDouble(sachetWeightGrams)),
+        )
+
+        MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
+            concentrationPercent = checkNotNull(parsePositiveDouble(gelConcentrationPercent)),
+            containerWeightGrams = checkNotNull(parsePositiveDouble(containerWeightGrams)),
+        )
+
+        MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
+            specification = parsePositiveDouble(patchTotalMg)
+                ?.let(MedicinePreparation.PatchSpecification::TotalMg)
+                ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = checkNotNull(
+                        parsePositiveDouble(patchReleaseRateMcgPerDay),
+                    ),
+                ),
+        )
     }
-    val resolvedCustomDoseUnit = if (
-        selection is MedicationSelection.Custom &&
-        doseKind == MedicationDoseKind.MG_AS_MEDICINE
-    ) {
-        customDoseUnit
-    } else {
-        MedicationDoseUnit.MG
-    }
+}
 
-    val dose = when (doseKind) {
-        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
-            if (selection is MedicationSelection.Custom) {
-                resolvedCustomDoseUnit.toCanonicalMg(doseMg.toDouble())
-            } else {
-                doseMg.toDouble()
-            }
-        )
-        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
-            doseMg.toDouble()
-        )
-
-        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
-            percent = gelPercent.toDouble(),
-            weightGrams = gelWeightGrams.toDouble()
-        )
-
-        MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(doseMg.toDouble())
-        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
-            patchReleaseRateMcgPerDay.toDouble()
-        )
-
-        MedicationDoseKind.NONE -> MedicationDose.None
-    }
-
-    return MedicationDetails(
-        category = category,
+// The dose-instruction draft is seeded from the picker; its shape follows the
+// resolved preparation type. PATCH_OFF carries a Noop dose with a placeholder
+// preparation type (never read, since PATCH_OFF emits Noop unconditionally).
+fun MedicinePickerUiState.toDoseInstructionDraft(): DoseInstructionDraftUiState {
+    return DoseInstructionDraftUiState(
         applicationType = applicationType,
-        selection = selection,
-        dose = dose,
-        customDoseUnit = resolvedCustomDoseUnit,
+        preparationType = inferredOrSelectedPreparationType() ?: MedicinePreparationType.PILL,
     )
 }
 
-fun medicationDraftFromDetails(
-    details: MedicationDetails,
-): MedicationDraftUiState {
-    val base = defaultMedicationDraft(
-        category = details.category,
-        applicationType = details.applicationType
-    )
-    val resolvedCustomDoseUnit = if (
-        details.selection is MedicationSelection.Custom &&
-        details.dose is MedicationDose.MgAsMedicine
-    ) {
-        details.customDoseUnit
-    } else {
-        MedicationDoseUnit.MG
+fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return DoseInstruction.Noop
     }
-    return base.copy(
-        selectionKind = when (details.selection) {
-            is MedicationSelection.Catalog -> MedicationSelectionKind.CATALOG
-            is MedicationSelection.Custom -> MedicationSelectionKind.CUSTOM
-        },
-        medicationKey = (details.selection as? MedicationSelection.Catalog)?.medicationKey
-            ?: base.medicationKey,
-        customMedicationName = (details.selection as? MedicationSelection.Custom)?.medicationName.orEmpty(),
-        doseKind = details.dose.kind,
-        customDoseUnit = resolvedCustomDoseUnit,
-        doseMg = when (val dose = details.dose) {
-            is MedicationDose.MgAsMedicine -> resolvedCustomDoseUnit.fromCanonicalMg(
-                dose.valueMg
-            ).toInputString()
-            is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg.toInputString()
-            is MedicationDose.PatchTotalMg -> dose.valueMg.toInputString()
-            else -> ""
-        },
-        gelPercent = when (val dose = details.dose) {
-            is MedicationDose.GelPercentAndWeight -> dose.percent.toInputString()
-            else -> ""
-        },
-        gelWeightGrams = when (val dose = details.dose) {
-            is MedicationDose.GelPercentAndWeight -> dose.weightGrams.toInputString()
-            else -> ""
-        },
-        patchReleaseRateMcgPerDay = when (val dose = details.dose) {
-            is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay.toInputString()
-            else -> ""
-        },
-    )
+    return when (preparationType) {
+        MedicinePreparationType.PILL -> DoseInstruction.TabletFraction(
+            numerator = tabletFractionNumerator,
+            denominator = tabletFractionDenominator,
+        )
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.PATCH -> DoseInstruction.WholeUnit
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> DoseInstruction.VolumeMl(
+            valueMl = checkNotNull(parsePositiveDouble(volumeMl)),
+        )
+
+        MedicinePreparationType.GEL_CONTAINER -> DoseInstruction.WeightGrams(
+            valueGrams = checkNotNull(parsePositiveDouble(weightGrams)),
+        )
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+fun MedicinePickerUiState.validationErrorRes(): Int? {
+    // An existing medicine is fully resolved — nothing to validate in the form.
+    if (selectedMedicineUuid != null) {
+        return null
+    }
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return null
+    }
+    if (requiresCustomName() && customMedicationName.trim().isEmpty()) {
+        return R.string.validation_name_required
+    }
+    if (!requiresCustomName() && medicationKey == null) {
+        return R.string.validation_medication_selection_required
+    }
+    val resolvedPreparationType = inferredOrSelectedPreparationType()
+        ?: return R.string.validation_preparation_type_required
+
+    return when (resolvedPreparationType) {
+        MedicinePreparationType.PILL ->
+            R.string.validation_pill_strength_required
+                .takeIf { parsePositiveDouble(pillStrengthMg) == null }
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            R.string.validation_vial_strength_required
+                .takeIf { parsePositiveDouble(singleUseVialStrengthMg) == null }
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> when {
+            parsePositiveDouble(concentrationMgPerMl) == null ->
+                R.string.validation_concentration_required
+
+            parsePositiveDouble(vialVolumeMl) == null ->
+                R.string.validation_vial_volume_required
+
+            else -> null
+        }
+
+        MedicinePreparationType.GEL_SACHET -> when {
+            parsePositiveDouble(gelConcentrationPercent) == null ->
+                R.string.validation_gel_concentration_required
+
+            parsePositiveDouble(sachetWeightGrams) == null ->
+                R.string.validation_sachet_weight_required
+
+            else -> null
+        }
+
+        MedicinePreparationType.GEL_CONTAINER -> when {
+            parsePositiveDouble(gelConcentrationPercent) == null ->
+                R.string.validation_gel_concentration_required
+
+            parsePositiveDouble(containerWeightGrams) == null ->
+                R.string.validation_container_weight_required
+
+            else -> null
+        }
+
+        MedicinePreparationType.PATCH -> {
+            val hasTotal = parsePositiveDouble(patchTotalMg) != null
+            val hasReleaseRate = parsePositiveDouble(patchReleaseRateMcgPerDay) != null
+            if (!hasTotal && !hasReleaseRate) {
+                R.string.validation_patch_total_required
+            } else {
+                null
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Draft reconstruction from resolved domain values (group/log editing).
+// ---------------------------------------------------------------------------
 
 private fun Double.toInputString(): String {
-    return BigDecimal.valueOf(this)
-        .stripTrailingZeros()
-        .toPlainString()
+    return java.math.BigDecimal.valueOf(this).stripTrailingZeros().toPlainString()
+}
+
+fun medicineDraftFromMedicine(
+    medicine: Medicine,
+    applicationType: MedicationApplicationType,
+): MedicinePickerUiState {
+    val base = defaultMedicineDraft(
+        category = medicine.category,
+        applicationType = applicationType,
+    )
+    val isCatalog = medicine.selection is MedicineSelection.Catalog
+    return base.copy(
+        selectionKind = if (isCatalog) {
+            MedicationSelectionKind.CATALOG
+        } else {
+            MedicationSelectionKind.CUSTOM
+        },
+        medicationKey = (medicine.selection as? MedicineSelection.Catalog)?.medicationKey
+            ?: base.medicationKey,
+        customMedicationName = (medicine.selection as? MedicineSelection.Custom)
+            ?.medicationName.orEmpty(),
+        customCategory = medicine.category,
+        selectedMedicineUuid = medicine.uuid,
+        preparationType = medicine.preparation.type,
+        displayName = medicine.displayName.orEmpty(),
+    ).withPreparationFields(medicine.preparation)
+}
+
+private fun MedicinePickerUiState.withPreparationFields(
+    preparation: MedicinePreparation,
+): MedicinePickerUiState {
+    return when (preparation) {
+        is MedicinePreparation.Pill ->
+            copy(pillStrengthMg = preparation.strengthMgPerTablet.toInputString())
+
+        is MedicinePreparation.InjectionSingleUseVial ->
+            copy(singleUseVialStrengthMg = preparation.strengthMgPerVial.toInputString())
+
+        is MedicinePreparation.InjectionMultiUseVial -> copy(
+            concentrationMgPerMl = preparation.concentrationMgPerMl.toInputString(),
+            vialVolumeMl = preparation.vialVolumeMl.toInputString(),
+        )
+
+        is MedicinePreparation.GelSachet -> copy(
+            gelConcentrationPercent = preparation.concentrationPercent.toInputString(),
+            sachetWeightGrams = preparation.sachetWeightGrams.toInputString(),
+        )
+
+        is MedicinePreparation.GelContainer -> copy(
+            gelConcentrationPercent = preparation.concentrationPercent.toInputString(),
+            containerWeightGrams = preparation.containerWeightGrams.toInputString(),
+        )
+
+        is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
+            is MedicinePreparation.PatchSpecification.TotalMg ->
+                copy(patchTotalMg = spec.valueMg.toInputString())
+
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
+                copy(patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toInputString())
+        }
+    }
+}
+
+fun doseInstructionDraftFromInstruction(
+    applicationType: MedicationApplicationType,
+    preparationType: MedicinePreparationType,
+    doseInstruction: DoseInstruction,
+): DoseInstructionDraftUiState {
+    return DoseInstructionDraftUiState(
+        applicationType = applicationType,
+        preparationType = preparationType,
+        tabletFractionNumerator = (doseInstruction as? DoseInstruction.TabletFraction)
+            ?.numerator ?: 1,
+        tabletFractionDenominator = (doseInstruction as? DoseInstruction.TabletFraction)
+            ?.denominator ?: 1,
+        volumeMl = (doseInstruction as? DoseInstruction.VolumeMl)?.valueMl?.toInputString()
+            .orEmpty(),
+        weightGrams = (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams
+            ?.toInputString().orEmpty(),
+    )
+}
+
+fun DoseInstructionDraftUiState.validationErrorRes(): Int? {
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return null
+    }
+    return when (preparationType) {
+        MedicinePreparationType.PILL ->
+            R.string.validation_dose_tablet_fraction_required.takeIf {
+                tabletFractionNumerator <= 0 || tabletFractionDenominator <= 0
+            }
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.PATCH -> null
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
+            R.string.validation_dose_volume_required
+                .takeIf { parsePositiveDouble(volumeMl) == null }
+
+        MedicinePreparationType.GEL_CONTAINER ->
+            R.string.validation_dose_weight_required
+                .takeIf { parsePositiveDouble(weightGrams) == null }
+    }
 }
