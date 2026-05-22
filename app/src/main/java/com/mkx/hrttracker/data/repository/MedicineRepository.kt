@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.normalizeCustomMedicationName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -82,6 +83,9 @@ class MedicineRepository @Inject constructor(
         preparation: MedicinePreparation,
         now: Instant = Instant.now(),
     ): Medicine {
+        require(normalizeCustomMedicationName(customMedicationName).isNotBlank()) {
+            "Custom medication name must not be blank."
+        }
         return findOrCreate(
             selection = MedicineSelection.Custom(customMedicationName),
             category = category,

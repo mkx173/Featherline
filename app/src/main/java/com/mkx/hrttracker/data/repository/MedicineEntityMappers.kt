@@ -134,34 +134,97 @@ private fun MedicineEntity.toMedicineSelection(): MedicineSelection {
 
 private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
     return when (MedicinePreparationType.fromStorageValue(preparationType)) {
-        MedicinePreparationType.PILL -> MedicinePreparation.Pill(
-            strengthMgPerTablet = checkNotNull(strengthMgPerTablet)
-        )
+        MedicinePreparationType.PILL -> {
+            requireOnlyPreparationFields("strengthMgPerTablet")
+            MedicinePreparation.Pill(
+                strengthMgPerTablet = checkNotNull(strengthMgPerTablet)
+            )
+        }
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
-            strengthMgPerVial = checkNotNull(strengthMgPerVial)
-        )
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            requireOnlyPreparationFields("strengthMgPerVial")
+            MedicinePreparation.InjectionSingleUseVial(
+                strengthMgPerVial = checkNotNull(strengthMgPerVial)
+            )
+        }
 
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
-            concentrationMgPerMl = checkNotNull(concentrationMgPerMl),
-            vialVolumeMl = checkNotNull(vialVolumeMl),
-        )
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
+            requireOnlyPreparationFields("concentrationMgPerMl", "vialVolumeMl")
+            MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = checkNotNull(concentrationMgPerMl),
+                vialVolumeMl = checkNotNull(vialVolumeMl),
+            )
+        }
 
-        MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
-            concentrationPercent = checkNotNull(concentrationPercent),
-            sachetWeightGrams = checkNotNull(sachetWeightGrams),
-        )
+        MedicinePreparationType.GEL_SACHET -> {
+            requireOnlyPreparationFields("concentrationPercent", "sachetWeightGrams")
+            MedicinePreparation.GelSachet(
+                concentrationPercent = checkNotNull(concentrationPercent),
+                sachetWeightGrams = checkNotNull(sachetWeightGrams),
+            )
+        }
 
-        MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
-            concentrationPercent = checkNotNull(concentrationPercent),
-            containerWeightGrams = checkNotNull(containerWeightGrams),
-        )
+        MedicinePreparationType.GEL_CONTAINER -> {
+            requireOnlyPreparationFields("concentrationPercent", "containerWeightGrams")
+            MedicinePreparation.GelContainer(
+                concentrationPercent = checkNotNull(concentrationPercent),
+                containerWeightGrams = checkNotNull(containerWeightGrams),
+            )
+        }
 
-        MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
-            specification = patchTotalMg?.let(MedicinePreparation.PatchSpecification::TotalMg)
-                ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
-                    valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
-                )
-        )
+        MedicinePreparationType.PATCH -> {
+            requirePatchPreparationFields()
+            MedicinePreparation.Patch(
+                specification = patchTotalMg?.let(MedicinePreparation.PatchSpecification::TotalMg)
+                    ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                        valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
+                    )
+            )
+        }
     }
+}
+
+private fun MedicineEntity.requireOnlyPreparationFields(vararg requiredFieldNames: String) {
+    val requiredFields = requiredFieldNames.toSet()
+    preparationFieldValues().forEach { (fieldName, value) ->
+        if (fieldName in requiredFields) {
+            check(value != null) {
+                "Medicine $uuid $preparationType is missing $fieldName."
+            }
+        } else {
+            check(value == null) {
+                "Medicine $uuid $preparationType has unexpected $fieldName."
+            }
+        }
+    }
+}
+
+private fun MedicineEntity.requirePatchPreparationFields() {
+    preparationFieldValues()
+        .filterNot { (fieldName, _) ->
+            fieldName == "patchTotalMg" || fieldName == "patchReleaseRateMcgPerDay"
+        }
+        .forEach { (fieldName, value) ->
+            check(value == null) {
+                "Medicine $uuid $preparationType has unexpected $fieldName."
+            }
+        }
+
+    check(listOfNotNull(patchTotalMg, patchReleaseRateMcgPerDay).size == 1) {
+        "Medicine $uuid PATCH must have exactly one patch specification."
+    }
+}
+
+private fun MedicineEntity.preparationFieldValues(): List<Pair<String, Double?>> {
+    return listOf(
+        "strengthMgPerTablet" to strengthMgPerTablet,
+        "strengthMgPerVial" to strengthMgPerVial,
+        "concentrationMgPerMl" to concentrationMgPerMl,
+        "vialVolumeMl" to vialVolumeMl,
+        "concentrationPercent" to concentrationPercent,
+        "sachetWeightGrams" to sachetWeightGrams,
+        "containerWeightGrams" to containerWeightGrams,
+        "patchTotalMg" to patchTotalMg,
+        "patchReleaseRateMcgPerDay" to patchReleaseRateMcgPerDay,
+    )
 }
