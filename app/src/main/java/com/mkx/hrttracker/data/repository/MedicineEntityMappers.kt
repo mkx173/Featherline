@@ -1,0 +1,165 @@
+package com.mkx.hrttracker.data.repository
+
+import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
+import java.time.Instant
+import java.util.UUID
+
+internal fun MedicineEntity.toMedicineModel(): Medicine {
+    return Medicine(
+        uuid = UUID.fromString(uuid),
+        selection = toMedicineSelection(),
+        category = MedicationCategory.fromStorageValue(category),
+        preparation = toMedicinePreparation(),
+        displayName = displayName,
+        identityKey = identityKey,
+        createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
+        updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
+        archivedAt = archivedAtEpochMillis?.let(Instant::ofEpochMilli),
+    )
+}
+
+internal fun Medicine.toEntity(): MedicineEntity {
+    val storageFields = preparation.toStorageFields()
+    return MedicineEntity(
+        uuid = uuid.toString(),
+        selectionKind = selection.kind.name,
+        medicationKey = when (val currentSelection = selection) {
+            is MedicineSelection.Catalog -> currentSelection.medicationKey.name
+            is MedicineSelection.Custom -> null
+        },
+        customMedicationName = when (val currentSelection = selection) {
+            is MedicineSelection.Catalog -> null
+            is MedicineSelection.Custom -> currentSelection.medicationName
+        },
+        customMedicationNameNormalized = when (val currentSelection = selection) {
+            is MedicineSelection.Catalog -> null
+            is MedicineSelection.Custom -> currentSelection.normalizedMedicationName
+        },
+        category = category.name,
+        preparationType = storageFields.preparationType,
+        strengthMgPerTablet = storageFields.strengthMgPerTablet,
+        strengthMgPerVial = storageFields.strengthMgPerVial,
+        concentrationMgPerMl = storageFields.concentrationMgPerMl,
+        vialVolumeMl = storageFields.vialVolumeMl,
+        concentrationPercent = storageFields.concentrationPercent,
+        sachetWeightGrams = storageFields.sachetWeightGrams,
+        containerWeightGrams = storageFields.containerWeightGrams,
+        patchTotalMg = storageFields.patchTotalMg,
+        patchReleaseRateMcgPerDay = storageFields.patchReleaseRateMcgPerDay,
+        displayName = displayName,
+        identityKey = identityKey,
+        createdAtEpochMillis = createdAt.toEpochMilli(),
+        updatedAtEpochMillis = updatedAt.toEpochMilli(),
+        archivedAtEpochMillis = archivedAt?.toEpochMilli(),
+    )
+}
+
+internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFields {
+    return when (this) {
+        is MedicinePreparation.Pill -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerTablet = strengthMgPerTablet,
+        )
+
+        is MedicinePreparation.InjectionSingleUseVial -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerVial = strengthMgPerVial,
+        )
+
+        is MedicinePreparation.InjectionMultiUseVial -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            concentrationMgPerMl = concentrationMgPerMl,
+            vialVolumeMl = vialVolumeMl,
+        )
+
+        is MedicinePreparation.GelSachet -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            concentrationPercent = concentrationPercent,
+            sachetWeightGrams = sachetWeightGrams,
+        )
+
+        is MedicinePreparation.GelContainer -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            concentrationPercent = concentrationPercent,
+            containerWeightGrams = containerWeightGrams,
+        )
+
+        is MedicinePreparation.Patch -> when (val currentSpecification = specification) {
+            is MedicinePreparation.PatchSpecification.TotalMg -> MedicinePreparationStorageFields(
+                preparationType = type.name,
+                patchTotalMg = currentSpecification.valueMg,
+            )
+
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> MedicinePreparationStorageFields(
+                preparationType = type.name,
+                patchReleaseRateMcgPerDay = currentSpecification.valueMcgPerDay,
+            )
+        }
+    }
+}
+
+internal data class MedicinePreparationStorageFields(
+    val preparationType: String,
+    val strengthMgPerTablet: Double? = null,
+    val strengthMgPerVial: Double? = null,
+    val concentrationMgPerMl: Double? = null,
+    val vialVolumeMl: Double? = null,
+    val concentrationPercent: Double? = null,
+    val sachetWeightGrams: Double? = null,
+    val containerWeightGrams: Double? = null,
+    val patchTotalMg: Double? = null,
+    val patchReleaseRateMcgPerDay: Double? = null,
+)
+
+private fun MedicineEntity.toMedicineSelection(): MedicineSelection {
+    return when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
+        MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
+            medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
+        )
+
+        MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
+            medicationName = customMedicationName.orEmpty()
+        )
+    }
+}
+
+private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
+    return when (MedicinePreparationType.fromStorageValue(preparationType)) {
+        MedicinePreparationType.PILL -> MedicinePreparation.Pill(
+            strengthMgPerTablet = checkNotNull(strengthMgPerTablet)
+        )
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
+            strengthMgPerVial = checkNotNull(strengthMgPerVial)
+        )
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicinePreparation.InjectionMultiUseVial(
+            concentrationMgPerMl = checkNotNull(concentrationMgPerMl),
+            vialVolumeMl = checkNotNull(vialVolumeMl),
+        )
+
+        MedicinePreparationType.GEL_SACHET -> MedicinePreparation.GelSachet(
+            concentrationPercent = checkNotNull(concentrationPercent),
+            sachetWeightGrams = checkNotNull(sachetWeightGrams),
+        )
+
+        MedicinePreparationType.GEL_CONTAINER -> MedicinePreparation.GelContainer(
+            concentrationPercent = checkNotNull(concentrationPercent),
+            containerWeightGrams = checkNotNull(containerWeightGrams),
+        )
+
+        MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
+            specification = patchTotalMg?.let(MedicinePreparation.PatchSpecification::TotalMg)
+                ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
+                )
+        )
+    }
+}

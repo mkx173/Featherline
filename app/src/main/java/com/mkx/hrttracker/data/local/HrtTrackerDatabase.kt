@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [
+        MedicineEntity::class,
         MedicationLogEntryEntity::class,
         MedicationGroupEntity::class,
         MedicationGroupItemEntity::class,
@@ -19,6 +20,7 @@ import androidx.room.RoomDatabase
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
+    abstract fun medicineDao(): MedicineDao
     abstract fun medicationLogDao(): MedicationLogDao
     abstract fun medicationGroupDao(): MedicationGroupDao
     abstract fun userProfileDao(): UserProfileDao
