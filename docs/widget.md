@@ -149,13 +149,20 @@ launcher hands out for the 2×2 / 4×2 cell, which varies by device and
 launcher. To keep the visual scale stable across devices and resizes,
 `widgetScale(widgetKey)` in
 [`HrtWidget.kt`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/HrtWidget.kt)
-reads `LocalSize.current.height` on first render, persists it to the
-`hrt_widget_baseline` SharedPreferences (`medium_height_dp` /
-`large_height_dp`) as the device baseline, and on every subsequent
-render returns `(baselineDp / WIDGET_BASELINE_REFERENCE_DP) *
-LocalWidgetScale.current` — so resize shrinks the underlying cell but
-not the rendered scale. `WidgetShell` republishes the resulting value
-through `LocalWidgetScale` so every child composable picks it up.
+captures a device baseline on the widget's first update and reuses it
+forever. `SizeMode.Exact` composes the widget once *per size* —
+portrait and landscape — in a single update, so the baseline is the
+*tallest* sane height of that first batch: each composition reads the
+baseline before any persists, so the persists merge by max
+(`mergeWidgetBaselineHeightDp`) rather than letting the short landscape
+composition win the race. It is stored in the `hrt_widget_baseline`
+SharedPreferences (`medium_height_dp_v2` / `large_height_dp_v2` — the
+`_v2` suffix is bumped when the capture logic changes so stale
+baselines are dropped). Every later render returns `(baselineDp /
+WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current` — so resize
+shrinks the underlying cell but not the rendered scale. `WidgetShell`
+republishes the resulting value through `LocalWidgetScale` so every
+child composable picks it up.
 
 Heights outside `[50, 400]` dp are treated as transient (e.g. 0dp
 loading frames) and *not* persisted; the render falls back to

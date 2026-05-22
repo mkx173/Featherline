@@ -237,14 +237,15 @@ private const val WIDGET_PREVIEW_E2_PG_PER_ML = 120.0
 private val MEDIUM_WIDGET_PREVIEW_SIZE = DpSize(MEDIUM_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private val LARGE_WIDGET_PREVIEW_SIZE = DpSize(LARGE_WIDGET_PREVIEW_WIDTH_DP.dp, WIDGET_PREVIEW_HEIGHT_DP.dp)
 private const val WIDGET_BASELINE_PREFS = "hrt_widget_baseline"
-private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp"
-private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp"
+// Key suffix is bumped (_v2) when the capture logic changes, so installs carrying a
+// baseline persisted by the old buggy logic discard it and re-capture cleanly.
+private const val WIDGET_BASELINE_KEY_MEDIUM = "medium_height_dp_v2"
+private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp_v2"
 // Matches the preview viewport height: scale == 1.0 corresponds to the fully
 // laid-out widget size seen in @GlancePreview / Live Preview.
 private const val WIDGET_BASELINE_REFERENCE_DP = 276f
 // Reject obviously bogus first-render sizes (e.g. transient 0dp loading frames)
-// so we don't permanently lock the device baseline to nonsense. Smaller-but-sane
-// resize frames are handled by flooring the baseline to WIDGET_BASELINE_REFERENCE_DP.
+// so we don't permanently lock the device baseline to nonsense.
 private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
 private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
 private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
@@ -261,41 +262,51 @@ private fun widgetScale(widgetKey: String): Float {
         val currentHeightDp = LocalSize.current.height.value
         val prefs = context.getSharedPreferences(WIDGET_BASELINE_PREFS, Context.MODE_PRIVATE)
         val storedDp = prefs.getFloat(widgetKey, 0f)
-        val resolvedDp = resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
-        if (shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp, resolvedDp)) {
-            SideEffect { prefs.edit { putFloat(widgetKey, resolvedDp) } }
+        if (shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp)) {
+            SideEffect {
+                val existingDp = prefs.getFloat(widgetKey, 0f)
+                val mergedDp = mergeWidgetBaselineHeightDp(existingDp, currentHeightDp)
+                if (mergedDp != existingDp) {
+                    prefs.edit { putFloat(widgetKey, mergedDp) }
+                }
+            }
         }
-        resolvedDp
+        resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
     }
     return (baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current
 }
 
+// SizeMode.Exact composes the widget once per size (portrait + landscape) in a single
+// update, and every composition reads the stored baseline before any persists. Merging
+// by max makes the persists order-independent so the tallest (portrait) height wins
+// rather than whichever composition's SideEffect happens to run last.
+internal fun mergeWidgetBaselineHeightDp(existingDp: Float, currentHeightDp: Float): Float =
+    maxOf(existingDp, currentHeightDp)
+
+// The device baseline is the launcher's portrait target-cell height, captured on the
+// first update and reused forever. Once stored, later (resized) heights are ignored, so
+// a resize relayouts the widget frame without rescaling its content.
 internal fun resolveWidgetBaselineHeightDp(
     storedDp: Float,
     currentHeightDp: Float,
 ): Float {
     if (storedDp > 0f) {
-        return storedDp.coerceAtLeast(WIDGET_BASELINE_REFERENCE_DP)
+        return storedDp
     }
     if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
         return WIDGET_BASELINE_REFERENCE_DP
     }
-    return currentHeightDp.coerceAtLeast(WIDGET_BASELINE_REFERENCE_DP)
+    return currentHeightDp
 }
 
+// Register a baseline persist while none is stored yet — i.e. on every size composition
+// of the first update. Their persists merge by max, so the tallest sane height wins. A
+// bogus frame is skipped so a later sane size still gets captured.
 internal fun shouldPersistWidgetBaselineHeight(
     storedDp: Float,
     currentHeightDp: Float,
-    resolvedDp: Float,
-): Boolean {
-    if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
-        return false
-    }
-    if (storedDp <= 0f) {
-        return currentHeightDp >= WIDGET_BASELINE_REFERENCE_DP
-    }
-    return storedDp < resolvedDp
-}
+): Boolean =
+    storedDp <= 0f && currentHeightDp in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP
 
 // ── Medium widget (2×2) ───────────────────────────────────────────────────────
 
