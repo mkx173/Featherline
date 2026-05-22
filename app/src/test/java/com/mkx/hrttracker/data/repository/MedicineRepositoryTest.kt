@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -83,6 +84,21 @@ class MedicineRepositoryTest {
         assertEquals(now, medicine.updatedAt)
         coVerify(exactly = 1) { dao.unarchive(entity.uuid, now.toEpochMilli()) }
         coVerify(exactly = 0) { dao.insert(any()) }
+    }
+
+    @Test
+    fun toMedicineModel_rejectsCustomMedicineWithoutMedicationName() {
+        val entity = medicineEntity().copy(
+            selectionKind = "CUSTOM",
+            medicationKey = null,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = MedicationCategory.CUSTOM.name,
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            entity.toMedicineModel()
+        }
     }
 
     private fun medicineEntity(

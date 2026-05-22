@@ -125,7 +125,9 @@ private fun MedicineEntity.toMedicineSelection(): MedicineSelection {
         )
 
         MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
-            medicationName = customMedicationName.orEmpty()
+            medicationName = checkNotNull(customMedicationName) {
+                "Custom medicine $uuid is missing customMedicationName."
+            }
         )
     }
 }
