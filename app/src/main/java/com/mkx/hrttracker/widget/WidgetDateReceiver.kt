@@ -44,6 +44,7 @@ class WidgetDateReceiver : BroadcastReceiver() {
         private const val TAG = "WidgetDateReceiver"
         private val HANDLED_ACTIONS = setOf(
             ACTION_WIDGET_DATE_REFRESH,
+            Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_DATE_CHANGED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
