@@ -7,8 +7,11 @@ import java.util.UUID
 
 data class MedicationLogEntry(
     val uuid: UUID,
-    val details: MedicationDetails,
-    val dosageMgAsEstradiol: Double?,
+    val medicine: Medicine?,
+    val category: MedicationCategory,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
+    val equivalentE2Mg: Double?,
     val sourceGroupUuid: UUID?,
     val appliedAt: Instant,
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
@@ -18,17 +21,11 @@ data class MedicationLogEntry(
 ) {
     init {
         require(count > 0) { "Medication log count must be at least 1." }
+        require(medicine != null || applicationType == MedicationApplicationType.PATCH_OFF) {
+            "Only a PATCH_OFF log may omit its medicine."
+        }
     }
 
-    val category: MedicationCategory
-        get() = details.category
-
-    val applicationType: MedicationApplicationType
-        get() = details.applicationType
-
-    val selection: MedicationSelection
-        get() = details.selection
-
-    val dose: MedicationDose
-        get() = details.dose
+    val medicineUuid: UUID?
+        get() = medicine?.uuid
 }

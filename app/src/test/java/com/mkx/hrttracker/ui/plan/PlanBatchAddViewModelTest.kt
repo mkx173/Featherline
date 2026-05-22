@@ -3,8 +3,6 @@ package com.mkx.hrttracker.ui.plan
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
-import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
@@ -12,10 +10,11 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.every
@@ -67,7 +66,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
         val secondGroup = medicationGroup(
             uuid = UUID.fromString("99857191-b93d-4920-a06e-9dc44127e93a"),
@@ -78,7 +77,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(21, 0)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
         val viewModel = planBatchAddViewModel(groups = listOf(firstGroup, secondGroup))
         advanceUntilIdle()
@@ -109,7 +108,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails(), count = 2)),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine(), count = 2)),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -153,7 +152,7 @@ class PlanBatchAddViewModelTest {
                     ),
                 ),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         ).copy(
             createdAt = Instant.parse("2026-04-10T10:00:00Z"),
             updatedAt = Instant.parse("2026-04-10T10:00:00Z"),
@@ -184,7 +183,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = setOf(DayOfWeek.WEDNESDAY),
                 times = listOf(LocalTime.of(10, 30)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -220,7 +219,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = setOf(DayOfWeek.MONDAY),
                 times = listOf(LocalTime.of(10, 30)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -245,8 +244,8 @@ class PlanBatchAddViewModelTest {
                 times = listOf(LocalTime.of(9, 0)),
             ),
             medications = listOf(
-                testMedicationGroupMedication(details = estradiolDetails(), count = 3),
-                testMedicationGroupMedication(details = spironolactoneDetails(), count = 1),
+                testMedicationGroupMedication(medicine = estradiolMedicine(), count = 3),
+                testMedicationGroupMedication(medicine = spironolactoneMedicine(), count = 1),
             ),
         )
 
@@ -276,12 +275,12 @@ class PlanBatchAddViewModelTest {
                 times = listOf(existingSlot.toLocalTime(), remainingSlot.toLocalTime()),
             ),
             medications = listOf(
-                testMedicationGroupMedication(details = estradiolDetails(), count = 3),
-                testMedicationGroupMedication(details = spironolactoneDetails(), count = 1),
+                testMedicationGroupMedication(medicine = estradiolMedicine(), count = 3),
+                testMedicationGroupMedication(medicine = spironolactoneMedicine(), count = 1),
             ),
         )
         val existingEntry = testMedicationLogEntry(
-            details = estradiolDetails(),
+            medicine = estradiolMedicine(),
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(existingSlot),
             scheduledFor = existingSlot,
@@ -315,7 +314,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(pastSlot.toLocalTime(), futureSlot.toLocalTime()),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -342,7 +341,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(now.toLocalTime()),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
 
         val entries = buildPlanBatchAddEntries(
@@ -367,7 +366,7 @@ class PlanBatchAddViewModelTest {
                 weeklyDaysOfWeek = emptySet(),
                 times = listOf(LocalTime.of(9, 0)),
             ),
-            medications = listOf(testMedicationGroupMedication(details = estradiolDetails())),
+            medications = listOf(testMedicationGroupMedication(medicine = estradiolMedicine())),
         )
         val entry = buildPlanBatchAddEntries(
             group = group,
@@ -409,16 +408,16 @@ class PlanBatchAddViewModelTest {
         )
     }
 
-    private fun estradiolDetails() = testCatalogMedicationDetails(
+    private fun estradiolMedicine() = testMedicine(
+        uuid = UUID.fromString("e2e2e2e2-0000-0000-0000-000000000000"),
         key = MedicationKey.ESTRADIOL,
-        applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(2.0),
+        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
     )
 
-    private fun spironolactoneDetails() = testCatalogMedicationDetails(
+    private fun spironolactoneMedicine() = testMedicine(
+        uuid = UUID.fromString("5a5a5a5a-0000-0000-0000-000000000000"),
         key = MedicationKey.SPIRONOLACTONE,
-        applicationType = MedicationApplicationType.ORAL,
-        dose = MedicationDose.MgAsMedicine(100.0),
+        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
     )
 
     private fun planBatchAddViewModel(groups: List<MedicationGroup>): PlanBatchAddViewModel {

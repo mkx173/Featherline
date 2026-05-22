@@ -4,17 +4,17 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogEntryInput
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import io.mockk.Runs
@@ -301,11 +301,9 @@ class MedicationReminderActionHandlerTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
-                        key = medicationKey,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = medicationKey),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                     count = medicationCount,
                 )
             ),
@@ -329,8 +327,11 @@ class MedicationReminderActionHandlerTest {
         scheduledFor: LocalDateTime,
         count: Int,
     ): MedicationLogEntry {
+        val templateMedication = group.medications.first()
         return testMedicationLogEntry(
-            details = group.medications.first().details,
+            medicine = templateMedication.medicine,
+            applicationType = templateMedication.applicationType,
+            doseInstruction = templateMedication.doseInstruction,
             sourceGroupUuid = group.uuid,
             appliedAt = testInstant(appliedAt),
             scheduledFor = scheduledFor,

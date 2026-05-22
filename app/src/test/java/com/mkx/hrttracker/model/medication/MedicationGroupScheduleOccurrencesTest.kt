@@ -232,11 +232,9 @@ class MedicationGroupScheduleOccurrencesTest {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("b163399f-2eb2-4d5f-b1ad-b516de344c4e"),
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

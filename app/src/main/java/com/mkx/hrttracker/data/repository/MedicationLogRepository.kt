@@ -3,17 +3,11 @@ package com.mkx.hrttracker.data.repository
 import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.di.AppScope
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
-import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -46,7 +40,8 @@ class MedicationLogRepository @Inject constructor(
                 } else {
                     database.medicationLogDao().observeEntries()
                         .map<List<MedicationLogEntryEntity>, List<MedicationLogEntry>?> { entries ->
-                            entries.map { it.toModel() }
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         }
                         .catch { emit(emptyList()) }
                 }
@@ -84,17 +79,22 @@ class MedicationLogRepository @Inject constructor(
     }
 
     suspend fun getEntries(): List<MedicationLogEntry> {
-        return databaseHolder.get().medicationLogDao().getEntries().map { it.toModel() }
+        val database = databaseHolder.get()
+        val entities = database.medicationLogDao().getEntries()
+        val medicinesByUuid = database.resolveMedicinesForEntries(entities)
+        return entities.map { it.toMedicationLogEntryModel(medicinesByUuid) }
     }
 
     suspend fun getLatestEstradiolEntryOnOrBefore(onOrBefore: Instant): MedicationLogEntry? {
-        val latestEntry = databaseHolder.get().medicationLogDao()
+        val database = databaseHolder.get()
+        val entity = database.medicationLogDao()
             .getLatestEntryByCategoryOnOrBefore(
                 category = MedicationCategory.ESTRADIOL.name,
                 onOrBeforeEpochMillis = onOrBefore.toEpochMilli(),
             )
-            ?.toModel()
-        return latestEntry
+            ?: return null
+        val medicinesByUuid = database.resolveMedicinesForEntries(listOf(entity))
+        return entity.toMedicationLogEntryModel(medicinesByUuid)
     }
 
     suspend fun getEntries(uuids: Collection<UUID>): List<MedicationLogEntry> {
@@ -102,24 +102,30 @@ class MedicationLogRepository @Inject constructor(
             return emptyList()
         }
 
+        val database = databaseHolder.get()
         val orderedUuids = uuids.distinct().map(UUID::toString)
-        val entriesByUuid = databaseHolder.get().medicationLogDao()
-            .getEntriesByIds(orderedUuids)
-            .associateBy(MedicationLogEntryEntity::uuid)
+        val entities = database.medicationLogDao().getEntriesByIds(orderedUuids)
+        val medicinesByUuid = database.resolveMedicinesForEntries(entities)
+        val entriesByUuid = entities.associateBy(MedicationLogEntryEntity::uuid)
 
         return orderedUuids.mapNotNull { uuid ->
-            entriesByUuid[uuid]?.toModel()
+            entriesByUuid[uuid]?.toMedicationLogEntryModel(medicinesByUuid)
         }
     }
 
     suspend fun getScheduledGroupEntriesSince(since: LocalDateTime): List<MedicationLogEntry> {
-        return databaseHolder.get().medicationLogDao()
+        val database = databaseHolder.get()
+        val entities = database.medicationLogDao()
             .getScheduledGroupEntriesSince(since.toString())
-            .map { it.toModel() }
+        val medicinesByUuid = database.resolveMedicinesForEntries(entities)
+        return entities.map { it.toMedicationLogEntryModel(medicinesByUuid) }
     }
 
     suspend fun getEntry(uuid: UUID): MedicationLogEntry? {
-        return databaseHolder.get().medicationLogDao().getEntry(uuid.toString())?.toModel()
+        val database = databaseHolder.get()
+        val entity = database.medicationLogDao().getEntry(uuid.toString()) ?: return null
+        val medicinesByUuid = database.resolveMedicinesForEntries(listOf(entity))
+        return entity.toMedicationLogEntryModel(medicinesByUuid)
     }
 
     suspend fun deleteEntries(uuids: Collection<UUID>) {
@@ -150,25 +156,44 @@ class MedicationLogRepository @Inject constructor(
 
     suspend fun saveEntry(
         uuid: UUID?,
-        medication: MedicationDetails,
+        medicineUuid: UUID?,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         sourceGroupUuid: UUID?,
         scheduleTimeUuid: UUID? = null,
         appliedAt: Instant,
         scheduledFor: LocalDateTime? = null,
         count: Int = 1,
-        appliedAtTimeZoneId: String = ZoneId.systemDefault().id
+        appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     ) {
+        if (uuid != null) {
+            // Editing an existing log: medication identity is immutable; only
+            // the date/time/count may change.
+            homeSnapshotRepository.runHomeDataMutation {
+                databaseHolder.get().medicationLogDao().updateEditableLogFields(
+                    uuid = uuid.toString(),
+                    appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                    appliedAtTimeZoneId = appliedAtTimeZoneId,
+                    scheduledForIso = scheduledFor?.toString(),
+                    count = count.coerceAtLeast(1),
+                )
+            }
+            return
+        }
+
         homeSnapshotRepository.runHomeDataMutation {
             databaseHolder.get().medicationLogDao().insertEntry(
                 buildEntryEntity(
-                    uuid = uuid ?: UUID.randomUUID(),
-                    medication = medication,
+                    uuid = UUID.randomUUID(),
+                    medicineUuid = medicineUuid,
+                    applicationType = applicationType,
+                    doseInstruction = doseInstruction,
                     sourceGroupUuid = sourceGroupUuid,
                     scheduleTimeUuid = scheduleTimeUuid,
                     appliedAt = appliedAt,
                     scheduledFor = scheduledFor,
                     count = count,
-                    appliedAtTimeZoneId = appliedAtTimeZoneId
+                    appliedAtTimeZoneId = appliedAtTimeZoneId,
                 )
             )
         }
@@ -176,25 +201,29 @@ class MedicationLogRepository @Inject constructor(
 
     suspend fun saveEntries(
         uuids: Collection<UUID>,
-        medication: MedicationDetails,
+        medicineUuid: UUID?,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         sourceGroupUuid: UUID?,
         scheduleTimeUuid: UUID? = null,
         appliedAt: Instant,
         scheduledFor: LocalDateTime? = null,
         count: Int = 1,
-        appliedAtTimeZoneId: String = ZoneId.systemDefault().id
+        appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
     ) {
         val targetUuids = uuids.distinct()
         if (targetUuids.isEmpty()) {
             saveEntry(
                 uuid = null,
-                medication = medication,
+                medicineUuid = medicineUuid,
+                applicationType = applicationType,
+                doseInstruction = doseInstruction,
                 sourceGroupUuid = sourceGroupUuid,
                 scheduleTimeUuid = scheduleTimeUuid,
                 appliedAt = appliedAt,
                 scheduledFor = scheduledFor,
                 count = count,
-                appliedAtTimeZoneId = appliedAtTimeZoneId
+                appliedAtTimeZoneId = appliedAtTimeZoneId,
             )
             return
         }
@@ -204,13 +233,15 @@ class MedicationLogRepository @Inject constructor(
                 targetUuids.map { uuid ->
                     buildEntryEntity(
                         uuid = uuid,
-                        medication = medication,
+                        medicineUuid = medicineUuid,
+                        applicationType = applicationType,
+                        doseInstruction = doseInstruction,
                         sourceGroupUuid = sourceGroupUuid,
                         scheduleTimeUuid = scheduleTimeUuid,
                         appliedAt = appliedAt,
                         scheduledFor = scheduledFor,
                         count = count,
-                        appliedAtTimeZoneId = appliedAtTimeZoneId
+                        appliedAtTimeZoneId = appliedAtTimeZoneId,
                     )
                 }
             )
@@ -227,138 +258,66 @@ class MedicationLogRepository @Inject constructor(
                 entries.map { entry ->
                     buildEntryEntity(
                         uuid = UUID.randomUUID(),
-                        medication = entry.medication,
+                        medicineUuid = entry.medicineUuid,
+                        applicationType = entry.applicationType,
+                        doseInstruction = entry.doseInstruction,
                         sourceGroupUuid = entry.sourceGroupUuid,
                         scheduleTimeUuid = entry.scheduleTimeUuid,
                         appliedAt = entry.appliedAt,
                         scheduledFor = entry.scheduledFor,
                         count = entry.count,
-                        appliedAtTimeZoneId = entry.appliedAtTimeZoneId
+                        appliedAtTimeZoneId = entry.appliedAtTimeZoneId,
                     )
                 }
             )
         }
     }
 
-    private fun MedicationLogEntryEntity.toModel(): MedicationLogEntry {
-        return MedicationLogEntry(
-            uuid = UUID.fromString(uuid),
-            details = toMedicationDetails(),
-            dosageMgAsEstradiol = dosageMgAsEstradiol,
-            sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
-            scheduleTimeUuid = scheduleTimeUuid?.let(UUID::fromString),
-            appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
-            appliedAtTimeZoneId = appliedAtTimeZoneId,
-            scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
-            count = count.coerceAtLeast(1)
-        )
-    }
-
-    private fun MedicationLogEntryEntity.toMedicationDetails(): MedicationDetails {
-        val selection = when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
-            MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
-                medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
-            )
-
-            MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
-                medicationName = customMedicationName.orEmpty()
-            )
-        }
-
-        val dose = when (MedicationDoseKind.fromStorageValue(doseKind)) {
-            MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
-                percent = checkNotNull(doseValuePercent),
-                weightGrams = checkNotNull(doseWeightGrams)
-            )
-
-            MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(
-                valueMg = checkNotNull(doseValueMg)
-            )
-
-            MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
-                valueMcgPerDay = checkNotNull(doseReleaseRateMcgPerDay)
-            )
-
-            MedicationDoseKind.NONE -> MedicationDose.None
-        }
-
-        return MedicationDetails(
-            category = MedicationCategory.fromStorageValue(category),
-            applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-            selection = selection,
-            dose = dose,
-            gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
-            customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
-        )
-    }
-
-    private fun buildEntryEntity(
+    private suspend fun buildEntryEntity(
         uuid: UUID,
-        medication: MedicationDetails,
+        medicineUuid: UUID?,
+        applicationType: MedicationApplicationType,
+        doseInstruction: DoseInstruction,
         sourceGroupUuid: UUID?,
         scheduleTimeUuid: UUID?,
         appliedAt: Instant,
         scheduledFor: LocalDateTime?,
         count: Int,
-        appliedAtTimeZoneId: String
+        appliedAtTimeZoneId: String,
     ): MedicationLogEntryEntity {
+        // PATCH_OFF logs carry no medicine; snapshot category = ESTRADIOL (the
+        // only patch) and a null equivalentE2Mg without touching the DAO.
+        val medicine = medicineUuid?.let {
+            checkNotNull(databaseHolder.get().medicineDao().getByUuid(it.toString())) {
+                "Medicine $medicineUuid was not found."
+            }.toMedicineModel()
+        }
+        val category = medicine?.category ?: MedicationCategory.ESTRADIOL
+        val equivalentE2Mg = medicine?.let {
+            DoseInstructionCalculator.perUnitEquivalentE2Mg(
+                medicine = it,
+                doseInstruction = doseInstruction,
+            )
+        }
+        val doseInstructionFields = doseInstruction.toStorageFields()
         return MedicationLogEntryEntity(
             uuid = uuid.toString(),
-            category = medication.category.name,
-            applicationType = medication.applicationType.name,
-            selectionKind = medication.selection.kind.name,
-            medicationKey = when (val selection = medication.selection) {
-                is MedicationSelection.Catalog -> selection.medicationKey.name
-                is MedicationSelection.Custom -> null
-            },
-            customMedicationName = when (val selection = medication.selection) {
-                is MedicationSelection.Catalog -> null
-                is MedicationSelection.Custom -> selection.medicationName
-            },
-            doseKind = medication.dose.kind.name,
-            doseValueMg = when (val dose = medication.dose) {
-                is MedicationDose.MgAsMedicine -> dose.valueMg
-                is MedicationDose.GelEquivalentEstradiolMg -> dose.valueMg
-                is MedicationDose.PatchTotalMg -> dose.valueMg
-                else -> null
-            },
-            customDoseUnit = when {
-                medication.selection is MedicationSelection.Custom &&
-                    medication.dose is MedicationDose.MgAsMedicine ->
-                    medication.customDoseUnit.storageValue
-
-                else -> MedicationDoseUnit.MG.storageValue
-            },
-            doseValuePercent = when (val dose = medication.dose) {
-                is MedicationDose.GelPercentAndWeight -> dose.percent
-                else -> null
-            },
-            doseWeightGrams = when (val dose = medication.dose) {
-                is MedicationDose.GelPercentAndWeight -> dose.weightGrams
-                else -> null
-            },
-            doseReleaseRateMcgPerDay = when (val dose = medication.dose) {
-                is MedicationDose.PatchReleaseRateMcgPerDay -> dose.valueMcgPerDay
-                else -> null
-            },
-            dosageMgAsEstradiol = EstradiolEquivalentCalculator.calculate(
-                medication = medication
-            ),
+            category = category.name,
+            medicineUuid = medicine?.uuid?.toString(),
+            applicationType = applicationType.name,
+            doseInstructionKind = doseInstructionFields.doseInstructionKind,
+            tabletFractionNumerator = doseInstructionFields.tabletFractionNumerator,
+            tabletFractionDenominator = doseInstructionFields.tabletFractionDenominator,
+            doseVolumeMl = doseInstructionFields.doseVolumeMl,
+            doseWeightGrams = doseInstructionFields.doseWeightGrams,
+            equivalentE2Mg = equivalentE2Mg,
             sourceGroupUuid = sourceGroupUuid?.toString(),
             scheduleTimeUuid = scheduleTimeUuid?.toString(),
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
             appliedAtTimeZoneId = appliedAtTimeZoneId,
             scheduledForIso = scheduledFor?.toString(),
             count = count.coerceAtLeast(1),
-            gelApplicationArea = medication.gelApplicationArea.name,
+            gelApplicationArea = MedicationGelApplicationArea.DEFAULT.name,
         )
     }
 }
@@ -372,11 +331,19 @@ sealed interface ObservedEstradiolEntryLookup {
 }
 
 data class MedicationLogEntryInput(
-    val medication: MedicationDetails,
+    val medicineUuid: UUID?,
+    val applicationType: MedicationApplicationType,
+    val doseInstruction: DoseInstruction,
     val sourceGroupUuid: UUID?,
     val scheduleTimeUuid: UUID? = null,
     val appliedAt: Instant,
     val scheduledFor: LocalDateTime? = null,
     val count: Int = 1,
     val appliedAtTimeZoneId: String = ZoneId.systemDefault().id,
-)
+) {
+    init {
+        require(medicineUuid != null || applicationType == MedicationApplicationType.PATCH_OFF) {
+            "Only a PATCH_OFF log may omit its medicine."
+        }
+    }
+}

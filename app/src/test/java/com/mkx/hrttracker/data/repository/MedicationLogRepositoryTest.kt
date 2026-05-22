@@ -4,18 +4,21 @@ import com.mkx.hrttracker.data.local.DatabaseHolder
 import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationLogDao
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +39,7 @@ class MedicationLogRepositoryTest {
     private val databaseHolder: DatabaseHolder = mockk()
     private val database: HrtTrackerDatabase = mockk()
     private val dao: MedicationLogDao = mockk(relaxed = true)
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: MedicationLogRepository
@@ -45,6 +49,7 @@ class MedicationLogRepositoryTest {
         every { databaseHolder.databaseFlow } returns MutableStateFlow(null)
         every { databaseHolder.get() } returns database
         every { database.medicationLogDao() } returns dao
+        every { database.medicineDao() } returns medicineDao
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
@@ -89,31 +94,8 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
-    fun deleteEntries_forEstradiolRunsInsideHomeDataMutation() = runTest {
+    fun deleteEntries_runsInsideHomeDataMutation() = runTest {
         val entryUuid = UUID.fromString("bf5d6d17-097a-45a7-ae8e-8202aa10cf01")
-        val entry = testMedicationLogEntryEntity(
-            uuid = entryUuid.toString(),
-            appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
-        )
-        coEvery { dao.getEntriesByIds(listOf(entryUuid.toString())) } returns listOf(entry)
-        coEvery { dao.deleteEntries(listOf(entryUuid.toString())) } returns Unit
-
-        repository.deleteEntries(listOf(entryUuid))
-
-        coVerify(exactly = 1) { dao.deleteEntries(listOf(entryUuid.toString())) }
-        coVerify(exactly = 1) { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) }
-    }
-
-    @Test
-    fun deleteEntries_forNonEstradiolRunsInsideHomeDataMutation() = runTest {
-        val entryUuid = UUID.fromString("6745bdd6-2e58-42c0-8ea5-50b414313e22")
-        val entry = testMedicationLogEntryEntity(
-            uuid = entryUuid.toString(),
-            appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
-            category = MedicationCategory.ANTIANDROGEN,
-            medicationKey = MedicationKey.SPIRONOLACTONE,
-        )
-        coEvery { dao.getEntriesByIds(listOf(entryUuid.toString())) } returns listOf(entry)
         coEvery { dao.deleteEntries(listOf(entryUuid.toString())) } returns Unit
 
         repository.deleteEntries(listOf(entryUuid))
@@ -124,7 +106,15 @@ class MedicationLogRepositoryTest {
 
     @Test
     fun saveEntry_runsWriteInsideHomeDataMutation() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
         val events = mutableListOf<String>()
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             events += "mutation-start"
             firstArg<suspend () -> Unit>().invoke()
@@ -135,8 +125,10 @@ class MedicationLogRepositoryTest {
         }
 
         repository.saveEntry(
-            uuid = UUID.fromString("f0a2fa33-4456-4b53-8c6e-e26e694e44e0"),
-            medication = testMedicationDetails(),
+            uuid = null,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-30T08:00:00Z"),
         )
@@ -145,25 +137,105 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
+    fun saveEntry_snapshotsCategoryAndPerUnitEquivalentE2AtCreation() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val capturedEntry = slot<MedicationLogEntryEntity>()
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 10.0,
+            ),
+        )
+        coEvery { dao.insertEntry(capture(capturedEntry)) } returns Unit
+
+        repository.saveEntry(
+            uuid = null,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = DoseInstruction.VolumeMl(0.2),
+            sourceGroupUuid = null,
+            appliedAt = Instant.parse("2026-05-22T08:00:00Z"),
+            count = 3,
+        )
+
+        assertEquals(MedicationCategory.ESTRADIOL.name, capturedEntry.captured.category)
+        assertEquals(medicineUuid.toString(), capturedEntry.captured.medicineUuid)
+        assertEquals(DoseInstructionKind.VOLUME_ML.name, capturedEntry.captured.doseInstructionKind)
+        assertEquals(0.2, capturedEntry.captured.doseVolumeMl!!, 0.000001)
+        assertEquals(
+            4.0 * (272.4 / 356.5),
+            capturedEntry.captured.equivalentE2Mg!!,
+            0.000001,
+        )
+    }
+
+    @Test
+    fun saveEntry_editOnlyUpdatesDateTimeAndCount() = runTest {
+        val entryUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val appliedAt = Instant.parse("2026-05-22T09:30:00Z")
+        coEvery {
+            dao.updateEditableLogFields(
+                uuid = entryUuid.toString(),
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                scheduledForIso = null,
+                count = 2,
+            )
+        } returns Unit
+
+        repository.saveEntry(
+            uuid = entryUuid,
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            sourceGroupUuid = null,
+            appliedAt = appliedAt,
+            count = 2,
+            appliedAtTimeZoneId = "Asia/Tokyo",
+        )
+
+        coVerify(exactly = 1) {
+            dao.updateEditableLogFields(
+                uuid = entryUuid.toString(),
+                appliedAtEpochMillis = appliedAt.toEpochMilli(),
+                appliedAtTimeZoneId = "Asia/Tokyo",
+                scheduledForIso = null,
+                count = 2,
+            )
+        }
+        coVerify(exactly = 0) { dao.insertEntry(any()) }
+        coVerify(exactly = 0) { medicineDao.getByUuid(any()) }
+    }
+
+    @Test
     fun getObservedLatestEstradiolEntryOnOrBefore_returnsLatestObservedEntryAtOrBeforeTarget() = runTest {
         val target = Instant.parse("2026-04-30T00:00:00Z")
+        val medicineUuid = "aaaaaaaa-0000-0000-0000-000000000000"
         val latestEntry = testMedicationLogEntryEntity(
             uuid = "8bbef05b-368d-4ae4-9e9d-4a83e35f8d9c",
             appliedAt = target.minus(Duration.ofDays(60)),
+            medicineUuid = medicineUuid,
         )
         val olderEntry = testMedicationLogEntryEntity(
             uuid = "e93047ed-1825-4f9f-a017-3b93d4f0698e",
             appliedAt = target.minus(Duration.ofDays(90)),
+            medicineUuid = medicineUuid,
         )
         val futureEntry = testMedicationLogEntryEntity(
             uuid = "151986f6-7981-4734-ad5b-5366c5dcd931",
             appliedAt = target.plus(Duration.ofHours(1)),
+            medicineUuid = medicineUuid,
         )
         val antiandrogenEntry = testMedicationLogEntryEntity(
             uuid = "e22f2f1e-1cb5-4137-83ca-f5d35417cbcd",
             appliedAt = target.minus(Duration.ofDays(2)),
             category = MedicationCategory.ANTIANDROGEN,
-            medicationKey = MedicationKey.SPIRONOLACTONE,
+            medicineUuid = medicineUuid,
         )
 
         val repository = repositoryWithObservedEntries(
@@ -172,6 +244,13 @@ class MedicationLogRepositoryTest {
                 latestEntry,
                 antiandrogenEntry,
                 olderEntry,
+            ),
+            medicineEntities = listOf(
+                testMedicineEntity(
+                    uuid = medicineUuid,
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                ),
             ),
             appScope = CoroutineScope(
                 backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
@@ -200,12 +279,15 @@ class MedicationLogRepositoryTest {
 
     private fun repositoryWithObservedEntries(
         entries: List<MedicationLogEntryEntity>,
+        medicineEntities: List<MedicineEntity>,
         appScope: CoroutineScope,
     ): MedicationLogRepository {
         every { databaseHolder.databaseFlow } returns MutableStateFlow<HrtTrackerDatabase?>(database)
         every { databaseHolder.get() } returns database
         every { database.medicationLogDao() } returns dao
+        every { database.medicineDao() } returns medicineDao
         every { dao.observeEntries() } returns MutableStateFlow(entries)
+        coEvery { medicineDao.getByUuids(any()) } returns medicineEntities
 
         return MedicationLogRepository(
             databaseHolder = databaseHolder,
@@ -218,32 +300,52 @@ class MedicationLogRepositoryTest {
         uuid: String,
         appliedAt: Instant,
         category: MedicationCategory = MedicationCategory.ESTRADIOL,
-        medicationKey: MedicationKey = MedicationKey.ESTRADIOL,
+        medicineUuid: String? = "aaaaaaaa-0000-0000-0000-000000000000",
     ): MedicationLogEntryEntity {
         return MedicationLogEntryEntity(
             uuid = uuid,
             category = category.name,
+            medicineUuid = medicineUuid,
             applicationType = MedicationApplicationType.ORAL.name,
-            selectionKind = MedicationSelectionKind.CATALOG.name,
-            medicationKey = medicationKey.name,
-            customMedicationName = null,
-            doseKind = MedicationDoseKind.MG_AS_MEDICINE.name,
-            doseValueMg = 2.0,
-            doseValuePercent = null,
+            doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
             doseWeightGrams = null,
-            doseReleaseRateMcgPerDay = null,
-            dosageMgAsEstradiol = 2.0,
+            equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAtEpochMillis = appliedAt.toEpochMilli(),
         )
     }
 
-    private fun testMedicationDetails(): MedicationDetails {
-        return MedicationDetails(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-            selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-            dose = MedicationDose.MgAsMedicine(2.0),
+    private fun testMedicineEntity(
+        uuid: String,
+        medicationKey: MedicationKey,
+        preparation: MedicinePreparation,
+    ): MedicineEntity {
+        val fields = preparation.toStorageFields()
+        return MedicineEntity(
+            uuid = uuid,
+            selectionKind = MedicationSelectionKind.CATALOG.name,
+            medicationKey = medicationKey.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = medicationKey.category.name,
+            preparationType = fields.preparationType,
+            strengthMgPerTablet = fields.strengthMgPerTablet,
+            strengthMgPerVial = fields.strengthMgPerVial,
+            concentrationMgPerMl = fields.concentrationMgPerMl,
+            vialVolumeMl = fields.vialVolumeMl,
+            concentrationPercent = fields.concentrationPercent,
+            sachetWeightGrams = fields.sachetWeightGrams,
+            containerWeightGrams = fields.containerWeightGrams,
+            patchTotalMg = fields.patchTotalMg,
+            patchReleaseRateMcgPerDay = fields.patchReleaseRateMcgPerDay,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
         )
     }
 }

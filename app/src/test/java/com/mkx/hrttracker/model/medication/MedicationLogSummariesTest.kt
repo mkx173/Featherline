@@ -97,11 +97,9 @@ class MedicationLogSummariesTest {
             MedicationCategory.CUSTOM -> error("Unsupported category for this fixture: $category")
         }
         return testMedicationLogEntry(
-            details = testCatalogMedicationDetails(
-                key = key,
-                applicationType = MedicationApplicationType.ORAL,
-                dose = MedicationDose.MgAsMedicine(2.0),
-            ),
+            medicine = testMedicine(key = key),
+            category = category,
+            applicationType = MedicationApplicationType.ORAL,
             sourceGroupUuid = null,
             appliedAt = appliedAt,
         )

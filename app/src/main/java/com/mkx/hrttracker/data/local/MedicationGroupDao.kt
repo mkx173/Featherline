@@ -133,6 +133,14 @@ interface MedicationGroupDao {
     )
     suspend fun deleteAllGroups()
 
+    @Query(
+        """
+        SELECT medicineUuid FROM medication_group_items
+        WHERE groupUuid = :groupUuid
+        """
+    )
+    suspend fun getMedicineUuidsForGroup(groupUuid: String): List<String>
+
     @Transaction
     suspend fun upsertGroupWithItems(
         group: MedicationGroupEntity,

@@ -133,6 +133,20 @@ interface MedicineDao {
         updatedAtEpochMillis: Long,
     )
 
+    @Query("SELECT COUNT(*) FROM medication_log_entries WHERE medicineUuid = :uuid")
+    suspend fun logReferenceCount(uuid: String): Int
+
+    @Query(
+        """
+        SELECT COUNT(*)
+        FROM medication_group_items AS item
+        INNER JOIN medication_groups AS grp ON grp.uuid = item.groupUuid
+        WHERE item.medicineUuid = :uuid
+          AND grp.archivedAtEpochMillis IS NULL
+        """
+    )
+    suspend fun activeGroupReferenceCount(uuid: String): Int
+
     @Query(
         """
         DELETE FROM medicines

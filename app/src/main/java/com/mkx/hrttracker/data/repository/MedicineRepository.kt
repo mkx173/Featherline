@@ -115,6 +115,76 @@ class MedicineRepository @Inject constructor(
         }
     }
 
+    suspend fun isLocked(uuid: UUID): Boolean {
+        return databaseHolder.get().medicineDao().logReferenceCount(uuid.toString()) > 0
+    }
+
+    suspend fun updatePreparation(
+        uuid: UUID,
+        preparation: MedicinePreparation,
+        now: Instant = Instant.now(),
+    ) {
+        val nowEpochMillis = now.toEpochMilli()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                val dao = database.medicineDao()
+                val existing = dao.getByUuid(uuid.toString())
+                    ?: throw MedicineNotFoundException(uuid)
+                if (dao.logReferenceCount(uuid.toString()) > 0) {
+                    throw MedicineLockedException(uuid)
+                }
+                val existingMedicine = existing.toMedicineModel()
+                val newIdentityKey = when (val selection = existingMedicine.selection) {
+                    is MedicineSelection.Catalog ->
+                        MedicineIdentityKey.catalog(selection.medicationKey, preparation)
+
+                    is MedicineSelection.Custom ->
+                        MedicineIdentityKey.custom(selection.medicationName, preparation)
+                }
+                val collision = dao.getByIdentityKey(newIdentityKey)
+                if (collision != null && collision.uuid != existing.uuid) {
+                    throw MedicineIdentityCollisionException(newIdentityKey)
+                }
+                val storageFields = preparation.toStorageFields()
+                dao.updatePreparationFields(
+                    uuid = uuid.toString(),
+                    preparationType = storageFields.preparationType,
+                    strengthMgPerTablet = storageFields.strengthMgPerTablet,
+                    strengthMgPerVial = storageFields.strengthMgPerVial,
+                    concentrationMgPerMl = storageFields.concentrationMgPerMl,
+                    vialVolumeMl = storageFields.vialVolumeMl,
+                    concentrationPercent = storageFields.concentrationPercent,
+                    sachetWeightGrams = storageFields.sachetWeightGrams,
+                    containerWeightGrams = storageFields.containerWeightGrams,
+                    patchTotalMg = storageFields.patchTotalMg,
+                    patchReleaseRateMcgPerDay = storageFields.patchReleaseRateMcgPerDay,
+                    identityKey = newIdentityKey,
+                    updatedAtEpochMillis = nowEpochMillis,
+                )
+            }
+        }
+    }
+
+    suspend fun archive(
+        uuid: UUID,
+        now: Instant = Instant.now(),
+    ) {
+        val nowEpochMillis = now.toEpochMilli()
+        homeSnapshotRepository.runHomeDataMutation {
+            databaseHolder.withTransaction { database ->
+                val dao = database.medicineDao()
+                if (dao.activeGroupReferenceCount(uuid.toString()) > 0) {
+                    throw MedicineReferencedByActiveGroupException(uuid)
+                }
+                dao.archive(
+                    uuid = uuid.toString(),
+                    archivedAtEpochMillis = nowEpochMillis,
+                    updatedAtEpochMillis = nowEpochMillis,
+                )
+            }
+        }
+    }
+
     private suspend fun findOrCreate(
         selection: MedicineSelection,
         category: MedicationCategory,

@@ -244,22 +244,28 @@ class HomeRepository @Inject constructor(
                 val pkEndEpochMillis = pkHorizon.atZone(zoneId).toInstant().toEpochMilli()
 
                 flow {
-                    val homeDao = databaseHolder.get().homeDao()
+                    val database = databaseHolder.get()
+                    val homeDao = database.homeDao()
                     val basicsFlow = combine(
                         homeDao.observeActiveGroups()
-                            .map { groups -> groups.map { it.toMedicationGroupModel() } },
+                            .map { groups ->
+                                val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                                groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                            },
                         homeDao.observeScheduleEntries(
                             scheduledStartIso = scheduledStartIso,
                             scheduledEndIso = scheduledEndIso,
                             manualStartEpochMillis = manualStartEpochMillis,
                             manualEndEpochMillis = manualEndEpochMillis,
                         ).map { entries ->
-                            entries.map { it.toMedicationLogEntryModel() }
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         },
                         homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
                             onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
                         ).map { entries ->
-                            entries.map { it.toMedicationLogEntryModel() }
+                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         },
                         homeDao.observeProfile().map { profile ->
                             profile?.toUserProfileModel() ?: UserProfile()
@@ -286,12 +292,16 @@ class HomeRepository @Inject constructor(
                                 startEpochMillis = pkStartEpochMillis,
                                 endEpochMillis = pkEndEpochMillis,
                             ).map { entries ->
-                                entries.map { it.toMedicationLogEntryModel() }
+                                val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                                entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                             },
                             homeDao.observeLatestEstradiolEntryOnOrBefore(
                                 onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
                             ).map { entry ->
-                                entry?.toMedicationLogEntryModel()
+                                val medicinesByUuid = database.resolveMedicinesForEntries(
+                                    listOfNotNull(entry)
+                                )
+                                entry?.toMedicationLogEntryModel(medicinesByUuid)
                             },
                         ) { basics, realPkEntries, latestEstradiolEntry ->
                             val simulationEntries = buildEstradiolPkSimulationEntries(

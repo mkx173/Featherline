@@ -85,15 +85,7 @@ interface HomeDao {
                 (newer.sourceGroupUuid IS NULL AND entry.sourceGroupUuid IS NULL)
               )
               AND newer.applicationType = entry.applicationType
-              AND newer.selectionKind = entry.selectionKind
-              AND (
-                newer.medicationKey = entry.medicationKey OR
-                (newer.medicationKey IS NULL AND entry.medicationKey IS NULL)
-              )
-              AND (
-                newer.customMedicationName = entry.customMedicationName OR
-                (newer.customMedicationName IS NULL AND entry.customMedicationName IS NULL)
-              )
+              AND newer.medicineUuid = entry.medicineUuid
               AND (
                 newer.appliedAtEpochMillis > entry.appliedAtEpochMillis OR
                 (
@@ -123,15 +115,7 @@ interface HomeDao {
                 (newer.sourceGroupUuid IS NULL AND entry.sourceGroupUuid IS NULL)
               )
               AND newer.applicationType = entry.applicationType
-              AND newer.selectionKind = entry.selectionKind
-              AND (
-                newer.medicationKey = entry.medicationKey OR
-                (newer.medicationKey IS NULL AND entry.medicationKey IS NULL)
-              )
-              AND (
-                newer.customMedicationName = entry.customMedicationName OR
-                (newer.customMedicationName IS NULL AND entry.customMedicationName IS NULL)
-              )
+              AND newer.medicineUuid = entry.medicineUuid
               AND (
                 newer.appliedAtEpochMillis > entry.appliedAtEpochMillis OR
                 (

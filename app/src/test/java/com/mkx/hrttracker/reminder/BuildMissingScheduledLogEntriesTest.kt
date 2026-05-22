@@ -1,15 +1,15 @@
 package com.mkx.hrttracker.reminder
 
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,8 +72,11 @@ class BuildMissingScheduledLogEntriesTest {
             medicationCount = 2,
         )
         val slot = group.toReminderSlot(scheduledAt)
+        val templateMedication = group.medications.first()
         val existingEntry = testMedicationLogEntry(
-            details = group.medications.first().details,
+            medicine = templateMedication.medicine,
+            applicationType = templateMedication.applicationType,
+            doseInstruction = templateMedication.doseInstruction,
             sourceGroupUuid = group.uuid,
             appliedAt = testInstant(scheduledAt.plusMinutes(1)),
             scheduledFor = scheduledAt,
@@ -111,11 +114,9 @@ class BuildMissingScheduledLogEntriesTest {
             ),
             medications = listOf(
                 testMedicationGroupMedication(
-                    details = testCatalogMedicationDetails(
-                        key = MedicationKey.ESTRADIOL,
-                        applicationType = MedicationApplicationType.ORAL,
-                        dose = MedicationDose.MgAsMedicine(2.0),
-                    ),
+                    medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.WholeUnit,
                     count = medicationCount,
                 )
             ),

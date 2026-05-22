@@ -9,13 +9,11 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelection
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -228,7 +226,9 @@ class MedicationGroupRepositoryTest {
             medications = listOf(
                 MedicationGroupMedicationInput(
                     uuid = null,
-                    details = testMedicationDetails(),
+                    medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000"),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = 1,
                 )
             ),
@@ -1102,6 +1102,51 @@ class MedicationGroupRepositoryTest {
         }
     }
 
+    @Test
+    fun saveGroup_rejectsMedicineUuidChangeWhenGroupHasLogs() = runTest {
+        val groupUuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000")
+        val itemUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000000")
+        val originalMedicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        val replacementMedicineUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000000")
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { medicationGroupDao.getGroup(groupUuid.toString()) } returns testGroupWithItem(
+            groupUuid = groupUuid,
+            itemUuid = itemUuid,
+            medicineUuid = originalMedicineUuid,
+        )
+        coEvery { medicationLogDao.getEntryCountForGroup(groupUuid.toString()) } returns 1
+
+        assertThrows(LockedMedicationGroupSlotRepointException::class.java) {
+            runTest {
+                repository.saveGroup(
+                    uuid = groupUuid,
+                    name = "Locked group",
+                    colorKey = MedicationGroupColorKey.ROSE,
+                    schedule = MedicationGroupScheduleInput(
+                        type = MedicationGroupScheduleType.WEEKLY,
+                        interval = 1,
+                        since = LocalDate.of(2026, 5, 22),
+                        weeklyDaysOfWeek = setOf(java.time.DayOfWeek.FRIDAY),
+                        times = listOf(LocalTime.of(8, 0)),
+                    ),
+                    medications = listOf(
+                        MedicationGroupMedicationInput(
+                            uuid = itemUuid,
+                            medicineUuid = replacementMedicineUuid,
+                            applicationType = MedicationApplicationType.ORAL,
+                            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                            count = 1,
+                        )
+                    ),
+                )
+            }
+        }
+    }
+
     private fun testGroupEntity(
         groupUuid: UUID,
         times: List<LocalTime>,
@@ -1154,33 +1199,39 @@ class MedicationGroupRepositoryTest {
     private fun testGroupItemEntity(
         uuid: String,
         groupUuid: String,
+        medicineUuid: String? = "aaaaaaaa-0000-0000-0000-000000000000",
     ): MedicationGroupItemEntity {
         return MedicationGroupItemEntity(
             uuid = uuid,
             groupUuid = groupUuid,
             sortOrder = 0,
             count = 1,
-            category = "ESTRADIOL",
+            medicineUuid = medicineUuid,
             applicationType = "ORAL",
-            selectionKind = "CATALOG",
-            medicationKey = "ESTRADIOL",
-            customMedicationName = null,
-            doseKind = "MG_AS_MEDICINE",
-            doseValueMg = 2.0,
-            customDoseUnit = "MG",
-            doseValuePercent = null,
+            doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+            tabletFractionNumerator = 1,
+            tabletFractionDenominator = 1,
+            doseVolumeMl = null,
             doseWeightGrams = null,
-            doseReleaseRateMcgPerDay = null,
             gelApplicationArea = "DEFAULT",
         )
     }
 
-    private fun testMedicationDetails(): MedicationDetails {
-        return MedicationDetails(
-            category = MedicationKey.ESTRADIOL.category,
-            applicationType = MedicationApplicationType.ORAL,
-            selection = MedicationSelection.Catalog(MedicationKey.ESTRADIOL),
-            dose = MedicationDose.MgAsMedicine(2.0),
+    private fun testGroupWithItem(
+        groupUuid: UUID,
+        itemUuid: UUID,
+        medicineUuid: UUID,
+    ): MedicationGroupWithItemsEntity {
+        return testGroupEntity(
+            groupUuid = groupUuid,
+            times = listOf(LocalTime.of(8, 0)),
+            items = listOf(
+                testGroupItemEntity(
+                    uuid = itemUuid.toString(),
+                    groupUuid = groupUuid.toString(),
+                    medicineUuid = medicineUuid.toString(),
+                ),
+            ),
         )
     }
 }

@@ -10,11 +10,11 @@ import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultAnalyte
 import com.mkx.hrttracker.model.bloodtest.BloodTestResultInput
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.testCatalogMedicationDetails
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
+import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -55,11 +55,9 @@ class BloodTestRepositoryTest {
         val customAnalyteUuid = UUID.randomUUID()
         coEvery { medicationLogRepository.getLatestEstradiolEntryOnOrBefore(any()) } returns
             testMedicationLogEntry(
-                details = testCatalogMedicationDetails(
-                    key = MedicationKey.ESTRADIOL,
-                    applicationType = MedicationApplicationType.ORAL,
-                    dose = MedicationDose.MgAsMedicine(2.0)
-                ),
+                medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.WholeUnit,
                 sourceGroupUuid = null,
                 appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
             )

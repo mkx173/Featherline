@@ -313,8 +313,11 @@ internal fun buildMissingScheduledLogEntries(
             if (missingCount <= 0) {
                 return@mapNotNull null
             }
+            val templateMedication = medications.first()
             MedicationLogEntryInput(
-                medication = medications.first().details,
+                medicineUuid = templateMedication.medicineUuid,
+                applicationType = templateMedication.applicationType,
+                doseInstruction = templateMedication.doseInstruction,
                 sourceGroupUuid = group.uuid,
                 scheduleTimeUuid = slot.scheduleTimeUuid,
                 appliedAt = appliedAt.atZone(zoneId).toInstant(),

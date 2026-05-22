@@ -328,7 +328,9 @@ internal fun buildPlanBatchAddEntryPlan(
 
         group.medications.forEach { medication ->
             entries += MedicationLogEntryInput(
-                medication = medication.details,
+                medicineUuid = medication.medicineUuid,
+                applicationType = medication.applicationType,
+                doseInstruction = medication.doseInstruction,
                 sourceGroupUuid = if (isBeforePlanStart) null else group.uuid,
                 scheduleTimeUuid = if (isBeforePlanStart) null else scheduleTime.uuid,
                 appliedAt = occurrence.atZone(zoneId).toInstant(),

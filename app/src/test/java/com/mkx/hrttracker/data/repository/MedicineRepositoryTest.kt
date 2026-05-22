@@ -18,8 +18,10 @@ import io.mockk.slot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -205,6 +207,56 @@ class MedicineRepositoryTest {
         }
 
         coVerify(exactly = 0) { dao.updateDisplayName(any(), any(), any()) }
+    }
+
+    @Test
+    fun updatePreparation_rejectsLockedMedicine() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { dao.getByUuid(uuid.toString()) } returns medicineEntity(uuid = uuid.toString())
+        coEvery { dao.logReferenceCount(uuid.toString()) } returns 1
+
+        assertThrows(MedicineLockedException::class.java) {
+            kotlinx.coroutines.test.runTest {
+                repository.updatePreparation(
+                    uuid = uuid,
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+                    now = Instant.parse("2026-05-22T00:00:00Z"),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun archive_rejectsMedicineReferencedByActiveGroup() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { dao.activeGroupReferenceCount(uuid.toString()) } returns 1
+
+        assertThrows(MedicineReferencedByActiveGroupException::class.java) {
+            kotlinx.coroutines.test.runTest {
+                repository.archive(uuid, now = Instant.parse("2026-05-22T00:00:00Z"))
+            }
+        }
+    }
+
+    @Test
+    fun isLocked_trueExactlyWhenALogReferencesTheMedicine() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { dao.logReferenceCount(uuid.toString()) } returnsMany listOf(0, 1)
+
+        assertFalse(repository.isLocked(uuid))
+        assertTrue(repository.isLocked(uuid))
     }
 
     @Test

@@ -1,11 +1,14 @@
 package com.mkx.hrttracker.model.pk
 
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
+import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDose
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
+import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -1098,6 +1101,41 @@ object ThreeCompartmentModel {
     }
 }
 
+private data class PkDoseAmounts(val doseMg: Double, val releaseRateMcgPerDay: Double?)
+
+private fun pkDoseAmounts(
+    medicine: Medicine?,
+    doseInstruction: DoseInstruction,
+    route: PkRoute,
+    snapshotEquivalentE2Mg: Double?,
+    count: Int,
+): PkDoseAmounts {
+    val multiplier = count.coerceAtLeast(1)
+    // medicine is null only for PATCH_OFF (route PATCH_REMOVE), which uses neither branch.
+    val patchSpec = (medicine?.preparation as? MedicinePreparation.Patch)?.specification
+    val perUnitDoseMg = when (route) {
+        PkRoute.PATCH_REMOVE -> 0.0
+        PkRoute.PATCH_APPLY -> when (patchSpec) {
+            is MedicinePreparation.PatchSpecification.TotalMg -> patchSpec.valueMg
+            is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> 0.0
+            null -> 0.0
+        }
+        // Non-patch routes: prefer the log snapshot; re-derive for planned entries.
+        else -> snapshotEquivalentE2Mg
+            ?: medicine?.let { DoseInstructionCalculator.perUnitEquivalentE2Mg(it, doseInstruction) }
+            ?: 0.0
+    }
+    val releaseRateMcgPerDay =
+        (patchSpec as? MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay)
+            ?.takeIf { route == PkRoute.PATCH_APPLY }
+            ?.valueMcgPerDay
+            ?.times(multiplier)
+    return PkDoseAmounts(
+        doseMg = perUnitDoseMg * multiplier,
+        releaseRateMcgPerDay = releaseRateMcgPerDay,
+    )
+}
+
 private fun MedicationLogEntry.toEstradiolPkDoseEvent(
     anchor: Instant,
     isPlanned: Boolean = false,
@@ -1105,32 +1143,26 @@ private fun MedicationLogEntry.toEstradiolPkDoseEvent(
     if (category != MedicationCategory.ESTRADIOL) {
         return null
     }
-
-    val compound = details.toEstradiolPkCompound() ?: return null
     val route = applicationType.toPkRoute()
-    val doseMg = when (route) {
-        PkRoute.PATCH_REMOVE -> 0.0
-        PkRoute.PATCH_APPLY -> when (dose) {
-            is MedicationDose.PatchReleaseRateMcgPerDay -> 0.0
-            else -> activeEstradiolDoseMg()
-        }
-        PkRoute.INJECTION -> activeEstradiolDoseMg()
-        else -> activeEstradiolDoseMg()
-    } * count.coerceAtLeast(1)
-
-    val releaseRateMcgPerDay = (dose as? MedicationDose.PatchReleaseRateMcgPerDay)
-        ?.valueMcgPerDay
-        ?.times(count.coerceAtLeast(1))
-
+    // PATCH_OFF carries no medicine; a removal is always estradiol (the only patch).
+    val compound = medicine?.toEstradiolPkCompound()
+        ?: if (route == PkRoute.PATCH_REMOVE) PkCompound.E2 else return null
+    val amounts = pkDoseAmounts(
+        medicine = medicine,
+        doseInstruction = doseInstruction,
+        route = route,
+        snapshotEquivalentE2Mg = equivalentE2Mg,
+        count = count,
+    )
     return PkDoseEvent(
         id = uuid,
         sourceGroupUuid = sourceGroupUuid,
         hormone = PkHormone.ESTRADIOL,
         route = route,
         timeH = Duration.between(anchor, appliedAt).toMillis() / 3_600_000.0,
-        doseMg = doseMg,
+        doseMg = amounts.doseMg,
         compound = compound,
-        releaseRateMcgPerDay = releaseRateMcgPerDay,
+        releaseRateMcgPerDay = amounts.releaseRateMcgPerDay,
         areaCm2 = DefaultGelAreaCm2,
         isPlanned = isPlanned,
     )
@@ -1151,8 +1183,8 @@ private fun MedicationApplicationType.toPkRoute(): PkRoute {
     }
 }
 
-private fun com.mkx.hrttracker.model.medication.MedicationDetails.toEstradiolPkCompound(): PkCompound? {
-    val medicationKey = (selection as? MedicationSelection.Catalog)?.medicationKey ?: return null
+private fun Medicine.toEstradiolPkCompound(): PkCompound? {
+    val medicationKey = (selection as? MedicineSelection.Catalog)?.medicationKey ?: return null
     return when (medicationKey) {
         MedicationKey.ESTRADIOL -> PkCompound.E2
         MedicationKey.ESTRADIOL_VALERATE -> PkCompound.EV
@@ -1162,46 +1194,6 @@ private fun com.mkx.hrttracker.model.medication.MedicationDetails.toEstradiolPkC
         MedicationKey.ESTRADIOL_GEL -> PkCompound.E2
         MedicationKey.ESTRADIOL_PATCH -> PkCompound.E2
         else -> null
-    }
-}
-
-private fun MedicationLogEntry.activeEstradiolDoseMg(): Double {
-    val storedDose = dosageMgAsEstradiol
-    if (storedDose != null && storedDose.isFinite() && storedDose >= 0.0) {
-        return storedDose
-    }
-
-    val medicationKey = (selection as? MedicationSelection.Catalog)?.medicationKey ?: return 0.0
-    val valueMg = when (val resolvedDose = dose) {
-        is MedicationDose.MgAsMedicine -> resolvedDose.valueMg
-        is MedicationDose.GelEquivalentEstradiolMg -> resolvedDose.valueMg
-        is MedicationDose.GelPercentAndWeight -> resolvedDose.percent * resolvedDose.weightGrams * 10.0
-        is MedicationDose.PatchTotalMg -> resolvedDose.valueMg
-        is MedicationDose.PatchReleaseRateMcgPerDay,
-        MedicationDose.None -> return 0.0
-    }
-
-    return valueMg * when (medicationKey) {
-        MedicationKey.ESTRADIOL -> 1.0
-        MedicationKey.ESTRADIOL_VALERATE -> PkCatalog.activeFactor(PkCompound.EV)
-        MedicationKey.ESTRADIOL_BENZOATE -> PkCatalog.activeFactor(PkCompound.EB)
-        MedicationKey.ESTRADIOL_CYPIONATE -> PkCatalog.activeFactor(PkCompound.EC)
-        MedicationKey.ESTRADIOL_ENANTHATE -> PkCatalog.activeFactor(PkCompound.EN)
-        MedicationKey.ESTRADIOL_GEL -> 1.0
-        MedicationKey.ESTRADIOL_PATCH -> 1.0
-        else -> 0.0
-    }
-}
-
-private fun MedicationLogEntry.medicineDoseMg(): Double {
-    val resolvedDose = dose
-    return when (resolvedDose) {
-        is MedicationDose.MgAsMedicine -> resolvedDose.valueMg
-        is MedicationDose.GelEquivalentEstradiolMg -> resolvedDose.valueMg
-        is MedicationDose.GelPercentAndWeight -> resolvedDose.percent * resolvedDose.weightGrams * 10.0
-        is MedicationDose.PatchTotalMg -> resolvedDose.valueMg
-        is MedicationDose.PatchReleaseRateMcgPerDay,
-        MedicationDose.None -> 0.0
     }
 }
 

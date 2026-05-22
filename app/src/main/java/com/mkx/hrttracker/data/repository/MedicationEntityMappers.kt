@@ -1,27 +1,24 @@
 package com.mkx.hrttracker.data.repository
 
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.data.local.UserProfileEntity
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDetails
-import com.mkx.hrttracker.model.medication.MedicationDose
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
-import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
-import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
-import com.mkx.hrttracker.model.medication.MedicationSelection
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import java.time.DayOfWeek
@@ -31,7 +28,9 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.UUID
 
-internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(): MedicationGroup {
+internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(
+    medicinesByUuid: Map<String, Medicine>,
+): MedicationGroup {
     val scheduleTimeSlots = scheduleTimes
         .sortedBy(MedicationGroupScheduleTimeEntity::sortOrder)
         .map { time ->
@@ -56,11 +55,7 @@ internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(): Medication
             timeSlots = scheduleTimeSlots,
         ),
         medications = items.sortedBy(MedicationGroupItemEntity::sortOrder).map { item ->
-            MedicationGroupMedication(
-                uuid = UUID.fromString(item.uuid),
-                details = item.toMedicationDetailsModel(),
-                count = item.count.coerceAtLeast(1),
-            )
+            item.toMedicationGroupMedicationModel(medicinesByUuid)
         },
         notificationsEnabled = group.notificationsEnabled,
         createdAt = Instant.ofEpochMilli(group.createdAtEpochMillis),
@@ -73,22 +68,40 @@ internal fun MedicationGroupWithItemsEntity.toMedicationGroupModel(): Medication
     )
 }
 
-internal fun MedicationGroupItemEntity.toMedicationDetailsModel(): MedicationDetails {
-    return MedicationDetails(
-        category = MedicationCategory.fromStorageValue(category),
+internal fun MedicationGroupItemEntity.toMedicationGroupMedicationModel(
+    medicinesByUuid: Map<String, Medicine>,
+): MedicationGroupMedication {
+    // PATCH_OFF slots carry medicineUuid = null; resolve only when present.
+    val medicine = medicineUuid?.let { uuid ->
+        checkNotNull(medicinesByUuid[uuid]) {
+            "Missing medicine $uuid for medication group item $uuid."
+        }
+    }
+    return MedicationGroupMedication(
+        uuid = UUID.fromString(uuid),
+        medicine = medicine,
         applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-        selection = toMedicationSelection(),
-        dose = toMedicationDose(),
-        gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
-        customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
+        doseInstruction = toDoseInstruction(),
+        count = count.coerceAtLeast(1),
     )
 }
 
-internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(): MedicationLogEntry {
+internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(
+    medicinesByUuid: Map<String, Medicine>,
+): MedicationLogEntry {
+    // PATCH_OFF logs carry medicineUuid = null; resolve only when present.
+    val medicine = medicineUuid?.let { uuid ->
+        checkNotNull(medicinesByUuid[uuid]) {
+            "Missing medicine $uuid for medication log ${this.uuid}."
+        }
+    }
     return MedicationLogEntry(
         uuid = UUID.fromString(uuid),
-        details = toMedicationDetailsModel(),
-        dosageMgAsEstradiol = dosageMgAsEstradiol,
+        medicine = medicine,
+        category = MedicationCategory.fromStorageValue(category),
+        applicationType = MedicationApplicationType.fromStorageValue(applicationType),
+        doseInstruction = toDoseInstruction(),
+        equivalentE2Mg = equivalentE2Mg,
         sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
         scheduleTimeUuid = scheduleTimeUuid?.let(UUID::fromString),
         appliedAt = Instant.ofEpochMilli(appliedAtEpochMillis),
@@ -96,6 +109,43 @@ internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(): MedicationLog
         scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
         count = count.coerceAtLeast(1),
     )
+}
+
+/**
+ * Loads every [Medicine] referenced by the given group items, keyed by uuid
+ * string. PATCH_OFF slots carry a null medicineUuid and contribute nothing.
+ */
+internal suspend fun HrtTrackerDatabase.resolveMedicinesForGroups(
+    groups: List<MedicationGroupWithItemsEntity>,
+): Map<String, Medicine> {
+    val medicineUuids = groups
+        .flatMap { group -> group.items }
+        .mapNotNull(MedicationGroupItemEntity::medicineUuid)
+        .distinct()
+    return loadMedicinesByUuid(medicineUuids)
+}
+
+/**
+ * Loads every [Medicine] referenced by the given log entries, keyed by uuid
+ * string. PATCH_OFF logs carry a null medicineUuid and contribute nothing.
+ */
+internal suspend fun HrtTrackerDatabase.resolveMedicinesForEntries(
+    entities: List<MedicationLogEntryEntity>,
+): Map<String, Medicine> {
+    val medicineUuids = entities
+        .mapNotNull(MedicationLogEntryEntity::medicineUuid)
+        .distinct()
+    return loadMedicinesByUuid(medicineUuids)
+}
+
+private suspend fun HrtTrackerDatabase.loadMedicinesByUuid(
+    medicineUuids: List<String>,
+): Map<String, Medicine> {
+    if (medicineUuids.isEmpty()) {
+        return emptyMap()
+    }
+    return medicineDao().getByUuids(medicineUuids)
+        .associate { entity: MedicineEntity -> entity.uuid to entity.toMedicineModel() }
 }
 
 internal fun UserProfileEntity.toUserProfileModel(): UserProfile {
@@ -107,90 +157,59 @@ internal fun UserProfileEntity.toUserProfileModel(): UserProfile {
     )
 }
 
-private fun MedicationLogEntryEntity.toMedicationDetailsModel(): MedicationDetails {
-    return MedicationDetails(
-        category = MedicationCategory.fromStorageValue(category),
-        applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-        selection = toMedicationSelection(),
-        dose = toMedicationDose(),
-        gelApplicationArea = MedicationGelApplicationArea.fromStorageValue(gelApplicationArea),
-        customDoseUnit = MedicationDoseUnit.fromStorageValue(customDoseUnit),
-    )
-}
-
-private fun MedicationGroupItemEntity.toMedicationSelection(): MedicationSelection {
-    return when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
-        MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
-            medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
-        )
-
-        MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
-            medicationName = customMedicationName.orEmpty()
-        )
-    }
-}
-
-private fun MedicationLogEntryEntity.toMedicationSelection(): MedicationSelection {
-    return when (MedicationSelectionKind.fromStorageValue(selectionKind)) {
-        MedicationSelectionKind.CATALOG -> MedicationSelection.Catalog(
-            medicationKey = checkNotNull(MedicationKey.fromStorageValue(medicationKey))
-        )
-
-        MedicationSelectionKind.CUSTOM -> MedicationSelection.Custom(
-            medicationName = customMedicationName.orEmpty()
-        )
-    }
-}
-
-private fun MedicationGroupItemEntity.toMedicationDose(): MedicationDose {
-    return medicationDoseFromStorage(
-        doseKind = doseKind,
-        doseValueMg = doseValueMg,
-        doseValuePercent = doseValuePercent,
+internal fun MedicationGroupItemEntity.toDoseInstruction(): DoseInstruction {
+    return doseInstructionFromStorage(
+        kind = doseInstructionKind,
+        tabletFractionNumerator = tabletFractionNumerator,
+        tabletFractionDenominator = tabletFractionDenominator,
+        doseVolumeMl = doseVolumeMl,
         doseWeightGrams = doseWeightGrams,
-        doseReleaseRateMcgPerDay = doseReleaseRateMcgPerDay,
     )
 }
 
-private fun MedicationLogEntryEntity.toMedicationDose(): MedicationDose {
-    return medicationDoseFromStorage(
-        doseKind = doseKind,
-        doseValueMg = doseValueMg,
-        doseValuePercent = doseValuePercent,
+internal fun MedicationLogEntryEntity.toDoseInstruction(): DoseInstruction {
+    return doseInstructionFromStorage(
+        kind = doseInstructionKind,
+        tabletFractionNumerator = tabletFractionNumerator,
+        tabletFractionDenominator = tabletFractionDenominator,
+        doseVolumeMl = doseVolumeMl,
         doseWeightGrams = doseWeightGrams,
-        doseReleaseRateMcgPerDay = doseReleaseRateMcgPerDay,
     )
 }
 
-private fun medicationDoseFromStorage(
-    doseKind: String?,
-    doseValueMg: Double?,
-    doseValuePercent: Double?,
+internal fun doseInstructionFromStorage(
+    kind: String?,
+    tabletFractionNumerator: Int?,
+    tabletFractionDenominator: Int?,
+    doseVolumeMl: Double?,
     doseWeightGrams: Double?,
-    doseReleaseRateMcgPerDay: Double?,
-): MedicationDose {
-    return when (MedicationDoseKind.fromStorageValue(doseKind)) {
-        MedicationDoseKind.MG_AS_MEDICINE -> MedicationDose.MgAsMedicine(
-            valueMg = checkNotNull(doseValueMg)
+): DoseInstruction {
+    return when (DoseInstructionKind.fromStorageValue(kind)) {
+        DoseInstructionKind.TABLET_FRACTION -> DoseInstruction.TabletFraction(
+            numerator = checkNotNull(tabletFractionNumerator),
+            denominator = checkNotNull(tabletFractionDenominator),
         )
-
-        MedicationDoseKind.GEL_EQUIVALENT_ESTRADIOL_MG -> MedicationDose.GelEquivalentEstradiolMg(
-            valueMg = checkNotNull(doseValueMg)
-        )
-
-        MedicationDoseKind.GEL_PERCENT_AND_WEIGHT -> MedicationDose.GelPercentAndWeight(
-            percent = checkNotNull(doseValuePercent),
-            weightGrams = checkNotNull(doseWeightGrams),
-        )
-
-        MedicationDoseKind.PATCH_TOTAL_MG -> MedicationDose.PatchTotalMg(
-            valueMg = checkNotNull(doseValueMg)
-        )
-
-        MedicationDoseKind.PATCH_RELEASE_RATE_MCG_DAY -> MedicationDose.PatchReleaseRateMcgPerDay(
-            valueMcgPerDay = checkNotNull(doseReleaseRateMcgPerDay)
-        )
-
-        MedicationDoseKind.NONE -> MedicationDose.None
+        DoseInstructionKind.WHOLE_UNIT -> DoseInstruction.WholeUnit
+        DoseInstructionKind.VOLUME_ML -> DoseInstruction.VolumeMl(checkNotNull(doseVolumeMl))
+        DoseInstructionKind.WEIGHT_GRAMS -> DoseInstruction.WeightGrams(checkNotNull(doseWeightGrams))
+        DoseInstructionKind.NOOP -> DoseInstruction.Noop
     }
 }
+
+internal fun DoseInstruction.toStorageFields(): DoseInstructionStorageFields {
+    return DoseInstructionStorageFields(
+        doseInstructionKind = kind.name,
+        tabletFractionNumerator = (this as? DoseInstruction.TabletFraction)?.numerator,
+        tabletFractionDenominator = (this as? DoseInstruction.TabletFraction)?.denominator,
+        doseVolumeMl = (this as? DoseInstruction.VolumeMl)?.valueMl,
+        doseWeightGrams = (this as? DoseInstruction.WeightGrams)?.valueGrams,
+    )
+}
+
+internal data class DoseInstructionStorageFields(
+    val doseInstructionKind: String,
+    val tabletFractionNumerator: Int?,
+    val tabletFractionDenominator: Int?,
+    val doseVolumeMl: Double?,
+    val doseWeightGrams: Double?,
+)
