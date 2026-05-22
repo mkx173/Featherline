@@ -221,7 +221,7 @@ graph TD
   midnight[WidgetMidnightRefreshScheduler<br/>explicit midnight alarm] --> datereceiver
   worker[WidgetDailyRefreshWorker<br/>15-min periodic + on start] --> repo
   worker -.staleness-detected.-> homesnapshot
-  datereceiver[WidgetDateReceiver<br/>DATE/TIME/TZ_CHANGED] --> homesnapshot
+  datereceiver[WidgetDateReceiver<br/>BOOT + DATE/TIME/TZ] --> homesnapshot
   quicklog[QuickLogActionCallback<br/>widget tap] --> mutation
   mutation[MedicationLogRepository<br/>.saveNewEntries] --> homesnapshot
   manager[HomeWidgetManager] --> repo[WidgetSnapshotRepository]
@@ -263,14 +263,16 @@ graph TD
 - **Date / time / timezone events.**
   [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
   is a manifest-declared `BroadcastReceiver` for the widget-owned
-  midnight alarm plus best-effort `ACTION_DATE_CHANGED`,
-  `ACTION_TIME_CHANGED`, and `ACTION_TIMEZONE_CHANGED`. Android 8+
-  does not exempt `ACTION_DATE_CHANGED` manifest receivers from
-  background broadcast limits, so `HomeWidgetManager` also arms
+  midnight alarm, `BOOT_COMPLETED`, plus best-effort
+  `ACTION_DATE_CHANGED`, `ACTION_TIME_CHANGED`, and
+  `ACTION_TIMEZONE_CHANGED`. Android 8+ does not exempt
+  `ACTION_DATE_CHANGED` manifest receivers from background broadcast
+  limits, so `HomeWidgetManager` also arms
   [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
-  for the next local midnight. The receiver re-arms that alarm and uses
-  `goAsync()` to force a home refresh, again leaning on the snapshot
-  observer to fan out.
+  for the next local midnight. A reboot clears that exact alarm, so the
+  receiver re-arms it on every delivery — including `BOOT_COMPLETED` —
+  and uses `goAsync()` to force a home refresh, again leaning on the
+  snapshot observer to fan out.
 - **12-/24-hour preference toggles.** Android does not broadcast when
   the user flips `Settings.System.TIME_12_24`, but the widget snapshot
   carries pre-formatted trailing-time strings whose 12-/24-hour shape
