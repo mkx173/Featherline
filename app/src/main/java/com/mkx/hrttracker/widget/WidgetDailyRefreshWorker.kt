@@ -24,6 +24,7 @@ class WidgetDailyRefreshWorker(
         val projectionExpired = snapshot == null ||
             snapshot.pkProjection?.toPkProjectionResult(now, zoneId) == null
 
+        val anchorDateStale = snapshot?.isAnchoredBefore(now) == true
         val doseStatusStale = snapshot?.doseRows?.any { row ->
             when (row.status) {
                 WidgetDoseStatus.UPCOMING ->
@@ -34,7 +35,7 @@ class WidgetDailyRefreshWorker(
             }
         } == true
 
-        if (projectionExpired || doseStatusStale) {
+        if (projectionExpired || anchorDateStale || doseStatusStale) {
             // Force home refresh; HomeWidgetManager's snapshot observer rebuilds the widget.
             homeSnapshotRepository.refreshHomeSnapshotIfNeeded(now = now, force = true)
         } else {
@@ -43,3 +44,6 @@ class WidgetDailyRefreshWorker(
         return Result.success()
     }
 }
+
+internal fun WidgetSnapshotRecord.isAnchoredBefore(now: LocalDateTime): Boolean =
+    anchorDateEpochDay < now.toLocalDate().toEpochDay()

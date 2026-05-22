@@ -57,6 +57,7 @@ class WidgetSnapshotBuilderTest {
         assertEquals("Bicalutamide", todayRow.medicationName)
         assertEquals(1, snapshot.totalCount)
         assertEquals(0, snapshot.doneCount)
+        assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
     }
 
     @Test

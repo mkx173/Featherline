@@ -95,7 +95,7 @@ the IV length, the IV, and then the ciphertext. A
 rather than crashing the launcher.
 
 Wire-format compatibility is gated by `WIDGET_SNAPSHOT_SCHEMA_VERSION`
-(currently `11`). `observeSnapshot()` and `readSnapshot()` both filter
+(currently `12`). `observeSnapshot()` and `readSnapshot()` both filter
 records whose `schemaVersion` doesn't match and log a diagnostic — the
 widget then falls back to its empty-setup composable rather than
 rendering against an obsolete shape.
@@ -203,7 +203,7 @@ at design time.
 
 ## Update triggers
 
-The widget snapshot is rewritten from five independent sources, all
+The widget snapshot is rewritten from six independent sources, all
 funnelled through `WidgetSnapshotRepository`:
 
 ```mermaid
@@ -211,6 +211,7 @@ graph TD
   homesnapshot[HomeSnapshotRepository<br/>.observeHomeSnapshot] --> manager
   settings[SettingsRepository<br/>.settingsState] --> manager
   timeformat[Settings.System.TIME_12_24<br/>ContentObserver] --> manager
+  midnight[WidgetMidnightRefreshScheduler<br/>explicit midnight alarm] --> datereceiver
   worker[WidgetDailyRefreshWorker<br/>15-min periodic + on start] --> repo
   worker -.staleness-detected.-> homesnapshot
   datereceiver[WidgetDateReceiver<br/>DATE/TIME/TZ_CHANGED] --> homesnapshot
@@ -244,16 +245,23 @@ graph TD
   [`WidgetDailyRefreshWorker`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetDailyRefreshWorker.kt)
   is a periodic `CoroutineWorker` enqueued every 15 minutes (plus one
   one-shot at app start). It reads the persisted snapshot, checks
-  whether the PK projection has expired or whether any row's
-  `UPCOMING`/`DUE_SOON` status should have transitioned by `now`, and
-  if so calls `homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force
-  = true)` — which routes back into the home-snapshot observer above.
-  Otherwise it just calls `updateAllHrtWidgets` to re-render against
-  the existing snapshot.
+  whether the snapshot's `anchorDateEpochDay` is before today's date,
+  whether the PK projection has expired, or whether any row's
+  `UPCOMING`/`DUE_SOON` status should have transitioned by `now`. If
+  any of those are true it calls
+  `homeSnapshotRepository.refreshHomeSnapshotIfNeeded(force = true)` —
+  which routes back into the home-snapshot observer above. Otherwise it
+  just calls `updateAllHrtWidgets` to re-render against the existing
+  snapshot.
 - **Date / time / timezone events.**
   [`WidgetDateReceiver`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetDateReceiver.kt)
-  is a manifest-declared `BroadcastReceiver` for `ACTION_DATE_CHANGED`,
-  `ACTION_TIME_CHANGED`, and `ACTION_TIMEZONE_CHANGED`. It uses
+  is a manifest-declared `BroadcastReceiver` for the widget-owned
+  midnight alarm plus best-effort `ACTION_DATE_CHANGED`,
+  `ACTION_TIME_CHANGED`, and `ACTION_TIMEZONE_CHANGED`. Android 8+
+  does not exempt `ACTION_DATE_CHANGED` manifest receivers from
+  background broadcast limits, so `HomeWidgetManager` also arms
+  [`WidgetMidnightRefreshScheduler`](https://github.com/mkx173/Featherline/blob/642ffa739a76211a3e9dd422d66f329296055bf2/app/src/main/java/com/mkx/hrttracker/widget/WidgetMidnightRefreshScheduler.kt)
+  for the next local midnight. The receiver re-arms that alarm and uses
   `goAsync()` to force a home refresh, again leaning on the snapshot
   observer to fan out.
 - **12-/24-hour preference toggles.** Android does not broadcast when

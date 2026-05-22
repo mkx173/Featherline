@@ -101,6 +101,7 @@ internal fun buildWidgetSnapshotRecord(
     return WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = zoneId.id,
+        anchorDateEpochDay = today.toEpochDay(),
         doneCount = todayScheduledRows.count { row -> row.status == WidgetDoseStatus.DONE },
         totalCount = todayScheduledRows.size,
         manualCount = manualRows.size,

@@ -148,7 +148,7 @@ class WidgetSnapshotStore @Inject constructor(
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 11
+internal const val WIDGET_SNAPSHOT_SCHEMA_VERSION = 12
 private const val TAG = "WidgetSnapshotStore"
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_widget_snapshot_key"

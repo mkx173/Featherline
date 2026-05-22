@@ -15,6 +15,7 @@ internal object WidgetSnapshotCodec {
             stream.writeInt(WIDGET_SNAPSHOT_CODEC_VERSION)
             stream.writeInt(record.schemaVersion)
             stream.writeString(record.zoneId)
+            stream.writeLong(record.anchorDateEpochDay)
             stream.writeInt(record.doneCount)
             stream.writeInt(record.totalCount)
             stream.writeInt(record.manualCount)
@@ -40,6 +41,7 @@ internal object WidgetSnapshotCodec {
             WidgetSnapshotRecord(
                 schemaVersion = stream.readInt(),
                 zoneId = stream.readString(),
+                anchorDateEpochDay = stream.readLong(),
                 doneCount = stream.readInt(),
                 totalCount = stream.readInt(),
                 manualCount = stream.readInt(),
@@ -188,6 +190,5 @@ internal object WidgetSnapshotCodec {
     }
 }
 
-private const val WIDGET_SNAPSHOT_CODEC_VERSION = 10
+private const val WIDGET_SNAPSHOT_CODEC_VERSION = 11
 private const val BYTE_MASK = 0xff
-

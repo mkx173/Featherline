@@ -60,6 +60,7 @@ class HomeWidgetManager @Inject constructor(
         // Run the worker logic once immediately on startup so the widget is never stale
         // after a long absence or a fresh install.
         workManager.enqueue(OneTimeWorkRequestBuilder<WidgetDailyRefreshWorker>().build())
+        scheduleNextWidgetDateRefresh(context, diagnosticsLogger = diagnosticsLogger)
         publishGeneratedWidgetPreviewsIfNeeded()
 
         appScope.launch {

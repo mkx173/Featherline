@@ -74,6 +74,7 @@ data class WidgetPkProjectionRecord(
 data class WidgetSnapshotRecord(
     val schemaVersion: Int,
     val zoneId: String,
+    val anchorDateEpochDay: Long,
     val doneCount: Int,
     val totalCount: Int,
     val manualCount: Int,
@@ -89,4 +90,3 @@ data class WidgetSnapshotRecord(
     val doseRows: List<WidgetDoseRow>,
     val pkProjection: WidgetPkProjectionRecord?,
 )
-

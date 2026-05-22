@@ -11,6 +11,7 @@ class WidgetSnapshotCodecTest {
     private val baseRecord = WidgetSnapshotRecord(
         schemaVersion = WIDGET_SNAPSHOT_SCHEMA_VERSION,
         zoneId = "UTC",
+        anchorDateEpochDay = LocalDateTime.of(2026, 5, 18, 0, 0, 0).toLocalDate().toEpochDay(),
         doneCount = 1,
         totalCount = 3,
         manualCount = 1,
@@ -164,6 +165,23 @@ class WidgetSnapshotCodecTest {
     fun `codec round-trips e2DisplayUnit`() {
         val record = baseRecord.copy(e2DisplayUnit = "pmol_l")
         assertEquals("pmol_l", WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).e2DisplayUnit)
+    }
+
+    @Test
+    fun `codec round-trips anchorDateEpochDay`() {
+        val record = baseRecord.copy(anchorDateEpochDay = LocalDateTime.of(2026, 5, 19, 0, 0).toLocalDate().toEpochDay())
+        assertEquals(
+            record.anchorDateEpochDay,
+            WidgetSnapshotCodec.decode(WidgetSnapshotCodec.encode(record)).anchorDateEpochDay,
+        )
+    }
+
+    @Test
+    fun staleDateCheck_marksOlderAnchorDateStale() {
+        val now = LocalDateTime.of(2026, 5, 19, 0, 1)
+
+        assertTrue(baseRecord.isAnchoredBefore(now))
+        assertFalse(baseRecord.copy(anchorDateEpochDay = now.toLocalDate().toEpochDay()).isAnchoredBefore(now))
     }
 
     @Test
