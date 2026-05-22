@@ -227,10 +227,8 @@ class HrtWidgetLargeReceiver : GlanceAppWidgetReceiver() {
 // ── Per-device baseline scaling ───────────────────────────────────────────────
 
 // Launcher cell sizes vary by device, so a 2-cell-tall widget renders at different
-// dp heights on different launchers. We capture the first-render height per widget
-// type as the device's baseline (assumed to be the XML targetCell* allocation) and
-// reuse it forever, so resize doesn't change the visual scale and the scale stays
-// consistent across devices.
+// dp heights on different launchers. We capture the first-render target-cell height
+// per widget type and reuse it forever, so resize doesn't change the visual scale.
 private const val MEDIUM_WIDGET_PREVIEW_WIDTH_DP = 306
 private const val LARGE_WIDGET_PREVIEW_WIDTH_DP = 624
 private const val WIDGET_PREVIEW_HEIGHT_DP = 276
@@ -245,7 +243,8 @@ private const val WIDGET_BASELINE_KEY_LARGE = "large_height_dp"
 // laid-out widget size seen in @GlancePreview / Live Preview.
 private const val WIDGET_BASELINE_REFERENCE_DP = 276f
 // Reject obviously bogus first-render sizes (e.g. transient 0dp loading frames)
-// so we don't permanently lock the device baseline to nonsense.
+// so we don't permanently lock the device baseline to nonsense. Smaller-but-sane
+// resize frames are handled by flooring the baseline to WIDGET_BASELINE_REFERENCE_DP.
 private const val WIDGET_BASELINE_MIN_SANE_DP = 50f
 private const val WIDGET_BASELINE_MAX_SANE_DP = 400f
 private val LocalPreviewBaselineHeight = compositionLocalOf<Float?> { null }
@@ -256,22 +255,46 @@ private val LocalPreviewE2Text = compositionLocalOf<String?> { null }
 
 @Composable
 private fun widgetScale(widgetKey: String): Float {
-    val baselineDp = LocalPreviewBaselineHeight.current ?: run {
+    val previewBaselineDp = LocalPreviewBaselineHeight.current
+    val baselineDp = previewBaselineDp ?: run {
         val context = LocalContext.current
         val currentHeightDp = LocalSize.current.height.value
         val prefs = context.getSharedPreferences(WIDGET_BASELINE_PREFS, Context.MODE_PRIVATE)
         val storedDp = prefs.getFloat(widgetKey, 0f)
-        when {
-            storedDp > 0f -> storedDp
-            currentHeightDp in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP -> {
-                SideEffect { prefs.edit { putFloat(widgetKey, currentHeightDp) } }
-                currentHeightDp
-            }
-            // Transient fallback; do not persist so a later render can capture a sane size.
-            else -> WIDGET_BASELINE_REFERENCE_DP
+        val resolvedDp = resolveWidgetBaselineHeightDp(storedDp, currentHeightDp)
+        if (shouldPersistWidgetBaselineHeight(storedDp, currentHeightDp, resolvedDp)) {
+            SideEffect { prefs.edit { putFloat(widgetKey, resolvedDp) } }
         }
+        resolvedDp
     }
     return (baselineDp / WIDGET_BASELINE_REFERENCE_DP) * LocalWidgetScale.current
+}
+
+internal fun resolveWidgetBaselineHeightDp(
+    storedDp: Float,
+    currentHeightDp: Float,
+): Float {
+    if (storedDp > 0f) {
+        return storedDp.coerceAtLeast(WIDGET_BASELINE_REFERENCE_DP)
+    }
+    if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
+        return WIDGET_BASELINE_REFERENCE_DP
+    }
+    return currentHeightDp.coerceAtLeast(WIDGET_BASELINE_REFERENCE_DP)
+}
+
+internal fun shouldPersistWidgetBaselineHeight(
+    storedDp: Float,
+    currentHeightDp: Float,
+    resolvedDp: Float,
+): Boolean {
+    if (currentHeightDp !in WIDGET_BASELINE_MIN_SANE_DP..WIDGET_BASELINE_MAX_SANE_DP) {
+        return false
+    }
+    if (storedDp <= 0f) {
+        return currentHeightDp >= WIDGET_BASELINE_REFERENCE_DP
+    }
+    return storedDp < resolvedDp
 }
 
 // ── Medium widget (2×2) ───────────────────────────────────────────────────────
