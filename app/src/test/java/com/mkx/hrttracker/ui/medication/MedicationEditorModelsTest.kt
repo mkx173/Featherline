@@ -639,4 +639,52 @@ class MedicationEditorModelsTest {
         assertFalse(cpaHalfTablet.exceedsDoseWarningThreshold(halfTabletDose, count = 2))
         assertTrue(cpaHalfTablet.exceedsDoseWarningThreshold(halfTabletDose, count = 3))
     }
+
+    @Test
+    fun antiandrogen_dose_warning_uses_medication_summary_trailing_indicator() {
+        // The editor shows the dose warning on the selected medication card, not
+        // as separate inline content below the tablet-fraction controls.
+        val warningDrafts = listOf(
+            defaultMedicineDraft(
+                category = MedicationCategory.ANTIANDROGEN,
+                applicationType = MedicationApplicationType.ORAL,
+            ).changeMedicationKey(MedicationKey.SPIRONOLACTONE)
+                .copy(pillStrengthMg = "200") to "2",
+            defaultMedicineDraft(
+                category = MedicationCategory.ANTIANDROGEN,
+                applicationType = MedicationApplicationType.ORAL,
+            ).changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+                .copy(pillStrengthMg = "12.5") to "2",
+            defaultMedicineDraft(
+                category = MedicationCategory.ANTIANDROGEN,
+                applicationType = MedicationApplicationType.ORAL,
+            ).changeMedicationKey(MedicationKey.BICALUTAMIDE)
+                .copy(pillStrengthMg = "50.1") to "1",
+        )
+
+        warningDrafts.forEach { (medicineDraft, countText) ->
+            assertEquals(
+                MedicationSummaryTrailingIndicator.DOSE_WARNING,
+                medicationSummaryTrailingIndicator(
+                    medicineDraft = medicineDraft,
+                    doseInstructionDraft = medicineDraft.toDoseInstructionDraft(),
+                    countText = countText,
+                ),
+            )
+        }
+
+        val normalDose = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+            .copy(pillStrengthMg = "12.5")
+
+        assertNull(
+            medicationSummaryTrailingIndicator(
+                medicineDraft = normalDose,
+                doseInstructionDraft = normalDose.toDoseInstructionDraft(),
+                countText = "1",
+            ),
+        )
+    }
 }

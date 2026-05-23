@@ -559,6 +559,26 @@ fun MedicinePickerUiState.exceedsDoseWarningThreshold(
     return perInstructionMg * resolvedCount > thresholdMg
 }
 
+internal enum class MedicationSummaryTrailingIndicator {
+    DOSE_WARNING,
+}
+
+internal fun medicationSummaryTrailingIndicator(
+    medicineDraft: MedicinePickerUiState,
+    doseInstructionDraft: DoseInstructionDraftUiState?,
+    countText: String,
+): MedicationSummaryTrailingIndicator? {
+    if (doseInstructionDraft == null) {
+        return null
+    }
+    val resolvedCount = parseMedicationCountText(countText)
+    return if (medicineDraft.exceedsDoseWarningThreshold(doseInstructionDraft, resolvedCount)) {
+        MedicationSummaryTrailingIndicator.DOSE_WARNING
+    } else {
+        null
+    }
+}
+
 // String resource for the unit's short label (mg / μg / g) — used as the field
 // suffix and as the segment label inside the picker. Lives in the UI layer so
 // the model doesn't depend on R.

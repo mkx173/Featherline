@@ -513,6 +513,13 @@ internal fun MedicationEditorContent(
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
+    val summaryTrailingIndicator = remember(medicineDraft, doseInstructionDraft, countText) {
+        medicationSummaryTrailingIndicator(
+            medicineDraft = medicineDraft,
+            doseInstructionDraft = doseInstructionDraft,
+            countText = countText,
+        )
+    }
     MedicationSummaryHeader(
         medicine = resolvedMedicine,
         applicationType = medicineDraft.applicationType,
@@ -521,6 +528,7 @@ internal fun MedicationEditorContent(
         canOpenMedicinePicker = canRepickMedicine && !isSaving,
         onOpenMedicinePicker = onOpenMedicinePicker,
         errorMessageRes = errorMessageRes,
+        trailingIndicator = summaryTrailingIndicator,
     )
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -533,11 +541,6 @@ internal fun MedicationEditorContent(
     // patch-off Noop) need no editable dose form. See
     // DoseInstructionDraftUiState.validationErrorRes(): the editor is otherwise
     // unsaveable when the user picks an existing multi-use vial / gel container.
-    val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
-    val showsDoseWarning = remember(medicineDraft, doseInstructionDraft, resolvedCount) {
-        doseInstructionDraft != null &&
-            medicineDraft.exceedsDoseWarningThreshold(doseInstructionDraft, resolvedCount)
-    }
     if (doseInstructionDraft != null &&
         requiresEditableDoseInstructionForm(doseInstructionDraft.preparationType)
     ) {
@@ -546,7 +549,6 @@ internal fun MedicationEditorContent(
             doseInstructionDraft = doseInstructionDraft,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
             errorMessageRes = errorMessageRes,
-            showsDoseWarning = showsDoseWarning,
             enabled = !isSaving,
         )
     }
@@ -587,6 +589,7 @@ private fun MedicationSummaryHeader(
     canOpenMedicinePicker: Boolean,
     onOpenMedicinePicker: () -> Unit,
     errorMessageRes: Int?,
+    trailingIndicator: MedicationSummaryTrailingIndicator? = null,
 ) {
     EditorSectionLabel(stringResource(R.string.field_medication))
     val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
@@ -603,6 +606,7 @@ private fun MedicationSummaryHeader(
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             enabled = canOpenMedicinePicker,
+            trailingContent = medicationSummaryTrailingContent(trailingIndicator),
             // Match the medicine manager row: describe the medicine
             // (preparation summary) instead of the in-flight entry (route +
             // dose + count). The dose form below covers the rest.
@@ -633,6 +637,7 @@ private fun MedicationSummaryHeader(
             } else {
                 null
             },
+            trailingContent = medicationSummaryTrailingContent(trailingIndicator),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
@@ -650,7 +655,6 @@ private fun DoseInstructionForm(
     doseInstructionDraft: DoseInstructionDraftUiState,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
-    showsDoseWarning: Boolean = false,
     enabled: Boolean = true,
 ) {
     when (doseInstructionDraft.preparationType) {
@@ -669,14 +673,6 @@ private fun DoseInstructionForm(
                 layout = ConnectedButtonGroupLayout.ROW,
                 expandOptions = true,
             )
-            if (showsDoseWarning) {
-                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
-                Icon(
-                    imageVector = Icons.Rounded.WarningAmber,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
@@ -744,6 +740,25 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
 private fun DoseInstructionDraftUiState.toDoseInstructionOrNull():
     com.mkx.hrttracker.model.medication.DoseInstruction? {
     return runCatching { toDoseInstruction() }.getOrNull()
+}
+
+@Composable
+private fun medicationSummaryTrailingContent(
+    trailingIndicator: MedicationSummaryTrailingIndicator?,
+): (@Composable () -> Unit)? {
+    return when (trailingIndicator) {
+        MedicationSummaryTrailingIndicator.DOSE_WARNING -> {
+            {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = stringResource(R.string.medication_editor_dose_warning),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+
+        null -> null
+    }
 }
 
 // ---------------------------------------------------------------------------
