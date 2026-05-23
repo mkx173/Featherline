@@ -68,6 +68,17 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
+internal const val MedicineManagerSectionHeaderTopPaddingDp = 4
+internal const val MedicineManagerSectionHeaderBottomPaddingDp = 10
+
+internal fun medicineManagerNeedsSectionTopSpacing(sectionIndex: Int): Boolean {
+    return sectionIndex > 0
+}
+
+internal fun medicineManagerNeedsRowBottomGap(index: Int, itemCount: Int): Boolean {
+    return index < itemCount - 1
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MedicinesScreen(
@@ -306,16 +317,13 @@ private fun MedicinesScreenContent(
                     }
                 }
 
+                var renderedSectionIndex = 0
                 uiState.activeSections.forEach { section ->
+                    val sectionIndex = renderedSectionIndex++
                     item(key = "header-${section.category.name}") {
-                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-                        Text(
+                        MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
+                        MedicineManagerSectionTitle(
                             text = stringResource(section.category.labelRes).uppercase(),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 10.dp, top = 4.dp),
                         )
                     }
                     section.medicines.forEachIndexed { index, item ->
@@ -326,18 +334,19 @@ private fun MedicinesScreenContent(
                                 itemCount = section.medicines.size,
                                 onClick = { onMedicineClick(item.medicine.uuid) },
                             )
-                            Spacer(
-                                modifier = Modifier.height(
-                                    dimensionResource(R.dimen.list_segment_gap),
-                                ),
+                            MedicineManagerRowBottomGap(
+                                index = index,
+                                itemCount = section.medicines.size,
                             )
                         }
                     }
                 }
 
                 if (uiState.archivedMedicines.isNotEmpty()) {
+                    val sectionIndex = renderedSectionIndex++
                     item(key = "archived-header") {
                         ArchivedSectionHeader(
+                            sectionIndex = sectionIndex,
                             expanded = uiState.archivedExpanded,
                             count = uiState.archivedMedicines.size,
                             onClick = onToggleArchivedExpanded,
@@ -355,10 +364,9 @@ private fun MedicinesScreenContent(
                                     itemCount = uiState.archivedMedicines.size,
                                     onClick = { onMedicineClick(medicine.uuid) },
                                 )
-                                Spacer(
-                                    modifier = Modifier.height(
-                                        dimensionResource(R.dimen.list_segment_gap),
-                                    ),
+                                MedicineManagerRowBottomGap(
+                                    index = index,
+                                    itemCount = uiState.archivedMedicines.size,
                                 )
                             }
                         }
@@ -366,7 +374,7 @@ private fun MedicinesScreenContent(
                 }
 
                 item(key = "add-new-medicine") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                     HrtFilledTonalButton(
                         text = stringResource(R.string.medicine_picker_add_new_medicine),
                         onClick = onAddNewMedicine,
@@ -378,6 +386,45 @@ private fun MedicinesScreenContent(
             }
         }
     }
+}
+
+@Composable
+private fun MedicineManagerSectionTopSpacing(sectionIndex: Int) {
+    if (medicineManagerNeedsSectionTopSpacing(sectionIndex)) {
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+    }
+}
+
+@Composable
+private fun MedicineManagerRowBottomGap(
+    index: Int,
+    itemCount: Int,
+) {
+    if (medicineManagerNeedsRowBottomGap(index = index, itemCount = itemCount)) {
+        Spacer(
+            modifier = Modifier.height(
+                dimensionResource(R.dimen.list_segment_gap),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun MedicineManagerSectionTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                top = MedicineManagerSectionHeaderTopPaddingDp.dp,
+                bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
+            ),
+    )
 }
 
 @Composable
@@ -436,15 +483,19 @@ private fun ReferenceCountChip(count: Int) {
 
 @Composable
 private fun ArchivedSectionHeader(
+    sectionIndex: Int,
     expanded: Boolean,
     count: Int,
     onClick: () -> Unit,
 ) {
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    MedicineManagerSectionTopSpacing(sectionIndex = sectionIndex)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 8.dp),
+            .padding(
+                top = MedicineManagerSectionHeaderTopPaddingDp.dp,
+                bottom = MedicineManagerSectionHeaderBottomPaddingDp.dp,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
