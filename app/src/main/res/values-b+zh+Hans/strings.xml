@@ -289,7 +289,7 @@
     <string name="medicine_picker_add_new_medicine">新建药物</string>
     <string name="create_medicine_title">新建药物</string>
     <string name="create_medicine_action">创建</string>
-    <string name="medicine_detail_title">药物</string>
+    <string name="medicine_detail_title">药物详情</string>
     <string name="medicine_archived_section">已归档</string>
     <string name="medicine_locked_by_logs">此药物已被历史记录引用，因此无法编辑。</string>
     <string name="medicine_display_name">显示名称</string>

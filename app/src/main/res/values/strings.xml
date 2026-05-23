@@ -298,7 +298,7 @@
     <string name="medicine_picker_add_new_medicine">New medicine</string>
     <string name="create_medicine_title">Create medicine</string>
     <string name="create_medicine_action">Create</string>
-    <string name="medicine_detail_title">Medicine</string>
+    <string name="medicine_detail_title">Medicine details</string>
     <string name="medicine_archived_section">Archived</string>
     <string name="medicine_locked_by_logs">This medicine is locked because logged entries reference it.</string>
     <string name="medicine_display_name">Display name</string>
