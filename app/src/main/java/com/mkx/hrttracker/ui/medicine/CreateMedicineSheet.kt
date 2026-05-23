@@ -5,17 +5,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -150,17 +153,9 @@ private fun CreateMedicineForm(
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
     EditorSectionLabel(stringResource(R.string.field_medication_application))
-    ConnectedButtonGroup(
+    ApplicationTypeButtonGroup(
         options = createMedicineApplicationTypesFor(medicineDraft.category),
         selectedOption = medicineDraft.applicationType,
-        optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-        optionLeadingContent = { applicationType ->
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = null,
-                modifier = Modifier.height(20.dp),
-            )
-        },
         onOptionSelected = { applicationType ->
             onMedicineDraftChange { it.changeApplicationType(applicationType) }
         },
@@ -429,6 +424,34 @@ private fun createMedicineApplicationTypesFor(
 ): List<MedicationApplicationType> {
     return MedicationCatalog.applicationTypesFor(category)
         .filterNot { it == MedicationApplicationType.PATCH_OFF }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ApplicationTypeButtonGroup(
+    options: List<MedicationApplicationType>,
+    selectedOption: MedicationApplicationType,
+    onOptionSelected: (MedicationApplicationType) -> Unit,
+    enabled: Boolean,
+) {
+    // MedicationApplicationIcon wraps the icon in a Box(modifier), so the
+    // modifier must constrain both axes — a height-only modifier lets the Box
+    // grow to fill the ToggleButton's row, pushing the label off-screen and
+    // forcing the FlowRow to wrap each button onto its own line.
+    ConnectedButtonGroup(
+        options = options,
+        selectedOption = selectedOption,
+        optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
+        optionLeadingContent = { applicationType ->
+            MedicationApplicationIcon(
+                applicationType = applicationType,
+                contentDescription = null,
+                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+            )
+        },
+        onOptionSelected = onOptionSelected,
+        enabled = enabled,
+    )
 }
 
 @Composable
