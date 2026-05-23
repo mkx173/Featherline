@@ -67,6 +67,11 @@ class MedicationGroupEditorDeleteRecordsTest {
     private val context: Context = mockk(relaxed = true)
     private val dispatcher = StandardTestDispatcher()
     private val appTimeSource = FakeAppTimeSource(LocalDateTime.of(2026, 4, 25, 10, 0))
+    private val editorMedicine = testMedicine(
+        uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000101"),
+        key = MedicationKey.ESTRADIOL,
+        preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+    )
     private lateinit var settingsStateFlow: MutableStateFlow<SettingsState>
 
     @Before
@@ -75,8 +80,11 @@ class MedicationGroupEditorDeleteRecordsTest {
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
-        coEvery { settingsRepository.nextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.peekNextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.consumeNextGroupNameIndex() } returns 1
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(editorMedicine))
+        coEvery { medicineRepository.getByUuid(editorMedicine.uuid) } returns editorMedicine
         every {
             context.getString(R.string.default_group_name_format, any())
         } returns "Group 1"
@@ -85,6 +93,13 @@ class MedicationGroupEditorDeleteRecordsTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    private fun addPickedMedication(viewModel: MedicationGroupEditorViewModel) {
+        viewModel.showAddMedicationEditor()
+        val localId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(localId, editorMedicine.uuid)
+        viewModel.saveEditingMedication()
     }
 
     @Test
@@ -1006,9 +1021,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
 
         viewModel.saveGroup()
         advanceUntilIdle()
@@ -1069,9 +1082,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
 
         viewModel.saveGroup()
         advanceUntilIdle()
@@ -1129,9 +1140,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
@@ -1222,9 +1231,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             viewModel.completionEvents.collect { completionEvents += it }
         }
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
@@ -1368,9 +1375,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
         viewModel.updateCreatePastScheduledSlotRecords(true)
 
         viewModel.saveGroup()
@@ -1437,9 +1442,7 @@ class MedicationGroupEditorDeleteRecordsTest {
             appTimeSource = appTimeSource,
         )
         advanceUntilIdle()
-        viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft -> draft.copy(pillStrengthMg = "2") }
-        viewModel.saveEditingMedication()
+        addPickedMedication(viewModel)
         viewModel.updateSinceDate(LocalDate.of(2026, 4, 23))
         viewModel.updateCreatePastScheduledSlotRecords(true)
 

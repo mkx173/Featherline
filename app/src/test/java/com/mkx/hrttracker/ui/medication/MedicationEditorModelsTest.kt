@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -102,6 +103,61 @@ class MedicationEditorModelsTest {
             applicationType = MedicationApplicationType.PATCH_ON,
         )
         assertEquals(MedicinePreparationType.PATCH, draft.inferredOrSelectedPreparationType())
+    }
+
+    @Test
+    fun patch_total_mg_selection_ignores_release_rate_when_both_fields_are_filled() {
+        val preparation = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON,
+        ).copy(
+            patchSpecKind = PatchSpecKind.TOTAL_MG,
+            patchTotalMg = "3",
+            patchReleaseRateMcgPerDay = "100",
+        ).toMedicinePreparation()
+
+        assertEquals(
+            MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.TotalMg(3.0),
+            ),
+            preparation,
+        )
+    }
+
+    @Test
+    fun patch_release_rate_selection_ignores_total_mg_when_both_fields_are_filled() {
+        val preparation = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON,
+        ).copy(
+            patchSpecKind = PatchSpecKind.RELEASE_RATE,
+            patchTotalMg = "3",
+            patchReleaseRateMcgPerDay = "100",
+        ).toMedicinePreparation()
+
+        assertEquals(
+            MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(100.0),
+            ),
+            preparation,
+        )
+    }
+
+    @Test
+    fun hydrating_release_rate_patch_selects_release_rate_spec_kind() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(50.0),
+            ),
+        )
+
+        val draft = medicineDraftFromMedicine(
+            medicine = medicine,
+            applicationType = MedicationApplicationType.PATCH_ON,
+        )
+
+        assertEquals(PatchSpecKind.RELEASE_RATE, draft.patchSpecKind)
+        assertEquals("50", draft.patchReleaseRateMcgPerDay)
     }
 
     @Test
@@ -266,6 +322,45 @@ class MedicationEditorModelsTest {
 
         val doseDraft = draft.toDoseInstructionDraft().copy(weightGrams = "1.25")
         assertEquals(DoseInstruction.WeightGrams(1.25), doseDraft.toDoseInstruction())
+    }
+
+    @Test
+    fun tablet_fraction_quarter_selection_writes_one_fourth() {
+        val doseDraft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).toDoseInstructionDraft()
+
+        assertEquals(
+            DoseInstruction.TabletFraction(1, 4),
+            doseDraft.selectTabletFraction(TabletFractionOption.QUARTER).toDoseInstruction(),
+        )
+    }
+
+    @Test
+    fun tablet_fraction_whole_selection_writes_one_over_one() {
+        val doseDraft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).toDoseInstructionDraft()
+
+        assertEquals(
+            DoseInstruction.TabletFraction(1, 1),
+            doseDraft.selectTabletFraction(TabletFractionOption.WHOLE).toDoseInstruction(),
+        )
+    }
+
+    @Test
+    fun non_canonical_tablet_fraction_remains_round_trippable_until_changed() {
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.ORAL,
+            preparationType = MedicinePreparationType.PILL,
+            tabletFractionNumerator = 3,
+            tabletFractionDenominator = 4,
+        )
+
+        assertEquals(TabletFractionOption.WHOLE, doseDraft.selectedTabletFractionOption())
+        assertEquals(DoseInstruction.TabletFraction(3, 4), doseDraft.toDoseInstruction())
     }
 
     // --- Antiandrogen dose-warning (Fix 4) ---------------------------------

@@ -41,6 +41,15 @@ interface MedicineDao {
         LIMIT 1
         """
     )
+    fun observeByUuid(uuid: String): Flow<MedicineEntity?>
+
+    @Query(
+        """
+        SELECT * FROM medicines
+        WHERE uuid = :uuid
+        LIMIT 1
+        """
+    )
     suspend fun getByUuid(uuid: String): MedicineEntity?
 
     @Query(

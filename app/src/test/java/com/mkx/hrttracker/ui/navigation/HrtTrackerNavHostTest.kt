@@ -96,6 +96,24 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
+    fun medicinesCreateRouteIncludesOptionalPickerResultKey() {
+        assertEquals("medicines/plan", Screen.Medicines.createRoute(Screen.Plan.route))
+        assertEquals(
+            "medicines/plan?pickerResultKey=medicineResult",
+            Screen.Medicines.createRoute(Screen.Plan.route, pickerResultKey = "medicineResult"),
+        )
+    }
+
+    @Test
+    fun createMedicineCreateRouteIncludesOptionalPickerResultKey() {
+        assertEquals("medicines/create", Screen.CreateMedicine.createRoute())
+        assertEquals(
+            "medicines/create?pickerResultKey=medicineResult",
+            Screen.CreateMedicine.createRoute(pickerResultKey = "medicineResult"),
+        )
+    }
+
+    @Test
     fun topLevelNavigationReplacementPopUpToRoute_usesSelectedTopLevelRoute() {
         assertEquals(
             Screen.Plan.route,

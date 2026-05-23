@@ -186,6 +186,8 @@
     <string name="field_patch_total_mg">Total E2 dosage</string>
     <string name="field_patch_release_rate_mcg_day">E2 release rate</string>
     <string name="unit_mg">mg</string>
+    <string name="unit_mg_per_ml">mg/mL</string>
+    <string name="unit_ml">mL</string>
     <string name="unit_mcg">μg</string>
     <string name="unit_percent">%</string>
     <string name="unit_grams">g</string>
@@ -293,6 +295,10 @@
     <string name="medicines_empty_state">No medicines yet. Add one from a regimen or log entry.</string>
     <string name="medicines_archived_expand">Show %1$d archived</string>
     <string name="medicines_archived_collapse">Hide archived</string>
+    <string name="medicine_picker_add_new_medicine">+ New medicine</string>
+    <string name="medicine_picker_drug_header_more">%1$d preparations</string>
+    <string name="create_medicine_title">Create medicine</string>
+    <string name="create_medicine_action">Create</string>
     <string name="medicine_detail_title">Medicine</string>
     <string name="medicine_archived_section">Archived</string>
     <string name="medicine_locked_by_logs">This medicine is locked because logged entries reference it.</string>
@@ -345,6 +351,9 @@
     <string name="field_gel_concentration_percent">Gel concentration</string>
     <string name="field_sachet_weight_grams">Sachet weight</string>
     <string name="field_container_weight_grams">Container weight</string>
+    <string name="field_patch_spec_kind">Patch specification</string>
+    <string name="field_patch_spec_total_mg">Total dose</string>
+    <string name="field_patch_spec_release_rate">Release rate</string>
     <string name="field_patch_total_dosage_mg">Patch dosage</string>
     <string name="field_patch_release_rate">Patch release rate</string>
     <string name="field_dose_volume_ml">Volume per dose</string>
@@ -358,6 +367,8 @@
     <string name="preparation_type_patch">Patch</string>
     <string name="medication_picker_existing_medicines">Existing medicines</string>
     <string name="medication_picker_add_new">+ New</string>
+    <string name="medicine_picker_select_medicine">Select medicine</string>
+    <string name="medicine_picker_change_medicine">Change medicine</string>
     <string name="medication_preparation_summary_pill">%1$s mg tablet</string>
     <string name="medication_preparation_summary_single_use_vial">%1$s mg vial</string>
     <string name="medication_preparation_summary_multi_use_vial">%1$s mg/mL · %2$s mL vial</string>

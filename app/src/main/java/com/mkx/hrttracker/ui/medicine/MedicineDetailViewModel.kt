@@ -8,10 +8,13 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.isArchived
+import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -160,7 +163,7 @@ class MedicineDetailViewModel @Inject constructor(
         // the button was momentarily enabled (between an upstream emission
         // and the disabled state propagating), do not submit. The repo
         // still throws if a group is added concurrently — handled below.
-        if (_uiState.value.linkedActiveGroups.isNotEmpty()) {
+        if (_uiState.value.linkedActiveSlots.isNotEmpty()) {
             return null
         }
         return viewModelScope.launch {
@@ -186,21 +189,34 @@ class MedicineDetailViewModel @Inject constructor(
         saveResult: MedicineDetailSaveResult?,
     ): MedicineDetailUiState {
         val medicine = (active + archived).firstOrNull { it.uuid == medicineUuid }
-        val linkedActiveGroups = if (medicine == null) {
+        val linkedActiveSlots = if (medicine == null) {
             emptyList()
         } else {
             groups.asSequence()
                 .filterNot(MedicationGroup::isArchived)
-                .filter { group ->
-                    group.medications.any { it.medicineUuid == medicineUuid }
+                .flatMap { group ->
+                    group.medications.asSequence()
+                        .filter { medication -> medication.medicineUuid == medicineUuid }
+                        .map { medication ->
+                            LinkedSlotRow(
+                                group = group,
+                                doseInstruction = medication.doseInstruction,
+                                applicationType = medication.applicationType,
+                                count = medication.count,
+                            )
+                        }
                 }
+                .sortedWith(
+                    compareBy<LinkedSlotRow> { it.group.name.lowercase() }
+                        .thenBy { it.applicationType }
+                )
                 .toList()
         }
         val displayName = displayNameDraft ?: medicine?.displayName.orEmpty()
         return MedicineDetailUiState(
             medicine = medicine,
             isLocked = isLocked,
-            linkedActiveGroups = linkedActiveGroups,
+            linkedActiveSlots = linkedActiveSlots,
             displayNameText = displayName,
             archiveResult = archiveResult,
             saveResult = saveResult,
@@ -215,11 +231,18 @@ class MedicineDetailViewModel @Inject constructor(
 data class MedicineDetailUiState(
     val medicine: Medicine? = null,
     val isLocked: Boolean = false,
-    val linkedActiveGroups: List<MedicationGroup> = emptyList(),
+    val linkedActiveSlots: List<LinkedSlotRow> = emptyList(),
     val displayNameText: String = "",
     val preparationDraft: MedicinePreparationDraftUiState? = null,
     val archiveResult: MedicineArchiveResult? = null,
     val saveResult: MedicineDetailSaveResult? = null,
+)
+
+data class LinkedSlotRow(
+    val group: MedicationGroup,
+    val doseInstruction: DoseInstruction,
+    val applicationType: MedicationApplicationType,
+    val count: Int,
 )
 
 /**
@@ -236,6 +259,7 @@ data class MedicinePreparationDraftUiState(
     val gelConcentrationPercent: String = "",
     val sachetWeightGrams: String = "",
     val containerWeightGrams: String = "",
+    val patchSpecKind: PatchSpecKind = PatchSpecKind.TOTAL_MG,
     val patchTotalMg: String = "",
     val patchReleaseRateMcgPerDay: String = "",
 )

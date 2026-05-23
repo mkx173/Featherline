@@ -45,6 +45,15 @@ class MedicineRepository @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeByUuid(uuid: UUID): Flow<Medicine?> {
+        return databaseHolder.databaseFlow.flatMapLatest { database ->
+            database?.medicineDao()?.observeByUuid(uuid.toString())
+                ?.map { entity -> entity?.toMedicineModel() }
+                ?: flowOf(null)
+        }
+    }
+
     /**
      * One-shot read of every medicine row, active and archived. Used by the
      * backup export path which serialises the full table so restore can rebuild

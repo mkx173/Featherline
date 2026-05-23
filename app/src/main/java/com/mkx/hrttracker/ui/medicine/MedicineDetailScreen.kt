@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -46,25 +47,22 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.AppContentContainer
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.PreferenceSegmentedListItem
 import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
+import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
-import com.mkx.hrttracker.ui.plan.RegimenGroupCard
-import com.mkx.hrttracker.util.dateLabelFormatter
-import com.mkx.hrttracker.util.rememberAppLocale
-import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
-import java.time.DayOfWeek
-import java.time.LocalDate
 import java.util.UUID
 
 @Composable
@@ -144,13 +142,6 @@ private fun MedicineDetailScreenContent(
         lazyListState = listState,
         state = topAppBarState,
     )
-    val appLocale = rememberAppLocale()
-    val today = remember { LocalDate.now() }
-    val dateFormatter = remember(appLocale, today) {
-        dateLabelFormatter(appLocale, today)
-    }
-    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
-
     var preparationEditorOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
 
@@ -229,7 +220,7 @@ private fun MedicineDetailScreenContent(
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
                 }
 
-                if (uiState.linkedActiveGroups.isEmpty()) {
+                if (uiState.linkedActiveSlots.isEmpty()) {
                     item(key = "linked-groups-empty") {
                         SupportMessageListItem(
                             text = stringResource(R.string.medicine_linked_groups_empty),
@@ -237,23 +228,14 @@ private fun MedicineDetailScreenContent(
                         )
                     }
                 } else {
-                    uiState.linkedActiveGroups.forEachIndexed { index, group ->
-                        item(key = "linked-group-${group.uuid}") {
-                            RegimenGroupCard(
-                                group = group,
-                                remindersEnabled = false,
-                                hasNotificationAccess = true,
-                                appLocale = appLocale,
-                                dateFormatter = dateFormatter,
-                                timeFormatter = timeFormatter,
-                                upcomingOccurrences = emptyList(),
-                                today = today,
-                                onClick = { onGroupClick(group.uuid) },
+                    uiState.linkedActiveSlots.forEachIndexed { index, row ->
+                        item(key = "linked-slot-${row.group.uuid}-${row.applicationType}-$index") {
+                            LinkedSlotListItem(
+                                row = row,
+                                medicine = medicine,
+                                onClick = { onGroupClick(row.group.uuid) },
                                 index = index,
-                                itemCount = uiState.linkedActiveGroups.size,
-                                showUpcomingSection = false,
-                                showNotificationIcon = false,
-                                firstDayOfWeek = DayOfWeek.MONDAY,
+                                itemCount = uiState.linkedActiveSlots.size,
                             )
                             Spacer(
                                 modifier = Modifier.height(
@@ -268,8 +250,10 @@ private fun MedicineDetailScreenContent(
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_large)))
                     ArchiveAction(
                         isArchived = medicine.isArchived,
-                        canArchive = uiState.linkedActiveGroups.isEmpty(),
-                        linkedActiveGroupCount = uiState.linkedActiveGroups.size,
+                        canArchive = uiState.linkedActiveSlots.isEmpty(),
+                        linkedActiveGroupCount = uiState.linkedActiveSlots
+                            .distinctBy { it.group.uuid }
+                            .size,
                         onArchiveClick = { archiveConfirmOpen = true },
                     )
                 }
@@ -310,6 +294,30 @@ private fun MedicineDetailScreenContent(
             },
         )
     }
+}
+
+@Composable
+private fun LinkedSlotListItem(
+    row: LinkedSlotRow,
+    medicine: Medicine,
+    onClick: () -> Unit,
+    index: Int,
+    itemCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    PreferenceSegmentedListItem(
+        title = row.group.name,
+        supportingText = medicationEntrySupportingText(
+            medicine = medicine,
+            doseInstruction = row.doseInstruction,
+            applicationType = row.applicationType,
+            count = row.count,
+        ),
+        index = index,
+        count = itemCount,
+        onClick = onClick,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -473,6 +481,7 @@ private fun PreparationEditorDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PreparationEditorFields(
     draft: MedicinePreparationDraftUiState,
@@ -503,12 +512,13 @@ private fun PreparationEditorFields(
                 NumericInputField(
                     value = draft.concentrationMgPerMl,
                     label = stringResource(R.string.field_concentration_mg_per_ml),
-                    suffix = stringResource(R.string.unit_mg),
+                    suffix = stringResource(R.string.unit_mg_per_ml),
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
                     label = stringResource(R.string.field_vial_volume_ml),
+                    suffix = stringResource(R.string.unit_ml),
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
             }
@@ -544,20 +554,44 @@ private fun PreparationEditorFields(
             }
 
             MedicinePreparationType.PATCH -> {
-                NumericInputField(
-                    value = draft.patchTotalMg,
-                    label = stringResource(R.string.field_patch_total_dosage_mg),
-                    suffix = stringResource(R.string.unit_mg),
-                    onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
+                Text(
+                    text = stringResource(R.string.field_patch_spec_kind),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                NumericInputField(
-                    value = draft.patchReleaseRateMcgPerDay,
-                    label = stringResource(R.string.field_patch_release_rate),
-                    suffix = stringResource(R.string.unit_mcg_day),
-                    onValueChange = {
-                        onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
+                ConnectedButtonGroup(
+                    options = PatchSpecKind.entries,
+                    selectedOption = draft.patchSpecKind,
+                    optionLabel = { kind ->
+                        stringResource(
+                            when (kind) {
+                                PatchSpecKind.TOTAL_MG -> R.string.field_patch_spec_total_mg
+                                PatchSpecKind.RELEASE_RATE ->
+                                    R.string.field_patch_spec_release_rate
+                            },
+                        )
+                    },
+                    onOptionSelected = { kind ->
+                        onDraftChange(draft.copy(patchSpecKind = kind))
                     },
                 )
+                when (draft.patchSpecKind) {
+                    PatchSpecKind.TOTAL_MG -> NumericInputField(
+                        value = draft.patchTotalMg,
+                        label = stringResource(R.string.field_patch_total_dosage_mg),
+                        suffix = stringResource(R.string.unit_mg),
+                        onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
+                    )
+
+                    PatchSpecKind.RELEASE_RATE -> NumericInputField(
+                        value = draft.patchReleaseRateMcgPerDay,
+                        label = stringResource(R.string.field_patch_release_rate),
+                        suffix = stringResource(R.string.unit_mcg_day),
+                        onValueChange = {
+                            onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
+                        },
+                    )
+                }
             }
         }
     }
@@ -623,10 +657,16 @@ private fun MedicinePreparation.toPreparationDraft(): MedicinePreparationDraftUi
 
         is MedicinePreparation.Patch -> when (val spec = specification) {
             is MedicinePreparation.PatchSpecification.TotalMg ->
-                base.copy(patchTotalMg = spec.valueMg.toEditableString())
+                base.copy(
+                    patchSpecKind = PatchSpecKind.TOTAL_MG,
+                    patchTotalMg = spec.valueMg.toEditableString(),
+                )
 
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
-                base.copy(patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toEditableString())
+                base.copy(
+                    patchSpecKind = PatchSpecKind.RELEASE_RATE,
+                    patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toEditableString(),
+                )
         }
     }
 }
@@ -660,11 +700,16 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
             )
 
             MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
-                specification = patchTotalMg.toPositiveDoubleOrNull()
-                    ?.let(MedicinePreparation.PatchSpecification::TotalMg)
-                    ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
-                        valueMcgPerDay = patchReleaseRateMcgPerDay.toPositiveDoubleOrThrow(),
-                    ),
+                specification = when (patchSpecKind) {
+                    PatchSpecKind.TOTAL_MG -> MedicinePreparation.PatchSpecification.TotalMg(
+                        valueMg = patchTotalMg.toPositiveDoubleOrThrow(),
+                    )
+
+                    PatchSpecKind.RELEASE_RATE ->
+                        MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                            valueMcgPerDay = patchReleaseRateMcgPerDay.toPositiveDoubleOrThrow(),
+                        )
+                },
             )
         }
     }.getOrNull()

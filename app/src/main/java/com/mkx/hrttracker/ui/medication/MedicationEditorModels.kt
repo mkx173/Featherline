@@ -19,6 +19,8 @@ import java.util.UUID
 // a DoseInstruction; the two concerns are tracked by two focused draft types.
 // ---------------------------------------------------------------------------
 
+enum class PatchSpecKind { TOTAL_MG, RELEASE_RATE }
+
 data class MedicinePickerUiState(
     val category: MedicationCategory = MedicationCategory.ESTRADIOL,
     val applicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
@@ -35,6 +37,7 @@ data class MedicinePickerUiState(
     val gelConcentrationPercent: String = "",
     val sachetWeightGrams: String = "",
     val containerWeightGrams: String = "",
+    val patchSpecKind: PatchSpecKind = PatchSpecKind.TOTAL_MG,
     val patchTotalMg: String = "",
     val patchReleaseRateMcgPerDay: String = "",
     val displayName: String = "",
@@ -63,6 +66,20 @@ data class NewMedicineRequest(
     val category: MedicationCategory,
     val preparation: MedicinePreparation,
 )
+
+internal enum class TabletFractionOption(val numerator: Int, val denominator: Int) {
+    QUARTER(1, 4),
+    HALF(1, 2),
+    WHOLE(1, 1);
+
+    fun label(): String {
+        return when (this) {
+            QUARTER -> "¼"
+            HALF -> "½"
+            WHOLE -> "1"
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Categories / catalog helpers
@@ -460,13 +477,18 @@ internal fun MedicinePickerUiState.toMedicinePreparation(): MedicinePreparation 
         )
 
         MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
-            specification = parsePositiveDouble(patchTotalMg)
-                ?.let(MedicinePreparation.PatchSpecification::TotalMg)
-                ?: MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
-                    valueMcgPerDay = checkNotNull(
-                        parsePositiveDouble(patchReleaseRateMcgPerDay),
-                    ),
-                ),
+            specification = when (patchSpecKind) {
+                PatchSpecKind.TOTAL_MG -> MedicinePreparation.PatchSpecification.TotalMg(
+                    valueMg = checkNotNull(parsePositiveDouble(patchTotalMg)),
+                )
+
+                PatchSpecKind.RELEASE_RATE ->
+                    MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                        valueMcgPerDay = checkNotNull(
+                            parsePositiveDouble(patchReleaseRateMcgPerDay),
+                        ),
+                    )
+            },
         )
     }
 }
@@ -503,6 +525,22 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
             valueGrams = checkNotNull(parsePositiveDouble(weightGrams)),
         )
     }
+}
+
+internal fun DoseInstructionDraftUiState.selectedTabletFractionOption(): TabletFractionOption {
+    return TabletFractionOption.entries.firstOrNull { option ->
+        option.numerator == tabletFractionNumerator &&
+            option.denominator == tabletFractionDenominator
+    } ?: TabletFractionOption.WHOLE
+}
+
+internal fun DoseInstructionDraftUiState.selectTabletFraction(
+    option: TabletFractionOption,
+): DoseInstructionDraftUiState {
+    return copy(
+        tabletFractionNumerator = option.numerator,
+        tabletFractionDenominator = option.denominator,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -565,16 +603,24 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
             else -> null
         }
 
-        MedicinePreparationType.PATCH -> {
-            val hasTotal = parsePositiveDouble(patchTotalMg) != null
-            val hasReleaseRate = parsePositiveDouble(patchReleaseRateMcgPerDay) != null
-            if (!hasTotal && !hasReleaseRate) {
+        MedicinePreparationType.PATCH -> when (patchSpecKind) {
+            PatchSpecKind.TOTAL_MG ->
                 R.string.validation_patch_total_required
-            } else {
-                null
-            }
+                    .takeIf { parsePositiveDouble(patchTotalMg) == null }
+
+            PatchSpecKind.RELEASE_RATE ->
+                R.string.validation_patch_release_rate_required
+                    .takeIf { parsePositiveDouble(patchReleaseRateMcgPerDay) == null }
         }
     }
+}
+
+fun MedicinePickerUiState.selectedMedicineValidationErrorRes(): Int? {
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return null
+    }
+    return R.string.validation_medication_selection_required
+        .takeIf { selectedMedicineUuid == null }
 }
 
 // ---------------------------------------------------------------------------
@@ -589,9 +635,13 @@ fun medicineDraftFromMedicine(
     medicine: Medicine,
     applicationType: MedicationApplicationType,
 ): MedicinePickerUiState {
+    val resolvedApplicationType = compatibleApplicationTypeForMedicine(
+        medicine = medicine,
+        preferredApplicationType = applicationType,
+    )
     val base = defaultMedicineDraft(
         category = medicine.category,
-        applicationType = applicationType,
+        applicationType = resolvedApplicationType,
     )
     val isCatalog = medicine.selection is MedicineSelection.Catalog
     return base.copy(
@@ -609,6 +659,31 @@ fun medicineDraftFromMedicine(
         preparationType = medicine.preparation.type,
         displayName = medicine.displayName.orEmpty(),
     ).withPreparationFields(medicine.preparation)
+}
+
+fun compatibleApplicationTypeForMedicine(
+    medicine: Medicine,
+    preferredApplicationType: MedicationApplicationType,
+): MedicationApplicationType {
+    return when (medicine.preparation.type) {
+        MedicinePreparationType.PILL -> when (preferredApplicationType) {
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL -> preferredApplicationType
+
+            MedicationApplicationType.INJECTION,
+            MedicationApplicationType.GEL,
+            MedicationApplicationType.PATCH_ON,
+            MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
+        }
+
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationApplicationType.INJECTION
+
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.GEL_CONTAINER -> MedicationApplicationType.GEL
+
+        MedicinePreparationType.PATCH -> MedicationApplicationType.PATCH_ON
+    }
 }
 
 private fun MedicinePickerUiState.withPreparationFields(
@@ -638,10 +713,16 @@ private fun MedicinePickerUiState.withPreparationFields(
 
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
             is MedicinePreparation.PatchSpecification.TotalMg ->
-                copy(patchTotalMg = spec.valueMg.toInputString())
+                copy(
+                    patchSpecKind = PatchSpecKind.TOTAL_MG,
+                    patchTotalMg = spec.valueMg.toInputString(),
+                )
 
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
-                copy(patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toInputString())
+                copy(
+                    patchSpecKind = PatchSpecKind.RELEASE_RATE,
+                    patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toInputString(),
+                )
         }
     }
 }

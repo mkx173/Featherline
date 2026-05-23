@@ -10,7 +10,6 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testInstant
@@ -249,15 +248,8 @@ class AddEntryViewModelTest {
 
     @Test
     fun newManualLogFindsOrCreatesMedicineBeforeSaving() = runTest {
-        // A brand-new manual log resolves the picker draft into a persisted
-        // Medicine (find-or-create) before the log row is written.
-        coEvery {
-            medicineRepository.findOrCreateForCatalog(
-                medicationKey = MedicationKey.ESTRADIOL,
-                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
-                now = any(),
-            )
-        } returns estradiolMedicine
+        // A brand-new manual log now receives a medicine UUID from the routed
+        // Medicines picker. Save must use that resolved UUID directly.
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
@@ -282,13 +274,8 @@ class AddEntryViewModelTest {
             medicineRepository = medicineRepository,
         )
         viewModel.initialize(emptyList())
-        viewModel.updateMedicineDraft {
-            it.copy(
-                selectionKind = MedicationSelectionKind.CATALOG,
-                medicationKey = MedicationKey.ESTRADIOL,
-                pillStrengthMg = "2",
-            )
-        }
+        viewModel.onMedicineSelected(estradiolMedicine.uuid)
+        advanceUntilIdle()
         viewModel.updateDoseInstructionDraft {
             it.copy(tabletFractionNumerator = 1, tabletFractionDenominator = 1)
         }
@@ -296,13 +283,6 @@ class AddEntryViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isSaved)
-        coVerify(exactly = 1) {
-            medicineRepository.findOrCreateForCatalog(
-                medicationKey = MedicationKey.ESTRADIOL,
-                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
-                now = any(),
-            )
-        }
         coVerify(exactly = 1) {
             medicationLogRepository.saveEntry(
                 uuid = null,
@@ -317,6 +297,41 @@ class AddEntryViewModelTest {
                 appliedAtTimeZoneId = any(),
             )
         }
+    }
+
+    @Test
+    fun onMedicineSelected_resolvesMedicineAndUpdatesDoseDraftShape() = runTest {
+        val vialMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000099"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        coEvery { medicineRepository.getByUuid(vialMedicine.uuid) } returns vialMedicine
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+        viewModel.initialize(emptyList())
+
+        viewModel.onMedicineSelected(vialMedicine.uuid)
+        advanceUntilIdle()
+
+        val uiState = viewModel.uiState.value
+        assertEquals(vialMedicine, uiState.resolvedMedicine)
+        assertEquals(vialMedicine.uuid, uiState.medicineDraft.selectedMedicineUuid)
+        assertEquals(MedicationApplicationType.INJECTION, uiState.medicineDraft.applicationType)
+        assertEquals(
+            com.mkx.hrttracker.model.medication.MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            uiState.doseInstructionDraft.preparationType,
+        )
+        assertEquals(MedicationApplicationType.INJECTION, uiState.doseInstructionDraft.applicationType)
     }
 
     @Test

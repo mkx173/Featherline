@@ -96,6 +96,18 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `group name counter peek is stable and consume advances`() = runTest(testDispatcher) {
+        assertEquals(1, settingsRepository.peekNextGroupNameIndex())
+        assertEquals(1, settingsRepository.peekNextGroupNameIndex())
+
+        assertEquals(1, settingsRepository.consumeNextGroupNameIndex())
+
+        assertEquals(2, settingsRepository.peekNextGroupNameIndex())
+        assertEquals(2, settingsRepository.consumeNextGroupNameIndex())
+        assertEquals(3, settingsRepository.peekNextGroupNameIndex())
+    }
+
+    @Test
     fun `homeE2DisplayUnitFlow emits canonical unit after setting canonical unit`() = runTest(testDispatcher) {
         val nonCanonical = BloodTestCatalog.definitionFor(BloodAnalyteKey.E2)
             .allowedUnits

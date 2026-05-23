@@ -74,10 +74,10 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -85,6 +85,7 @@ import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
+import com.mkx.hrttracker.ui.components.MedicationCard
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -100,7 +101,6 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 
 // ---------------------------------------------------------------------------
 // Public sheet entry points (Task 6 Step 5).
@@ -117,11 +117,11 @@ fun MedicationDefinitionEditorSheet(
     onCloseClick: () -> Unit,
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    existingMedicines: List<Medicine>,
+    resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onExistingMedicineSelected: (UUID) -> Unit,
+    onOpenMedicinePicker: () -> Unit,
     countText: String,
     onCountTextChange: (String) -> Unit,
     onDecreaseCountClick: () -> Unit,
@@ -142,14 +142,14 @@ fun MedicationDefinitionEditorSheet(
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = onConfirm,
     ) {
-        MedicinePickerContent(
+        MedicationEditorContent(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
-            existingMedicines = existingMedicines,
+            resolvedMedicine = resolvedMedicine,
             canEditMedicationIdentity = canEditMedicationIdentity,
             onMedicineDraftChange = onMedicineDraftChange,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-            onExistingMedicineSelected = onExistingMedicineSelected,
+            onOpenMedicinePicker = onOpenMedicinePicker,
             countText = countText,
             onCountTextChange = onCountTextChange,
             onDecreaseCountClick = onDecreaseCountClick,
@@ -171,7 +171,7 @@ fun MedicationLogEntryEditorSheet(
     onCloseClick: () -> Unit,
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    existingMedicines: List<Medicine>,
+    resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
     lockedMedicine: Medicine?,
     sourceGroupName: String? = null,
@@ -180,7 +180,7 @@ fun MedicationLogEntryEditorSheet(
     sourceGroupScheduleOffsetOutsideFulfillmentWindow: Boolean = false,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onExistingMedicineSelected: (UUID) -> Unit,
+    onOpenMedicinePicker: () -> Unit,
     countText: String,
     onCountTextChange: (String) -> Unit,
     onDecreaseCountClick: () -> Unit,
@@ -240,14 +240,14 @@ fun MedicationLogEntryEditorSheet(
         onConfirm = onConfirm,
     ) {
         if (canEditMedicationIdentity) {
-            MedicinePickerContent(
+            MedicationEditorContent(
                 medicineDraft = medicineDraft,
                 doseInstructionDraft = doseInstructionDraft,
-                existingMedicines = existingMedicines,
+                resolvedMedicine = resolvedMedicine,
                 canEditMedicationIdentity = true,
                 onMedicineDraftChange = onMedicineDraftChange,
                 onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-                onExistingMedicineSelected = onExistingMedicineSelected,
+                onOpenMedicinePicker = onOpenMedicinePicker,
                 countText = countText,
                 onCountTextChange = onCountTextChange,
                 onDecreaseCountClick = onDecreaseCountClick,
@@ -401,19 +401,19 @@ private fun MedicationEditorSheetScaffold(
 }
 
 // ---------------------------------------------------------------------------
-// Picker content — existing-medicine cards + "+ New" create form.
+// Medication editor content — slot/log dose fields plus routed picker summary.
 // ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun MedicinePickerContent(
+private fun MedicationEditorContent(
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
-    existingMedicines: List<Medicine>,
+    resolvedMedicine: Medicine?,
     canEditMedicationIdentity: Boolean,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onExistingMedicineSelected: (UUID) -> Unit,
+    onOpenMedicinePicker: () -> Unit,
     countText: String,
     onCountTextChange: (String) -> Unit,
     onDecreaseCountClick: () -> Unit,
@@ -431,6 +431,7 @@ private fun MedicinePickerContent(
         onOptionSelected = { category ->
             onMedicineDraftChange { it.changeCategory(category) }
         },
+        enabled = canEditMedicationIdentity && !isSaving,
     )
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -450,98 +451,37 @@ private fun MedicinePickerContent(
         onOptionSelected = { applicationType ->
             onMedicineDraftChange { it.changeApplicationType(applicationType) }
         },
+        enabled = canEditMedicationIdentity && !isSaving,
     )
 
     if (isPatchOff) {
         // PATCH_OFF carries no medicine — no identity, preparation, or dose.
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = stringResource(R.string.medication_editor_patch_off_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        OutlinedTextField(
+            value = "",
+            onValueChange = {},
+            modifier = Modifier.fillMaxWidth(),
+            enabled = false,
+            readOnly = true,
+            label = { Text(text = stringResource(R.string.field_dosage_mg)) },
+            placeholder = { Text(text = stringResource(R.string.medication_editor_patch_off_hint)) },
         )
         return
     }
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    val catalogKeys = medicineDraft.availableCatalogKeys()
-    if (medicineDraft.supportsCatalogSelection() &&
-        medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
-        catalogKeys.size > 1
-    ) {
-        EditorSectionLabel(stringResource(R.string.field_medication))
-        ConnectedButtonGroup(
-            options = catalogKeys,
-            selectedOption = medicineDraft.medicationKey ?: catalogKeys.first(),
-            optionLabel = { medicationKey -> stringResource(medicationKey.labelRes) },
-            onOptionSelected = { medicationKey ->
-                onMedicineDraftChange { it.changeMedicationKey(medicationKey) }
-            },
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    }
+    MedicationSummaryHeader(
+        medicine = resolvedMedicine,
+        applicationType = medicineDraft.applicationType,
+        doseInstructionDraft = doseInstructionDraft,
+        countText = countText,
+        canOpenMedicinePicker = canEditMedicationIdentity && !isSaving,
+        onOpenMedicinePicker = onOpenMedicinePicker,
+        errorMessageRes = errorMessageRes,
+    )
 
-    if (medicineDraft.requiresCustomName()) {
-        OutlinedTextField(
-            value = medicineDraft.customMedicationName,
-            onValueChange = { value ->
-                onMedicineDraftChange {
-                    it.copy(customMedicationName = value, selectedMedicineUuid = null)
-                }
-            },
-            isError = errorMessageRes == R.string.validation_name_required,
-            label = { Text(text = stringResource(R.string.field_medication_name)) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Label,
-                    contentDescription = null,
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    }
-
-    // Existing medicines for the chosen catalog/custom identity.
-    val matchingMedicines = remember(existingMedicines, medicineDraft) {
-        existingMedicines.filter { medicine ->
-            medicineMatchesPickerIdentity(medicine, medicineDraft)
-        }
-    }
-    if (matchingMedicines.isNotEmpty()) {
-        EditorSectionLabel(stringResource(R.string.medication_picker_existing_medicines))
-        Column {
-            matchingMedicines.forEachIndexed { index, medicine ->
-                ExistingMedicineCard(
-                    medicine = medicine,
-                    applicationType = medicineDraft.applicationType,
-                    isSelected = medicineDraft.selectedMedicineUuid == medicine.uuid,
-                    index = index,
-                    itemCount = matchingMedicines.size,
-                    onClick = { onExistingMedicineSelected(medicine.uuid) },
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    }
-
-    // "+ New" create form — only the preparation fields required by the type.
-    val showsNewForm = medicineDraft.selectedMedicineUuid == null
-    if (showsNewForm) {
-        if (matchingMedicines.isNotEmpty()) {
-            EditorSectionLabel(stringResource(R.string.medication_picker_add_new))
-        }
-        NewMedicineForm(
-            medicineDraft = medicineDraft,
-            onMedicineDraftChange = onMedicineDraftChange,
-            errorMessageRes = errorMessageRes,
-        )
-
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    }
+    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
     // The dose instruction form must render whenever the route requires per-
     // instruction dose data (VolumeMl for INJECTION_MULTI_USE_VIAL,
@@ -559,9 +499,6 @@ private fun MedicinePickerContent(
     if (doseInstructionDraft != null &&
         requiresEditableDoseInstructionForm(doseInstructionDraft.preparationType)
     ) {
-        if (!showsNewForm) {
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        }
         DoseInstructionForm(
             doseInstructionDraft = doseInstructionDraft,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
@@ -584,25 +521,6 @@ private fun MedicinePickerContent(
     }
 }
 
-// A picker matches an active medicine when its identity tuple lines up: catalog
-// key for CATALOG; normalized custom name for CUSTOM.
-internal fun medicineMatchesPickerIdentity(
-    medicine: Medicine,
-    draft: MedicinePickerUiState,
-): Boolean {
-    return when (val selection = medicine.selection) {
-        is com.mkx.hrttracker.model.medication.MedicineSelection.Catalog ->
-            !draft.requiresCustomName() && selection.medicationKey == draft.medicationKey
-
-        is com.mkx.hrttracker.model.medication.MedicineSelection.Custom ->
-            draft.requiresCustomName() &&
-                selection.normalizedMedicationName ==
-                com.mkx.hrttracker.model.medication.normalizeCustomMedicationName(
-                    draft.customMedicationName,
-                )
-    }
-}
-
 @Composable
 private fun EditorSectionLabel(text: String) {
     Text(
@@ -617,200 +535,62 @@ private fun EditorSectionLabel(text: String) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ExistingMedicineCard(
-    medicine: Medicine,
+private fun MedicationSummaryHeader(
+    medicine: Medicine?,
     applicationType: MedicationApplicationType,
-    isSelected: Boolean,
-    index: Int,
-    itemCount: Int,
-    onClick: () -> Unit,
-) {
-    val name = medicineDisplayName(medicine)
-    val summary = medicinePreparationSummary(medicine)
-    EditorSegmentedListItem(
-        onClick = onClick,
-        index = index,
-        count = itemCount,
-        modifier = Modifier.fillMaxWidth(),
-        containerColor = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Normal,
-                    modifier = Modifier.cjkTextOffset(name),
-                )
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.cjkTextOffset(summary),
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun NewMedicineForm(
-    medicineDraft: MedicinePickerUiState,
-    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    doseInstructionDraft: DoseInstructionDraftUiState?,
+    countText: String,
+    canOpenMedicinePicker: Boolean,
+    onOpenMedicinePicker: () -> Unit,
     errorMessageRes: Int?,
 ) {
-    // Preparation-type picker — shown only when the route is ambiguous.
-    if (medicineDraft.requiresPreparationTypeSelection()) {
-        EditorSectionLabel(stringResource(R.string.field_preparation_type))
-        val options = ambiguousPreparationTypes(medicineDraft.applicationType)
-        ConnectedButtonGroup(
-            options = options,
-            selectedOption = medicineDraft.preparationType ?: options.first(),
-            optionLabel = { preparationType ->
-                stringResource(preparationTypeLabelRes(preparationType))
-            },
-            onOptionSelected = { preparationType ->
-                onMedicineDraftChange { it.changePreparationType(preparationType) }
-            },
+    EditorSectionLabel(stringResource(R.string.field_medication))
+    val resolvedCount = remember(countText) { parseMedicationCountText(countText) }
+    val doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull()
+        ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop
+    if (medicine != null) {
+        MedicationCard(
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            applicationType = applicationType,
+            medicationCount = resolvedCount.coerceAtLeast(1),
+            groupColorKey = null,
+            onClick = onOpenMedicinePicker,
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            enabled = canOpenMedicinePicker,
         )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    }
-
-    val preparationType = medicineDraft.inferredOrSelectedPreparationType() ?: return
-
-    when (preparationType) {
-        MedicinePreparationType.PILL -> NumericField(
-            value = medicineDraft.pillStrengthMg,
-            label = stringResource(R.string.field_pill_strength_mg),
-            suffix = stringResource(R.string.unit_mg),
-            isError = errorMessageRes == R.string.validation_pill_strength_required,
-            errorMessageRes = R.string.validation_pill_strength_required
-                .takeIf { errorMessageRes == it },
-            onValueChange = { value ->
-                onMedicineDraftChange { it.copy(pillStrengthMg = value) }
+    } else {
+        EditorSegmentedListItem(
+            onClick = onOpenMedicinePicker,
+            index = 0,
+            count = 1,
+            enabled = canOpenMedicinePicker,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Label,
+                    contentDescription = null,
+                )
             },
-        )
-
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericField(
-            value = medicineDraft.singleUseVialStrengthMg,
-            label = stringResource(R.string.field_single_use_vial_strength_mg),
-            suffix = stringResource(R.string.unit_mg),
-            isError = errorMessageRes == R.string.validation_vial_strength_required,
-            errorMessageRes = R.string.validation_vial_strength_required
-                .takeIf { errorMessageRes == it },
-            onValueChange = { value ->
-                onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
+            supportingContent = if (
+                errorMessageRes == R.string.validation_medication_selection_required
+            ) {
+                {
+                    Text(
+                        text = stringResource(R.string.validation_medication_selection_required),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            } else {
+                null
             },
-        )
-
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
-            NumericField(
-                value = medicineDraft.concentrationMgPerMl,
-                label = stringResource(R.string.field_concentration_mg_per_ml),
-                suffix = stringResource(R.string.unit_mg),
-                isError = errorMessageRes == R.string.validation_concentration_required,
-                errorMessageRes = R.string.validation_concentration_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(concentrationMgPerMl = value) }
-                },
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
-                value = medicineDraft.vialVolumeMl,
-                label = stringResource(R.string.field_vial_volume_ml),
-                isError = errorMessageRes == R.string.validation_vial_volume_required,
-                errorMessageRes = R.string.validation_vial_volume_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(vialVolumeMl = value) }
-                },
-            )
-        }
-
-        MedicinePreparationType.GEL_SACHET -> {
-            NumericField(
-                value = medicineDraft.gelConcentrationPercent,
-                label = stringResource(R.string.field_gel_concentration_percent),
-                suffix = stringResource(R.string.unit_percent),
-                isError = errorMessageRes == R.string.validation_gel_concentration_required,
-                errorMessageRes = R.string.validation_gel_concentration_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
-                },
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
-                value = medicineDraft.sachetWeightGrams,
-                label = stringResource(R.string.field_sachet_weight_grams),
-                suffix = stringResource(R.string.unit_grams),
-                isError = errorMessageRes == R.string.validation_sachet_weight_required,
-                errorMessageRes = R.string.validation_sachet_weight_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(sachetWeightGrams = value) }
-                },
-            )
-        }
-
-        MedicinePreparationType.GEL_CONTAINER -> {
-            NumericField(
-                value = medicineDraft.gelConcentrationPercent,
-                label = stringResource(R.string.field_gel_concentration_percent),
-                suffix = stringResource(R.string.unit_percent),
-                isError = errorMessageRes == R.string.validation_gel_concentration_required,
-                errorMessageRes = R.string.validation_gel_concentration_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
-                },
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
-                value = medicineDraft.containerWeightGrams,
-                label = stringResource(R.string.field_container_weight_grams),
-                suffix = stringResource(R.string.unit_grams),
-                isError = errorMessageRes == R.string.validation_container_weight_required,
-                errorMessageRes = R.string.validation_container_weight_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(containerWeightGrams = value) }
-                },
-            )
-        }
-
-        MedicinePreparationType.PATCH -> {
-            NumericField(
-                value = medicineDraft.patchTotalMg,
-                label = stringResource(R.string.field_patch_total_dosage_mg),
-                suffix = stringResource(R.string.unit_mg),
-                isError = errorMessageRes == R.string.validation_patch_total_required,
-                errorMessageRes = R.string.validation_patch_total_required
-                    .takeIf { errorMessageRes == it },
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(patchTotalMg = value) }
-                },
-            )
-            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-            NumericField(
-                value = medicineDraft.patchReleaseRateMcgPerDay,
-                label = stringResource(R.string.field_patch_release_rate),
-                suffix = stringResource(R.string.unit_mcg_day),
-                onValueChange = { value ->
-                    onMedicineDraftChange { it.copy(patchReleaseRateMcgPerDay = value) }
-                },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(R.string.medicine_picker_select_medicine),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Normal,
             )
         }
     }
@@ -825,25 +605,28 @@ private fun DoseInstructionForm(
 ) {
     when (doseInstructionDraft.preparationType) {
         MedicinePreparationType.PILL -> {
-            // Tablets-per-dose. Numerator drives the editable field; the
-            // denominator stays at 1 for whole tablets (fractions reachable via
-            // decimal-aware repository round-trip — UI keeps it simple here).
-            NumericField(
-                value = doseInstructionDraft.tabletFractionNumerator
-                    .takeIf { it > 0 }?.toString().orEmpty(),
-                label = stringResource(R.string.field_dose_tablet_fraction),
-                isError = errorMessageRes == R.string.validation_dose_tablet_fraction_required,
-                errorMessageRes = R.string.validation_dose_tablet_fraction_required
-                    .takeIf { errorMessageRes == it },
-                keyboardType = KeyboardType.Number,
-                showWarningIcon = showsDoseWarning,
-                onValueChange = { value ->
-                    val numerator = value.filter(Char::isDigit).toIntOrNull() ?: 0
+            val current = doseInstructionDraft.selectedTabletFractionOption()
+            EditorSectionLabel(stringResource(R.string.field_dose_tablet_fraction))
+            ConnectedButtonGroup(
+                options = TabletFractionOption.entries,
+                selectedOptions = setOf(current),
+                optionLabel = { option -> option.label() },
+                onOptionToggled = { selected ->
                     onDoseInstructionDraftChange {
-                        it.copy(tabletFractionNumerator = numerator, tabletFractionDenominator = 1)
+                        it.selectTabletFraction(selected)
                     }
                 },
+                layout = ConnectedButtonGroupLayout.ROW,
+                expandOptions = true,
             )
+            if (showsDoseWarning) {
+                Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_xsmall)))
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
@@ -853,6 +636,7 @@ private fun DoseInstructionForm(
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> NumericField(
             value = doseInstructionDraft.volumeMl,
             label = stringResource(R.string.field_dose_volume_ml),
+            suffix = stringResource(R.string.unit_ml),
             isError = errorMessageRes == R.string.validation_dose_volume_required,
             errorMessageRes = R.string.validation_dose_volume_required
                 .takeIf { errorMessageRes == it },
@@ -937,6 +721,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         index = if (hasGroupInfo) 1 else 0,
         itemCount = if (hasGroupInfo) 2 else 1,
+        enabled = false,
     )
 }
 
@@ -1351,11 +1136,11 @@ private fun MedicationDefinitionEditorSheetPreview() {
             onCloseClick = { },
             medicineDraft = draft,
             doseInstructionDraft = draft.toDoseInstructionDraft(),
-            existingMedicines = emptyList(),
+            resolvedMedicine = null,
             canEditMedicationIdentity = true,
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { },
             countText = "2",
             onCountTextChange = { },
             onDecreaseCountClick = { },
@@ -1387,7 +1172,7 @@ private fun MedicationLogEntryEditorSheetPreview() {
             onCloseClick = { },
             medicineDraft = draft,
             doseInstructionDraft = draft.toDoseInstructionDraft(),
-            existingMedicines = emptyList(),
+            resolvedMedicine = null,
             canEditMedicationIdentity = false,
             lockedMedicine = null,
             sourceGroupName = "Nightly estradiol",
@@ -1395,7 +1180,7 @@ private fun MedicationLogEntryEditorSheetPreview() {
             sourceGroupScheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { },
             countText = "1",
             onCountTextChange = { },
             onDecreaseCountClick = { },

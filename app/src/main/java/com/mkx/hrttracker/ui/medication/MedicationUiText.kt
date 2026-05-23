@@ -127,6 +127,12 @@ fun medicationEntrySupportingText(
     extraSupportingText: String? = null,
 ): String {
     val applicationTypeLabel = stringResource(applicationType.labelRes)
+        .takeIf {
+            shouldIncludeApplicationTypeInSupportingText(
+                hasMedicine = medicine != null,
+                applicationType = applicationType,
+            )
+        }
     val doseText = if (medicine != null) {
         doseInstructionSummary(doseInstruction)
     } else {
@@ -141,3 +147,17 @@ fun medicationEntrySupportingText(
 }
 
 fun medicationCountIndicatorText(count: Int): String = "${count}x"
+
+internal fun shouldUseApplicationTypeAsMedicationEntryTitle(
+    hasMedicine: Boolean,
+    applicationType: MedicationApplicationType,
+): Boolean {
+    return !hasMedicine
+}
+
+internal fun shouldIncludeApplicationTypeInSupportingText(
+    hasMedicine: Boolean,
+    applicationType: MedicationApplicationType,
+): Boolean {
+    return hasMedicine || applicationType == MedicationApplicationType.PATCH_OFF
+}

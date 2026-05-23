@@ -15,6 +15,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -183,6 +184,44 @@ class MedicineRepositoryTest {
         assertEquals(Instant.ofEpochMilli(200), medicine.updatedAt)
         coVerify(exactly = 1) { dao.insert(any()) }
         coVerify(exactly = 0) { dao.unarchive(any(), any()) }
+    }
+
+    @Test
+    fun setDisplayName_updatesObservedMedicineByUuid() = runTest {
+        val uuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000000")
+        val original = medicineEntity(uuid = uuid.toString())
+        val observedEntity = MutableStateFlow(original)
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { dao.observeByUuid(uuid.toString()) } returns observedEntity
+        coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
+        coEvery { databaseHolder.withTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+        coEvery { dao.getByUuid(uuid.toString()) } returns original
+        coEvery {
+            dao.updateDisplayName(
+                uuid = uuid.toString(),
+                displayName = "New",
+                updatedAtEpochMillis = 500,
+            )
+        } coAnswers {
+            observedEntity.value = original.copy(
+                displayName = "New",
+                updatedAtEpochMillis = 500,
+            )
+        }
+
+        repository.setDisplayName(
+            uuid = uuid,
+            name = "New",
+            now = Instant.ofEpochMilli(500),
+        )
+
+        val observed = repository.observeByUuid(uuid).first()
+        assertEquals("New", observed?.displayName)
+        assertEquals(Instant.ofEpochMilli(500), observed?.updatedAt)
     }
 
     @Test

@@ -43,6 +43,9 @@ fun AddEntryScreen(
     modifier: Modifier = Modifier,
     quickLogRequest: AddEntryQuickLogRequest? = null,
     editSnapshot: AddEntryEditSnapshot? = null,
+    selectedMedicineUuid: String? = null,
+    onMedicinePickerResultConsumed: () -> Unit = { },
+    onOpenMedicinePicker: () -> Unit,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
     viewModel: AddEntryViewModel = hiltViewModel()
@@ -90,6 +93,13 @@ fun AddEntryScreen(
                 onEntrySaved()
             }
         }
+    }
+
+    LaunchedEffect(selectedMedicineUuid) {
+        val medicineUuid = selectedMedicineUuid ?: return@LaunchedEffect
+        runCatching { UUID.fromString(medicineUuid) }
+            .onSuccess(viewModel::onMedicineSelected)
+        onMedicinePickerResultConsumed()
     }
 
     val context = LocalContext.current
@@ -151,7 +161,7 @@ fun AddEntryScreen(
         },
         onMedicineDraftChange = viewModel::updateMedicineDraft,
         onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
-        onExistingMedicineSelected = viewModel::selectExistingMedicine,
+        onOpenMedicinePicker = onOpenMedicinePicker,
         onCountTextChange = viewModel::updateCountText,
         onDecreaseCountClick = viewModel::decreaseCount,
         onIncreaseCountClick = viewModel::increaseCount,
@@ -176,7 +186,7 @@ private fun AddEntryScreenContent(
     onCloseClick: () -> Unit,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onExistingMedicineSelected: (UUID) -> Unit,
+    onOpenMedicinePicker: () -> Unit,
     onCountTextChange: (String) -> Unit,
     onDecreaseCountClick: () -> Unit,
     onIncreaseCountClick: () -> Unit,
@@ -199,7 +209,7 @@ private fun AddEntryScreenContent(
         onCloseClick = onCloseClick,
         medicineDraft = uiState.medicineDraft,
         doseInstructionDraft = uiState.doseInstructionDraft,
-        existingMedicines = uiState.activeMedicines,
+        resolvedMedicine = uiState.resolvedMedicine,
         canEditMedicationIdentity = uiState.canEditMedicationIdentity,
         lockedMedicine = uiState.resolvedMedicine,
         sourceGroupName = uiState.sourceGroupName,
@@ -210,7 +220,11 @@ private fun AddEntryScreenContent(
         ),
         onMedicineDraftChange = onMedicineDraftChange,
         onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-        onExistingMedicineSelected = onExistingMedicineSelected,
+        onOpenMedicinePicker = {
+            if (uiState.canEditMedicationIdentity) {
+                onOpenMedicinePicker()
+            }
+        },
         countText = uiState.countText,
         onCountTextChange = onCountTextChange,
         onDecreaseCountClick = onDecreaseCountClick,
@@ -320,7 +334,7 @@ private fun AddEntryScreenPreview() {
             onCloseClick = { },
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { },
             onCountTextChange = { },
             onDecreaseCountClick = { },
             onIncreaseCountClick = { },

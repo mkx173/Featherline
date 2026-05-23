@@ -6,7 +6,10 @@ import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineLockedException
 import com.mkx.hrttracker.data.repository.MedicineReferencedByActiveGroupException
 import com.mkx.hrttracker.data.repository.MedicineRepository
+import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
 import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -75,8 +78,157 @@ class MedicineDetailViewModelTest {
         viewModel.archive()
         advanceUntilIdle()
 
-        assertEquals(1, viewModel.uiState.value.linkedActiveGroups.size)
+        assertEquals(1, viewModel.uiState.value.linkedActiveSlots.size)
         coVerify(exactly = 0) { medicineRepository.archive(any(), any()) }
+    }
+
+    // Why this matters: the detail screen must show the exact slot that
+    // links a medicine into each group, not just the group name. Otherwise
+    // two groups with different routes/doses are indistinguishable.
+    @Test
+    fun linkedActiveSlotsIncludeDoseAndApplicationForEachReferencingGroup() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000008")
+        val medicine = testMedicine(uuid = medicineUuid)
+        val oralDose = DoseInstruction.TabletFraction(numerator = 1, denominator = 2)
+        val sublingualDose = DoseInstruction.TabletFraction(numerator = 1, denominator = 4)
+        val morningGroup = testGroupReferencingMedicine(
+            groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000001"),
+            medicine = medicine,
+        ).copy(
+            name = "Morning",
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = oralDose,
+                    count = 2,
+                ),
+            ),
+        )
+        val eveningGroup = testGroupReferencingMedicine(
+            groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002"),
+            medicine = medicine,
+        ).copy(
+            name = "Evening",
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.SUBLINGUAL,
+                    doseInstruction = sublingualDose,
+                ),
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(morningGroup, eveningGroup),
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        val rows = viewModel.uiState.value.linkedActiveSlots
+        assertEquals(2, rows.size)
+        assertEquals("Evening", rows[0].group.name)
+        assertEquals(sublingualDose, rows[0].doseInstruction)
+        assertEquals(MedicationApplicationType.SUBLINGUAL, rows[0].applicationType)
+        assertEquals("Morning", rows[1].group.name)
+        assertEquals(oralDose, rows[1].doseInstruction)
+        assertEquals(MedicationApplicationType.ORAL, rows[1].applicationType)
+        assertEquals(2, rows[1].count)
+    }
+
+    // Why this matters: archived groups should not block archive/delete
+    // affordances or appear as active links on a medicine detail page.
+    @Test
+    fun linkedActiveSlotsExcludeArchivedGroups() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000009")
+        val medicine = testMedicine(uuid = medicineUuid)
+        val activeGroup = testGroupReferencingMedicine(
+            groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000003"),
+            medicine = medicine,
+        ).copy(name = "Active")
+        val archivedGroup = testGroupReferencingMedicine(
+            groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000004"),
+            medicine = medicine,
+            archivedAt = Instant.EPOCH,
+        ).copy(name = "Archived")
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(
+            listOf(activeGroup, archivedGroup),
+        )
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        val rows = viewModel.uiState.value.linkedActiveSlots
+        assertEquals(1, rows.size)
+        assertEquals("Active", rows.single().group.name)
+    }
+
+    // Why this matters: one group can intentionally reference the same
+    // medicine more than once, with different route/dose instructions. The
+    // detail screen must preserve both slots instead of collapsing by group.
+    @Test
+    fun linkedActiveSlotsIncludeMultipleSlotsFromSameGroup() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000010")
+        val medicine = testMedicine(uuid = medicineUuid)
+        val oralDose = DoseInstruction.TabletFraction(numerator = 1, denominator = 1)
+        val sublingualDose = DoseInstruction.TabletFraction(numerator = 1, denominator = 2)
+        val group = testGroupReferencingMedicine(
+            groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000005"),
+            medicine = medicine,
+        ).copy(
+            name = "Split dose",
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.SUBLINGUAL,
+                    doseInstruction = sublingualDose,
+                ),
+                testMedicationGroupMedication(
+                    medicine = medicine,
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = oralDose,
+                ),
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+
+        val rows = viewModel.uiState.value.linkedActiveSlots
+        assertEquals(2, rows.size)
+        assertEquals(MedicationApplicationType.ORAL, rows[0].applicationType)
+        assertEquals(oralDose, rows[0].doseInstruction)
+        assertEquals(MedicationApplicationType.SUBLINGUAL, rows[1].applicationType)
+        assertEquals(sublingualDose, rows[1].doseInstruction)
+        assertEquals(listOf(group.uuid, group.uuid), rows.map { it.group.uuid })
     }
 
     // Why this matters: when no active group blocks archive, the repo call

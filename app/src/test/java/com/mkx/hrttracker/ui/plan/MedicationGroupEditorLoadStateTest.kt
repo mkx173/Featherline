@@ -16,6 +16,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -23,8 +24,10 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,9 +70,15 @@ class MedicationGroupEditorLoadStateTest {
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
-        coEvery { settingsRepository.nextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.peekNextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.consumeNextGroupNameIndex() } returns 1
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(
+            listOf(editorEstradiolMedicine),
+        )
+        coEvery { medicineRepository.getByUuid(editorEstradiolMedicine.uuid) } returns
+            editorEstradiolMedicine
         every {
             context.getString(R.string.default_group_name_format, any())
         } answers {
@@ -81,6 +90,141 @@ class MedicationGroupEditorLoadStateTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun newGroupOpenUsesStablePeekedDefaultNameWithoutConsumingCounter() = runTest {
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val firstOpen = newViewModel()
+        advanceUntilIdle()
+        val secondOpen = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Group 1", firstOpen.uiState.value.defaultGroupName)
+        assertEquals("Group 1", secondOpen.uiState.value.defaultGroupName)
+        coVerify(exactly = 2) { settingsRepository.peekNextGroupNameIndex() }
+        coVerify(exactly = 0) { settingsRepository.consumeNextGroupNameIndex() }
+    }
+
+    @Test
+    fun savingNewGroupWithDefaultNameConsumesCounterAndNextOpenAdvances() = runTest {
+        var nextIndex = 1
+        val savedGroupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000001")
+        val capturedName = slot<String>()
+        coEvery { settingsRepository.peekNextGroupNameIndex() } coAnswers { nextIndex }
+        coEvery { settingsRepository.consumeNextGroupNameIndex() } coAnswers { nextIndex++ }
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = any(),
+                name = capture(capturedName),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+        val firstOpen = newViewModel()
+        advanceUntilIdle()
+        addExistingMedicineSlot(firstOpen)
+
+        firstOpen.saveGroup()
+        advanceUntilIdle()
+
+        val secondOpen = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Group 1", capturedName.captured)
+        assertEquals("Group 2", secondOpen.uiState.value.defaultGroupName)
+        coVerify(exactly = 1) { settingsRepository.consumeNextGroupNameIndex() }
+    }
+
+    @Test
+    fun savingNewGroupWithCustomNameDoesNotConsumeCounter() = runTest {
+        var nextIndex = 1
+        val savedGroupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002")
+        val capturedName = slot<String>()
+        coEvery { settingsRepository.peekNextGroupNameIndex() } coAnswers { nextIndex }
+        coEvery { settingsRepository.consumeNextGroupNameIndex() } coAnswers { nextIndex++ }
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = any(),
+                name = capture(capturedName),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns savedGroupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(savedGroupUuid, any()) } returns Unit
+
+        val firstOpen = newViewModel()
+        advanceUntilIdle()
+        firstOpen.updateGroupName("Custom group")
+        addExistingMedicineSlot(firstOpen)
+
+        firstOpen.saveGroup()
+        advanceUntilIdle()
+
+        val secondOpen = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals("Custom group", capturedName.captured)
+        assertEquals("Group 1", secondOpen.uiState.value.defaultGroupName)
+        coVerify(exactly = 0) { settingsRepository.consumeNextGroupNameIndex() }
+    }
+
+    @Test
+    fun editModeDoesNotTouchGroupNameCounterOnOpenOrSave() = runTest {
+        val groupUuid = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000003")
+        val group = testMedicationGroup(groupUuid)
+        every { medicationGroupRepository.getCachedGroup(groupUuid) } returns group
+        every { medicationGroupRepository.observeGroups() } returns flowOf(listOf(group))
+        coEvery {
+            medicationGroupRepository.saveGroup(
+                uuid = groupUuid,
+                name = any(),
+                colorKey = any(),
+                schedule = any(),
+                medications = any(),
+                notificationsEnabled = any(),
+                includePastScheduledSlots = any(),
+                replacesGroupUuid = any(),
+                now = any(),
+            )
+        } returns groupUuid
+        coEvery { medicationReminderScheduler.rescheduleGroup(groupUuid, any()) } returns Unit
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicationGroupEditorViewModel.GROUP_ID_ARG to groupUuid.toString())
+            ),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.saveGroup()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { settingsRepository.peekNextGroupNameIndex() }
+        coVerify(exactly = 0) { settingsRepository.consumeNextGroupNameIndex() }
     }
 
     @Test
@@ -1329,6 +1473,29 @@ class MedicationGroupEditorLoadStateTest {
                 )
             )
         )
+    }
+
+    private fun newViewModel(): MedicationGroupEditorViewModel {
+        return MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+    }
+
+    private fun addExistingMedicineSlot(
+        viewModel: MedicationGroupEditorViewModel,
+    ) {
+        viewModel.showAddMedicationEditor()
+        val localId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(localId, editorEstradiolMedicine.uuid)
+        viewModel.saveEditingMedication()
     }
 }
 

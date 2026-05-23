@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.isArchived
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,12 +79,28 @@ class MedicinesViewModel @Inject constructor(
                 ?: return@mapNotNull null
             MedicineCategorySection(
                 category = category,
-                medicines = medicines.map { medicine ->
-                    MedicineListItem(
-                        medicine = medicine,
-                        activeGroupReferenceCount = referenceCounts[medicine.uuid] ?: 0,
-                    )
-                },
+                drugGroups = medicines
+                    .map { medicine ->
+                        MedicineListItem(
+                            medicine = medicine,
+                            activeGroupReferenceCount = referenceCounts[medicine.uuid] ?: 0,
+                        )
+                    }
+                    .groupBy(MedicineListItem::drugIdentityKey)
+                    .map { (identityKey, preparations) ->
+                        DrugGroupItem(
+                            drugLabel = preparations.first().drugLabel,
+                            drugIdentityKey = identityKey,
+                            preparations = preparations.sortedWith(
+                                compareBy<MedicineListItem> { it.medicine.createdAt }
+                                    .thenBy { it.medicine.uuid.toString() },
+                            ),
+                        )
+                    }
+                    .sortedWith(
+                        compareBy<DrugGroupItem> { it.drugLabel.lowercase() }
+                            .thenBy { it.drugIdentityKey },
+                    ),
             )
         }
     }
@@ -118,10 +135,28 @@ data class MedicinesUiState(
 
 data class MedicineCategorySection(
     val category: MedicationCategory,
-    val medicines: List<MedicineListItem>,
+    val drugGroups: List<DrugGroupItem>,
+)
+
+data class DrugGroupItem(
+    val drugLabel: String,
+    val drugIdentityKey: String,
+    val preparations: List<MedicineListItem>,
 )
 
 data class MedicineListItem(
     val medicine: Medicine,
     val activeGroupReferenceCount: Int,
-)
+) {
+    val drugIdentityKey: String
+        get() = when (val selection = medicine.selection) {
+            is MedicineSelection.Catalog -> selection.medicationKey.name
+            is MedicineSelection.Custom -> selection.normalizedMedicationName
+        }
+
+    val drugLabel: String
+        get() = when (val selection = medicine.selection) {
+            is MedicineSelection.Catalog -> selection.medicationKey.name
+            is MedicineSelection.Custom -> selection.medicationName.trim()
+        }
+}

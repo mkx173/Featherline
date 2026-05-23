@@ -9,13 +9,17 @@ import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.testDoseInstruction
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -89,13 +93,13 @@ class MedicinesViewModelTest {
             listOf(estradiol.uuid),
             state.activeSections
                 .first { it.category == MedicationCategory.ESTRADIOL }
-                .medicines.map { it.medicine.uuid },
+                .drugGroups.flatMap { it.preparations }.map { it.medicine.uuid },
         )
         assertEquals(
             listOf(blocker.uuid),
             state.activeSections
                 .first { it.category == MedicationCategory.ANTIANDROGEN }
-                .medicines.map { it.medicine.uuid },
+                .drugGroups.flatMap { it.preparations }.map { it.medicine.uuid },
         )
         assertEquals(listOf(archived.uuid), state.archivedMedicines.map { it.uuid })
         assertFalse(state.archivedExpanded)
@@ -131,7 +135,9 @@ class MedicinesViewModelTest {
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
-        val items = viewModel.uiState.value.activeSections.flatMap { it.medicines }
+        val items = viewModel.uiState.value.activeSections.flatMap { section ->
+            section.drugGroups.flatMap { it.preparations }
+        }
         assertEquals(1, items.size)
         assertEquals(2, items.first().activeGroupReferenceCount)
         collectJob.cancel()
@@ -156,13 +162,139 @@ class MedicinesViewModelTest {
         val collectJob = startUiStateCollection(viewModel)
         advanceUntilIdle()
 
-        val items = viewModel.uiState.value.activeSections.flatMap { it.medicines }
+        val items = viewModel.uiState.value.activeSections.flatMap { section ->
+            section.drugGroups.flatMap { it.preparations }
+        }
         assertEquals(0, items.first().activeGroupReferenceCount)
+        collectJob.cancel()
+    }
+
+    @Test
+    fun catalogMedicinesWithSameDrugIdentityGroupTogetherWithinCategory() = runTest {
+        val first = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000010"),
+            key = MedicationKey.ESTRADIOL,
+            createdAt = Instant.parse("2026-05-01T00:00:00Z"),
+        )
+        val second = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000011"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Pill(
+                strengthMgPerTablet = 4.0,
+            ),
+            createdAt = Instant.parse("2026-05-02T00:00:00Z"),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(second, first))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val estradiolGroups = viewModel.uiState.value.activeSections
+            .single { it.category == MedicationCategory.ESTRADIOL }
+            .drugGroups
+        assertEquals(1, estradiolGroups.size)
+        assertEquals("ESTRADIOL", estradiolGroups.single().drugIdentityKey)
+        assertEquals(listOf(first.uuid, second.uuid), estradiolGroups.single().preparations.map { it.medicine.uuid })
+        collectJob.cancel()
+    }
+
+    @Test
+    fun customMedicineAloneIsSingleDrugGroup() = runTest {
+        val medicine = testCustomMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000012"),
+            medicationName = "  My Custom Med  ",
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val group = viewModel.uiState.value.activeSections.single().drugGroups.single()
+        assertEquals(
+            (medicine.selection as MedicineSelection.Custom).normalizedMedicationName,
+            group.drugIdentityKey,
+        )
+        assertEquals(listOf(medicine.uuid), group.preparations.map { it.medicine.uuid })
+        collectJob.cancel()
+    }
+
+    @Test
+    fun archivedMedicinesRemainSeparateFromActiveDrugGroups() = runTest {
+        val active = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000013"),
+            key = MedicationKey.ESTRADIOL,
+        )
+        val archived = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000014"),
+            key = MedicationKey.ESTRADIOL,
+            archivedAt = Instant.parse("2026-05-10T00:00:00Z"),
+        )
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(active))
+        every { medicineRepository.observeAllArchived() } returns flowOf(listOf(archived))
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(active.uuid),
+            viewModel.uiState.value.activeSections.single()
+                .drugGroups.single()
+                .preparations.map { it.medicine.uuid },
+        )
+        assertEquals(listOf(archived.uuid), viewModel.uiState.value.archivedMedicines.map { it.uuid })
         collectJob.cancel()
     }
 
     // Why this matters: the archived list is collapsed by default; the
     // expand toggle must flip in the state so the UI can render the rows.
+    @Test
+    fun displayNameUpdatePropagatesToActiveMedicineList() = runTest {
+        val uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000003")
+        val original = testMedicine(
+            uuid = uuid,
+            key = MedicationKey.ESTRADIOL,
+            displayName = null,
+        )
+        val activeMedicines = MutableStateFlow(listOf(original))
+        every { medicineRepository.observeAllActive() } returns activeMedicines
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery {
+            medicineRepository.setDisplayName(
+                uuid = uuid,
+                name = "Renamed",
+                now = Instant.parse("2026-05-23T00:00:00Z"),
+            )
+        } coAnswers {
+            activeMedicines.value = listOf(original.copy(displayName = "Renamed"))
+        }
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        medicineRepository.setDisplayName(
+            uuid = uuid,
+            name = "Renamed",
+            now = Instant.parse("2026-05-23T00:00:00Z"),
+        )
+        advanceUntilIdle()
+
+        val items = viewModel.uiState.value.activeSections.flatMap { section ->
+            section.drugGroups.flatMap { it.preparations }
+        }
+        assertEquals("Renamed", items.single().medicine.displayName)
+        collectJob.cancel()
+    }
+
     @Test
     fun toggleArchivedExpandedFlipsState() = runTest {
         every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
@@ -220,4 +352,3 @@ internal fun testGroupReferencingMedicine(
         archivedAt = archivedAt,
     )
 }
-

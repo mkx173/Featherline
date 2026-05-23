@@ -8,9 +8,11 @@ import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.settings.SettingsState
@@ -18,7 +20,6 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import com.mkx.hrttracker.util.FakeAppTimeSource
 import io.mockk.coEvery
-import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -59,7 +60,8 @@ class MedicationGroupEditorMedicineResolutionTest {
         settingsStateFlow = MutableStateFlow(SettingsState(remindersEnabled = true))
         every { settingsRepository.settingsState } returns settingsStateFlow
         coEvery { settingsRepository.getCurrentSettings() } returns settingsStateFlow.value
-        coEvery { settingsRepository.nextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.peekNextGroupNameIndex() } returns 1
+        coEvery { settingsRepository.consumeNextGroupNameIndex() } returns 1
         every { medicationGroupRepository.getCachedGroup(any()) } returns null
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         every { medicationLogRepository.observeEntries() } returns flowOf(emptyList())
@@ -83,7 +85,7 @@ class MedicationGroupEditorMedicineResolutionTest {
     // silently regress this. The test encodes that ordering invariant + the
     // identity propagation, not just "both methods were called."
     @Test
-    fun saveGroup_resolvesMedicinesBeforeSavingAndPassesResolvedUuids() = runTest {
+    fun saveGroup_usesPickerResolvedMedicineUuids() = runTest {
         val savedGroupUuid = UUID.fromString("1efb8bda-7c43-49d6-a3bc-2d4f1c2f4afa")
         val catalogMedicineUuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000001")
         val existingMedicineUuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000002")
@@ -100,25 +102,11 @@ class MedicationGroupEditorMedicineResolutionTest {
         )
         val savedMedications = slot<List<MedicationGroupMedicationInput>>()
 
-        // The existing-medicine slot needs the picker to know that this
-        // medicine is selectable. Without it, `selectEditingExistingMedicine`
-        // is a no-op (it only operates on `activeMedicines`). The viewmodel
-        // subscribes to this flow exactly once in init, so the override must
-        // be in place before the viewmodel is constructed *and* the flow
-        // must keep emitting (MutableStateFlow vs flowOf, which completes
-        // after one emission and may not have run by the time
-        // selectEditingExistingMedicine is invoked).
         every { medicineRepository.observeAllActive() } returns MutableStateFlow(
-            listOf(existingCustomMedicine)
+            listOf(resolvedCatalogMedicine, existingCustomMedicine)
         )
+        coEvery { medicineRepository.getByUuid(catalogMedicineUuid) } returns resolvedCatalogMedicine
         coEvery { medicineRepository.getByUuid(existingMedicineUuid) } returns existingCustomMedicine
-        coEvery {
-            medicineRepository.findOrCreateForCatalog(
-                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
-                now = any(),
-            )
-        } returns resolvedCatalogMedicine
         coEvery {
             medicationGroupRepository.saveGroup(
                 uuid = any(),
@@ -151,27 +139,17 @@ class MedicationGroupEditorMedicineResolutionTest {
         // Without this, saveGroup() short-circuits and isSaved stays false.
         viewModel.updateGroupName("Resolution test group")
 
-        // Slot #1: a brand-new catalog draft (no selectedMedicineUuid) — its
-        // pill strength matches the catalog medicine the repository will
-        // create. Save flow must call findOrCreateForCatalog and pass the
-        // returned UUID into the input.
+        // Slot #1: picker result for an existing catalog medicine.
         viewModel.showAddMedicationEditor()
-        viewModel.updateEditingMedicineDraft { draft ->
-            draft.copy(
-                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                pillStrengthMg = "2",
-            )
-        }
+        val firstSlotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(firstSlotId, catalogMedicineUuid)
         viewModel.saveEditingMedication()
 
-        // Slot #2: an existing-medicine selection — `selectEditingExistingMed
-        // icine` snaps the draft to the chosen active medicine via
-        // `medicineDraftFromMedicine`, which sets `selectedMedicineUuid`. The
-        // save path's `resolveMedicineForDraft` sees that and calls
-        // `getByUuid` instead of find-or-create, propagating the existing
-        // UUID into the input.
+        // Slot #2: separate picker result for a different slot. The first slot
+        // must not be overwritten by the second slot's result.
         viewModel.showAddMedicationEditor()
-        viewModel.selectEditingExistingMedicine(existingMedicineUuid)
+        val secondSlotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(secondSlotId, existingMedicineUuid)
         viewModel.saveEditingMedication()
 
         viewModel.saveGroup()
@@ -190,26 +168,103 @@ class MedicationGroupEditorMedicineResolutionTest {
             capturedUuids.containsAll(listOf(catalogMedicineUuid, existingMedicineUuid)),
         )
 
-        // Ordering invariant: both resolution methods complete before saveGroup
-        // is invoked. coVerifyOrder fails if saveGroup precedes either call.
-        coVerifyOrder {
-            medicineRepository.findOrCreateForCatalog(
-                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
-                now = any(),
-            )
-            medicineRepository.getByUuid(existingMedicineUuid)
-            medicationGroupRepository.saveGroup(
-                uuid = any(),
-                name = any(),
-                colorKey = any(),
-                schedule = any(),
-                medications = any(),
-                notificationsEnabled = any(),
-                includePastScheduledSlots = any(),
-                replacesGroupUuid = any(),
-                now = any(),
-            )
-        }
+    }
+
+    @Test
+    fun pickerResultForSlotUpdatesOnlyThatEditingSlot() = runTest {
+        val firstMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000010"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val secondMedicine = testMedicine(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000020"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(
+            listOf(firstMedicine, secondMedicine)
+        )
+        coEvery { medicineRepository.getByUuid(firstMedicine.uuid) } returns firstMedicine
+        coEvery { medicineRepository.getByUuid(secondMedicine.uuid) } returns secondMedicine
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.showAddMedicationEditor()
+        val firstSlotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(firstSlotId, firstMedicine.uuid)
+        viewModel.saveEditingMedication()
+
+        viewModel.showAddMedicationEditor()
+        val secondSlotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(secondSlotId, secondMedicine.uuid)
+
+        val medications = viewModel.uiState.value.medications
+        val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
+        assertEquals(listOf(firstMedicine.uuid), medications.mapNotNull { it.resolvedMedicine?.uuid })
+        assertEquals(secondMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
+        assertEquals(MedicationApplicationType.INJECTION, editingMedication.medicineDraft.applicationType)
+        assertEquals(
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            editingMedication.doseInstructionDraft.preparationType,
+        )
+    }
+
+    @Test
+    fun pickerResultDoesNotRepointExistingSlot() = runTest {
+        val firstMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000030"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val secondMedicine = testMedicine(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000040"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(
+            listOf(firstMedicine, secondMedicine)
+        )
+        coEvery { medicineRepository.getByUuid(firstMedicine.uuid) } returns firstMedicine
+        coEvery { medicineRepository.getByUuid(secondMedicine.uuid) } returns secondMedicine
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.showAddMedicationEditor()
+        val slotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(slotId, firstMedicine.uuid)
+        viewModel.saveEditingMedication()
+        viewModel.showMedicationEditor(slotId)
+
+        viewModel.onEditingMedicineSelected(slotId, secondMedicine.uuid)
+        advanceUntilIdle()
+
+        val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
+        assertEquals(firstMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
     }
 }

@@ -158,7 +158,8 @@ fun MedicationGroupEditorScreen(
     onGroupSavedToPlan: () -> Unit = onGroupSaved,
     openedFromArchivedGroupsPage: Boolean = false,
     drawBehindNavigationBar: Boolean = false,
-    viewModel: MedicationGroupEditorViewModel = hiltViewModel()
+    viewModel: MedicationGroupEditorViewModel = hiltViewModel(),
+    onOpenMedicinePicker: (String) -> Unit = { _ -> },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMinute by viewModel.currentMinute.collectAsStateWithLifecycle()
@@ -407,7 +408,7 @@ fun MedicationGroupEditorScreen(
         onConsumeMedicationEditorInfoMessage = viewModel::consumeMedicationEditorInfoMessage,
         onMedicineDraftChange = viewModel::updateEditingMedicineDraft,
         onDoseInstructionDraftChange = viewModel::updateEditingDoseInstructionDraft,
-        onExistingMedicineSelected = viewModel::selectEditingExistingMedicine,
+        onOpenMedicinePicker = onOpenMedicinePicker,
         onEditingMedicationCountTextChange = viewModel::updateEditingMedicationCountText,
         onDecreaseEditingMedicationCount = viewModel::decreaseEditingMedicationCount,
         onIncreaseEditingMedicationCount = viewModel::increaseEditingMedicationCount,
@@ -478,7 +479,7 @@ private fun MedicationGroupEditorScreenContent(
     onConsumeMedicationEditorInfoMessage: () -> Unit,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
-    onExistingMedicineSelected: (java.util.UUID) -> Unit,
+    onOpenMedicinePicker: (String) -> Unit,
     onEditingMedicationCountTextChange: (String) -> Unit,
     onDecreaseEditingMedicationCount: () -> Unit,
     onIncreaseEditingMedicationCount: () -> Unit,
@@ -1609,6 +1610,8 @@ private fun MedicationGroupEditorScreenContent(
     }
 
     uiState.editingMedication?.let { medication ->
+        val isEditingExistingMedication = uiState.medications.any { it.localId == medication.localId }
+        val canEditMedicationIdentity = !areFieldsRenderedLocked && !isEditingExistingMedication
         MedicationDefinitionEditorSheet(
             modifier = Modifier,
             title = stringResource(
@@ -1626,11 +1629,15 @@ private fun MedicationGroupEditorScreenContent(
             },
             medicineDraft = medication.medicineDraft,
             doseInstructionDraft = medication.doseInstructionDraft,
-            existingMedicines = uiState.activeMedicines,
-            canEditMedicationIdentity = !areFieldsRenderedLocked,
+            resolvedMedicine = medication.resolvedMedicine,
+            canEditMedicationIdentity = canEditMedicationIdentity,
             onMedicineDraftChange = onMedicineDraftChange,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
-            onExistingMedicineSelected = onExistingMedicineSelected,
+            onOpenMedicinePicker = {
+                if (canEditMedicationIdentity) {
+                    onOpenMedicinePicker(medication.localId)
+                }
+            },
             countText = medication.countText,
             onCountTextChange = onEditingMedicationCountTextChange,
             onDecreaseCountClick = onDecreaseEditingMedicationCount,
@@ -2216,7 +2223,7 @@ private fun MedicationGroupEditorDailyPreview() {
             onConsumeMedicationEditorInfoMessage = { },
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { _ -> },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2291,7 +2298,7 @@ private fun MedicationGroupEditorWeeklyPreview() {
             onConsumeMedicationEditorInfoMessage = { },
             onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { _ -> },
             onEditingMedicationCountTextChange = { },
             onDecreaseEditingMedicationCount = { },
             onIncreaseEditingMedicationCount = { },
@@ -2407,7 +2414,7 @@ private fun MedicationGroupEditorPreviewContent(
         onConsumeMedicationEditorInfoMessage = { },
         onMedicineDraftChange = { },
             onDoseInstructionDraftChange = { },
-            onExistingMedicineSelected = { },
+            onOpenMedicinePicker = { _ -> },
         onEditingMedicationCountTextChange = { },
         onDecreaseEditingMedicationCount = { },
         onIncreaseEditingMedicationCount = { },
