@@ -488,7 +488,7 @@ fun HrtTrackerNavHost(
                                 )
                             ) {
                                 TopLevelNavigationTapAction.POP_TO_TOP_LEVEL -> {
-                                    navController.popBackStack(navItem.screen.route, false)
+                                    navController.popBackStackSafely(navItem.screen.route, inclusive = false)
                                 }
 
                                 TopLevelNavigationTapAction.SCROLL_TO_TOP -> {
@@ -639,7 +639,7 @@ fun HrtTrackerNavHost(
                 ) {
                     PlanBatchAddScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                     )
                 }
                 composable(
@@ -653,7 +653,7 @@ fun HrtTrackerNavHost(
                 ) {
                     ArchivedMedicationGroupsScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onGroupClick = { groupId ->
                             navController.navigate(
                                 Screen.EditMedicationGroup.createRoute(
@@ -676,7 +676,7 @@ fun HrtTrackerNavHost(
                 ) {
                     HistoryScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onEntryClick = { entryIds ->
                             addEntrySheetRequest = AddEntrySheetRequest(
                                 entryIds = entryIds.map(UUID::toString)
@@ -706,7 +706,7 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onUnitsClick = {
                             navController.navigate(
                                 Screen.SettingsCalibrationUnits.createRoute(Screen.Settings.route)
@@ -738,7 +738,7 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationUnitsScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                     )
                 }
                 composable(
@@ -757,8 +757,8 @@ fun HrtTrackerNavHost(
                 ) {
                     CalibrationEditorScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
-                        onSaved = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onSaved = { navController.popBackStackSafely() }
                     )
                 }
                 composable(
@@ -789,7 +789,7 @@ fun HrtTrackerNavHost(
                         backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
                     MedicinesScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onMedicineClick = { medicineId ->
                             // pickerResultKey takes precedence: AddEntry's
                             // picker just needs the uuid, no dose sheet.
@@ -797,7 +797,7 @@ fun HrtTrackerNavHost(
                                 navController.previousBackStackEntry
                                     ?.savedStateHandle
                                     ?.set(pickerResultKey, medicineId.toString())
-                                navController.popBackStack()
+                                navController.popBackStackSafely()
                             } else if (slotResultKey == null) {
                                 // Normal mode: open detail.
                                 navController.navigate(
@@ -817,7 +817,7 @@ fun HrtTrackerNavHost(
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set(slotResultKey, slotResult.toBundle())
-                            navController.popBackStack()
+                            navController.popBackStackSafely()
                         },
                     )
                 }
@@ -835,7 +835,7 @@ fun HrtTrackerNavHost(
                 ) {
                     MedicineDetailScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
                         onGroupClick = { groupId ->
                             navController.navigate(
                                 Screen.EditMedicationGroup.createRoute(
@@ -903,10 +903,10 @@ fun HrtTrackerNavHost(
                     }
                     MedicationGroupEditorScreen(
                         modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
-                        onGroupSaved = { navController.popBackStack() },
+                        onNavigateBack = { navController.popBackStackSafely() },
+                        onGroupSaved = { navController.popBackStackSafely() },
                         onGroupSavedToPlan = {
-                            if (!navController.popBackStack(Screen.Plan.route, inclusive = false)) {
+                            if (!navController.popBackStackSafely(Screen.Plan.route, inclusive = false)) {
                                 navController.navigate(Screen.Plan.route) {
                                     launchSingleTop = true
                                 }
@@ -957,6 +957,30 @@ fun HrtTrackerNavHost(
             onEntrySaved = { addEntrySheetRequest = null }
         )
     }
+}
+
+// Tap-debounced popBackStack: only fires while the current entry is RESUMED.
+// Compose Navigation drops the outgoing entry's lifecycle to STARTED the
+// moment a pop begins, so a rapid second tap on the same back button sees a
+// non-RESUMED state and is dropped. Without this guard the second tap pops
+// past the destination, leaving the previous screen blank.
+private fun NavHostController.popBackStackSafely(): Boolean {
+    val entry = currentBackStackEntry ?: return false
+    if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+        return false
+    }
+    return popBackStack()
+}
+
+private fun NavHostController.popBackStackSafely(
+    route: String,
+    inclusive: Boolean,
+): Boolean {
+    val entry = currentBackStackEntry ?: return false
+    if (!entry.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+        return false
+    }
+    return popBackStack(route = route, inclusive = inclusive)
 }
 
 private fun NavHostController.navigateToTopLevelScreen(
