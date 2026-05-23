@@ -278,9 +278,13 @@ fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
     return when (this) {
         MedicationApplicationType.ORAL,
         MedicationApplicationType.SUBLINGUAL,
-        MedicationApplicationType.PATCH_ON -> true
+        MedicationApplicationType.PATCH_ON,
+        // Injection count expresses "N vials / N injections of the given dose"
+        // (e.g. 2 single-use vials at once, or 2 separate multi-use shots);
+        // DoseInstructionCalculator already multiplies the per-unit equivalent
+        // by count, so PK math handles this correctly.
+        MedicationApplicationType.INJECTION -> true
 
-        MedicationApplicationType.INJECTION,
         MedicationApplicationType.GEL,
         MedicationApplicationType.PATCH_OFF -> false
     }

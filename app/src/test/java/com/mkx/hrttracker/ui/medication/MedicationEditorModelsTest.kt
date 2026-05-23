@@ -198,6 +198,11 @@ class MedicationEditorModelsTest {
             defaultMedicineDraft(applicationType = MedicationApplicationType.PATCH_ON)
                 .showsMedicationCountEditor(),
         )
+        // INJECTION supports count: "N vials" or "N injections of given volume".
+        assertTrue(
+            defaultMedicineDraft(applicationType = MedicationApplicationType.INJECTION)
+                .showsMedicationCountEditor(),
+        )
         assertFalse(
             defaultMedicineDraft(applicationType = MedicationApplicationType.GEL)
                 .showsMedicationCountEditor(),

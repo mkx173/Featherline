@@ -376,10 +376,12 @@ class AddEntryViewModelTest {
 
     @Test
     fun buildEditingUiState_coerces_unsupported_routes_to_count_one() {
+        // GEL is currently the only non-PATCH_OFF unsupported route; INJECTION
+        // now supports a count editor ("N vials" / "N injections of dose").
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("62f549eb-3870-4ce8-b476-6dd44759d78d"),
-            medicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE),
-            applicationType = MedicationApplicationType.INJECTION,
+            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.GEL,
             equivalentE2Mg = 5.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),

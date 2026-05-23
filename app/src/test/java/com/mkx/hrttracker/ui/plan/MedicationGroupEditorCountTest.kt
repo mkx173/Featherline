@@ -37,11 +37,13 @@ class MedicationGroupEditorCountTest {
 
     @Test
     fun medicationItem_toEditorUiState_coerces_unsupported_routes_to_count_one() {
+        // GEL is currently the only non-PATCH_OFF unsupported route; INJECTION
+        // now supports a count editor ("N vials" / "N injections of dose").
         val editorState = MedicationGroupMedicationItemUiState(
-            localId = "injection",
-            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE),
-            applicationType = MedicationApplicationType.INJECTION,
-            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            localId = "gel",
+            resolvedMedicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WeightGrams(2.5),
             count = 3
         ).toEditorUiState()
 
