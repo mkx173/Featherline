@@ -32,15 +32,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -57,6 +58,7 @@ import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
@@ -76,6 +78,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1231,13 +1234,37 @@ private fun MedicationGroupEditorScreenContent(
 
             item {
                 val focusManager = LocalFocusManager.current
+                val groupNameState = rememberTextFieldState(initialText = uiState.groupName)
+                val currentGroupName by rememberUpdatedState(uiState.groupName)
+                val currentOnGroupNameChange by rememberUpdatedState(onGroupNameChange)
+                LaunchedEffect(groupNameState, uiState.groupName) {
+                    if (groupNameState.text.toString() != uiState.groupName) {
+                        groupNameState.setTextAndPlaceCursorAtEnd(uiState.groupName)
+                    }
+                }
+                LaunchedEffect(groupNameState) {
+                    snapshotFlow { groupNameState.text.toString() }.collect { value ->
+                        if (value != currentGroupName) {
+                            currentOnGroupNameChange(value)
+                        }
+                    }
+                }
+                val groupNamePlaceholder = medicationGroupNamePlaceholder(
+                    defaultGroupName = uiState.defaultGroupName,
+                    isEditing = uiState.isEditing,
+                )
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
-                        value = uiState.groupName,
-                        onValueChange = onGroupNameChange,
+                        state = groupNameState,
+                        labelPosition = medicationGroupNameFieldLabelPosition(),
                         label = { Text(text = stringResource(R.string.field_medication_group_name)) },
+                        placeholder = if (groupNamePlaceholder != null) {
+                            { Text(text = groupNamePlaceholder) }
+                        } else {
+                            null
+                        },
                         leadingIcon = {
                             MedicationGroupColorPickerLeadingIcon(
                                 selectedColorKey = uiState.groupColorKey,
@@ -1245,37 +1272,13 @@ private fun MedicationGroupEditorScreenContent(
                                 onColorSelected = onGroupColorChange,
                             )
                         },
-                        trailingIcon = if (
-                            !uiState.isArchived &&
-                            shouldShowGroupNameClearAction(uiState.groupName)
-                        ) {
-                            {
-                                IconButton(
-                                    onClick = {
-                                        onGroupNameChange("")
-                                        groupNameFocusRequester.requestFocus()
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(
-                                            R.string.clear_group_name
-                                        )
-                                    )
-                                }
-                            }
-                        } else {
-                            null
-                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(groupNameFocusRequester),
                         enabled = !uiState.isArchived,
-                        singleLine = true,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = { focusManager.clearFocus() }
-                        )
+                        onKeyboardAction = { focusManager.clearFocus() },
                     )
                 }
             }
@@ -2012,7 +2015,16 @@ internal fun shouldEnableGroupNotifications(
 ): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
     pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
 
-internal fun shouldShowGroupNameClearAction(groupName: String): Boolean = groupName.isNotBlank()
+internal fun medicationGroupNamePlaceholder(
+    defaultGroupName: String,
+    isEditing: Boolean,
+): String? {
+    return defaultGroupName.takeIf { !isEditing && it.isNotBlank() }
+}
+
+internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {
+    return TextFieldLabelPosition.Attached(alwaysMinimize = true)
+}
 
 private fun maybeRequestExactAlarmAccess(
     context: android.content.Context,
