@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medicine
 
+import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.ui.text.input.ImeAction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -108,5 +109,13 @@ class CreateMedicineFieldsTest {
             nextField(fields, CreateMedicineField.CUSTOM_NAME),
         )
         assertNull(nextField(fields, CreateMedicineField.PILL_STRENGTH))
+    }
+
+    @Test
+    fun displayNameFieldLabelPosition_keepsPlaceholderVisibleWhenEmpty() {
+        val position = displayNameFieldLabelPosition()
+
+        assertTrue(position is TextFieldLabelPosition.Attached)
+        assertTrue((position as TextFieldLabelPosition.Attached).alwaysMinimize)
     }
 }

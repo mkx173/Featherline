@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -22,11 +25,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
@@ -299,17 +306,33 @@ private fun DisplayNameField(
     focusRequester: FocusRequester,
 ) {
     val focusManager = LocalFocusManager.current
+    val displayNameState = rememberTextFieldState(initialText = medicineDraft.displayName)
+    val currentDisplayName by rememberUpdatedState(medicineDraft.displayName)
+    val currentOnMedicineDraftChange by rememberUpdatedState(onMedicineDraftChange)
+
+    LaunchedEffect(displayNameState, medicineDraft.displayName) {
+        if (displayNameState.text.toString() != medicineDraft.displayName) {
+            displayNameState.setTextAndPlaceCursorAtEnd(medicineDraft.displayName)
+        }
+    }
+
+    LaunchedEffect(displayNameState) {
+        snapshotFlow { displayNameState.text.toString() }.collect { value ->
+            if (value != currentDisplayName) {
+                currentOnMedicineDraftChange { it.copy(displayName = value) }
+            }
+        }
+    }
+
     // Catalog medicines only: the placeholder shows the catalog key label so
     // an empty input keeps the medicine using that name everywhere it appears.
     val defaultName = medicineDraft.medicationKey
         ?.let { stringResource(it.labelRes) }
         .orEmpty()
     OutlinedTextField(
-        value = medicineDraft.displayName,
-        onValueChange = { value ->
-            onMedicineDraftChange { it.copy(displayName = value) }
-        },
+        state = displayNameState,
         enabled = enabled,
+        labelPosition = displayNameFieldLabelPosition(),
         label = { Text(text = stringResource(R.string.medicine_display_name)) },
         placeholder = if (defaultName.isNotEmpty()) {
             { Text(text = defaultName) }
@@ -328,10 +351,14 @@ private fun DisplayNameField(
         modifier = Modifier
             .fillMaxWidth()
             .focusRequester(focusRequester),
-        singleLine = true,
+        lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        onKeyboardAction = { focusManager.clearFocus() },
     )
+}
+
+internal fun displayNameFieldLabelPosition(): TextFieldLabelPosition {
+    return TextFieldLabelPosition.Attached(alwaysMinimize = true)
 }
 
 @Composable
