@@ -87,7 +87,7 @@ class MedicineRepository @Inject constructor(
         preparation: MedicinePreparation,
         now: Instant = Instant.now(),
     ): Medicine {
-        return findOrCreate(
+        val medicine = findOrCreate(
             selection = MedicineSelection.Catalog(medicationKey),
             category = medicationKey.category,
             preparation = preparation,
@@ -97,6 +97,8 @@ class MedicineRepository @Inject constructor(
             displayDoseUnit = MedicineDisplayDoseUnit.MG,
             now = now,
         )
+        ensurePatchOffSingletonForPatch(preparation, now)
+        return medicine
     }
 
     suspend fun findOrCreateForCustom(
@@ -113,7 +115,7 @@ class MedicineRepository @Inject constructor(
         require(normalizeCustomMedicationName(customMedicationName).isNotBlank()) {
             "Custom medication name must not be blank."
         }
-        return findOrCreate(
+        val medicine = findOrCreate(
             selection = MedicineSelection.Custom(customMedicationName),
             category = category,
             preparation = preparation,
@@ -122,6 +124,40 @@ class MedicineRepository @Inject constructor(
             displayDoseUnit = displayDoseUnit,
             now = now,
         )
+        ensurePatchOffSingletonForPatch(preparation, now)
+        return medicine
+    }
+
+    /**
+     * Look up the global PATCH_OFF singleton; create it if it doesn't exist.
+     * The singleton is keyed under [MedicineIdentityKey.patchOff], in the
+     * ESTRADIOL category (the only patch category today), and is what the
+     * medicine manager renders as a tappable "Patch off" row.
+     */
+    suspend fun findOrCreatePatchOff(now: Instant = Instant.now()): Medicine {
+        return findOrCreate(
+            selection = MedicineSelection.PatchOff,
+            category = MedicationCategory.ESTRADIOL,
+            preparation = MedicinePreparation.PatchOff,
+            displayName = null,
+            identityKey = MedicineIdentityKey.patchOff(),
+            displayDoseUnit = MedicineDisplayDoseUnit.MG,
+            now = now,
+        )
+    }
+
+    /**
+     * Idempotent: a no-op for non-patch preparations and for patch creations
+     * after the singleton already exists. Called from every patch-medicine
+     * create path so the manager always has a PATCH_OFF entry to display.
+     */
+    private suspend fun ensurePatchOffSingletonForPatch(
+        preparation: MedicinePreparation,
+        now: Instant,
+    ) {
+        if (preparation is MedicinePreparation.Patch) {
+            findOrCreatePatchOff(now)
+        }
     }
 
     suspend fun setDisplayName(
@@ -172,6 +208,14 @@ class MedicineRepository @Inject constructor(
 
                     is MedicineSelection.Custom ->
                         MedicineIdentityKey.custom(selection.medicationName, preparation)
+
+                    // The PATCH_OFF singleton's identity is fixed by design;
+                    // detail-screen wiring must never reach this branch (the
+                    // edit action is hidden for the singleton).
+                    is MedicineSelection.PatchOff ->
+                        throw IllegalStateException(
+                            "PATCH_OFF singleton preparation is immutable.",
+                        )
                 }
                 val collision = dao.getByIdentityKey(newIdentityKey)
                 if (collision != null && collision.uuid != existing.uuid) {
