@@ -1233,53 +1233,15 @@ private fun MedicationGroupEditorScreenContent(
             }
 
             item {
-                val focusManager = LocalFocusManager.current
-                val groupNameState = rememberTextFieldState(initialText = uiState.groupName)
-                val currentGroupName by rememberUpdatedState(uiState.groupName)
-                val currentOnGroupNameChange by rememberUpdatedState(onGroupNameChange)
-                LaunchedEffect(groupNameState, uiState.groupName) {
-                    if (groupNameState.text.toString() != uiState.groupName) {
-                        groupNameState.setTextAndPlaceCursorAtEnd(uiState.groupName)
-                    }
-                }
-                LaunchedEffect(groupNameState) {
-                    snapshotFlow { groupNameState.text.toString() }.collect { value ->
-                        if (value != currentGroupName) {
-                            currentOnGroupNameChange(value)
-                        }
-                    }
-                }
-                val groupNamePlaceholder = medicationGroupNamePlaceholder(
+                MedicationGroupNameField(
+                    groupName = uiState.groupName,
                     defaultGroupName = uiState.defaultGroupName,
+                    selectedColorKey = uiState.groupColorKey,
+                    enabled = !uiState.isArchived,
+                    focusRequester = groupNameFocusRequester,
+                    onGroupNameChange = onGroupNameChange,
+                    onColorSelected = onGroupColorChange,
                 )
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        state = groupNameState,
-                        labelPosition = medicationGroupNameFieldLabelPosition(),
-                        label = { Text(text = stringResource(R.string.field_medication_group_name)) },
-                        placeholder = if (groupNamePlaceholder != null) {
-                            { Text(text = groupNamePlaceholder) }
-                        } else {
-                            null
-                        },
-                        leadingIcon = {
-                            MedicationGroupColorPickerLeadingIcon(
-                                selectedColorKey = uiState.groupColorKey,
-                                enabled = !uiState.isArchived,
-                                onColorSelected = onGroupColorChange,
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(groupNameFocusRequester),
-                        enabled = !uiState.isArchived,
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        onKeyboardAction = { focusManager.clearFocus() },
-                    )
-                }
             }
 
             item {
@@ -2013,6 +1975,68 @@ internal fun shouldEnableGroupNotifications(
     pendingNotificationEnableRequest: String?
 ): Boolean = pendingNotificationEnableRequest == GROUP_ONLY_NOTIFICATION_ENABLE_REQUEST ||
     pendingNotificationEnableRequest == MASTER_AND_GROUP_NOTIFICATION_ENABLE_REQUEST
+
+@Composable
+internal fun MedicationGroupNameField(
+    groupName: String,
+    defaultGroupName: String,
+    selectedColorKey: MedicationGroupColorKey,
+    enabled: Boolean,
+    focusRequester: FocusRequester,
+    onGroupNameChange: (String) -> Unit,
+    onColorSelected: (MedicationGroupColorKey) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    val groupNameState = rememberTextFieldState(initialText = groupName)
+    val currentGroupName by rememberUpdatedState(groupName)
+    val currentOnGroupNameChange by rememberUpdatedState(onGroupNameChange)
+
+    LaunchedEffect(groupNameState, groupName) {
+        if (groupNameState.text.toString() != groupName) {
+            groupNameState.setTextAndPlaceCursorAtEnd(groupName)
+        }
+    }
+
+    LaunchedEffect(groupNameState) {
+        snapshotFlow { groupNameState.text.toString() }.collect { value ->
+            if (value != currentGroupName) {
+                currentOnGroupNameChange(value)
+            }
+        }
+    }
+
+    val groupNamePlaceholder = medicationGroupNamePlaceholder(defaultGroupName = defaultGroupName)
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OutlinedTextField(
+            state = groupNameState,
+            labelPosition = medicationGroupNameFieldLabelPosition(),
+            label = { Text(text = stringResource(R.string.field_medication_group_name)) },
+            placeholder = {
+                if (groupNamePlaceholder != null) {
+                    Text(text = groupNamePlaceholder)
+                }
+            },
+            leadingIcon = {
+                MedicationGroupColorPickerLeadingIcon(
+                    selectedColorKey = selectedColorKey,
+                    enabled = enabled,
+                    onColorSelected = onColorSelected,
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            enabled = enabled,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            onKeyboardAction = { focusManager.clearFocus() },
+        )
+    }
+}
 
 internal fun medicationGroupNamePlaceholder(
     defaultGroupName: String,

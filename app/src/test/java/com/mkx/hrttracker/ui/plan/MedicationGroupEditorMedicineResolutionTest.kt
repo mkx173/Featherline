@@ -134,9 +134,8 @@ class MedicationGroupEditorMedicineResolutionTest {
         )
         advanceUntilIdle()
 
-        // hasSaveableMedicationGroupContent requires a non-blank user-entered
-        // group name (defaultGroupName alone doesn't satisfy the guard).
-        // Without this, saveGroup() short-circuits and isSaved stays false.
+        // Use a custom name so this save path exercises explicit group names
+        // rather than the generated default-name fallback.
         viewModel.updateGroupName("Resolution test group")
 
         // Slot #1: picker result for an existing catalog medicine.
