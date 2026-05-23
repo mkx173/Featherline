@@ -93,6 +93,7 @@ import com.mkx.hrttracker.ui.components.MedicalDisclaimerKind
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerText
 import com.mkx.hrttracker.ui.components.MedicationCard
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import com.mkx.hrttracker.ui.components.TimePickerModal
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
@@ -766,7 +767,7 @@ private fun medicationSummaryTrailingContent(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun MedicationLogEntryLinkedMedicationSummary(
+internal fun MedicationLogEntryLinkedMedicationSummary(
     lockedMedicine: Medicine?,
     applicationType: MedicationApplicationType,
     doseInstruction: com.mkx.hrttracker.model.medication.DoseInstruction?,
@@ -800,6 +801,9 @@ private fun MedicationLogEntryLinkedMedicationSummary(
         applicationType = applicationType,
         medicationCount = resolvedCount.coerceAtLeast(1),
         groupColorKey = sourceGroupColorKey,
+        missingGroupColorTreatment = linkedMedicationSummaryMissingGroupColorTreatment(
+            sourceGroupColorKey = sourceGroupColorKey,
+        ),
         onClick = { },
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -807,6 +811,16 @@ private fun MedicationLogEntryLinkedMedicationSummary(
         itemCount = if (hasGroupInfo) 2 else 1,
         enabled = false,
     )
+}
+
+internal fun linkedMedicationSummaryMissingGroupColorTreatment(
+    sourceGroupColorKey: MedicationGroupColorKey?,
+): MedicationCardMissingGroupColorTreatment {
+    return if (sourceGroupColorKey == null) {
+        MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
+    } else {
+        MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER
+    }
 }
 
 @Composable

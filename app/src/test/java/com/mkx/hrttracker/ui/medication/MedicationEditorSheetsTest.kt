@@ -3,7 +3,9 @@ package com.mkx.hrttracker.ui.medication
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.ui.components.MedicationCardMissingGroupColorTreatment
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -89,6 +91,20 @@ class MedicationEditorSheetsTest {
                 preparationTypeLabelRes(type),
             )
         }
+    }
+
+    @Test
+    fun linkedMedicationSummaryUsesNeutralPaletteForManualLogsWithoutGroupColor() {
+        assertEquals(
+            MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE,
+            linkedMedicationSummaryMissingGroupColorTreatment(sourceGroupColorKey = null),
+        )
+        assertEquals(
+            MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
+            linkedMedicationSummaryMissingGroupColorTreatment(
+                sourceGroupColorKey = MedicationGroupColorKey.PLUM,
+            ),
+        )
     }
 
     @Test

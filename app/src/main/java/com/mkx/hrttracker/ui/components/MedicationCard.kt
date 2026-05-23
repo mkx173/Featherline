@@ -24,7 +24,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +52,27 @@ import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
 
+internal const val MedicationCardLeadingIconTestTag = "medication-card-leading-icon"
+
+internal val MedicationCardLeadingIconContainerColorArgbKey =
+    SemanticsPropertyKey<Int>("MedicationCardLeadingIconContainerColorArgb")
+
+internal var SemanticsPropertyReceiver.medicationCardLeadingIconContainerColorArgb by
+    MedicationCardLeadingIconContainerColorArgbKey
+
+internal enum class MedicationCardMissingGroupColorTreatment {
+    PRIMARY_CONTAINER,
+    NEUTRAL_GROUP_PALETTE,
+}
+
+internal fun medicationCardUsesGroupPalette(
+    groupColorKey: MedicationGroupColorKey?,
+    missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment,
+): Boolean {
+    return groupColorKey != null ||
+        missingGroupColorTreatment == MedicationCardMissingGroupColorTreatment.NEUTRAL_GROUP_PALETTE
+}
+
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal fun MedicationCard(
@@ -55,6 +81,8 @@ internal fun MedicationCard(
     applicationType: MedicationApplicationType,
     medicationCount: Int,
     groupColorKey: MedicationGroupColorKey?,
+    missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment =
+        MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
@@ -84,22 +112,30 @@ internal fun MedicationCard(
             count = medicationCount,
             extraSupportingText = extraSupportingText
         )
-    // No group color → no group identity to express. Fall back to the app's
-    // primary container so the icon still reads as a colored chip; the slate
-    // group palette renders as a gray that visually disappears against the
-    // card.
+    val useGroupPalette = medicationCardUsesGroupPalette(
+        groupColorKey = groupColorKey,
+        missingGroupColorTreatment = missingGroupColorTreatment,
+    )
+    // Most cards with no group identity use the app's primary container so
+    // the icon still reads as a colored chip. Some entry surfaces, such as
+    // manual logs opened from Home, opt into the neutral group palette to
+    // match their source row.
     val leadingSurfaceColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
-        groupColorKey == null -> MaterialTheme.colorScheme.primaryContainer
-        else -> groupColorScheme.primaryContainer
+        useGroupPalette -> groupColorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
     }
     val leadingContentColor = when {
         isSelected -> MaterialTheme.colorScheme.onPrimary
-        groupColorKey == null -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> groupColorScheme.onPrimaryContainer
+        useGroupPalette -> groupColorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
     }
     val leadingIconModifier = Modifier
         .size(36.dp)
+        .testTag(MedicationCardLeadingIconTestTag)
+        .semantics {
+            medicationCardLeadingIconContainerColorArgb = leadingSurfaceColor.toArgb()
+        }
         .then(
             if (onLeadingIconClick != null) {
                 Modifier.clickable(
