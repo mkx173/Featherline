@@ -369,10 +369,10 @@
     <string name="medicine_picker_select_medicine">Select medicine</string>
     <string name="medicine_picker_change_medicine">Change medicine</string>
     <string name="medication_preparation_summary_pill">Tablet · %1$s mg</string>
-    <string name="medication_preparation_summary_single_use_vial">Injection · %1$s mg</string>
-    <string name="medication_preparation_summary_multi_use_vial">Injection · %1$s mg/mL · %2$s mL</string>
-    <string name="medication_preparation_summary_gel_sachet">Gel · %1$s%% · %2$s g</string>
-    <string name="medication_preparation_summary_gel_container">Gel · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_single_use_vial">Single-use vial · %1$s mg</string>
+    <string name="medication_preparation_summary_multi_use_vial">Multi-use vial · %1$s mg/mL · %2$s mL</string>
+    <string name="medication_preparation_summary_gel_sachet">Sachet · %1$s%% · %2$s g</string>
+    <string name="medication_preparation_summary_gel_container">Container · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">Patch · %1$s mg</string>
     <string name="medication_preparation_summary_patch_release_rate">Patch · %1$s μg/day</string>
     <string name="dose_instruction_summary_tablet_fraction">%1$s tablet</string>
