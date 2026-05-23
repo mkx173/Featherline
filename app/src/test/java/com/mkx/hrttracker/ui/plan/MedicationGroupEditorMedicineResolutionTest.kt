@@ -267,4 +267,102 @@ class MedicationGroupEditorMedicineResolutionTest {
         val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
         assertEquals(firstMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
     }
+
+    // Encodes the picker-first add flow: "+ Add medication" navigates straight
+    // to the manager (no empty sheet), and the host calls
+    // beginAddMedicationWithMedicine on return. Failing this means a future
+    // refactor reintroduced an empty editor state, or stopped resolving the
+    // medicine, breaking the pre-filled-sheet promise.
+    @Test
+    fun beginAddMedicationWithMedicine_opensSheetPreFilled() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000050"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(medicine))
+        coEvery { medicineRepository.getByUuid(medicine.uuid) } returns medicine
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        // Precondition: nothing open. Host generates a localId before navigating
+        // to the picker, then hands it back here with the picked uuid.
+        assertEquals(null, viewModel.uiState.value.editingMedication)
+        val newSlotLocalId = UUID.randomUUID().toString()
+
+        viewModel.beginAddMedicationWithMedicine(newSlotLocalId, medicine.uuid)
+        advanceUntilIdle()
+
+        val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
+        assertEquals(newSlotLocalId, editingMedication.localId)
+        assertEquals(medicine.uuid, editingMedication.resolvedMedicine?.uuid)
+        // The route is forced to the medicine's preparation, not left at the
+        // default — this is what makes the pre-filled sheet actually usable.
+        assertEquals(MedicationApplicationType.INJECTION, editingMedication.medicineDraft.applicationType)
+        assertEquals(
+            MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+            editingMedication.doseInstructionDraft.preparationType,
+        )
+    }
+
+    // Guards against the host accidentally re-opening a fresh editor over an
+    // already-open one (e.g., a stale savedStateHandle result firing after the
+    // user has manually opened a different slot). The re-pick path
+    // (onEditingMedicineSelected) is the right call shape there.
+    @Test
+    fun beginAddMedicationWithMedicine_isNoOpWhenEditorAlreadyOpen() = runTest {
+        val firstMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000060"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val secondMedicine = testMedicine(
+            uuid = UUID.fromString("bbbb0000-0000-0000-0000-000000000070"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 4.0),
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(
+            listOf(firstMedicine, secondMedicine)
+        )
+        coEvery { medicineRepository.getByUuid(firstMedicine.uuid) } returns firstMedicine
+        coEvery { medicineRepository.getByUuid(secondMedicine.uuid) } returns secondMedicine
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        viewModel.showAddMedicationEditor()
+        val openSlotId = requireNotNull(viewModel.uiState.value.editingMedication).localId
+        viewModel.onEditingMedicineSelected(openSlotId, firstMedicine.uuid)
+
+        viewModel.beginAddMedicationWithMedicine(UUID.randomUUID().toString(), secondMedicine.uuid)
+        advanceUntilIdle()
+
+        val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
+        assertEquals(openSlotId, editingMedication.localId)
+        assertEquals(firstMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
+    }
 }

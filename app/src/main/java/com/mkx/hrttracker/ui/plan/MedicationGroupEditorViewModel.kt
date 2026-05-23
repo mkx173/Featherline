@@ -600,6 +600,56 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    // Picker-first add flow: opens the slot editor with a freshly-resolved medicine
+    // already populated. Used when the user taps "+ Add medication", picks a
+    // medicine in the manager, and lands back here — the sheet must open
+    // pre-filled rather than starting from an empty draft.
+    fun beginAddMedicationWithMedicine(localId: String, medicineUuid: UUID) {
+        val currentState = _uiState.value
+        if (currentState.areMedicationsLocked) return
+        if (currentState.medications.any { it.localId == localId }) return
+        if (currentState.editingMedication != null) return
+
+        val activeMedicine = currentState.activeMedicines.firstOrNull { it.uuid == medicineUuid }
+        if (activeMedicine != null) {
+            openAddMedicationEditorWithMedicine(localId, activeMedicine)
+            return
+        }
+        viewModelScope.launch {
+            medicineRepository.getByUuid(medicineUuid)?.let { medicine ->
+                if (_uiState.value.editingMedication != null) return@let
+                openAddMedicationEditorWithMedicine(localId, medicine)
+            }
+        }
+    }
+
+    private fun openAddMedicationEditorWithMedicine(localId: String, medicine: Medicine) {
+        _uiState.update { state ->
+            if (state.areMedicationsLocked) return@update state
+            if (state.medications.any { it.localId == localId }) return@update state
+            if (state.editingMedication != null) return@update state
+
+            val draft = com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(
+                medicine = medicine,
+                applicationType = MedicationApplicationType.ORAL,
+            )
+            state.copy(
+                editingMedication = MedicationGroupMedicationEditorUiState(
+                    localId = localId,
+                    resolvedMedicine = medicine,
+                    medicineDraft = draft,
+                    doseInstructionDraft = DoseInstructionDraftUiState(
+                        applicationType = draft.applicationType,
+                        preparationType = medicine.preparation.type,
+                    ),
+                ),
+                isMedicationEditorSaved = false,
+                medicationEditorErrorMessageRes = null,
+                medicationEditorInfoMessageRes = null,
+            )
+        }
+    }
+
     private fun applySelectedEditingMedicine(localId: String, medicine: Medicine) {
         updateEditingMedication { medication ->
             if (medication.localId != localId) {

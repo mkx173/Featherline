@@ -400,7 +400,11 @@ fun MedicationGroupEditorScreen(
         onAddDailyTime = viewModel::addDailyTime,
         onDailyTimeChange = viewModel::updateDailyTime,
         onRemoveDailyTime = viewModel::removeDailyTime,
-        onAddMedication = viewModel::showAddMedicationEditor,
+        // "+ Add medication" navigates straight to the medicine picker; the host
+        // generates a fresh slot localId per tap so the result wiring is unique.
+        // The editor sheet is opened pre-filled when the picker returns, via
+        // beginAddMedicationWithMedicine(localId, uuid) — see HrtTrackerNavHost.
+        onAddMedication = { onOpenMedicinePicker(UUID.randomUUID().toString()) },
         onMedicationClick = viewModel::showMedicationEditor,
         onRemoveMedication = viewModel::removeMedication,
         onDismissMedicationEditor = viewModel::dismissMedicationEditor,

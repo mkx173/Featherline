@@ -898,7 +898,22 @@ fun HrtTrackerNavHost(
                         val localId = pendingMedicinePickerLocalId ?: return@LaunchedEffect
                         val medicineUuid = groupMedicineUuidResult ?: return@LaunchedEffect
                         runCatching { UUID.fromString(medicineUuid) }.onSuccess { uuid ->
-                            groupEditorViewModel.onEditingMedicineSelected(localId, uuid)
+                            // The "+ Add medication" flow taps the picker without
+                            // first opening the sheet, so editingMedication is null
+                            // at this point — open the sheet pre-filled with the
+                            // chosen medicine. Re-picks from inside an open sheet
+                            // (editingMedication.localId matches) flow through the
+                            // existing identity-update path instead.
+                            val editingLocalId = groupEditorViewModel
+                                .uiState
+                                .value
+                                .editingMedication
+                                ?.localId
+                            if (editingLocalId == localId) {
+                                groupEditorViewModel.onEditingMedicineSelected(localId, uuid)
+                            } else {
+                                groupEditorViewModel.beginAddMedicationWithMedicine(localId, uuid)
+                            }
                         }
                         backStackEntry.savedStateHandle.remove<String>(key)
                         pendingMedicinePickerResultKey = null
