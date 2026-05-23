@@ -482,7 +482,11 @@ internal fun MedicationEditorContent(
             onOptionSelected = { applicationType ->
                 onMedicineDraftChange { it.changeApplicationType(applicationType) }
             },
-            enabled = canEditMedicationIdentity && !isSaving,
+            // Route stays editable for an already-resolved medicine even when
+            // identity is otherwise locked: for PILL (the only resolved
+            // preparation with >1 compatible route) ORAL <-> SUBLINGUAL is a
+            // presentation choice over the same medicine, not an identity change.
+            enabled = !isSaving && (canEditMedicationIdentity || resolvedMedicine != null),
         )
     }
 
