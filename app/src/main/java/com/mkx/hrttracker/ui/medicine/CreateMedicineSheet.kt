@@ -22,7 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -141,6 +144,16 @@ private fun CreateMedicineForm(
     errorMessageRes: Int?,
     enabled: Boolean,
 ) {
+    val focusManager = LocalFocusManager.current
+    // One requester per slot in CreateMedicineField; the set is fixed so the
+    // map doesn't need to follow draft mutations. editableFields(...) is
+    // recomputed each draft change and decides which requester each visible
+    // text field should advance to next.
+    val focusRequesters = remember {
+        CreateMedicineField.entries.associateWith { FocusRequester() }
+    }
+    val editableFields = editableFields(medicineDraft)
+
     EditorSectionLabel(stringResource(R.string.field_medication_category))
     ConnectedButtonGroup(
         options = editorMedicationCategories(),
@@ -197,6 +210,7 @@ private fun CreateMedicineForm(
     }
 
     if (medicineDraft.requiresCustomName()) {
+        val customNameIme = imeActionFor(editableFields, CreateMedicineField.CUSTOM_NAME)
         OutlinedTextField(
             value = medicineDraft.customMedicationName,
             onValueChange = { value ->
@@ -221,9 +235,19 @@ private fun CreateMedicineForm(
             } else {
                 null
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequesters.getValue(CreateMedicineField.CUSTOM_NAME)),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(imeAction = customNameIme),
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    nextField(editableFields, CreateMedicineField.CUSTOM_NAME)
+                        ?.let { focusRequesters.getValue(it).requestFocus() }
+                        ?: focusManager.clearFocus()
+                },
+                onDone = { focusManager.clearFocus() },
+            ),
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
@@ -233,6 +257,8 @@ private fun CreateMedicineForm(
         onMedicineDraftChange = onMedicineDraftChange,
         errorMessageRes = errorMessageRes,
         enabled = enabled,
+        focusRequesters = focusRequesters,
+        editableFields = editableFields,
     )
 
     // Custom medicines already have a user-typed name; the display-name field
@@ -246,6 +272,7 @@ private fun CreateMedicineForm(
             medicineDraft = medicineDraft,
             onMedicineDraftChange = onMedicineDraftChange,
             enabled = enabled,
+            focusRequester = focusRequesters.getValue(CreateMedicineField.DISPLAY_NAME),
         )
     }
 }
@@ -255,7 +282,9 @@ private fun DisplayNameField(
     medicineDraft: MedicinePickerUiState,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     enabled: Boolean,
+    focusRequester: FocusRequester,
 ) {
+    val focusManager = LocalFocusManager.current
     // Catalog medicines only: the placeholder shows the catalog key label so
     // an empty input keeps the medicine using that name everywhere it appears.
     val defaultName = medicineDraft.medicationKey
@@ -282,9 +311,12 @@ private fun DisplayNameField(
         supportingText = {
             Text(text = stringResource(R.string.medicine_display_name_hint))
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
     )
 }
 
@@ -294,7 +326,17 @@ private fun NewMedicinePreparationForm(
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     errorMessageRes: Int?,
     enabled: Boolean,
+    focusRequesters: Map<CreateMedicineField, FocusRequester>,
+    editableFields: List<CreateMedicineField>,
 ) {
+    val focusManager = LocalFocusManager.current
+    val onImeNextFor: (CreateMedicineField) -> () -> Unit = { field ->
+        {
+            nextField(editableFields, field)
+                ?.let { focusRequesters.getValue(it).requestFocus() }
+                ?: focusManager.clearFocus()
+        }
+    }
     if (medicineDraft.requiresPreparationTypeSelection()) {
         EditorSectionLabel(stringResource(R.string.field_preparation_type))
         val options = ambiguousPreparationTypes(medicineDraft.applicationType)
@@ -325,6 +367,9 @@ private fun NewMedicinePreparationForm(
             onValueChange = { value ->
                 onMedicineDraftChange { it.copy(pillStrengthMg = value) }
             },
+            focusRequester = focusRequesters.getValue(CreateMedicineField.PILL_STRENGTH),
+            imeAction = imeActionFor(editableFields, CreateMedicineField.PILL_STRENGTH),
+            onImeNext = onImeNextFor(CreateMedicineField.PILL_STRENGTH),
         )
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericField(
@@ -339,6 +384,9 @@ private fun NewMedicinePreparationForm(
             onValueChange = { value ->
                 onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
             },
+            focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_STRENGTH),
+            imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_STRENGTH),
+            onImeNext = onImeNextFor(CreateMedicineField.VIAL_STRENGTH),
         )
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
@@ -354,6 +402,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(concentrationMgPerMl = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.CONCENTRATION_MG_PER_ML),
+                onImeNext = onImeNextFor(CreateMedicineField.CONCENTRATION_MG_PER_ML),
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
@@ -368,6 +419,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(vialVolumeMl = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_VOLUME_ML),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_VOLUME_ML),
+                onImeNext = onImeNextFor(CreateMedicineField.VIAL_VOLUME_ML),
             )
         }
 
@@ -384,6 +438,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
+                onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
@@ -398,6 +455,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(sachetWeightGrams = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.SACHET_WEIGHT),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.SACHET_WEIGHT),
+                onImeNext = onImeNextFor(CreateMedicineField.SACHET_WEIGHT),
             )
         }
 
@@ -414,6 +474,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(gelConcentrationPercent = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
+                onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
@@ -428,6 +491,9 @@ private fun NewMedicinePreparationForm(
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(containerWeightGrams = value) }
                 },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.CONTAINER_WEIGHT),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.CONTAINER_WEIGHT),
+                onImeNext = onImeNextFor(CreateMedicineField.CONTAINER_WEIGHT),
             )
         }
 
@@ -463,6 +529,9 @@ private fun NewMedicinePreparationForm(
                     onValueChange = { value ->
                         onMedicineDraftChange { it.copy(patchTotalMg = value) }
                     },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
+                    imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_TOTAL_MG),
+                    onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
                 )
 
                 PatchSpecKind.RELEASE_RATE -> NumericField(
@@ -477,6 +546,9 @@ private fun NewMedicinePreparationForm(
                     onValueChange = { value ->
                         onMedicineDraftChange { it.copy(patchReleaseRateMcgPerDay = value) }
                     },
+                    focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
+                    imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_RELEASE_RATE),
+                    onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
                 )
             }
         }
@@ -552,6 +624,9 @@ private fun NumericField(
     @DrawableRes leadingIconRes: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
     showWarningIcon: Boolean = false,
+    focusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Done,
+    onImeNext: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     OutlinedTextField(
@@ -588,12 +663,92 @@ private fun NumericField(
                 )
             }
         },
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType,
-            imeAction = ImeAction.Done,
+            imeAction = imeAction,
         ),
-        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        keyboardActions = KeyboardActions(
+            onNext = {
+                onImeNext?.invoke() ?: focusManager.clearFocus()
+            },
+            onDone = { focusManager.clearFocus() },
+        ),
     )
+}
+
+// The set of editable text fields in CreateMedicineSheet, in render order.
+// editableFields(draft) returns the subset visible for the current draft;
+// imeActionFor and nextField use that to decide each field's IME action and
+// where to jump on Next.
+internal enum class CreateMedicineField {
+    CUSTOM_NAME,
+    PILL_STRENGTH,
+    VIAL_STRENGTH,
+    CONCENTRATION_MG_PER_ML,
+    VIAL_VOLUME_ML,
+    GEL_PERCENT,
+    SACHET_WEIGHT,
+    CONTAINER_WEIGHT,
+    PATCH_TOTAL_MG,
+    PATCH_RELEASE_RATE,
+    DISPLAY_NAME,
+}
+
+internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineField> {
+    if (draft.applicationType == MedicationApplicationType.PATCH_OFF) {
+        return emptyList()
+    }
+    val fields = mutableListOf<CreateMedicineField>()
+    if (draft.requiresCustomName()) {
+        fields += CreateMedicineField.CUSTOM_NAME
+    }
+    when (draft.inferredOrSelectedPreparationType()) {
+        MedicinePreparationType.PILL -> fields += CreateMedicineField.PILL_STRENGTH
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+            fields += CreateMedicineField.VIAL_STRENGTH
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
+            fields += CreateMedicineField.CONCENTRATION_MG_PER_ML
+            fields += CreateMedicineField.VIAL_VOLUME_ML
+        }
+        MedicinePreparationType.GEL_SACHET -> {
+            fields += CreateMedicineField.GEL_PERCENT
+            fields += CreateMedicineField.SACHET_WEIGHT
+        }
+        MedicinePreparationType.GEL_CONTAINER -> {
+            fields += CreateMedicineField.GEL_PERCENT
+            fields += CreateMedicineField.CONTAINER_WEIGHT
+        }
+        MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
+            PatchSpecKind.TOTAL_MG -> fields += CreateMedicineField.PATCH_TOTAL_MG
+            PatchSpecKind.RELEASE_RATE -> fields += CreateMedicineField.PATCH_RELEASE_RATE
+        }
+        null -> Unit
+    }
+    // The display-name override is the last field — only rendered for catalog
+    // medicines (custom medicines already carry a user-typed name).
+    if (draft.selectionKind == MedicationSelectionKind.CATALOG &&
+        !draft.requiresCustomName()
+    ) {
+        fields += CreateMedicineField.DISPLAY_NAME
+    }
+    return fields
+}
+
+internal fun imeActionFor(
+    editableFields: List<CreateMedicineField>,
+    field: CreateMedicineField,
+): ImeAction {
+    return if (nextField(editableFields, field) == null) ImeAction.Done else ImeAction.Next
+}
+
+internal fun nextField(
+    editableFields: List<CreateMedicineField>,
+    field: CreateMedicineField,
+): CreateMedicineField? {
+    val index = editableFields.indexOf(field).takeIf { it >= 0 } ?: return null
+    return editableFields.getOrNull(index + 1)
 }
