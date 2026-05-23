@@ -583,6 +583,10 @@ private fun MedicationSummaryHeader(
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             enabled = canOpenMedicinePicker,
+            // Match the medicine manager row: describe the medicine
+            // (preparation summary) instead of the in-flight entry (route +
+            // dose + count). The dose form below covers the rest.
+            supportingTextOverride = medicinePreparationSummary(medicine),
         )
     } else {
         EditorSegmentedListItem(
