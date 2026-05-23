@@ -160,6 +160,9 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.medicines_title,
     ) {
         const val baseRoute = "medicines"
+        // Route template stripped of its query string — matches what
+        // NavigationTransitions.normalizeNavigationRoute() yields.
+        const val motionRoute = "$baseRoute/{$TOP_LEVEL_PARENT_ARG}"
 
         fun createRoute(
             topLevelParentRoute: String = Plan.route,
@@ -200,6 +203,9 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         R.string.medicine_detail_title,
     ) {
         const val baseRoute = "medicine_detail"
+        // Route template stripped of its query string — matches what
+        // NavigationTransitions.normalizeNavigationRoute() yields.
+        const val motionRoute = "$baseRoute/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}"
 
         fun createRoute(
             medicineId: String,
