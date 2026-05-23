@@ -16,7 +16,7 @@ import androidx.room.RoomDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 30,
+    version = 1,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
