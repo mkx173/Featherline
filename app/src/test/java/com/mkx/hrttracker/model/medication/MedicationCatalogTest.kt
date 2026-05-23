@@ -24,17 +24,6 @@ class MedicationCatalogTest {
     }
 
     @Test
-    fun estradiol_patch_off_only_allows_no_dose() {
-        val entry = MedicationCatalog.defaultEntryFor(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.PATCH_OFF,
-        )
-
-        assertEquals(setOf(MedicationDoseKind.NONE), entry.doseKinds)
-        assertEquals(MedicationDoseKind.NONE, entry.defaultDoseKind)
-    }
-
-    @Test
     fun estradiol_injection_catalog_uses_requested_order() {
         val catalog = catalogFor(
             category = MedicationCategory.ESTRADIOL,

@@ -9,7 +9,6 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.UserProfileDao
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationDoseKind
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey

@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
-import com.mkx.hrttracker.model.medication.MedicationDoseUnit
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationKey
 
@@ -32,14 +31,6 @@ val MedicationApplicationType.labelRes: Int
 val MedicationGelApplicationArea.labelRes: Int
     get() = when (this) {
         MedicationGelApplicationArea.DEFAULT -> R.string.medication_gel_application_area_default
-    }
-
-@get:StringRes
-val MedicationDoseUnit.shortLabelRes: Int
-    get() = when (this) {
-        MedicationDoseUnit.MG -> R.string.unit_mg
-        MedicationDoseUnit.MCG -> R.string.unit_mcg
-        MedicationDoseUnit.G -> R.string.unit_grams
     }
 
 @get:StringRes

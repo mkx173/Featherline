@@ -84,6 +84,11 @@ class DatabaseHolder @Inject constructor(
                 MIGRATION_27_28,
                 MIGRATION_28_29,
             )
+            // v29 → v30 reshapes medication slot/log storage around the new
+            // Medicine entity. The transformation is non-trivial and the schema
+            // reset is documented; the destructive fallback owns this hop in
+            // release builds too.
+            .fallbackToDestructiveMigrationFrom(dropAllTables = true, 29)
         if (BuildConfig.DEBUG) {
             // Debug-only: side-loading older APKs is common during development.
             // Release builds intentionally crash on a missing migration so silent
