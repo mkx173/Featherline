@@ -217,17 +217,6 @@ private fun MedicinesScreenContent(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = appContentPaddingValues(),
             ) {
-                item(key = "add-new-medicine") {
-                    HrtFilledTonalButton(
-                        text = stringResource(R.string.medicine_picker_add_new_medicine),
-                        onClick = onAddNewMedicine,
-                        icon = Icons.Rounded.Add,
-                        iconContentDescription = null,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
-                }
-
                 if (uiState.activeSections.isEmpty() && uiState.archivedMedicines.isEmpty()) {
                     item(key = "empty-state") {
                         SupportMessageListItem(
@@ -294,6 +283,17 @@ private fun MedicinesScreenContent(
                             }
                         }
                     }
+                }
+
+                item(key = "add-new-medicine") {
+                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    HrtFilledTonalButton(
+                        text = stringResource(R.string.medicine_picker_add_new_medicine),
+                        onClick = onAddNewMedicine,
+                        icon = Icons.Rounded.Add,
+                        iconContentDescription = null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
