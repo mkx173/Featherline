@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -56,7 +55,6 @@ import com.mkx.hrttracker.ui.components.SupportMessageListItem
 import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
-import com.mkx.hrttracker.ui.medication.medicineDisplayName
 import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
@@ -199,42 +197,19 @@ private fun MedicinesScreenContent(
                                 .padding(bottom = 10.dp, top = 4.dp),
                         )
                     }
-                    section.drugGroups.forEach { group ->
-                        if (group.preparations.size == 1) {
-                            val item = group.preparations.single()
-                            item(key = "medicine-${item.medicine.uuid}") {
-                                MedicineRow(
-                                    item = item,
-                                    index = 0,
-                                    itemCount = 1,
-                                    onClick = { onMedicineClick(item.medicine.uuid) },
-                                )
-                                Spacer(
-                                    modifier = Modifier.height(
-                                        dimensionResource(R.dimen.list_segment_gap),
-                                    ),
-                                )
-                            }
-                        } else {
-                            item(key = "drug-header-${section.category.name}-${group.drugIdentityKey}") {
-                                DrugGroupHeader(group = group)
-                            }
-                            group.preparations.forEachIndexed { index, item ->
-                                item(key = "medicine-${item.medicine.uuid}") {
-                                    MedicineRow(
-                                        item = item,
-                                        index = index,
-                                        itemCount = group.preparations.size,
-                                        onClick = { onMedicineClick(item.medicine.uuid) },
-                                        modifier = Modifier.padding(start = 20.dp),
-                                    )
-                                    Spacer(
-                                        modifier = Modifier.height(
-                                            dimensionResource(R.dimen.list_segment_gap),
-                                        ),
-                                    )
-                                }
-                            }
+                    section.medicines.forEachIndexed { index, item ->
+                        item(key = "medicine-${item.medicine.uuid}") {
+                            MedicineRow(
+                                item = item,
+                                index = index,
+                                itemCount = section.medicines.size,
+                                onClick = { onMedicineClick(item.medicine.uuid) },
+                            )
+                            Spacer(
+                                modifier = Modifier.height(
+                                    dimensionResource(R.dimen.list_segment_gap),
+                                ),
+                            )
                         }
                     }
                 }
@@ -307,32 +282,6 @@ private fun MedicineRow(
         itemCount = itemCount,
         modifier = modifier,
     )
-}
-
-@Composable
-private fun DrugGroupHeader(group: DrugGroupItem) {
-    val title = medicineDisplayName(group.preparations.first().medicine)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = stringResource(
-                R.string.medicine_picker_drug_header_more,
-                group.preparations.size,
-            ),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }
 
 @Composable
@@ -421,16 +370,10 @@ private fun MedicinesScreenPreview() {
                 activeSections = listOf(
                     MedicineCategorySection(
                         category = MedicationCategory.ESTRADIOL,
-                        drugGroups = listOf(
-                            DrugGroupItem(
-                                drugLabel = "ESTRADIOL",
-                                drugIdentityKey = "ESTRADIOL",
-                                preparations = listOf(
-                                    MedicineListItem(
-                                        medicine = previewMedicine(),
-                                        activeGroupReferenceCount = 2,
-                                    ),
-                                ),
+                        medicines = listOf(
+                            MedicineListItem(
+                                medicine = previewMedicine(),
+                                activeGroupReferenceCount = 2,
                             ),
                         ),
                     ),
