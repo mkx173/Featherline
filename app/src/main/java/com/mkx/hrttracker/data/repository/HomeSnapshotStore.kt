@@ -496,7 +496,7 @@ internal object HomeSnapshotCodec {
 
     private fun DataInputStream.readMedicine(): Medicine {
         val uuid = UUID.fromString(readString())
-        val selection = readMedicineSelection()
+        val rawSelection = readMedicineSelection()
         val category = MedicationCategory.fromStorageValue(readString())
         val preparation = readMedicinePreparation()
         val displayName = readNullableString()
@@ -505,11 +505,21 @@ internal object HomeSnapshotCodec {
         val updatedAt = Instant.ofEpochMilli(readLong())
         val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
         val displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(readString())
+        // PATCH_OFF preparation is the discriminator for the sentinel selection,
+        // mirroring MedicineEntityMappers.toMedicineModel — the cache writer
+        // emits CATALOG selectionKind for storage convenience and we fix it up
+        // here on read so a round-tripped PatchOff medicine survives intact.
+        val selection = if (preparation is MedicinePreparation.PatchOff) {
+            MedicineSelection.PatchOff
+        } else {
+            rawSelection
+        }
         val expectedIdentityKey = when (selection) {
             is MedicineSelection.Catalog ->
                 MedicineIdentityKey.catalog(selection.medicationKey, preparation)
             is MedicineSelection.Custom ->
                 MedicineIdentityKey.custom(selection.medicationName, preparation)
+            is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
         }
         check(storedIdentityKey == expectedIdentityKey) {
             "Cached medicine $uuid identityKey does not match selection and preparation."
@@ -533,14 +543,26 @@ internal object HomeSnapshotCodec {
         when (selection) {
             is MedicineSelection.Catalog -> writeString(selection.medicationKey.name)
             is MedicineSelection.Custom -> writeString(selection.medicationName)
+            // PATCH_OFF reuses the CATALOG kind tag for storage; the read path
+            // recognises it from the PatchOff preparation marker. Write a
+            // placeholder string for the catalog branch's medicationKey slot so
+            // the binary layout matches the catalog read.
+            is MedicineSelection.PatchOff -> writeString(PATCH_OFF_SELECTION_MARKER)
         }
     }
 
     private fun DataInputStream.readMedicineSelection(): MedicineSelection {
         return when (MedicationSelectionKind.fromStorageValue(readString())) {
-            MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
-                medicationKey = checkNotNull(MedicationKey.fromStorageValue(readString()))
-            )
+            MedicationSelectionKind.CATALOG -> {
+                val keyName = readString()
+                if (keyName == PATCH_OFF_SELECTION_MARKER) {
+                    MedicineSelection.PatchOff
+                } else {
+                    MedicineSelection.Catalog(
+                        medicationKey = checkNotNull(MedicationKey.fromStorageValue(keyName))
+                    )
+                }
+            }
 
             MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
                 medicationName = readString()
@@ -575,6 +597,8 @@ internal object HomeSnapshotCodec {
                     writeDouble(specification.valueMcgPerDay)
                 }
             }
+            // No payload — the type tag (PATCH_OFF) is enough to round-trip.
+            is MedicinePreparation.PatchOff -> Unit
         }
     }
 
@@ -609,6 +633,8 @@ internal object HomeSnapshotCodec {
                     else -> error("Unknown patch specification discriminator: $discriminator")
                 }
             )
+
+            MedicinePreparationType.PATCH_OFF -> MedicinePreparation.PatchOff
         }
     }
 
@@ -801,11 +827,16 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 12
+// v13 introduces the PATCH_OFF preparation/selection sentinel; older caches
+// don't carry the marker and will be rejected by codec-version mismatch.
+private const val SNAPSHOT_CODEC_VERSION = 13
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0
 private const val PATCH_SPECIFICATION_RELEASE_RATE = 1
+// Reserved sentinel string in the medicationKey slot for a PATCH_OFF row in
+// the snapshot codec. Distinct from every MedicationKey.name.
+private const val PATCH_OFF_SELECTION_MARKER = "__PATCH_OFF__"
 private val HOME_SNAPSHOT_GENERATION_KEY = longPreferencesKey("generation")
 private const val ANDROID_KEY_STORE = "AndroidKeyStore"
 private const val MASTER_KEY_ALIAS = "hrt_home_snapshot_key"

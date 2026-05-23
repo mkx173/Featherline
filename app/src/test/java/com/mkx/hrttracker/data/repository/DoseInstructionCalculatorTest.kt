@@ -136,6 +136,7 @@ class DoseInstructionCalculatorTest {
         category: MedicationCategory = when (selection) {
             is MedicineSelection.Catalog -> selection.medicationKey.category
             is MedicineSelection.Custom -> MedicationCategory.CUSTOM
+            is MedicineSelection.PatchOff -> MedicationCategory.ESTRADIOL
         },
     ): Medicine {
         val timestamp = Instant.parse("2026-05-22T00:00:00Z")

@@ -9,7 +9,13 @@ enum class MedicinePreparationType {
     INJECTION_MULTI_USE_VIAL,
     GEL_SACHET,
     GEL_CONTAINER,
-    PATCH;
+    PATCH,
+
+    // Sentinel "preparation" carried by the global PATCH_OFF singleton medicine.
+    // The PK simulator routes solely on applicationType for patch removals; this
+    // preparation exists so the singleton can show up as a tappable row in the
+    // medicine manager. It has no numeric fields.
+    PATCH_OFF;
 
     companion object {
         fun fromStorageValue(value: String?): MedicinePreparationType {
@@ -30,6 +36,16 @@ sealed interface MedicineSelection {
 
         val normalizedMedicationName: String
             get() = normalizeCustomMedicationName(medicationName)
+    }
+
+    // Identity of the global PATCH_OFF singleton. Reuses CATALOG selectionKind
+    // for storage purposes (the entity layer needs *some* enum value) but
+    // serializes via the PATCH_OFF preparation type — there is no
+    // MedicationSelectionKind variant for it, since adding one would force a
+    // when-branch update on every selection-kind switch in the persistence
+    // layer for what is effectively a single special-cased row.
+    data object PatchOff : MedicineSelection {
+        override val kind: MedicationSelectionKind = MedicationSelectionKind.CATALOG
     }
 }
 
@@ -90,6 +106,14 @@ sealed interface MedicinePreparation {
 
     data class Patch(val specification: PatchSpecification) : MedicinePreparation {
         override val type: MedicinePreparationType = MedicinePreparationType.PATCH
+    }
+
+    // Sentinel preparation carried by the global PATCH_OFF singleton medicine.
+    // Has no numeric fields, no per-unit mg, and is compatible only with the
+    // PATCH_OFF application route. The PK simulator routes patch removals on
+    // applicationType alone, so this carries no PK-relevant data.
+    data object PatchOff : MedicinePreparation {
+        override val type: MedicinePreparationType = MedicinePreparationType.PATCH_OFF
     }
 
     sealed interface PatchSpecification {
@@ -179,6 +203,17 @@ data class Medicine(
     init {
         if (selection is MedicineSelection.Catalog) {
             require(category == selection.medicationKey.category)
+        }
+        if (selection is MedicineSelection.PatchOff) {
+            // The singleton lives under ESTRADIOL because the only patch
+            // medicines today are estradiol; carrying PatchOff selection with
+            // any other preparation or category breaks the entity round-trip.
+            require(preparation is MedicinePreparation.PatchOff) {
+                "PATCH_OFF selection requires PatchOff preparation."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "PATCH_OFF selection requires ESTRADIOL category."
+            }
         }
     }
 

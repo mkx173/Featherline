@@ -14,8 +14,14 @@ import java.time.Instant
 import java.util.UUID
 
 internal fun MedicineEntity.toMedicineModel(): Medicine {
-    val selection = toMedicineSelection()
     val preparation = toMedicinePreparation()
+    // PATCH_OFF preparation always maps to the sentinel selection; ignore the
+    // stored selectionKind (which is CATALOG for storage convenience).
+    val selection = if (preparation is MedicinePreparation.PatchOff) {
+        MedicineSelection.PatchOff
+    } else {
+        toMedicineSelection()
+    }
     validateIdentityFields(selection, preparation)
     return Medicine(
         uuid = UUID.fromString(uuid),
@@ -39,17 +45,23 @@ internal fun Medicine.toEntity(): MedicineEntity {
     return MedicineEntity(
         uuid = uuid.toString(),
         selectionKind = selection.kind.name,
+        // PATCH_OFF reuses CATALOG selectionKind for storage but has no
+        // medicationKey/customName; the preparationType PATCH_OFF marker is
+        // what reconstructs the MedicineSelection.PatchOff variant on read.
         medicationKey = when (val currentSelection = selection) {
             is MedicineSelection.Catalog -> currentSelection.medicationKey.name
             is MedicineSelection.Custom -> null
+            is MedicineSelection.PatchOff -> null
         },
         customMedicationName = when (val currentSelection = selection) {
             is MedicineSelection.Catalog -> null
             is MedicineSelection.Custom -> currentSelection.medicationName
+            is MedicineSelection.PatchOff -> null
         },
         customMedicationNameNormalized = when (val currentSelection = selection) {
             is MedicineSelection.Catalog -> null
             is MedicineSelection.Custom -> currentSelection.normalizedMedicationName
+            is MedicineSelection.PatchOff -> null
         },
         category = category.name,
         preparationType = storageFields.preparationType,
@@ -112,6 +124,11 @@ internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFi
                 patchReleaseRateMcgPerDay = currentSpecification.valueMcgPerDay,
             )
         }
+
+        // No numeric columns; the preparationType marker is the whole payload.
+        is MedicinePreparation.PatchOff -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+        )
     }
 }
 
@@ -160,6 +177,21 @@ private fun MedicineEntity.validateIdentityFields(
                 "Custom medicine $uuid normalized name does not match selection."
             }
             MedicineIdentityKey.custom(selection.medicationName, preparation)
+        }
+
+        is MedicineSelection.PatchOff -> {
+            // The singleton must carry the PATCH_OFF preparation and no
+            // selection-specific columns.
+            check(preparation is MedicinePreparation.PatchOff) {
+                "PATCH_OFF medicine $uuid must carry PatchOff preparation."
+            }
+            check(medicationKey == null) {
+                "PATCH_OFF medicine $uuid must not carry a catalog medicationKey."
+            }
+            check(customMedicationName == null && customMedicationNameNormalized == null) {
+                "PATCH_OFF medicine $uuid must not carry a custom medication name."
+            }
+            MedicineIdentityKey.patchOff()
         }
     }
 
@@ -216,6 +248,11 @@ private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
                         valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
                     )
             )
+        }
+
+        MedicinePreparationType.PATCH_OFF -> {
+            requireOnlyPreparationFields()
+            MedicinePreparation.PatchOff
         }
     }
 }

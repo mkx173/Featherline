@@ -862,6 +862,7 @@ class PlanCalendarDayUiStateTest {
                         else -> null
                     }
                     is MedicineSelection.Custom -> null
+                    is MedicineSelection.PatchOff -> null
                 }
             },
         )

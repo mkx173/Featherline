@@ -800,8 +800,23 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         "medicine preparation type",
     )
 
-    val resolvedSelection: MedicineSelection = when (selectionKind) {
-        MedicationSelectionKind.CATALOG -> {
+    val resolvedSelection: MedicineSelection = when {
+        // PATCH_OFF preparation always implies the singleton selection,
+        // regardless of stored selectionKind. The singleton is keyed by its
+        // identityKey alone; medicationKey / customName must be empty.
+        preparationType == MedicinePreparationType.PATCH_OFF -> {
+            require(medicationKey == null) {
+                "PATCH_OFF medicine $uuid must not carry a catalog medicationKey."
+            }
+            require(customMedicationName == null && customMedicationNameNormalized == null) {
+                "PATCH_OFF medicine $uuid must not carry a custom medication name."
+            }
+            require(category == MedicationCategory.ESTRADIOL) {
+                "PATCH_OFF medicine $uuid must be in the ESTRADIOL category."
+            }
+            MedicineSelection.PatchOff
+        }
+        selectionKind == MedicationSelectionKind.CATALOG -> {
             require(customMedicationName == null && customMedicationNameNormalized == null) {
                 "Catalog medicine $uuid must not carry a custom name."
             }
@@ -813,7 +828,7 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
             }
             MedicineSelection.Catalog(medicationKey = key)
         }
-        MedicationSelectionKind.CUSTOM -> {
+        else -> {
             require(medicationKey == null) {
                 "Custom medicine $uuid must not carry a catalog medication key."
             }
@@ -854,6 +869,7 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
             MedicineIdentityKey.catalog(resolvedSelection.medicationKey, resolvedPreparation)
         is MedicineSelection.Custom ->
             MedicineIdentityKey.custom(resolvedSelection.medicationName, resolvedPreparation)
+        is MedicineSelection.PatchOff -> MedicineIdentityKey.patchOff()
     }
     require(identityKey == expectedIdentityKey) {
         "Medicine $uuid identityKey does not match its selection and preparation."
@@ -993,6 +1009,11 @@ private fun MedicinePreparationType.toValidatedPreparation(
                         valueMcgPerDay = checkNotNull(patchReleaseRateMcgPerDay)
                     )
             )
+        }
+
+        MedicinePreparationType.PATCH_OFF -> {
+            requireFieldsOnly()
+            MedicinePreparation.PatchOff
         }
     }
 }

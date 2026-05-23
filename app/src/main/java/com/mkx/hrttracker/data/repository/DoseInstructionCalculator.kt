@@ -67,6 +67,9 @@ object DoseInstructionCalculator {
                     is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> null
                 }
             }
+            // PATCH_OFF carries no per-unit mass; the PK simulator routes patch
+            // removals on applicationType alone and ignores the dose amount.
+            is MedicinePreparation.PatchOff -> null
         }
     }
 

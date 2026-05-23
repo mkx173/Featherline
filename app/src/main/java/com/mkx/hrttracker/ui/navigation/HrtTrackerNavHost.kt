@@ -1177,21 +1177,28 @@ private fun saveMedicine(medicine: Medicine): ArrayList<Any?> {
 @Suppress("UNCHECKED_CAST")
 private fun restoreMedicine(saved: Any): Medicine {
     val list = saved as ArrayList<Any?>
-    val selection = when (MedicationSelectionKind.fromStorageValue(list[1] as String)) {
-        MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
-            medicationKey = MedicationKey.fromStorageValue(list[2] as String)
-                ?: error("Unknown medication key: ${list[2]}"),
-        )
+    val preparation = restorePreparation(list[5]!!)
+    // PATCH_OFF reuses CATALOG selectionKind for storage; the preparation type
+    // is the discriminator on the way back in. Mirrors MedicineEntityMappers.
+    val selection = if (preparation is MedicinePreparation.PatchOff) {
+        MedicineSelection.PatchOff
+    } else {
+        when (MedicationSelectionKind.fromStorageValue(list[1] as String)) {
+            MedicationSelectionKind.CATALOG -> MedicineSelection.Catalog(
+                medicationKey = MedicationKey.fromStorageValue(list[2] as String)
+                    ?: error("Unknown medication key: ${list[2]}"),
+            )
 
-        MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
-            medicationName = list[3] as String,
-        )
+            MedicationSelectionKind.CUSTOM -> MedicineSelection.Custom(
+                medicationName = list[3] as String,
+            )
+        }
     }
     return Medicine(
         uuid = UUID.fromString(list[0] as String),
         selection = selection,
         category = MedicationCategory.fromStorageValue(list[4] as String),
-        preparation = restorePreparation(list[5]!!),
+        preparation = preparation,
         displayName = list[6] as? String,
         identityKey = list[7] as String,
         createdAt = Instant.ofEpochMilli(list[8] as Long),
@@ -1233,6 +1240,9 @@ private fun savePreparation(preparation: MedicinePreparation): ArrayList<Any?> {
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
                 arrayListOf(preparation.type.name, "RATE", spec.valueMcgPerDay)
         }
+
+        // PATCH_OFF carries no numeric fields; the type tag is the whole payload.
+        is MedicinePreparation.PatchOff -> arrayListOf(preparation.type.name)
     }
 }
 
@@ -1270,6 +1280,8 @@ private fun restorePreparation(saved: Any): MedicinePreparation {
                 )
             },
         )
+
+        MedicinePreparationType.PATCH_OFF -> MedicinePreparation.PatchOff
     }
 }
 

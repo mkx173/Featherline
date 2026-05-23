@@ -11,6 +11,10 @@ fun normalizeCustomMedicationName(value: String): String {
 }
 
 object MedicineIdentityKey {
+    // Stable identity for the global PATCH_OFF singleton. The medicine
+    // repository looks this up to enforce one-row-per-database semantics.
+    const val PATCH_OFF = "P|PATCH_OFF"
+
     fun catalog(
         medicationKey: MedicationKey,
         preparation: MedicinePreparation,
@@ -36,6 +40,8 @@ object MedicineIdentityKey {
             appendPreparationFields(preparation)
         }
     }
+
+    fun patchOff(): String = PATCH_OFF
 
     fun canonicalDouble(value: Double): String {
         require(value > 0.0 && !value.isNaN() && !value.isInfinite())
@@ -75,6 +81,12 @@ object MedicineIdentityKey {
                     }
                 }
             }
+            // The PATCH_OFF singleton always carries the same identity key, so
+            // nothing extra to append after the preparation type marker. (Lives
+            // in catalog/custom helpers' appendPreparationFields purely for
+            // exhaustiveness of the when over MedicinePreparation; the patchOff
+            // helper does not call this path.)
+            is MedicinePreparation.PatchOff -> Unit
         }
     }
 
