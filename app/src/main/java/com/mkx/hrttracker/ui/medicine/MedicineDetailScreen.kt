@@ -48,8 +48,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -61,6 +63,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.hasRawMassDoseField
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.medication.shortLabelRes
@@ -135,7 +138,7 @@ private fun MedicineDetailScreenContent(
     onGroupClick: (UUID) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onSaveDisplayName: () -> Unit,
-    onSavePreparation: (MedicinePreparation, com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit) -> Unit,
+    onSavePreparation: (MedicinePreparation, MedicineDisplayDoseUnit) -> Unit,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -210,7 +213,7 @@ private fun MedicineDetailScreenContent(
                 // display-name override has no use there. The Save action in
                 // the top bar also becomes a no-op for them, but it costs
                 // nothing to keep visible.
-                if (medicine.selection is com.mkx.hrttracker.model.medication.MedicineSelection.Catalog) {
+                if (medicine.selection is MedicineSelection.Catalog) {
                     item(key = "display-name") {
                         DisplayNameSection(
                             displayName = uiState.displayNameText,
@@ -455,13 +458,13 @@ private fun SectionHeader(text: String) {
 private fun PreparationEditorDialog(
     medicine: Medicine,
     onDismiss: () -> Unit,
-    onSave: (MedicinePreparation, com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit) -> Unit,
+    onSave: (MedicinePreparation, MedicineDisplayDoseUnit) -> Unit,
 ) {
-    val isCustom = medicine.selection is com.mkx.hrttracker.model.medication.MedicineSelection.Custom
+    val isCustom = medicine.selection is MedicineSelection.Custom
     val initialDraft = remember(medicine.uuid, medicine.preparation, medicine.displayDoseUnit) {
         medicine.preparation.toPreparationDraft(
             displayDoseUnit = if (isCustom) medicine.displayDoseUnit
-            else com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MG,
+            else MedicineDisplayDoseUnit.MG,
         )
     }
     var draft by remember(initialDraft) { mutableStateOf(initialDraft) }
@@ -475,7 +478,7 @@ private fun PreparationEditorDialog(
                 draft = draft,
                 onDraftChange = { draft = it },
                 showsUnitPicker = isCustom &&
-                    draft.preparationType.allowsCustomDoseUnit(draft.patchSpecKind),
+                    draft.preparationType.hasRawMassDoseField(draft.patchSpecKind),
             )
         },
         confirmButton = {
@@ -492,19 +495,6 @@ private fun PreparationEditorDialog(
             }
         },
     )
-}
-
-private fun MedicinePreparationType.allowsCustomDoseUnit(
-    patchSpecKind: PatchSpecKind,
-): Boolean {
-    return when (this) {
-        MedicinePreparationType.PILL,
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
-        MedicinePreparationType.PATCH -> patchSpecKind == PatchSpecKind.TOTAL_MG
-        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-        MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.GEL_CONTAINER -> false
-    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -527,7 +517,7 @@ private fun PreparationEditorFields(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ConnectedButtonGroup(
-                options = com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.entries,
+                options = MedicineDisplayDoseUnit.entries,
                 selectedOption = draft.displayDoseUnit,
                 optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
                 onOptionSelected = { unit ->
@@ -697,8 +687,8 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
 }
 
 private fun MedicinePreparation.toPreparationDraft(
-    displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit =
-        com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MG,
+    displayDoseUnit: MedicineDisplayDoseUnit =
+        MedicineDisplayDoseUnit.MG,
 ): MedicinePreparationDraftUiState {
     val base = MedicinePreparationDraftUiState(
         preparationType = type,

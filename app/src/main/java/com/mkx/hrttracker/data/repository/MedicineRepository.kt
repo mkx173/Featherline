@@ -180,8 +180,13 @@ class MedicineRepository @Inject constructor(
                 val storageFields = preparation.toStorageFields()
                 // Reuse the existing column value when the caller passed null,
                 // so a partial update (preparation only, no unit change) is a
-                // no-op for the display unit.
-                val resolvedDisplayDoseUnit = (displayDoseUnit?.name ?: existing.displayDoseUnit)
+                // no-op for the display unit. Normalize the existing value
+                // through fromStorageValue so a malformed legacy row writes
+                // back as MG rather than re-persisting garbage.
+                val resolvedDisplayDoseUnit = (
+                    displayDoseUnit
+                        ?: MedicineDisplayDoseUnit.fromStorageValue(existing.displayDoseUnit)
+                ).name
                 dao.updatePreparationFields(
                     uuid = uuid.toString(),
                     preparationType = storageFields.preparationType,

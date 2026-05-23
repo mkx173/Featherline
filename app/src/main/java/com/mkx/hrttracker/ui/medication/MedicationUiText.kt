@@ -33,13 +33,7 @@ fun medicinePreparationSummary(medicine: Medicine): String {
     } else {
         MedicineDisplayDoseUnit.MG
     }
-    val unitLabel = stringResource(
-        when (displayUnit) {
-            MedicineDisplayDoseUnit.MG -> R.string.unit_mg
-            MedicineDisplayDoseUnit.MCG -> R.string.unit_mcg
-            MedicineDisplayDoseUnit.G -> R.string.unit_grams
-        }
-    )
+    val unitLabel = stringResource(displayUnit.shortLabelRes())
     return when (val preparation = medicine.preparation) {
         is MedicinePreparation.Pill -> stringResource(
             R.string.medication_preparation_summary_pill_with_unit,

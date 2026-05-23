@@ -85,7 +85,10 @@ class CreateMedicineViewModelTest {
 
     @Test
     fun validCustomDraftCreatesMedicine() = runTest {
-        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 1.5)
+        // Typed 50 with unit MCG should reach the repo as Pill(0.05 mg) +
+        // displayDoseUnit = MCG. Pinning the matcher catches a future
+        // refactor that forgets to thread the picker choice through.
+        val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 0.05)
         val medicine = testCustomMedicine(
             uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000002"),
             medicationName = "My custom med",
@@ -99,7 +102,7 @@ class CreateMedicineViewModelTest {
                 displayName = "Display",
                 category = MedicationCategory.CUSTOM,
                 preparation = preparation,
-                displayDoseUnit = any(),
+                displayDoseUnit = com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MCG,
                 now = any(),
             )
         } returns medicine
@@ -108,7 +111,8 @@ class CreateMedicineViewModelTest {
             defaultMedicineDraft(category = MedicationCategory.CUSTOM).copy(
                 customMedicationName = " My custom med ",
                 displayName = " Display ",
-                pillStrengthMg = "1.5",
+                pillStrengthMg = "50",
+                customDoseUnit = com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MCG,
             )
         }
         var createdUuid: UUID? = null
@@ -124,7 +128,7 @@ class CreateMedicineViewModelTest {
                 displayName = "Display",
                 category = MedicationCategory.CUSTOM,
                 preparation = preparation,
-                displayDoseUnit = any(),
+                displayDoseUnit = com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MCG,
                 now = any(),
             )
         }

@@ -197,4 +197,10 @@ data class BackupBloodTestResultSnapshot(
     val canonicalValue: Double,
 )
 
+// Bump this when a schema change isn't safely readable by an older app —
+// e.g., a new REQUIRED field, a removed field that something downstream still
+// dereferences, or a semantic change to an existing field. Nullable optional
+// fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
+// medicine unit picker shipped) are additive and don't require a bump; missing
+// values fall through their defaults on restore.
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 2

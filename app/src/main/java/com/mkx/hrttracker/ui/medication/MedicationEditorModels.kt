@@ -457,16 +457,12 @@ fun MedicineDisplayDoseUnit.shortLabelRes(): Int {
     }
 }
 
-// Whether the picker should render its mg/μg/g unit selector for the current
-// draft. Only custom medicines with a raw-mass field (pill strength, single-
-// use vial strength, or patch TOTAL_MG) show it. Catalog medicines, multi-use
-// vials, gels, and release-rate patches carry their own units in their fields
-// and ignore the picker.
-fun MedicinePickerUiState.showsCustomDoseUnitPicker(): Boolean {
-    if (selectionKind != MedicationSelectionKind.CUSTOM) {
-        return false
-    }
-    return when (inferredOrSelectedPreparationType()) {
+// Preparation types whose primary numeric input is a mass in milligrams —
+// where it makes sense to let the user pick a typing unit (mg/μg/g) instead
+// of forcing them to convert. Multi-use vials carry mg/mL, gels carry % + g,
+// and patch release-rate carries μg/day, so none of those toggle.
+fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): Boolean {
+    return when (this) {
         MedicinePreparationType.PILL,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
 
@@ -475,9 +471,18 @@ fun MedicinePickerUiState.showsCustomDoseUnitPicker(): Boolean {
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.GEL_CONTAINER -> false
-
-        null -> false
     }
+}
+
+// Whether the picker should render its mg/μg/g unit selector for the current
+// draft. Catalog medicines never see it; custom medicines see it only when the
+// preparation has a raw-mass field per [hasRawMassDoseField].
+fun MedicinePickerUiState.showsCustomDoseUnitPicker(): Boolean {
+    if (selectionKind != MedicationSelectionKind.CUSTOM) {
+        return false
+    }
+    val preparationType = inferredOrSelectedPreparationType() ?: return false
+    return preparationType.hasRawMassDoseField(patchSpecKind)
 }
 
 // Routes whose dose is fully determined by the medicine identity (whole-unit
@@ -525,7 +530,14 @@ fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {
     }
     // Catalog medicines force MG so a stray picker value on a draft that
     // started as custom and was switched to catalog can't bleed through.
-    val resolvedDisplayDoseUnit = if (resolvedSelectionKind == MedicationSelectionKind.CUSTOM) {
+    // Also force MG when the picker wouldn't have been visible for this
+    // preparation type — e.g., a custom multi-use vial doesn't expose the
+    // picker, so the customDoseUnit field may still carry a stale value from
+    // an earlier PILL/PATCH preparation choice.
+    val resolvedDisplayDoseUnit = if (
+        resolvedSelectionKind == MedicationSelectionKind.CUSTOM &&
+        showsCustomDoseUnitPicker()
+    ) {
         customDoseUnit
     } else {
         MedicineDisplayDoseUnit.MG
