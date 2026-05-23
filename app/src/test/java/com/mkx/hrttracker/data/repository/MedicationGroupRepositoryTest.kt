@@ -22,7 +22,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -1240,6 +1243,85 @@ class MedicationGroupRepositoryTest {
                     medicineUuid = medicineUuid.toString(),
                 ),
             ),
+        )
+    }
+
+    // Regression: observeGroups() resolves Medicine references via a separate
+    // point-in-time fetch off the groups Flow, so a medicines-table change
+    // (displayName, archive, etc.) used to not re-emit until the groups table
+    // also changed — i.e., effectively only on app relaunch. The combined
+    // medicineDao.observeMedicineChangeVersion() signal forces re-resolution
+    // on any medicines mutation.
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    @Test
+    fun observeGroups_reEmitsWhenMedicineTableSignalChanges() = runTest {
+        val groupUuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001")
+        val itemUuid = UUID.fromString("eeeeeeee-0000-0000-0000-000000000002")
+        val medicineUuid = UUID.fromString("ffffffff-0000-0000-0000-000000000003")
+
+        val medicineDao = mockk<com.mkx.hrttracker.data.local.MedicineDao>()
+        val groupsSource = MutableStateFlow(listOf(testGroupWithItem(groupUuid, itemUuid, medicineUuid)))
+        val medicineChangeVersion = MutableStateFlow(0)
+        val medicineState = MutableStateFlow(
+            com.mkx.hrttracker.data.local.MedicineEntity(
+                uuid = medicineUuid.toString(),
+                selectionKind = "CATALOG",
+                medicationKey = "ESTRADIOL",
+                customMedicationName = null,
+                customMedicationNameNormalized = null,
+                category = com.mkx.hrttracker.model.medication.MedicationCategory.ESTRADIOL.name,
+                preparationType = "PILL",
+                strengthMgPerTablet = 2.0,
+                strengthMgPerVial = null,
+                concentrationMgPerMl = null,
+                vialVolumeMl = null,
+                concentrationPercent = null,
+                sachetWeightGrams = null,
+                containerWeightGrams = null,
+                patchTotalMg = null,
+                patchReleaseRateMcgPerDay = null,
+                displayName = "Original",
+                identityKey = "C|ESTRADIOL|PILL|strengthMgPerTablet=2",
+                createdAtEpochMillis = 0,
+                updatedAtEpochMillis = 0,
+                archivedAtEpochMillis = null,
+            )
+        )
+
+        every { databaseHolder.databaseFlow } returns MutableStateFlow(database)
+        every { database.medicineDao() } returns medicineDao
+        every { medicationGroupDao.observeGroups() } returns groupsSource
+        every { medicineDao.observeMedicineChangeVersion() } returns medicineChangeVersion
+        coEvery { medicineDao.getByUuids(any()) } answers { listOf(medicineState.value) }
+
+        val freshRepository = MedicationGroupRepository(
+            databaseHolder = databaseHolder,
+            homeSnapshotRepository = homeSnapshotRepository,
+            appScope = CoroutineScope(
+                backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)
+            ),
+        )
+
+        advanceUntilIdle()
+        val before = freshRepository.observeGroups().first { it != null }
+        assertEquals(
+            "Original",
+            before?.first()?.medications?.first()?.medicine?.displayName,
+        )
+
+        medicineState.value = medicineState.value.copy(
+            displayName = "Renamed",
+            updatedAtEpochMillis = 500,
+        )
+        medicineChangeVersion.value = medicineChangeVersion.value + 1
+        advanceUntilIdle()
+
+        val after = freshRepository.observeGroups().first {
+            it?.firstOrNull()?.medications?.firstOrNull()?.medicine?.displayName == "Renamed"
+        }
+        assertEquals(
+            "Renamed",
+            after?.first()?.medications?.first()?.medicine?.displayName,
         )
     }
 }

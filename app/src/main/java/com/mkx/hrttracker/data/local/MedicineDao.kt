@@ -60,6 +60,14 @@ interface MedicineDao {
     )
     suspend fun getByUuids(uuids: List<String>): List<MedicineEntity>
 
+    // A change-only signal: Room's invalidation tracker re-fires this Flow on
+    // ANY mutation to the medicines table. Used by repositories that resolve
+    // medicines as a separate fetch off a group/log table observation — without
+    // this, displayName / preparation / archive edits don't propagate until the
+    // primary table also changes (i.e., effectively only on app relaunch).
+    @Query("SELECT COUNT(*) FROM medicines")
+    fun observeMedicineChangeVersion(): Flow<Int>
+
     @Query(
         """
         SELECT * FROM medicines

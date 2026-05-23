@@ -287,6 +287,7 @@ class MedicationLogRepositoryTest {
         every { database.medicationLogDao() } returns dao
         every { database.medicineDao() } returns medicineDao
         every { dao.observeEntries() } returns MutableStateFlow(entries)
+        every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
         coEvery { medicineDao.getByUuids(any()) } returns medicineEntities
 
         return MedicationLogRepository(

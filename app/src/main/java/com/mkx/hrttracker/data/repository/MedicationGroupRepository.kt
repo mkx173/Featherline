@@ -18,9 +18,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.Instant
@@ -46,11 +46,17 @@ class MedicationGroupRepository @Inject constructor(
                 if (database == null) {
                     flowOf<List<MedicationGroup>?>(null)
                 } else {
-                    database.medicationGroupDao().observeGroups()
-                        .map<List<MedicationGroupWithItemsEntity>, List<MedicationGroup>?> { groups ->
-                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
-                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
-                        }
+                    // resolveMedicinesForGroups is a separate point-in-time read,
+                    // so a medicines-table mutation (displayName, archive, etc.)
+                    // wouldn't re-trigger this map on its own. Combine with the
+                    // change-only signal so any medicine edit re-resolves slots.
+                    combine<List<MedicationGroupWithItemsEntity>, Int, List<MedicationGroup>?>(
+                        database.medicationGroupDao().observeGroups(),
+                        database.medicineDao().observeMedicineChangeVersion(),
+                    ) { groups, _ ->
+                        val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                        groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                    }
                         .catch { emit(emptyList()) }
                 }
             }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -38,11 +39,17 @@ class MedicationLogRepository @Inject constructor(
                 if (database == null) {
                     flowOf<List<MedicationLogEntry>?>(null)
                 } else {
-                    database.medicationLogDao().observeEntries()
-                        .map<List<MedicationLogEntryEntity>, List<MedicationLogEntry>?> { entries ->
-                            val medicinesByUuid = database.resolveMedicinesForEntries(entries)
-                            entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
-                        }
+                    // resolveMedicinesForEntries is a separate point-in-time read,
+                    // so a medicines-table mutation (displayName, archive, etc.)
+                    // wouldn't re-trigger this map on its own. Combine with the
+                    // change-only signal so any medicine edit re-resolves logs.
+                    combine<List<MedicationLogEntryEntity>, Int, List<MedicationLogEntry>?>(
+                        database.medicationLogDao().observeEntries(),
+                        database.medicineDao().observeMedicineChangeVersion(),
+                    ) { entries, _ ->
+                        val medicinesByUuid = database.resolveMedicinesForEntries(entries)
+                        entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
+                    }
                         .catch { emit(emptyList()) }
                 }
             }

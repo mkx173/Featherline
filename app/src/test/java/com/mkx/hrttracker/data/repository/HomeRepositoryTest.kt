@@ -43,6 +43,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -60,6 +61,14 @@ class HomeRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val homeDao: HomeDao = mockk()
     private val medicineDao: MedicineDao = mockk(relaxed = true)
+
+    @Before
+    fun stubMedicineChangeVersion() {
+        // observeHomeStartupInputs now combines each Home-table observation with
+        // this signal so medicines edits propagate without an app restart;
+        // mockk's relaxed default emits no value, which would deadlock combine.
+        every { medicineDao.observeMedicineChangeVersion() } returns MutableStateFlow(0)
+    }
 
     @Test
     fun observeHomeStartupInputs_usesBoundedScheduleWindow() = runTest {

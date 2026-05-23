@@ -246,24 +246,38 @@ class HomeRepository @Inject constructor(
                 flow {
                     val database = databaseHolder.get()
                     val homeDao = database.homeDao()
+                    val medicineDao = database.medicineDao()
+                    // Bound to each Home-table observation so medicine edits
+                    // (displayName, archive, etc.) re-resolve the joined
+                    // Medicine projection without waiting for the primary
+                    // table to also change.
+                    val medicineChangeVersion = medicineDao.observeMedicineChangeVersion()
                     val basicsFlow = combine(
-                        homeDao.observeActiveGroups()
-                            .map { groups ->
-                                val medicinesByUuid = database.resolveMedicinesForGroups(groups)
-                                groups.map { it.toMedicationGroupModel(medicinesByUuid) }
-                            },
-                        homeDao.observeScheduleEntries(
-                            scheduledStartIso = scheduledStartIso,
-                            scheduledEndIso = scheduledEndIso,
-                            manualStartEpochMillis = manualStartEpochMillis,
-                            manualEndEpochMillis = manualEndEpochMillis,
-                        ).map { entries ->
+                        combine(
+                            homeDao.observeActiveGroups(),
+                            medicineChangeVersion,
+                        ) { groups, _ ->
+                            val medicinesByUuid = database.resolveMedicinesForGroups(groups)
+                            groups.map { it.toMedicationGroupModel(medicinesByUuid) }
+                        },
+                        combine(
+                            homeDao.observeScheduleEntries(
+                                scheduledStartIso = scheduledStartIso,
+                                scheduledEndIso = scheduledEndIso,
+                                manualStartEpochMillis = manualStartEpochMillis,
+                                manualEndEpochMillis = manualEndEpochMillis,
+                            ),
+                            medicineChangeVersion,
+                        ) { entries, _ ->
                             val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                             entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         },
-                        homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
-                            onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                        ).map { entries ->
+                        combine(
+                            homeDao.observeLatestAntiandrogenEntriesOnOrBefore(
+                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                            ),
+                            medicineChangeVersion,
+                        ) { entries, _ ->
                             val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                             entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                         },
@@ -288,16 +302,22 @@ class HomeRepository @Inject constructor(
                     emitAll(
                         combine(
                             basicsFlow,
-                            homeDao.observeEstradiolPkEntries(
-                                startEpochMillis = pkStartEpochMillis,
-                                endEpochMillis = pkEndEpochMillis,
-                            ).map { entries ->
+                            combine(
+                                homeDao.observeEstradiolPkEntries(
+                                    startEpochMillis = pkStartEpochMillis,
+                                    endEpochMillis = pkEndEpochMillis,
+                                ),
+                                medicineChangeVersion,
+                            ) { entries, _ ->
                                 val medicinesByUuid = database.resolveMedicinesForEntries(entries)
                                 entries.map { it.toMedicationLogEntryModel(medicinesByUuid) }
                             },
-                            homeDao.observeLatestEstradiolEntryOnOrBefore(
-                                onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
-                            ).map { entry ->
+                            combine(
+                                homeDao.observeLatestEstradiolEntryOnOrBefore(
+                                    onOrBeforeEpochMillis = endOfTodayInclusiveEpochMillis,
+                                ),
+                                medicineChangeVersion,
+                            ) { entry, _ ->
                                 val medicinesByUuid = database.resolveMedicinesForEntries(
                                     listOfNotNull(entry)
                                 )
