@@ -1251,7 +1251,6 @@ private fun MedicationGroupEditorScreenContent(
                 }
                 val groupNamePlaceholder = medicationGroupNamePlaceholder(
                     defaultGroupName = uiState.defaultGroupName,
-                    isEditing = uiState.isEditing,
                 )
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -2017,9 +2016,8 @@ internal fun shouldEnableGroupNotifications(
 
 internal fun medicationGroupNamePlaceholder(
     defaultGroupName: String,
-    isEditing: Boolean,
 ): String? {
-    return defaultGroupName.takeIf { !isEditing && it.isNotBlank() }
+    return defaultGroupName.takeIf { it.isNotBlank() }
 }
 
 internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {
