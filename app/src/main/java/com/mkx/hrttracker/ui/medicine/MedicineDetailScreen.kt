@@ -170,6 +170,13 @@ private fun MedicineDetailScreenContent(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
+                actions = {
+                    HrtButton(
+                        text = stringResource(R.string.save),
+                        onClick = onSaveDisplayName,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -201,7 +208,6 @@ private fun MedicineDetailScreenContent(
                         displayName = uiState.displayNameText,
                         isLocked = false,
                         onValueChange = onDisplayNameChange,
-                        onSave = onSaveDisplayName,
                     )
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
@@ -338,7 +344,6 @@ private fun DisplayNameSection(
     displayName: String,
     isLocked: Boolean,
     onValueChange: (String) -> Unit,
-    onSave: () -> Unit,
 ) {
     Column {
         SectionHeader(text = stringResource(R.string.medicine_display_name))
@@ -352,13 +357,6 @@ private fun DisplayNameSection(
                 Text(text = stringResource(R.string.medicine_display_name_hint))
             },
             singleLine = true,
-            enabled = !isLocked,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        HrtFilledTonalButton(
-            text = stringResource(R.string.save),
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth(),
             enabled = !isLocked,
         )
     }
