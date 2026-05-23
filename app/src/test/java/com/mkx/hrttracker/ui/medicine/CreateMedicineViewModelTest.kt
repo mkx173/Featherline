@@ -95,11 +95,12 @@ class CreateMedicineViewModelTest {
         )
         coEvery {
             medicineRepository.findOrCreateForCustom(
-                "My custom med",
-                "Display",
-                MedicationCategory.CUSTOM,
-                preparation,
-                any(),
+                customMedicationName = "My custom med",
+                displayName = "Display",
+                category = MedicationCategory.CUSTOM,
+                preparation = preparation,
+                displayDoseUnit = any(),
+                now = any(),
             )
         } returns medicine
         val viewModel = CreateMedicineViewModel(medicineRepository)
@@ -119,11 +120,12 @@ class CreateMedicineViewModelTest {
         assertEquals(CreateMedicineSaveResult.SUCCESS, viewModel.uiState.value.saveResult)
         coVerify(exactly = 1) {
             medicineRepository.findOrCreateForCustom(
-                "My custom med",
-                "Display",
-                MedicationCategory.CUSTOM,
-                preparation,
-                any(),
+                customMedicationName = "My custom med",
+                displayName = "Display",
+                category = MedicationCategory.CUSTOM,
+                preparation = preparation,
+                displayDoseUnit = any(),
+                now = any(),
             )
         }
     }
@@ -184,7 +186,9 @@ class CreateMedicineViewModelTest {
         assertEquals(R.string.validation_pill_strength_required, viewModel.uiState.value.errorMessageRes)
         assertNull(viewModel.uiState.value.saveResult)
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
-        coVerify(exactly = 0) { medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) {
+            medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any(), any())
+        }
     }
 
     @Test
@@ -204,7 +208,9 @@ class CreateMedicineViewModelTest {
             viewModel.uiState.value.errorMessageRes,
         )
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
-        coVerify(exactly = 0) { medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) {
+            medicineRepository.findOrCreateForCustom(any(), any(), any(), any(), any(), any())
+        }
     }
 
     @Test

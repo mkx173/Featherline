@@ -345,6 +345,7 @@
     <string name="validation_dose_weight_required">请输入有效重量</string>
     <string name="validation_dose_tablet_fraction_required">请输入有效的片剂数量</string>
     <string name="field_preparation_type">制剂类型</string>
+    <string name="field_strength_unit">含量单位</string>
     <string name="field_pill_strength_mg">片剂含量</string>
     <string name="field_single_use_vial_strength_mg">单次使用药瓶含量</string>
     <string name="field_concentration_mg_per_ml">浓度</string>
@@ -360,11 +361,14 @@
     <string name="medication_picker_existing_medicines">现有药物</string>
     <string name="medication_picker_add_new">+ 新建</string>
     <string name="medication_preparation_summary_pill">片剂 · %1$s mg</string>
+    <string name="medication_preparation_summary_pill_with_unit">片剂 · %1$s %2$s</string>
     <string name="medication_preparation_summary_single_use_vial">单次使用药瓶 · %1$s mg</string>
+    <string name="medication_preparation_summary_single_use_vial_with_unit">单次使用药瓶 · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">多次使用药瓶 · %1$s mg/mL · %2$s mL</string>
     <string name="medication_preparation_summary_gel_sachet">小袋装 · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_gel_container">瓶装 · %1$s%% · %2$s g</string>
     <string name="medication_preparation_summary_patch_total">贴片 · %1$s mg</string>
+    <string name="medication_preparation_summary_patch_total_with_unit">贴片 · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">贴片 · %1$s μg/天</string>
     <string name="dose_instruction_summary_tablet_fraction">%1$s 片</string>
     <string name="dose_instruction_summary_whole_unit">1 单位</string>

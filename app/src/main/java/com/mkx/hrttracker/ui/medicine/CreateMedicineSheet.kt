@@ -43,10 +43,13 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.shortLabelRes
+import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
 import com.mkx.hrttracker.ui.medication.ambiguousPreparationTypes
 import com.mkx.hrttracker.ui.medication.availableCatalogKeys
 import com.mkx.hrttracker.ui.medication.changeApplicationType
@@ -354,10 +357,25 @@ private fun NewMedicinePreparationForm(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
 
+    // Custom medicines render a mg/μg/g picker above their raw-mass field so
+    // the user can type whatever unit makes sense for the medicine — storage
+    // stays in mg via toMedicinePreparation()'s conversion.
+    if (medicineDraft.showsCustomDoseUnitPicker()) {
+        CustomDoseUnitPicker(
+            selectedUnit = medicineDraft.customDoseUnit,
+            onUnitSelected = { unit ->
+                onMedicineDraftChange { it.copy(customDoseUnit = unit) }
+            },
+            enabled = enabled,
+        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    }
+
+    val rawMassUnit = medicineDraft.customDoseUnit.shortLabelRes()
     when (medicineDraft.inferredOrSelectedPreparationType() ?: return) {
         MedicinePreparationType.PILL -> NumericField(
             value = medicineDraft.pillStrengthMg,
-            label = fieldLabelWithUnit(R.string.field_pill_strength_mg, R.string.unit_mg),
+            label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
             leadingIconRes = R.drawable.ic_medication,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_pill_strength_required,
@@ -373,7 +391,7 @@ private fun NewMedicinePreparationForm(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericField(
             value = medicineDraft.singleUseVialStrengthMg,
-            label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, R.string.unit_mg),
+            label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
             leadingIconRes = R.drawable.ic_vaccines,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_vial_strength_required,
@@ -511,7 +529,7 @@ private fun NewMedicinePreparationForm(
             when (medicineDraft.patchSpecKind) {
                 PatchSpecKind.TOTAL_MG -> NumericField(
                     value = medicineDraft.patchTotalMg,
-                    label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, R.string.unit_mg),
+                    label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
                     leadingIconRes = R.drawable.ic_chronic,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_total_required,
@@ -585,6 +603,27 @@ private fun ApplicationTypeButtonGroup(
             )
         },
         onOptionSelected = onOptionSelected,
+        enabled = enabled,
+    )
+}
+
+// Three-segment picker for the custom-medicine raw-mass unit. Only rendered
+// when MedicinePickerUiState.showsCustomDoseUnitPicker() is true; the chosen
+// unit drives both the strength field's suffix/label and how the value is
+// converted on save (see MedicinePickerUiState.toMedicinePreparation).
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CustomDoseUnitPicker(
+    selectedUnit: MedicineDisplayDoseUnit,
+    onUnitSelected: (MedicineDisplayDoseUnit) -> Unit,
+    enabled: Boolean,
+) {
+    EditorSectionLabel(stringResource(R.string.field_strength_unit))
+    ConnectedButtonGroup(
+        options = MedicineDisplayDoseUnit.entries,
+        selectedOption = selectedUnit,
+        optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
+        onOptionSelected = onUnitSelected,
         enabled = enabled,
     )
 }

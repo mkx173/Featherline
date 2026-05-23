@@ -140,9 +140,16 @@ class MedicineDetailViewModel @Inject constructor(
         }
     }
 
-    fun savePreparation(preparation: MedicinePreparation): Job = viewModelScope.launch {
+    fun savePreparation(
+        preparation: MedicinePreparation,
+        displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit? = null,
+    ): Job = viewModelScope.launch {
         runCatching {
-            medicineRepository.updatePreparation(medicineUuid, preparation)
+            medicineRepository.updatePreparation(
+                uuid = medicineUuid,
+                preparation = preparation,
+                displayDoseUnit = displayDoseUnit,
+            )
         }.onSuccess {
             saveResultFlow.value = MedicineDetailSaveResult.SUCCESS
             // The preparation update may have unlocked nothing, but the
@@ -262,6 +269,11 @@ data class MedicinePreparationDraftUiState(
     val patchSpecKind: PatchSpecKind = PatchSpecKind.TOTAL_MG,
     val patchTotalMg: String = "",
     val patchReleaseRateMcgPerDay: String = "",
+    // Custom-medicine raw-mass unit; ignored on catalog medicines (always MG).
+    // The typed mass string is interpreted in this unit on save and rescaled
+    // back from stored mg when the dialog re-opens.
+    val displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit =
+        com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MG,
 )
 
 enum class MedicineArchiveResult {

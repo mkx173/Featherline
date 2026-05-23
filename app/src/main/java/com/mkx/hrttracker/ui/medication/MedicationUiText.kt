@@ -6,6 +6,7 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
@@ -24,15 +25,32 @@ fun medicineDisplayName(medicine: Medicine): String {
 @Composable
 fun medicinePreparationSummary(medicine: Medicine): String {
     val appLocale = rememberAppLocale()
+    // Catalog medicines always display in MG; custom medicines respect the
+    // unit the user picked when creating them so the summary reads the way
+    // they typed it.
+    val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+        medicine.displayDoseUnit
+    } else {
+        MedicineDisplayDoseUnit.MG
+    }
+    val unitLabel = stringResource(
+        when (displayUnit) {
+            MedicineDisplayDoseUnit.MG -> R.string.unit_mg
+            MedicineDisplayDoseUnit.MCG -> R.string.unit_mcg
+            MedicineDisplayDoseUnit.G -> R.string.unit_grams
+        }
+    )
     return when (val preparation = medicine.preparation) {
         is MedicinePreparation.Pill -> stringResource(
-            R.string.medication_preparation_summary_pill,
-            preparation.strengthMgPerTablet.formatDose(appLocale),
+            R.string.medication_preparation_summary_pill_with_unit,
+            displayUnit.fromMg(preparation.strengthMgPerTablet).formatDose(appLocale),
+            unitLabel,
         )
 
         is MedicinePreparation.InjectionSingleUseVial -> stringResource(
-            R.string.medication_preparation_summary_single_use_vial,
-            preparation.strengthMgPerVial.formatDose(appLocale),
+            R.string.medication_preparation_summary_single_use_vial_with_unit,
+            displayUnit.fromMg(preparation.strengthMgPerVial).formatDose(appLocale),
+            unitLabel,
         )
 
         is MedicinePreparation.InjectionMultiUseVial -> stringResource(
@@ -55,8 +73,9 @@ fun medicinePreparationSummary(medicine: Medicine): String {
 
         is MedicinePreparation.Patch -> when (val spec = preparation.specification) {
             is MedicinePreparation.PatchSpecification.TotalMg -> stringResource(
-                R.string.medication_preparation_summary_patch_total,
-                spec.valueMg.formatDose(appLocale),
+                R.string.medication_preparation_summary_patch_total_with_unit,
+                displayUnit.fromMg(spec.valueMg).formatDose(appLocale),
+                unitLabel,
             )
 
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay -> stringResource(

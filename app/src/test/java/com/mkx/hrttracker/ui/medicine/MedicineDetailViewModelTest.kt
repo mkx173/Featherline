@@ -306,8 +306,9 @@ class MedicineDetailViewModelTest {
         every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns true
-        coEvery { medicineRepository.updatePreparation(medicineUuid, any(), any()) } throws
-            MedicineLockedException(medicineUuid)
+        coEvery {
+            medicineRepository.updatePreparation(medicineUuid, any(), any(), any())
+        } throws MedicineLockedException(medicineUuid)
 
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
@@ -338,8 +339,9 @@ class MedicineDetailViewModelTest {
         every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
-        coEvery { medicineRepository.updatePreparation(medicineUuid, any(), any()) } throws
-            MedicineIdentityCollisionException("C|ESTRADIOL|PILL|strengthMgPerTablet=4")
+        coEvery {
+            medicineRepository.updatePreparation(medicineUuid, any(), any(), any())
+        } throws MedicineIdentityCollisionException("C|ESTRADIOL|PILL|strengthMgPerTablet=4")
 
         val viewModel = MedicineDetailViewModel(
             medicineRepository = medicineRepository,
@@ -369,7 +371,9 @@ class MedicineDetailViewModelTest {
         every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
         every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
         coEvery { medicineRepository.isLocked(medicineUuid) } returns false
-        coEvery { medicineRepository.updatePreparation(medicineUuid, any(), any()) } just Runs
+        coEvery {
+            medicineRepository.updatePreparation(medicineUuid, any(), any(), any())
+        } just Runs
         coEvery { medicineRepository.setDisplayName(medicineUuid, "Display name", any()) } just Runs
 
         val viewModel = MedicineDetailViewModel(
@@ -389,7 +393,7 @@ class MedicineDetailViewModelTest {
             medicineRepository.setDisplayName(medicineUuid, "Display name", any())
         }
         coVerify(exactly = 1) {
-            medicineRepository.updatePreparation(medicineUuid, any(), any())
+            medicineRepository.updatePreparation(medicineUuid, any(), any(), any())
         }
         assertEquals(
             MedicineDetailSaveResult.SUCCESS,

@@ -63,6 +63,7 @@ import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
 import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
+import com.mkx.hrttracker.ui.medication.shortLabelRes
 import java.util.UUID
 
 @Composable
@@ -118,7 +119,9 @@ fun MedicineDetailScreen(
         onGroupClick = onGroupClick,
         onDisplayNameChange = viewModel::updateDisplayNameText,
         onSaveDisplayName = viewModel::saveDisplayName,
-        onSavePreparation = viewModel::savePreparation,
+        onSavePreparation = { preparation, unit ->
+            viewModel.savePreparation(preparation, unit)
+        },
         onArchive = { viewModel.archive() },
         modifier = modifier,
     )
@@ -132,7 +135,7 @@ private fun MedicineDetailScreenContent(
     onGroupClick: (UUID) -> Unit,
     onDisplayNameChange: (String) -> Unit,
     onSaveDisplayName: () -> Unit,
-    onSavePreparation: (MedicinePreparation) -> Unit,
+    onSavePreparation: (MedicinePreparation, com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit) -> Unit,
     onArchive: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -277,9 +280,9 @@ private fun MedicineDetailScreenContent(
         PreparationEditorDialog(
             medicine = uiState.medicine ?: return,
             onDismiss = { preparationEditorOpen = false },
-            onSave = { preparation ->
+            onSave = { preparation, displayDoseUnit ->
                 preparationEditorOpen = false
-                onSavePreparation(preparation)
+                onSavePreparation(preparation, displayDoseUnit)
             },
         )
     }
@@ -452,10 +455,14 @@ private fun SectionHeader(text: String) {
 private fun PreparationEditorDialog(
     medicine: Medicine,
     onDismiss: () -> Unit,
-    onSave: (MedicinePreparation) -> Unit,
+    onSave: (MedicinePreparation, com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit) -> Unit,
 ) {
-    val initialDraft = remember(medicine.uuid, medicine.preparation) {
-        medicine.preparation.toPreparationDraft()
+    val isCustom = medicine.selection is com.mkx.hrttracker.model.medication.MedicineSelection.Custom
+    val initialDraft = remember(medicine.uuid, medicine.preparation, medicine.displayDoseUnit) {
+        medicine.preparation.toPreparationDraft(
+            displayDoseUnit = if (isCustom) medicine.displayDoseUnit
+            else com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MG,
+        )
     }
     var draft by remember(initialDraft) { mutableStateOf(initialDraft) }
     val candidate = remember(draft) { draft.toPreparationOrNull() }
@@ -467,12 +474,14 @@ private fun PreparationEditorDialog(
             PreparationEditorFields(
                 draft = draft,
                 onDraftChange = { draft = it },
+                showsUnitPicker = isCustom &&
+                    draft.preparationType.allowsCustomDoseUnit(draft.patchSpecKind),
             )
         },
         confirmButton = {
             TextButton(
                 enabled = candidate != null,
-                onClick = { candidate?.let(onSave) },
+                onClick = { candidate?.let { onSave(it, draft.displayDoseUnit) } },
             ) {
                 Text(text = stringResource(R.string.save))
             }
@@ -485,11 +494,25 @@ private fun PreparationEditorDialog(
     )
 }
 
+private fun MedicinePreparationType.allowsCustomDoseUnit(
+    patchSpecKind: PatchSpecKind,
+): Boolean {
+    return when (this) {
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
+        MedicinePreparationType.PATCH -> patchSpecKind == PatchSpecKind.TOTAL_MG
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.GEL_CONTAINER -> false
+    }
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PreparationEditorFields(
     draft: MedicinePreparationDraftUiState,
     onDraftChange: (MedicinePreparationDraftUiState) -> Unit,
+    showsUnitPicker: Boolean,
 ) {
     // Identity is fixed for an existing medicine — the dialog never offers a
     // preparation-type switch; we only edit the numeric fields of the
@@ -497,17 +520,37 @@ private fun PreparationEditorFields(
     // would change the identityKey and is better modeled as "create a new
     // medicine" than "edit this one".)
     Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
+        if (showsUnitPicker) {
+            Text(
+                text = stringResource(R.string.field_strength_unit),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ConnectedButtonGroup(
+                options = com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.entries,
+                selectedOption = draft.displayDoseUnit,
+                optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
+                onOptionSelected = { unit ->
+                    onDraftChange(draft.copy(displayDoseUnit = unit))
+                },
+            )
+        }
+        val rawMassUnit = if (showsUnitPicker) {
+            draft.displayDoseUnit.shortLabelRes()
+        } else {
+            R.string.unit_mg
+        }
         when (draft.preparationType) {
             MedicinePreparationType.PILL -> NumericInputField(
                 value = draft.pillStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, R.string.unit_mg),
+                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
                 leadingIconRes = R.drawable.ic_medication,
                 onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
             )
 
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericInputField(
                 value = draft.singleUseVialStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, R.string.unit_mg),
+                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
             )
@@ -582,7 +625,7 @@ private fun PreparationEditorFields(
                 when (draft.patchSpecKind) {
                     PatchSpecKind.TOTAL_MG -> NumericInputField(
                         value = draft.patchTotalMg,
-                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, R.string.unit_mg),
+                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
                         leadingIconRes = R.drawable.ic_chronic,
                         onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
                     )
@@ -653,15 +696,21 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
     }
 }
 
-private fun MedicinePreparation.toPreparationDraft(): MedicinePreparationDraftUiState {
-    val base = MedicinePreparationDraftUiState(preparationType = type)
+private fun MedicinePreparation.toPreparationDraft(
+    displayDoseUnit: com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit =
+        com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit.MG,
+): MedicinePreparationDraftUiState {
+    val base = MedicinePreparationDraftUiState(
+        preparationType = type,
+        displayDoseUnit = displayDoseUnit,
+    )
     return when (this) {
         is MedicinePreparation.Pill -> base.copy(
-            pillStrengthMg = strengthMgPerTablet.toEditableString(),
+            pillStrengthMg = displayDoseUnit.fromMg(strengthMgPerTablet).toEditableString(),
         )
 
         is MedicinePreparation.InjectionSingleUseVial -> base.copy(
-            singleUseVialStrengthMg = strengthMgPerVial.toEditableString(),
+            singleUseVialStrengthMg = displayDoseUnit.fromMg(strengthMgPerVial).toEditableString(),
         )
 
         is MedicinePreparation.InjectionMultiUseVial -> base.copy(
@@ -683,7 +732,7 @@ private fun MedicinePreparation.toPreparationDraft(): MedicinePreparationDraftUi
             is MedicinePreparation.PatchSpecification.TotalMg ->
                 base.copy(
                     patchSpecKind = PatchSpecKind.TOTAL_MG,
-                    patchTotalMg = spec.valueMg.toEditableString(),
+                    patchTotalMg = displayDoseUnit.fromMg(spec.valueMg).toEditableString(),
                 )
 
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
@@ -696,15 +745,17 @@ private fun MedicinePreparation.toPreparationDraft(): MedicinePreparationDraftUi
 }
 
 private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePreparation? {
+    // Raw-mass values are typed in displayDoseUnit; the model stores mg.
+    val toMg: (Double) -> Double = { displayDoseUnit.toMg(it) }
     return runCatching {
         when (preparationType) {
             MedicinePreparationType.PILL -> MedicinePreparation.Pill(
-                strengthMgPerTablet = pillStrengthMg.toPositiveDoubleOrThrow(),
+                strengthMgPerTablet = toMg(pillStrengthMg.toPositiveDoubleOrThrow()),
             )
 
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
                 MedicinePreparation.InjectionSingleUseVial(
-                    strengthMgPerVial = singleUseVialStrengthMg.toPositiveDoubleOrThrow(),
+                    strengthMgPerVial = toMg(singleUseVialStrengthMg.toPositiveDoubleOrThrow()),
                 )
 
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
@@ -726,7 +777,7 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
             MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
                 specification = when (patchSpecKind) {
                     PatchSpecKind.TOTAL_MG -> MedicinePreparation.PatchSpecification.TotalMg(
-                        valueMg = patchTotalMg.toPositiveDoubleOrThrow(),
+                        valueMg = toMg(patchTotalMg.toPositiveDoubleOrThrow()),
                     )
 
                     PatchSpecKind.RELEASE_RATE ->

@@ -445,6 +445,18 @@ fun MedicinePickerUiState.exceedsDoseWarningThreshold(
     return perInstructionMg * resolvedCount > thresholdMg
 }
 
+// String resource for the unit's short label (mg / μg / g) — used as the field
+// suffix and as the segment label inside the picker. Lives in the UI layer so
+// the model doesn't depend on R.
+@androidx.annotation.StringRes
+fun MedicineDisplayDoseUnit.shortLabelRes(): Int {
+    return when (this) {
+        MedicineDisplayDoseUnit.MG -> R.string.unit_mg
+        MedicineDisplayDoseUnit.MCG -> R.string.unit_mcg
+        MedicineDisplayDoseUnit.G -> R.string.unit_grams
+    }
+}
+
 // Whether the picker should render its mg/μg/g unit selector for the current
 // draft. Only custom medicines with a raw-mass field (pill strength, single-
 // use vial strength, or patch TOTAL_MG) show it. Catalog medicines, multi-use
