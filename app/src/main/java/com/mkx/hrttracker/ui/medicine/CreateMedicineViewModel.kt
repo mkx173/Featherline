@@ -88,6 +88,7 @@ class CreateMedicineViewModel @Inject constructor(
                         displayName = request.displayName,
                         category = request.category,
                         preparation = request.preparation,
+                        displayDoseUnit = request.displayDoseUnit,
                     )
                 }
             }.onSuccess { medicine ->

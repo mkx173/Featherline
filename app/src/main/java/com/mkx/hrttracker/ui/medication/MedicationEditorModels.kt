@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -41,6 +42,12 @@ data class MedicinePickerUiState(
     val patchTotalMg: String = "",
     val patchReleaseRateMcgPerDay: String = "",
     val displayName: String = "",
+    // The user-picked unit for raw-mass fields on a CUSTOM medicine — pill
+    // strength, single-use vial strength, and patch total mg. Catalog medicines
+    // ignore this field; their unit is always MG. The conversion to mg happens
+    // on save (see [toMedicinePreparation]) — typing into the field doesn't
+    // rescale the displayed value.
+    val customDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
 )
 
 data class DoseInstructionDraftUiState(
@@ -65,6 +72,9 @@ data class NewMedicineRequest(
     val displayName: String?,
     val category: MedicationCategory,
     val preparation: MedicinePreparation,
+    // The picker's unit choice — only consulted when selectionKind == CUSTOM
+    // (catalog medicines are always stored as MG).
+    val displayDoseUnit: MedicineDisplayDoseUnit,
 )
 
 internal enum class TabletFractionOption(val numerator: Int, val denominator: Int) {
@@ -435,6 +445,29 @@ fun MedicinePickerUiState.exceedsDoseWarningThreshold(
     return perInstructionMg * resolvedCount > thresholdMg
 }
 
+// Whether the picker should render its mg/μg/g unit selector for the current
+// draft. Only custom medicines with a raw-mass field (pill strength, single-
+// use vial strength, or patch TOTAL_MG) show it. Catalog medicines, multi-use
+// vials, gels, and release-rate patches carry their own units in their fields
+// and ignore the picker.
+fun MedicinePickerUiState.showsCustomDoseUnitPicker(): Boolean {
+    if (selectionKind != MedicationSelectionKind.CUSTOM) {
+        return false
+    }
+    return when (inferredOrSelectedPreparationType()) {
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
+
+        MedicinePreparationType.PATCH -> patchSpecKind == PatchSpecKind.TOTAL_MG
+
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.GEL_CONTAINER -> false
+
+        null -> false
+    }
+}
+
 // Routes whose dose is fully determined by the medicine identity (whole-unit
 // patches/single-use vials/gel sachets, plus PATCH_OFF's Noop) need no
 // editable dose form. Routes where the dose is a per-instruction quantity
@@ -478,6 +511,13 @@ fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {
     } else {
         category
     }
+    // Catalog medicines force MG so a stray picker value on a draft that
+    // started as custom and was switched to catalog can't bleed through.
+    val resolvedDisplayDoseUnit = if (resolvedSelectionKind == MedicationSelectionKind.CUSTOM) {
+        customDoseUnit
+    } else {
+        MedicineDisplayDoseUnit.MG
+    }
     return NewMedicineRequest(
         selectionKind = resolvedSelectionKind,
         medicationKey = if (resolvedSelectionKind == MedicationSelectionKind.CATALOG) {
@@ -492,19 +532,30 @@ fun MedicinePickerUiState.toNewMedicineRequest(): NewMedicineRequest {
         },
         displayName = displayName.trim().takeIf(String::isNotBlank),
         category = resolvedCategory,
-        preparation = toMedicinePreparation(),
+        preparation = toMedicinePreparation(resolvedDisplayDoseUnit),
+        displayDoseUnit = resolvedDisplayDoseUnit,
     )
 }
 
-internal fun MedicinePickerUiState.toMedicinePreparation(): MedicinePreparation {
+internal fun MedicinePickerUiState.toMedicinePreparation(
+    displayDoseUnit: MedicineDisplayDoseUnit = customDoseUnit,
+): MedicinePreparation {
+    // The raw-mass fields (pill strength, single-use vial strength, patch
+    // total mg) are typed in the picker's unit; convert back to mg on save.
+    // Other fields carry their own units (mg/mL, mL, %, g, μg/day) so they
+    // pass through unchanged.
     return when (checkNotNull(inferredOrSelectedPreparationType())) {
         MedicinePreparationType.PILL -> MedicinePreparation.Pill(
-            strengthMgPerTablet = checkNotNull(parsePositiveDouble(pillStrengthMg)),
+            strengthMgPerTablet = displayDoseUnit.toMg(
+                checkNotNull(parsePositiveDouble(pillStrengthMg)),
+            ),
         )
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             MedicinePreparation.InjectionSingleUseVial(
-                strengthMgPerVial = checkNotNull(parsePositiveDouble(singleUseVialStrengthMg)),
+                strengthMgPerVial = displayDoseUnit.toMg(
+                    checkNotNull(parsePositiveDouble(singleUseVialStrengthMg)),
+                ),
             )
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->
@@ -526,7 +577,9 @@ internal fun MedicinePickerUiState.toMedicinePreparation(): MedicinePreparation 
         MedicinePreparationType.PATCH -> MedicinePreparation.Patch(
             specification = when (patchSpecKind) {
                 PatchSpecKind.TOTAL_MG -> MedicinePreparation.PatchSpecification.TotalMg(
-                    valueMg = checkNotNull(parsePositiveDouble(patchTotalMg)),
+                    valueMg = displayDoseUnit.toMg(
+                        checkNotNull(parsePositiveDouble(patchTotalMg)),
+                    ),
                 )
 
                 PatchSpecKind.RELEASE_RATE ->
@@ -691,6 +744,13 @@ fun medicineDraftFromMedicine(
         applicationType = resolvedApplicationType,
     )
     val isCatalog = medicine.selection is MedicineSelection.Catalog
+    // Catalog medicines always render in MG. Reusing the stored value avoids
+    // showing the picker for a Custom medicine whose unit was set elsewhere.
+    val resolvedDoseUnit = if (isCatalog) {
+        MedicineDisplayDoseUnit.MG
+    } else {
+        medicine.displayDoseUnit
+    }
     return base.copy(
         selectionKind = if (isCatalog) {
             MedicationSelectionKind.CATALOG
@@ -705,7 +765,8 @@ fun medicineDraftFromMedicine(
         selectedMedicineUuid = medicine.uuid,
         preparationType = medicine.preparation.type,
         displayName = medicine.displayName.orEmpty(),
-    ).withPreparationFields(medicine.preparation)
+        customDoseUnit = resolvedDoseUnit,
+    ).withPreparationFields(medicine.preparation, resolvedDoseUnit)
 }
 
 fun compatibleApplicationTypeForMedicine(
@@ -735,13 +796,18 @@ fun compatibleApplicationTypeForMedicine(
 
 private fun MedicinePickerUiState.withPreparationFields(
     preparation: MedicinePreparation,
+    // The unit the raw-mass values should be displayed in. For catalog
+    // medicines (always MG) this is the identity transform; for custom
+    // medicines whose picker stored MCG/G, the displayed value is rescaled
+    // out of mg storage so the editor shows what the user originally typed.
+    displayDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
 ): MedicinePickerUiState {
     return when (preparation) {
         is MedicinePreparation.Pill ->
-            copy(pillStrengthMg = preparation.strengthMgPerTablet.toInputString())
+            copy(pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerTablet).toInputString())
 
         is MedicinePreparation.InjectionSingleUseVial ->
-            copy(singleUseVialStrengthMg = preparation.strengthMgPerVial.toInputString())
+            copy(singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerVial).toInputString())
 
         is MedicinePreparation.InjectionMultiUseVial -> copy(
             concentrationMgPerMl = preparation.concentrationMgPerMl.toInputString(),
@@ -762,7 +828,7 @@ private fun MedicinePickerUiState.withPreparationFields(
             is MedicinePreparation.PatchSpecification.TotalMg ->
                 copy(
                     patchSpecKind = PatchSpecKind.TOTAL_MG,
-                    patchTotalMg = spec.valueMg.toInputString(),
+                    patchTotalMg = displayDoseUnit.fromMg(spec.valueMg).toInputString(),
                 )
 
             is MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay ->
