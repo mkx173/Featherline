@@ -307,6 +307,12 @@ private fun PlanScreenContent(
                 ),
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    IconButton(onClick = onMedicinesClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_medication),
+                            contentDescription = stringResource(R.string.medicines_title),
+                        )
+                    }
                     IconButton(onClick = onHistoryClick) {
                         Icon(
                             painter = painterResource(R.drawable.ic_history),
@@ -321,12 +327,6 @@ private fun PlanScreenContent(
                             )
                         }
                         val menuItems = buildList {
-                            add(
-                                HrtDropdownMenuItem(
-                                    text = stringResource(R.string.medicines_title),
-                                    onClick = onMedicinesClick,
-                                )
-                            )
                             add(
                                 HrtDropdownMenuItem(
                                     text = stringResource(R.string.plan_archived_groups),
