@@ -61,6 +61,7 @@ internal fun MedicationCard(
     onDeleteClick: (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     extraSupportingText: String? = null,
+    supportingTextOverride: String? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
@@ -72,13 +73,17 @@ internal fun MedicationCard(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = groupColorKey)
     val applicationTypeLabel = stringResource(applicationType.labelRes)
     val medicationName = medicationEntryTitle(medicine, applicationType)
-    val supportingText = medicationEntrySupportingText(
-        medicine = medicine,
-        doseInstruction = doseInstruction,
-        applicationType = applicationType,
-        count = medicationCount,
-        extraSupportingText = extraSupportingText
-    )
+    // The medicine manager describes a medicine, not an entry — its supporting
+    // line should be the preparation summary, not the route/dose. Other callers
+    // (slot card, log card) keep the entry-shaped text.
+    val supportingText = supportingTextOverride
+        ?: medicationEntrySupportingText(
+            medicine = medicine,
+            doseInstruction = doseInstruction,
+            applicationType = applicationType,
+            count = medicationCount,
+            extraSupportingText = extraSupportingText
+        )
     val leadingSurfaceColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
     } else {

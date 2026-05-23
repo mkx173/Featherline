@@ -56,6 +56,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medication.medicinePreparationSummary
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
@@ -271,12 +272,14 @@ private fun MedicineRow(
 
     MedicationCard(
         medicine = medicine,
-        // Noop is safe — the supporting line uses applicationType + count.
+        // Noop + override below — the manager's supporting line describes the
+        // medicine itself (preparation summary), not an entry's route/dose.
         doseInstruction = DoseInstruction.Noop,
         applicationType = applicationType,
         medicationCount = 1,
         groupColorKey = null,
         onClick = onClick,
+        supportingTextOverride = medicinePreparationSummary(medicine),
         trailingContent = trailingContent,
         index = index,
         itemCount = itemCount,
