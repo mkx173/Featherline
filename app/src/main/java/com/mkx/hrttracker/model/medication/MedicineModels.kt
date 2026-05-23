@@ -204,15 +204,21 @@ data class Medicine(
         if (selection is MedicineSelection.Catalog) {
             require(category == selection.medicationKey.category)
         }
+        // PatchOff selection and PatchOff preparation are biconditional — a
+        // hand-constructed Medicine.{selection = Catalog(...), preparation =
+        // PatchOff} would pass earlier checks but collide on identityKey at
+        // insert time. Guard both directions so fixtures can't bypass it.
         if (selection is MedicineSelection.PatchOff) {
-            // The singleton lives under ESTRADIOL because the only patch
-            // medicines today are estradiol; carrying PatchOff selection with
-            // any other preparation or category breaks the entity round-trip.
             require(preparation is MedicinePreparation.PatchOff) {
                 "PATCH_OFF selection requires PatchOff preparation."
             }
             require(category == MedicationCategory.ESTRADIOL) {
                 "PATCH_OFF selection requires ESTRADIOL category."
+            }
+        }
+        if (preparation is MedicinePreparation.PatchOff) {
+            require(selection is MedicineSelection.PatchOff) {
+                "PatchOff preparation requires PATCH_OFF selection."
             }
         }
     }

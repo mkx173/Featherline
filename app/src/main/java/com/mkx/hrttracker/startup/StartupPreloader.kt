@@ -5,8 +5,11 @@ import com.mkx.hrttracker.data.repository.HomeSnapshotRecord
 import com.mkx.hrttracker.data.repository.HomeSnapshotRepository
 import com.mkx.hrttracker.data.repository.MedicationGroupRepository
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
+import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.data.repository.SettingsRepository
 import com.mkx.hrttracker.data.repository.UserProfileRepository
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.di.AppScope
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -26,6 +29,7 @@ class StartupPreloader @Inject constructor(
     private val homeSnapshotRepository: HomeSnapshotRepository,
     private val medicationGroupRepository: MedicationGroupRepository,
     private val medicationLogRepository: MedicationLogRepository,
+    private val medicineRepository: MedicineRepository,
     private val userProfileRepository: UserProfileRepository,
     private val settingsRepository: SettingsRepository,
     private val medicationReminderScheduler: MedicationReminderScheduler,
@@ -65,6 +69,8 @@ class StartupPreloader @Inject constructor(
             }.onFailure { throwable ->
                 diagnosticsLogger.warning(TAG, "repository_warmup_failed", throwable)
             }
+
+            backfillPatchOffSingletonIfNeeded()
 
             rescheduleAllSnoozes()
             rescheduleAllReminders()
@@ -130,6 +136,32 @@ class StartupPreloader @Inject constructor(
         diagnosticsLogger.info(TAG, "reminder_reschedule_start now=$now")
         medicationReminderScheduler.rescheduleAll(now = now)
         diagnosticsLogger.info(TAG, "reminder_reschedule_complete now=$now")
+    }
+
+    // The PATCH_OFF singleton is auto-created when a NEW patch medicine is
+    // created (MedicineRepository.findOrCreateForCatalog/Custom hook). Users
+    // who installed a build with patch medicines but BEFORE the singleton
+    // shipped wouldn't otherwise see "Patch off" in the manager until they
+    // created another patch. Back-fill on first launch so the singleton
+    // appears for them too. findOrCreatePatchOff is idempotent, so this is a
+    // no-op once it exists.
+    private suspend fun backfillPatchOffSingletonIfNeeded() {
+        runCatching {
+            val medicines = medicineRepository.getAll()
+            val hasPatchMedicine = medicines.any { medicine ->
+                medicine.preparation is MedicinePreparation.Patch
+            }
+            val hasSingleton = medicines.any { medicine ->
+                medicine.selection is MedicineSelection.PatchOff
+            }
+            if (hasPatchMedicine && !hasSingleton) {
+                diagnosticsLogger.info(TAG, "patch_off_singleton_backfill_creating")
+                medicineRepository.findOrCreatePatchOff()
+                diagnosticsLogger.info(TAG, "patch_off_singleton_backfill_complete")
+            }
+        }.onFailure { throwable ->
+            diagnosticsLogger.warning(TAG, "patch_off_singleton_backfill_failed", throwable)
+        }
     }
 
     private suspend fun rescheduleAllSnoozes(now: LocalDateTime = LocalDateTime.now()) {

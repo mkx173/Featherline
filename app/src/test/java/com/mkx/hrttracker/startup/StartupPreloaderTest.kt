@@ -34,6 +34,9 @@ class StartupPreloaderTest {
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk()
     private val medicationGroupRepository: MedicationGroupRepository = mockk()
     private val medicationLogRepository: MedicationLogRepository = mockk()
+    private val medicineRepository: com.mkx.hrttracker.data.repository.MedicineRepository = mockk {
+        coEvery { getAll() } returns emptyList()
+    }
     private val userProfileRepository: UserProfileRepository = mockk()
     private val settingsRepository: SettingsRepository = mockk()
     private val medicationReminderScheduler: MedicationReminderScheduler = mockk()
@@ -61,6 +64,7 @@ class StartupPreloaderTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -93,6 +97,7 @@ class StartupPreloaderTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -126,6 +131,7 @@ class StartupPreloaderTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -164,6 +170,7 @@ class StartupPreloaderTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,
@@ -196,6 +203,7 @@ class StartupPreloaderTest {
             homeSnapshotRepository = homeSnapshotRepository,
             medicationGroupRepository = medicationGroupRepository,
             medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
             userProfileRepository = userProfileRepository,
             settingsRepository = settingsRepository,
             medicationReminderScheduler = medicationReminderScheduler,

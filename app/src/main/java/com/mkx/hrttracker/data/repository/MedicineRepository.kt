@@ -151,6 +151,11 @@ class MedicineRepository @Inject constructor(
      * after the singleton already exists. Called from every patch-medicine
      * create path so the manager always has a PATCH_OFF entry to display.
      */
+    // Runs OUTSIDE the original create's runHomeDataMutation — the home
+    // snapshot rebuilds twice on the first patch creation (once for the
+    // patch, once for the singleton). A crash between the two leaves an
+    // orphan patch row without the singleton; the next patch insert or the
+    // startup backfill in StartupPreloader heals it.
     private suspend fun ensurePatchOffSingletonForPatch(
         preparation: MedicinePreparation,
         now: Instant,

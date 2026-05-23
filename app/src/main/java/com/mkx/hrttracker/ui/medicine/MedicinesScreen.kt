@@ -309,8 +309,9 @@ private fun MedicineRow(
     modifier: Modifier = Modifier,
 ) {
     // The medicine row reuses MedicationCard so it matches the rest of the
-    // app visually. PATCH_OFF carries no medicine, so this list never shows
-    // patch-off entries — every row has a non-null Medicine.
+    // app visually. PATCH_OFF is rendered as the global singleton row (see
+    // the MedicineSelection.PatchOff branch); every row carries a non-null
+    // Medicine.
     val medicine = item.medicine
     val applicationType = inferApplicationTypeForMedicine(medicine)
     val trailingContent: (@Composable () -> Unit)? = if (item.activeGroupReferenceCount > 0) {

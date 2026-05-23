@@ -129,6 +129,13 @@ object MedicationCatalog {
             ),
             allowCustomMedicationName = false,
         ),
+        // PATCH_OFF retains its catalog entry so legacy slot/log code paths
+        // that look up "the catalog for ESTRADIOL + PATCH_OFF" don't NPE.
+        // Creating new medicines via this route is gated by
+        // CreateMedicineSheet.createMedicineApplicationTypesFor, which
+        // filters PATCH_OFF out of the application-type picker — the
+        // PATCH_OFF singleton is the only patch-off Medicine the app
+        // produces, and it's auto-created from MedicineRepository.
         MedicationApplicationCatalog(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.PATCH_OFF,

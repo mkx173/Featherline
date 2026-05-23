@@ -176,6 +176,18 @@ class MedicineRepositoryTest {
         assertEquals("ESTRADIOL", patchOffEntity.category)
         assertNull(patchOffEntity.patchTotalMg)
         assertNull(patchOffEntity.patchReleaseRateMcgPerDay)
+        // Round-trip back through the model to prove selection + preparation
+        // hydrate as PatchOff, not as a catalog row with stray columns.
+        val patchOffModel = patchOffEntity.toMedicineModel()
+        assertTrue(
+            "Expected PatchOff selection, got ${patchOffModel.selection}",
+            patchOffModel.selection is MedicineSelection.PatchOff,
+        )
+        assertTrue(
+            "Expected PatchOff preparation, got ${patchOffModel.preparation}",
+            patchOffModel.preparation is MedicinePreparation.PatchOff,
+        )
+        assertEquals(MedicationCategory.ESTRADIOL, patchOffModel.category)
     }
 
     @Test
