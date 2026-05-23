@@ -1236,6 +1236,7 @@ private fun MedicationGroupEditorScreenContent(
                 MedicationGroupNameField(
                     groupName = uiState.groupName,
                     defaultGroupName = uiState.defaultGroupName,
+                    isEditing = uiState.isEditing,
                     selectedColorKey = uiState.groupColorKey,
                     enabled = !uiState.isArchived,
                     focusRequester = groupNameFocusRequester,
@@ -1980,6 +1981,7 @@ internal fun shouldEnableGroupNotifications(
 internal fun MedicationGroupNameField(
     groupName: String,
     defaultGroupName: String,
+    isEditing: Boolean,
     selectedColorKey: MedicationGroupColorKey,
     enabled: Boolean,
     focusRequester: FocusRequester,
@@ -2006,7 +2008,10 @@ internal fun MedicationGroupNameField(
         }
     }
 
-    val groupNamePlaceholder = medicationGroupNamePlaceholder(defaultGroupName = defaultGroupName)
+    val groupNamePlaceholder = medicationGroupNamePlaceholder(
+        defaultGroupName = defaultGroupName,
+        isEditing = isEditing,
+    )
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -2040,8 +2045,9 @@ internal fun MedicationGroupNameField(
 
 internal fun medicationGroupNamePlaceholder(
     defaultGroupName: String,
+    isEditing: Boolean,
 ): String? {
-    return defaultGroupName.takeIf { it.isNotBlank() }
+    return defaultGroupName.takeIf { !isEditing && it.isNotBlank() }
 }
 
 internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {

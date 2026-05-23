@@ -8,6 +8,7 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.util.medicationGroupScheduleDateFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -105,18 +106,23 @@ class MedicationGroupEditorNameTest {
     }
 
     @Test
-    fun medicationGroupNamePlaceholder_uses_default_name_when_available() {
+    fun medicationGroupNamePlaceholder_uses_default_name_for_new_group() {
         assertEquals(
             "Group 3",
-            medicationGroupNamePlaceholder(defaultGroupName = "Group 3")
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Group 3",
+                isEditing = false,
+            )
         )
     }
 
     @Test
-    fun medicationGroupNamePlaceholder_uses_existing_default_name_when_available() {
-        assertEquals(
-            "Morning meds",
-            medicationGroupNamePlaceholder(defaultGroupName = "Morning meds")
+    fun medicationGroupNamePlaceholder_suppressed_while_editing_existing_group() {
+        assertNull(
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Morning meds",
+                isEditing = true,
+            )
         )
     }
 
