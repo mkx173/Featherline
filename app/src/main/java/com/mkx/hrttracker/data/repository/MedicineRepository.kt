@@ -8,6 +8,7 @@ import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
@@ -92,6 +93,8 @@ class MedicineRepository @Inject constructor(
             preparation = preparation,
             displayName = null,
             identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+            // Catalog medicines never expose the picker — their unit is fixed.
+            displayDoseUnit = MedicineDisplayDoseUnit.MG,
             now = now,
         )
     }
@@ -101,6 +104,10 @@ class MedicineRepository @Inject constructor(
         displayName: String?,
         category: MedicationCategory,
         preparation: MedicinePreparation,
+        // Carries the user-picked display unit (mg/μg/g) for raw-mass fields.
+        // Storage stays in mg; the value is reused on edit to repopulate the
+        // editor with the original unit.
+        displayDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
         now: Instant = Instant.now(),
     ): Medicine {
         require(normalizeCustomMedicationName(customMedicationName).isNotBlank()) {
@@ -112,6 +119,7 @@ class MedicineRepository @Inject constructor(
             preparation = preparation,
             displayName = displayName,
             identityKey = MedicineIdentityKey.custom(customMedicationName, preparation),
+            displayDoseUnit = displayDoseUnit,
             now = now,
         )
     }
@@ -142,6 +150,10 @@ class MedicineRepository @Inject constructor(
     suspend fun updatePreparation(
         uuid: UUID,
         preparation: MedicinePreparation,
+        // Non-null when the editor's unit picker has a new value to commit;
+        // null leaves the column untouched (catalog medicines, or paths that
+        // don't reach the picker).
+        displayDoseUnit: MedicineDisplayDoseUnit? = null,
         now: Instant = Instant.now(),
     ) {
         val nowEpochMillis = now.toEpochMilli()
@@ -166,6 +178,10 @@ class MedicineRepository @Inject constructor(
                     throw MedicineIdentityCollisionException(newIdentityKey)
                 }
                 val storageFields = preparation.toStorageFields()
+                // Reuse the existing column value when the caller passed null,
+                // so a partial update (preparation only, no unit change) is a
+                // no-op for the display unit.
+                val resolvedDisplayDoseUnit = (displayDoseUnit?.name ?: existing.displayDoseUnit)
                 dao.updatePreparationFields(
                     uuid = uuid.toString(),
                     preparationType = storageFields.preparationType,
@@ -178,6 +194,7 @@ class MedicineRepository @Inject constructor(
                     containerWeightGrams = storageFields.containerWeightGrams,
                     patchTotalMg = storageFields.patchTotalMg,
                     patchReleaseRateMcgPerDay = storageFields.patchReleaseRateMcgPerDay,
+                    displayDoseUnit = resolvedDisplayDoseUnit,
                     identityKey = newIdentityKey,
                     updatedAtEpochMillis = nowEpochMillis,
                 )
@@ -211,6 +228,7 @@ class MedicineRepository @Inject constructor(
         preparation: MedicinePreparation,
         displayName: String?,
         identityKey: String,
+        displayDoseUnit: MedicineDisplayDoseUnit,
         now: Instant,
     ): Medicine {
         val nowEpochMillis = now.toEpochMilli()
@@ -232,6 +250,7 @@ class MedicineRepository @Inject constructor(
                     createdAt = now,
                     updatedAt = now,
                     archivedAt = null,
+                    displayDoseUnit = displayDoseUnit,
                 )
                 try {
                     dao.insert(medicine.toEntity())

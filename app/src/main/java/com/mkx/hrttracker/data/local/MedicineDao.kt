@@ -123,6 +123,7 @@ interface MedicineDao {
             containerWeightGrams = :containerWeightGrams,
             patchTotalMg = :patchTotalMg,
             patchReleaseRateMcgPerDay = :patchReleaseRateMcgPerDay,
+            displayDoseUnit = :displayDoseUnit,
             identityKey = :identityKey,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE uuid = :uuid
@@ -140,6 +141,7 @@ interface MedicineDao {
         containerWeightGrams: Double?,
         patchTotalMg: Double?,
         patchReleaseRateMcgPerDay: Double?,
+        displayDoseUnit: String,
         identityKey: String,
         updatedAtEpochMillis: Long,
     )
