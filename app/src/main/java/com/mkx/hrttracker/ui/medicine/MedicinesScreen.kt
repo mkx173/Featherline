@@ -67,12 +67,18 @@ fun MedicinesScreen(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
+    slotResultKey: String? = null,
+    onSlotResolved: (MedicineSlotResult) -> Unit = { },
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateMedicineSheet by rememberSaveable { mutableStateOf(false) }
+    // The slot-result flow keeps the picked medicine in this state while the
+    // dose sheet is up; clearing it dismisses the sheet.
+    var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val slotDraftSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
     // Reset the shared draft when the sheet opens so a previously-dismissed
@@ -81,10 +87,24 @@ fun MedicinesScreen(
         if (showCreateMedicineSheet) createMedicineViewModel.reset()
     }
 
+    val handleMedicineTap: (UUID) -> Unit = remember(slotResultKey, onMedicineClick) {
+        { medicineUuid ->
+            // slotResultKey mode: keep the user on the manager and open the
+            // dose sheet for the picked medicine. The host's onMedicineClick
+            // is only invoked for non-slot flows (AddEntry uuid pick, normal-
+            // mode open-detail).
+            if (slotResultKey != null) {
+                pendingSlotMedicineUuid = medicineUuid.toString()
+            } else {
+                onMedicineClick(medicineUuid)
+            }
+        }
+    }
+
     MedicinesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
-        onMedicineClick = onMedicineClick,
+        onMedicineClick = handleMedicineTap,
         onAddNewMedicine = { showCreateMedicineSheet = true },
         onToggleArchivedExpanded = viewModel::toggleArchivedExpanded,
         modifier = modifier,
@@ -100,18 +120,49 @@ fun MedicinesScreen(
                 }
             },
             // Hand the freshly-created medicine off via the same path tapping an
-            // existing card uses; the host wires onMedicineClick to either open
-            // detail (normal mode) or return the uuid to the picker caller
-            // (pick mode), so the sheet doesn't need to know which mode it's in.
+            // existing card uses; the slot-result flow opens the dose sheet on
+            // it, and the uuid-only flow propagates to onMedicineClick.
             onCreated = { medicineUuid ->
                 hideBottomSheet(scope, createMedicineSheetState) {
                     showCreateMedicineSheet = false
-                    onMedicineClick(medicineUuid)
+                    handleMedicineTap(medicineUuid)
                 }
             },
             viewModel = createMedicineViewModel,
         )
     }
+
+    val pendingMedicine = pendingSlotMedicineUuid?.let { uuid ->
+        uiState.findMedicineByUuid(runCatching { UUID.fromString(uuid) }.getOrNull())
+    }
+    if (pendingMedicine != null) {
+        MedicineSlotDraftSheet(
+            medicine = pendingMedicine,
+            sheetState = slotDraftSheetState,
+            onDismissRequest = { pendingSlotMedicineUuid = null },
+            onCloseClick = {
+                hideBottomSheet(scope, slotDraftSheetState) {
+                    pendingSlotMedicineUuid = null
+                }
+            },
+            onConfirm = { slotResult ->
+                hideBottomSheet(scope, slotDraftSheetState) {
+                    pendingSlotMedicineUuid = null
+                    onSlotResolved(slotResult)
+                }
+            },
+        )
+    }
+}
+
+private fun MedicinesUiState.findMedicineByUuid(
+    uuid: UUID?,
+): com.mkx.hrttracker.model.medication.Medicine? {
+    uuid ?: return null
+    activeSections.forEach { section ->
+        section.medicines.firstOrNull { it.medicine.uuid == uuid }?.let { return it.medicine }
+    }
+    return archivedMedicines.firstOrNull { it.uuid == uuid }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

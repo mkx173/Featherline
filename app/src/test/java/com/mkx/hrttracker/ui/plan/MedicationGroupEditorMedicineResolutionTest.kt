@@ -365,4 +365,55 @@ class MedicationGroupEditorMedicineResolutionTest {
         assertEquals(openSlotId, editingMedication.localId)
         assertEquals(firstMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
     }
+
+    // New manager-hosted flow: the dose sheet runs on the medicine manager and
+    // returns a complete slot Bundle; the plan editor appends it directly
+    // without opening a second sheet. Failing this means the host's slot-result
+    // wiring no longer reaches the medications list.
+    @Test
+    fun addCompletedMedicationSlot_appendsResolvedSlotDirectly() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccc0000-0000-0000-0000-000000000080"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        every { medicineRepository.observeAllActive() } returns MutableStateFlow(listOf(medicine))
+        coEvery { medicineRepository.getByUuid(medicine.uuid) } returns medicine
+
+        val viewModel = MedicationGroupEditorViewModel(
+            medicationGroupRepository = medicationGroupRepository,
+            medicationLogRepository = medicationLogRepository,
+            medicineRepository = medicineRepository,
+            settingsRepository = settingsRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            context = context,
+            savedStateHandle = SavedStateHandle(),
+            appTimeSource = appTimeSource,
+        )
+        advanceUntilIdle()
+
+        val slotLocalId = UUID.randomUUID().toString()
+        viewModel.addCompletedMedicationSlot(
+            localId = slotLocalId,
+            slot = com.mkx.hrttracker.ui.medicine.MedicineSlotResult(
+                medicineUuid = medicine.uuid,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction
+                    .TabletFraction(numerator = 1, denominator = 2),
+                count = 2,
+            ),
+        )
+        advanceUntilIdle()
+
+        // Editor sheet stays closed: the medication is appended directly.
+        assertEquals(null, viewModel.uiState.value.editingMedication)
+        val medications = viewModel.uiState.value.medications
+        assertEquals(1, medications.size)
+        val saved = medications.single()
+        assertEquals(slotLocalId, saved.localId)
+        assertEquals(medicine.uuid, saved.resolvedMedicine?.uuid)
+        assertEquals(MedicationApplicationType.SUBLINGUAL, saved.applicationType)
+        assertEquals(2, saved.count)
+    }
 }

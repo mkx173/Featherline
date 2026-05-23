@@ -409,7 +409,7 @@ internal fun MedicationEditorSheetScaffold(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun MedicationEditorContent(
+internal fun MedicationEditorContent(
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState?,
     resolvedMedicine: Medicine?,
@@ -423,6 +423,10 @@ private fun MedicationEditorContent(
     onIncreaseCountClick: () -> Unit,
     errorMessageRes: Int?,
     isSaving: Boolean,
+    // Defaults to canEditMedicationIdentity so existing callers keep their
+    // behavior; the medicine-manager-hosted dose sheet sets this to false
+    // since re-tapping a card in the manager itself is the re-pick UI.
+    canRepickMedicine: Boolean = canEditMedicationIdentity,
 ) {
     val isPatchOff = medicineDraft.applicationType == MedicationApplicationType.PATCH_OFF
     // Once a medicine is resolved, lock the route picker to options compatible
@@ -496,7 +500,7 @@ private fun MedicationEditorContent(
         applicationType = medicineDraft.applicationType,
         doseInstructionDraft = doseInstructionDraft,
         countText = countText,
-        canOpenMedicinePicker = canEditMedicationIdentity && !isSaving,
+        canOpenMedicinePicker = canRepickMedicine && !isSaving,
         onOpenMedicinePicker = onOpenMedicinePicker,
         errorMessageRes = errorMessageRes,
     )

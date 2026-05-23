@@ -600,6 +600,69 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
     }
 
+    // Manager-hosted dose sheet returns a completed slot; append it directly
+    // without opening another sheet on this side. localId is the host-generated
+    // slot id from the "+ Add medication" tap.
+    fun addCompletedMedicationSlot(
+        localId: String,
+        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+    ) {
+        val currentState = _uiState.value
+        if (currentState.areMedicationsLocked) return
+        if (currentState.medications.any { it.localId == localId }) return
+
+        val activeMedicine = currentState.activeMedicines.firstOrNull { it.uuid == slot.medicineUuid }
+        if (activeMedicine != null) {
+            applyCompletedMedicationSlot(localId, activeMedicine, slot)
+            return
+        }
+        viewModelScope.launch {
+            medicineRepository.getByUuid(slot.medicineUuid)?.let { medicine ->
+                applyCompletedMedicationSlot(localId, medicine, slot)
+            }
+        }
+    }
+
+    private fun applyCompletedMedicationSlot(
+        localId: String,
+        medicine: Medicine,
+        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+    ) {
+        _uiState.update { state ->
+            if (state.areMedicationsLocked) return@update state
+            if (state.medications.any { it.localId == localId }) return@update state
+
+            val draft = com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(
+                medicine = medicine,
+                applicationType = slot.applicationType,
+            )
+            val newItem = MedicationGroupMedicationItemUiState(
+                localId = localId,
+                persistedMedicationId = null,
+                resolvedMedicine = medicine,
+                medicineDraft = draft,
+                doseInstructionDraft = DoseInstructionDraftUiState(
+                    applicationType = slot.applicationType,
+                    preparationType = medicine.preparation.type,
+                ),
+                applicationType = slot.applicationType,
+                doseInstruction = slot.doseInstruction,
+                count = normalizeMedicationCount(slot.applicationType, slot.count),
+            )
+            val upsertResult = upsertMedication(
+                medications = state.medications,
+                savedMedication = newItem,
+            )
+            if (upsertResult.duplicateAlreadyExists) {
+                state.copy(
+                    medicationEditorInfoMessageRes = R.string.group_medication_duplicate_exists,
+                )
+            } else {
+                state.copy(medications = upsertResult.medications)
+            }
+        }
+    }
+
     // Picker-first add flow: opens the slot editor with a freshly-resolved medicine
     // already populated. Used when the user taps "+ Add medication", picks a
     // medicine in the manager, and lands back here — the sheet must open

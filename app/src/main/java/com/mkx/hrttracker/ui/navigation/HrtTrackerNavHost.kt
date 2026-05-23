@@ -155,7 +155,9 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
     }
 
     data object Medicines : Screen(
-        "medicines/{$TOP_LEVEL_PARENT_ARG}?$PICKER_RESULT_KEY_ARG={$PICKER_RESULT_KEY_ARG}",
+        "medicines/{$TOP_LEVEL_PARENT_ARG}?" +
+            "$PICKER_RESULT_KEY_ARG={$PICKER_RESULT_KEY_ARG}&" +
+            "$SLOT_RESULT_KEY_ARG={$SLOT_RESULT_KEY_ARG}",
         R.string.medicines_title,
     ) {
         const val baseRoute = "medicines"
@@ -163,17 +165,27 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
         // NavigationTransitions.normalizeNavigationRoute() yields.
         const val motionRoute = "$baseRoute/{$TOP_LEVEL_PARENT_ARG}"
 
+        // `pickerResultKey` carries a medicine-uuid-only result (Add Entry flow,
+        // which still owns its own dose form). `slotResultKey` carries a
+        // complete slot Bundle (medicine + dose + count + applicationType) for
+        // callers like the plan editor that want the dose entered on the
+        // manager itself. At most one should be set per call.
         fun createRoute(
             topLevelParentRoute: String = Plan.route,
             pickerResultKey: String? = null,
+            slotResultKey: String? = null,
         ): String {
             return buildString {
                 append(baseRoute)
                 append("/")
                 append(topLevelParentRoute)
-                pickerResultKey?.let { key ->
-                    append("?$PICKER_RESULT_KEY_ARG=")
-                    append(key)
+                val queryParameters = buildList {
+                    pickerResultKey?.let { add("$PICKER_RESULT_KEY_ARG=$it") }
+                    slotResultKey?.let { add("$SLOT_RESULT_KEY_ARG=$it") }
+                }
+                if (queryParameters.isNotEmpty()) {
+                    append("?")
+                    append(queryParameters.joinToString("&"))
                 }
             }
         }
@@ -761,6 +773,11 @@ fun HrtTrackerNavHost(
                             nullable = true
                             defaultValue = null
                         },
+                        navArgument(SLOT_RESULT_KEY_ARG) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
                     ),
                 ) { backStackEntry ->
                     val topLevelParentRoute =
@@ -768,16 +785,21 @@ fun HrtTrackerNavHost(
                             ?: Screen.Plan.route
                     val pickerResultKey =
                         backStackEntry.arguments?.getString(PICKER_RESULT_KEY_ARG)
+                    val slotResultKey =
+                        backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
                     MedicinesScreen(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStack() },
                         onMedicineClick = { medicineId ->
+                            // pickerResultKey takes precedence: AddEntry's
+                            // picker just needs the uuid, no dose sheet.
                             if (pickerResultKey != null) {
                                 navController.previousBackStackEntry
                                     ?.savedStateHandle
                                     ?.set(pickerResultKey, medicineId.toString())
                                 navController.popBackStack()
-                            } else {
+                            } else if (slotResultKey == null) {
+                                // Normal mode: open detail.
                                 navController.navigate(
                                     Screen.MedicineDetail.createRoute(
                                         medicineId = medicineId.toString(),
@@ -785,6 +807,17 @@ fun HrtTrackerNavHost(
                                     ),
                                 )
                             }
+                            // slotResultKey != null falls through: MedicinesScreen
+                            // hosts the dose sheet itself and only returns the
+                            // completed slot via onSlotResolved below.
+                        },
+                        slotResultKey = slotResultKey,
+                        onSlotResolved = { slotResult ->
+                            slotResultKey ?: return@MedicinesScreen
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set(slotResultKey, slotResult.toBundle())
+                            navController.popBackStack()
                         },
                     )
                 }
@@ -839,45 +872,34 @@ fun HrtTrackerNavHost(
                             ?: Screen.Plan.route
                     val groupEditorViewModel: MedicationGroupEditorViewModel =
                         hiltViewModel(backStackEntry)
-                    var pendingMedicinePickerResultKey by rememberSaveable {
+                    var pendingSlotResultKey by rememberSaveable {
                         mutableStateOf<String?>(null)
                     }
-                    var pendingMedicinePickerLocalId by rememberSaveable {
+                    var pendingSlotLocalId by rememberSaveable {
                         mutableStateOf<String?>(null)
                     }
-                    val pendingResultKey = pendingMedicinePickerResultKey
-                    val groupMedicineUuidResult by if (pendingResultKey != null) {
+                    val pendingResultKey = pendingSlotResultKey
+                    val groupSlotResultBundle by if (pendingResultKey != null) {
                         backStackEntry.savedStateHandle
-                            .getStateFlow<String?>(pendingResultKey, null)
+                            .getStateFlow<android.os.Bundle?>(pendingResultKey, null)
                             .collectAsStateWithLifecycle()
                     } else {
-                        remember { mutableStateOf<String?>(null) }
+                        remember { mutableStateOf<android.os.Bundle?>(null) }
                     }
-                    LaunchedEffect(pendingResultKey, groupMedicineUuidResult) {
+                    LaunchedEffect(pendingResultKey, groupSlotResultBundle) {
                         val key = pendingResultKey ?: return@LaunchedEffect
-                        val localId = pendingMedicinePickerLocalId ?: return@LaunchedEffect
-                        val medicineUuid = groupMedicineUuidResult ?: return@LaunchedEffect
-                        runCatching { UUID.fromString(medicineUuid) }.onSuccess { uuid ->
-                            // The "+ Add medication" flow taps the picker without
-                            // first opening the sheet, so editingMedication is null
-                            // at this point — open the sheet pre-filled with the
-                            // chosen medicine. Re-picks from inside an open sheet
-                            // (editingMedication.localId matches) flow through the
-                            // existing identity-update path instead.
-                            val editingLocalId = groupEditorViewModel
-                                .uiState
-                                .value
-                                .editingMedication
-                                ?.localId
-                            if (editingLocalId == localId) {
-                                groupEditorViewModel.onEditingMedicineSelected(localId, uuid)
-                            } else {
-                                groupEditorViewModel.beginAddMedicationWithMedicine(localId, uuid)
+                        val localId = pendingSlotLocalId ?: return@LaunchedEffect
+                        val bundle = groupSlotResultBundle ?: return@LaunchedEffect
+                        com.mkx.hrttracker.ui.medicine.MedicineSlotResult.fromBundle(bundle)
+                            ?.let { slotResult ->
+                                groupEditorViewModel.addCompletedMedicationSlot(
+                                    localId = localId,
+                                    slot = slotResult,
+                                )
                             }
-                        }
-                        backStackEntry.savedStateHandle.remove<String>(key)
-                        pendingMedicinePickerResultKey = null
-                        pendingMedicinePickerLocalId = null
+                        backStackEntry.savedStateHandle.remove<android.os.Bundle>(key)
+                        pendingSlotResultKey = null
+                        pendingSlotLocalId = null
                     }
                     MedicationGroupEditorScreen(
                         modifier = modifier,
@@ -892,14 +914,18 @@ fun HrtTrackerNavHost(
                         },
                         openedFromArchivedGroupsPage = openedFromArchivedGroupsPage,
                         viewModel = groupEditorViewModel,
+                        // The screen still asks the host to "open the picker"
+                        // with a slot localId; the host now navigates to the
+                        // manager with a slotResultKey so the manager hosts the
+                        // dose sheet and returns a complete slot Bundle.
                         onOpenMedicinePicker = { localId ->
                             val resultKey = "$GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX$localId"
-                            pendingMedicinePickerResultKey = resultKey
-                            pendingMedicinePickerLocalId = localId
+                            pendingSlotResultKey = resultKey
+                            pendingSlotLocalId = localId
                             navController.navigate(
                                 Screen.Medicines.createRoute(
                                     topLevelParentRoute = topLevelParentRoute,
-                                    pickerResultKey = resultKey,
+                                    slotResultKey = resultKey,
                                 ),
                             )
                         },
@@ -954,6 +980,7 @@ private fun NavHostController.navigateToTopLevelScreen(
 
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 private const val PICKER_RESULT_KEY_ARG = "pickerResultKey"
+private const val SLOT_RESULT_KEY_ARG = "slotResultKey"
 private const val ADD_ENTRY_MEDICINE_RESULT_KEY = "addEntryMedicineUuid"
 private const val GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX = "groupSlot_"
 private const val MEDICATION_GROUP_EDITOR_SOURCE_ARG = "source"
