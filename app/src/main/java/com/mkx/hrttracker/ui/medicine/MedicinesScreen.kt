@@ -25,9 +25,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -50,27 +57,62 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.medicineDisplayName
+import com.mkx.hrttracker.ui.hideBottomSheet
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MedicinesScreen(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
-    onAddNewMedicine: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MedicinesViewModel = hiltViewModel(),
+    createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showCreateMedicineSheet by rememberSaveable { mutableStateOf(false) }
+    val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    // Reset the shared draft when the sheet opens so a previously-dismissed
+    // attempt doesn't leak into the next one.
+    LaunchedEffect(showCreateMedicineSheet) {
+        if (showCreateMedicineSheet) createMedicineViewModel.reset()
+    }
+
     MedicinesScreenContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onMedicineClick = onMedicineClick,
-        onAddNewMedicine = onAddNewMedicine,
+        onAddNewMedicine = { showCreateMedicineSheet = true },
         onToggleArchivedExpanded = viewModel::toggleArchivedExpanded,
         modifier = modifier,
     )
+
+    if (showCreateMedicineSheet) {
+        CreateMedicineSheet(
+            sheetState = createMedicineSheetState,
+            onDismissRequest = { showCreateMedicineSheet = false },
+            onCloseClick = {
+                hideBottomSheet(scope, createMedicineSheetState) {
+                    showCreateMedicineSheet = false
+                }
+            },
+            // Hand the freshly-created medicine off via the same path tapping an
+            // existing card uses; the host wires onMedicineClick to either open
+            // detail (normal mode) or return the uuid to the picker caller
+            // (pick mode), so the sheet doesn't need to know which mode it's in.
+            onCreated = { medicineUuid ->
+                hideBottomSheet(scope, createMedicineSheetState) {
+                    showCreateMedicineSheet = false
+                    onMedicineClick(medicineUuid)
+                }
+            },
+            viewModel = createMedicineViewModel,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

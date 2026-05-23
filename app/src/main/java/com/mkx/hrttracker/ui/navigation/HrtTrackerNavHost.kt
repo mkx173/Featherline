@@ -62,7 +62,6 @@ import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
-import com.mkx.hrttracker.ui.medicine.CreateMedicineScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailViewModel
 import com.mkx.hrttracker.ui.medicine.MedicinesScreen
@@ -172,23 +171,6 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
                 append(baseRoute)
                 append("/")
                 append(topLevelParentRoute)
-                pickerResultKey?.let { key ->
-                    append("?$PICKER_RESULT_KEY_ARG=")
-                    append(key)
-                }
-            }
-        }
-    }
-
-    data object CreateMedicine : Screen(
-        "medicines/create?$PICKER_RESULT_KEY_ARG={$PICKER_RESULT_KEY_ARG}",
-        R.string.create_medicine_title,
-    ) {
-        const val baseRoute = "medicines/create"
-
-        fun createRoute(pickerResultKey: String? = null): String {
-            return buildString {
-                append(baseRoute)
                 pickerResultKey?.let { key ->
                     append("?$PICKER_RESULT_KEY_ARG=")
                     append(key)
@@ -768,29 +750,6 @@ fun HrtTrackerNavHost(
                     )
                 }
                 composable(
-                    route = Screen.CreateMedicine.route,
-                    arguments = listOf(
-                        navArgument(PICKER_RESULT_KEY_ARG) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val pickerResultKey =
-                        backStackEntry.arguments?.getString(PICKER_RESULT_KEY_ARG)
-                    CreateMedicineScreen(
-                        modifier = modifier,
-                        onNavigateBack = { navController.popBackStack() },
-                        onCreated = { medicineId ->
-                            navController.returnFromCreateMedicine(
-                                medicineId = medicineId,
-                                pickerResultKey = pickerResultKey,
-                            )
-                        },
-                    )
-                }
-                composable(
                     route = Screen.Medicines.route,
                     arguments = listOf(
                         navArgument(TOP_LEVEL_PARENT_ARG) {
@@ -826,11 +785,6 @@ fun HrtTrackerNavHost(
                                     ),
                                 )
                             }
-                        },
-                        onAddNewMedicine = {
-                            navController.navigate(
-                                Screen.CreateMedicine.createRoute(pickerResultKey),
-                            )
                         },
                     )
                 }
@@ -996,25 +950,6 @@ private fun NavHostController.navigateToTopLevelScreen(
         launchSingleTop = true
         restoreState = true
     }
-}
-
-private fun NavHostController.returnFromCreateMedicine(
-    medicineId: UUID,
-    pickerResultKey: String?,
-) {
-    if (pickerResultKey == null) {
-        popBackStack()
-        return
-    }
-
-    // Current stack shape is caller -> Medicines(pick-mode) -> CreateMedicine.
-    // Pop Create first so previousBackStackEntry points at the original caller,
-    // then write the result there and pop the manager as well.
-    popBackStack()
-    previousBackStackEntry
-        ?.savedStateHandle
-        ?.set(pickerResultKey, medicineId.toString())
-    popBackStack()
 }
 
 private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"

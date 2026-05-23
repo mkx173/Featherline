@@ -232,18 +232,6 @@ class NavigationTransitionsTest {
     }
 
     @Test
-    fun resolveNavigationMotionPattern_returnsNestedForward_for_createMedicine_navigation() {
-        assertEquals(
-            NavigationMotionPattern.NESTED_FORWARD,
-            resolveNavigationMotionPattern(
-                initialRoute = Screen.Medicines.route,
-                targetRoute = Screen.CreateMedicine.route,
-                isPop = false,
-            )
-        )
-    }
-
-    @Test
     fun resolveNavigationMotionPattern_returnsNestedForward_for_medicineDetail_navigation() {
         assertEquals(
             NavigationMotionPattern.NESTED_FORWARD,

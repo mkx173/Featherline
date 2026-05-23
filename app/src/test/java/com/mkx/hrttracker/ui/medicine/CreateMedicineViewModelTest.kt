@@ -278,4 +278,25 @@ class CreateMedicineViewModelTest {
         assertNull(createdUuid)
         assertEquals(CreateMedicineSaveResult.FAILURE_OTHER, viewModel.uiState.value.saveResult)
     }
+
+    // The sheet host shares a single VM across opens; reset must wipe both the
+    // draft and any leftover save-result so the next open starts clean.
+    @Test
+    fun reset_clearsDraftAndPriorSaveResult() = runTest {
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(any(), any(), any())
+        } throws IllegalStateException("boom")
+        val viewModel = CreateMedicineViewModel(medicineRepository)
+        viewModel.updateDraft { it.copy(pillStrengthMg = "2") }
+        viewModel.create { }
+        advanceUntilIdle()
+        assertEquals(CreateMedicineSaveResult.FAILURE_OTHER, viewModel.uiState.value.saveResult)
+        assertEquals("2", viewModel.uiState.value.draft.pillStrengthMg)
+
+        viewModel.reset()
+
+        assertNull(viewModel.uiState.value.saveResult)
+        assertNull(viewModel.uiState.value.errorMessageRes)
+        assertEquals("", viewModel.uiState.value.draft.pillStrengthMg)
+    }
 }

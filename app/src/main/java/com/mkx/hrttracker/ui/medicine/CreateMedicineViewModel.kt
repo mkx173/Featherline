@@ -30,6 +30,13 @@ class CreateMedicineViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(CreateMedicineUiState())
     val uiState: StateFlow<CreateMedicineUiState> = _uiState.asStateFlow()
 
+    // Sheet hosts share a single VM instance and can reopen the sheet multiple
+    // times in one composition; reset clears the previous attempt so the next
+    // open starts from a clean draft.
+    fun reset() {
+        _uiState.value = CreateMedicineUiState()
+    }
+
     fun updateDraft(transform: (MedicinePickerUiState) -> MedicinePickerUiState) {
         _uiState.update { state ->
             state.copy(

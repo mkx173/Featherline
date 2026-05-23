@@ -1,33 +1,21 @@
 package com.mkx.hrttracker.ui.medicine
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Label
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -45,10 +33,10 @@ import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
-import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
-import com.mkx.hrttracker.ui.components.HrtButton
+import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.ambiguousPreparationTypes
@@ -66,17 +54,22 @@ import com.mkx.hrttracker.ui.medication.supportsCatalogSelection
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateMedicineScreen(
-    onNavigateBack: () -> Unit,
+fun CreateMedicineSheet(
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     onCreated: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CreateMedicineViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    CreateMedicineScreenContent(
+    CreateMedicineSheetContent(
         uiState = uiState,
-        onNavigateBack = onNavigateBack,
+        sheetState = sheetState,
+        onDismissRequest = onDismissRequest,
+        onCloseClick = onCloseClick,
         onDraftChange = viewModel::updateDraft,
         onCreateClick = { viewModel.create(onCreated) },
         modifier = modifier,
@@ -85,70 +78,34 @@ fun CreateMedicineScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CreateMedicineScreenContent(
+private fun CreateMedicineSheetContent(
     uiState: CreateMedicineUiState,
-    onNavigateBack: () -> Unit,
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
+    onCloseClick: () -> Unit,
     onDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     onCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
+    MedicationEditorSheetScaffold(
         modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.create_medicine_title)) },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        enabled = !uiState.isSaving,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_back),
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-        bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(dimensionResource(R.dimen.padding_medium)),
-            ) {
-                CreateMedicineResultText(saveResult = uiState.saveResult)
-                HrtButton(
-                    text = stringResource(R.string.create_medicine_action),
-                    onClick = onCreateClick,
-                    enabled = !uiState.isSaving,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-    ) { innerPadding ->
-        AppContentContainer(modifier = Modifier.padding(innerPadding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        horizontal = dimensionResource(R.dimen.padding_medium),
-                        vertical = dimensionResource(R.dimen.padding_small),
-                    ),
-            ) {
-                CreateMedicineForm(
-                    medicineDraft = uiState.draft,
-                    onMedicineDraftChange = onDraftChange,
-                    errorMessageRes = uiState.errorMessageRes,
-                    enabled = !uiState.isSaving,
-                )
-            }
-        }
+        title = stringResource(R.string.create_medicine_title),
+        sheetState = sheetState,
+        confirmButtonText = stringResource(R.string.create_medicine_action),
+        onDismissRequest = onDismissRequest,
+        onCloseClick = onCloseClick,
+        fillAvailableHeight = true,
+        isSaving = uiState.isSaving,
+        disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
+        onConfirm = onCreateClick,
+    ) {
+        CreateMedicineResultText(saveResult = uiState.saveResult)
+        CreateMedicineForm(
+            medicineDraft = uiState.draft,
+            onMedicineDraftChange = onDraftChange,
+            errorMessageRes = uiState.errorMessageRes,
+            enabled = !uiState.isSaving,
+        )
     }
 }
 

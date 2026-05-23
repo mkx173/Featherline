@@ -265,7 +265,6 @@ private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
         Screen.Settings.route -> NavigationRouteContext(topLevelScreen = Screen.Settings)
         Screen.EditMedicationGroup.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
         Screen.Medicines.motionRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.CreateMedicine.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
         Screen.MedicineDetail.motionRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
         Screen.SettingsCalibration.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Settings)
         Screen.SettingsCalibrationUnits.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Settings)

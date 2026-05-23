@@ -290,7 +290,7 @@ fun MedicationLogEntryEditorSheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MedicationEditorSheetScaffold(
+internal fun MedicationEditorSheetScaffold(
     modifier: Modifier = Modifier,
     title: String,
     sheetState: SheetState,
