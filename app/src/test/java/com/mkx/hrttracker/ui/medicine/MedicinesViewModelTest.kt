@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.testDoseInstruction
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.medication.testPatchOffMedicine
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -265,6 +266,42 @@ class MedicinesViewModelTest {
 
         val items = viewModel.uiState.value.activeSections.flatMap { it.medicines }
         assertEquals("Renamed", items.single().medicine.displayName)
+        collectJob.cancel()
+    }
+
+    // Why this matters: the PATCH_OFF singleton is auto-created alongside the
+    // first patch medicine; the manager should list both rows under ESTRADIOL
+    // so the user can tap either one. Loss of the patch-off row breaks the
+    // slot picker flow that depends on a tappable PATCH_OFF entry.
+    @Test
+    fun listsPatchOffSingletonAlongsidePatchMedicineInEstradiolSection() = runTest {
+        val patchMedicine = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000020"),
+            key = MedicationKey.ESTRADIOL_PATCH,
+            preparation = com.mkx.hrttracker.model.medication.MedicinePreparation.Patch(
+                com.mkx.hrttracker.model.medication.MedicinePreparation
+                    .PatchSpecification.TotalMg(valueMg = 4.0),
+            ),
+            createdAt = Instant.parse("2026-05-01T00:00:00Z"),
+        )
+        val patchOff = testPatchOffMedicine(
+            createdAt = Instant.parse("2026-05-01T00:00:01Z"),
+        )
+        every { medicineRepository.observeAllActive() } returns
+            flowOf(listOf(patchMedicine, patchOff))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        val estradiolSection = viewModel.uiState.value.activeSections
+            .single { it.category == MedicationCategory.ESTRADIOL }
+        assertEquals(
+            listOf(patchMedicine.uuid, patchOff.uuid),
+            estradiolSection.medicines.map { it.medicine.uuid },
+        )
         collectJob.cancel()
     }
 

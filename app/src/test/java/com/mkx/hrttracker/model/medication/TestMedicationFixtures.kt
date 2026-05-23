@@ -50,6 +50,27 @@ fun testCustomMedicine(
     )
 }
 
+// The global PATCH_OFF singleton. Distinct UUID so it sorts deterministically
+// after the catalog medicines in tests that rely on creation-time ordering.
+fun testPatchOffMedicine(
+    uuid: UUID = UUID.fromString("dddddddd-0000-0000-0000-000000000000"),
+    createdAt: Instant = Instant.EPOCH,
+    updatedAt: Instant = Instant.EPOCH,
+    archivedAt: Instant? = null,
+): Medicine {
+    return Medicine(
+        uuid = uuid,
+        selection = MedicineSelection.PatchOff,
+        category = MedicationCategory.ESTRADIOL,
+        preparation = MedicinePreparation.PatchOff,
+        displayName = null,
+        identityKey = MedicineIdentityKey.patchOff(),
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        archivedAt = archivedAt,
+    )
+}
+
 fun testDoseInstruction(
     numerator: Int = 1,
     denominator: Int = 1,

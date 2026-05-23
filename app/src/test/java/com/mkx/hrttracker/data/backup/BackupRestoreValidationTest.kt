@@ -245,6 +245,40 @@ class BackupRestoreValidationTest {
         }
     }
 
+    // The PATCH_OFF singleton round-trips through backup as a medicine row.
+    // Validation rebuilds the PatchOff selection from the preparationType
+    // marker even though the stored selectionKind is CATALOG, and the
+    // identityKey check uses MedicineIdentityKey.patchOff().
+    @Test
+    fun toValidatedSnapshot_acceptsPatchOffMedicineSnapshot() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000005a0")
+        val snapshot = BackupSnapshot(
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(patchOffMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(
+            expectedPackageName = "com.mkx.hrttracker",
+        )
+
+        val restored = validatedSnapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), restored.uuid)
+        assertEquals("PATCH_OFF", restored.preparationType)
+        assertEquals("ESTRADIOL", restored.category)
+        assertEquals(MedicineIdentityKey.patchOff(), restored.identityKey)
+        assertNull(restored.medicationKey)
+        assertNull(restored.patchTotalMg)
+        assertNull(restored.patchReleaseRateMcgPerDay)
+        assertNull(restored.strengthMgPerTablet)
+    }
+
     @Test
     fun toValidatedSnapshot_acceptsPatchOffSlotWithNullMedicineUuid() {
         // PATCH_OFF is the one application type whose medicineUuid may be
@@ -514,6 +548,34 @@ class BackupRestoreValidationTest {
         weightOriginalValue = null,
         weightOriginalUnit = "KILOGRAMS",
     )
+
+    private fun patchOffMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            // PATCH_OFF reuses CATALOG selectionKind for storage; the PATCH_OFF
+            // preparationType is what makes the restore path rebuild PatchOff.
+            selectionKind = "CATALOG",
+            medicationKey = null,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = "ESTRADIOL",
+            preparationType = "PATCH_OFF",
+            strengthMgPerTablet = null,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.patchOff(),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
 
     private fun catalogMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
         val preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0)

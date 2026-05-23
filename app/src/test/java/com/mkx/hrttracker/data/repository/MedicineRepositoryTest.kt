@@ -148,6 +148,96 @@ class MedicineRepositoryTest {
     }
 
     @Test
+    fun findOrCreateForCatalog_patchMedicineAutoCreatesPatchOffSingleton() = runTest {
+        val now = Instant.ofEpochMilli(500)
+        val patchKey = "C|ESTRADIOL_PATCH|PATCH|patchTotalMg=4"
+        val patchOffKey = "P|PATCH_OFF"
+        val insertedEntities = mutableListOf<MedicineEntity>()
+        coEvery { dao.getByIdentityKey(patchKey) } returns null
+        coEvery { dao.getByIdentityKey(patchOffKey) } returns null
+        coEvery { dao.insert(capture(insertedEntities)) } returns Unit
+
+        repository.findOrCreateForCatalog(
+            medicationKey = MedicationKey.ESTRADIOL_PATCH,
+            preparation = MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.TotalMg(4.0),
+            ),
+            now = now,
+        )
+
+        // Both the patch medicine and the singleton must have been inserted.
+        val identities = insertedEntities.map(MedicineEntity::identityKey)
+        assertTrue(
+            "Expected $patchOffKey alongside $patchKey, got $identities",
+            patchOffKey in identities && patchKey in identities,
+        )
+        val patchOffEntity = insertedEntities.first { it.identityKey == patchOffKey }
+        assertEquals("PATCH_OFF", patchOffEntity.preparationType)
+        assertEquals("ESTRADIOL", patchOffEntity.category)
+        assertNull(patchOffEntity.patchTotalMg)
+        assertNull(patchOffEntity.patchReleaseRateMcgPerDay)
+    }
+
+    @Test
+    fun findOrCreateForCatalog_patchMedicineDoesNotInsertSecondPatchOff() = runTest {
+        val now = Instant.ofEpochMilli(500)
+        val existingPatchOff = patchOffMedicineEntity()
+        coEvery { dao.getByIdentityKey("C|ESTRADIOL_PATCH|PATCH|patchTotalMg=4") } returns null
+        coEvery { dao.getByIdentityKey("P|PATCH_OFF") } returns existingPatchOff
+        val insertedEntities = mutableListOf<MedicineEntity>()
+        coEvery { dao.insert(capture(insertedEntities)) } returns Unit
+
+        repository.findOrCreateForCatalog(
+            medicationKey = MedicationKey.ESTRADIOL_PATCH,
+            preparation = MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.TotalMg(4.0),
+            ),
+            now = now,
+        )
+
+        // Only the new patch medicine inserts; the existing singleton is reused.
+        val identities = insertedEntities.map(MedicineEntity::identityKey)
+        assertEquals(listOf("C|ESTRADIOL_PATCH|PATCH|patchTotalMg=4"), identities)
+    }
+
+    @Test
+    fun findOrCreatePatchOff_isIdempotentAcrossCalls() = runTest {
+        val now = Instant.ofEpochMilli(500)
+        val existingPatchOff = patchOffMedicineEntity()
+        coEvery { dao.getByIdentityKey("P|PATCH_OFF") } returnsMany listOf(null, existingPatchOff)
+        val inserted = slot<MedicineEntity>()
+        coEvery { dao.insert(capture(inserted)) } returns Unit
+
+        val first = repository.findOrCreatePatchOff(now)
+        val second = repository.findOrCreatePatchOff(now)
+
+        assertEquals(UUID.fromString(inserted.captured.uuid), first.uuid)
+        // Second call hits the existing-row path and never re-inserts.
+        assertEquals(UUID.fromString(existingPatchOff.uuid), second.uuid)
+        coVerify(exactly = 1) { dao.insert(any()) }
+    }
+
+    @Test
+    fun findOrCreateForCatalog_nonPatchDoesNotInsertPatchOff() = runTest {
+        val now = Instant.ofEpochMilli(500)
+        val insertedEntities = mutableListOf<MedicineEntity>()
+        coEvery { dao.getByIdentityKey("C|ESTRADIOL|PILL|strengthMgPerTablet=2") } returns null
+        coEvery { dao.insert(capture(insertedEntities)) } returns Unit
+
+        repository.findOrCreateForCatalog(
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(2.0),
+            now = now,
+        )
+
+        // The auto-create hook only fires for patches.
+        assertTrue(
+            "Patch-off should not be inserted for a pill medicine",
+            insertedEntities.none { it.identityKey == "P|PATCH_OFF" },
+        )
+    }
+
+    @Test
     fun findOrCreateForCustom_rejectsBlankCustomMedicationNameBeforeMutation() = runTest {
         try {
             repository.findOrCreateForCustom(
@@ -428,6 +518,21 @@ class MedicineRepositoryTest {
             category = MedicationCategory.CUSTOM.name,
             strengthMgPerTablet = 100.0,
             identityKey = "X|progesterone|PILL|strengthMgPerTablet=100",
+        )
+    }
+
+    private fun patchOffMedicineEntity(): MedicineEntity {
+        // Mirrors what MedicineRepository.findOrCreatePatchOff inserts.
+        return medicineEntity().copy(
+            uuid = "cccccccc-0000-0000-0000-000000000000",
+            selectionKind = "CATALOG",
+            medicationKey = null,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = MedicationCategory.ESTRADIOL.name,
+            preparationType = "PATCH_OFF",
+            strengthMgPerTablet = null,
+            identityKey = "P|PATCH_OFF",
         )
     }
 }

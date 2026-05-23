@@ -793,6 +793,58 @@ class PkSimulationTest {
     }
 
     @Test
+    fun patchOffEntryWithSingletonMedicineStillRemovesPatch() {
+        // After the singleton refactor a PATCH_OFF log carries the global
+        // PatchOff medicine instead of null. The simulator must still route
+        // it as an estradiol patch removal (the route alone determines this).
+        val zoneId = ZoneId.systemDefault()
+        val now = LocalDateTime.of(2026, 5, 17, 12, 0)
+        val applyEntry: MedicationLogEntry = testMedicationLogEntry(
+            medicine = testMedicine(
+                key = MedicationKey.ESTRADIOL_PATCH,
+                preparation = MedicinePreparation.Patch(
+                    specification = MedicinePreparation.PatchSpecification
+                        .ReleaseRateMcgPerDay(valueMcgPerDay = 100.0),
+                ),
+            ),
+            applicationType = MedicationApplicationType.PATCH_ON,
+            doseInstruction = DoseInstruction.WholeUnit,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = now.minusHours(72).atZone(zoneId).toInstant(),
+        )
+        val removeEntry: MedicationLogEntry = MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            medicine = com.mkx.hrttracker.model.medication.testPatchOffMedicine(),
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = now.minusHours(24).atZone(zoneId).toInstant(),
+        )
+
+        val withRemoval = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = listOf(applyEntry, removeEntry),
+                bodyWeightKg = 70.0,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+        val withoutRemoval = checkNotNull(
+            PkMedicationSimulation.simulateMainEstradiolTrend(
+                entries = listOf(applyEntry),
+                bodyWeightKg = 70.0,
+                now = now,
+                zoneId = zoneId,
+            )
+        )
+
+        assertTrue(withRemoval.currentConcentration < withoutRemoval.currentConcentration)
+    }
+
+    @Test
     fun patchOffEntryWithoutMedicineIsRemovalOfEstradiol() {
         // A PATCH_OFF log carries no medicine; it must still pair as an
         // estradiol patch removal (not be dropped for lack of a compound).
