@@ -441,7 +441,16 @@ private fun ApplicationTypeButtonGroup(
     ConnectedButtonGroup(
         options = options,
         selectedOption = selectedOption,
-        optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
+        // PATCH_OFF is filtered out of the create-medicine picker, so "Patch
+        // on" reads as an action label without a matching "off" counterpart.
+        // Use the preparation name ("Patch") in this context instead.
+        optionLabel = { applicationType ->
+            if (applicationType == MedicationApplicationType.PATCH_ON) {
+                stringResource(R.string.preparation_type_patch)
+            } else {
+                stringResource(applicationType.labelRes)
+            }
+        },
         optionLeadingContent = { applicationType ->
             MedicationApplicationIcon(
                 applicationType = applicationType,
