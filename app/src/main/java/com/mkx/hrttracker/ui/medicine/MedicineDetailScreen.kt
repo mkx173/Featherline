@@ -500,16 +500,14 @@ private fun PreparationEditorFields(
         when (draft.preparationType) {
             MedicinePreparationType.PILL -> NumericInputField(
                 value = draft.pillStrengthMg,
-                label = stringResource(R.string.field_pill_strength_mg),
-                suffix = stringResource(R.string.unit_mg),
+                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, R.string.unit_mg),
                 leadingIconRes = R.drawable.ic_medication,
                 onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
             )
 
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericInputField(
                 value = draft.singleUseVialStrengthMg,
-                label = stringResource(R.string.field_single_use_vial_strength_mg),
-                suffix = stringResource(R.string.unit_mg),
+                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, R.string.unit_mg),
                 leadingIconRes = R.drawable.ic_vaccines,
                 onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
             )
@@ -517,15 +515,13 @@ private fun PreparationEditorFields(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
                 NumericInputField(
                     value = draft.concentrationMgPerMl,
-                    label = stringResource(R.string.field_concentration_mg_per_ml),
-                    suffix = stringResource(R.string.unit_mg_per_ml),
+                    label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
-                    label = stringResource(R.string.field_vial_volume_ml),
-                    suffix = stringResource(R.string.unit_ml),
+                    label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
                     leadingIconRes = R.drawable.ic_fluid,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
@@ -534,15 +530,13 @@ private fun PreparationEditorFields(
             MedicinePreparationType.GEL_SACHET -> {
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
-                    label = stringResource(R.string.field_gel_concentration_percent),
-                    suffix = stringResource(R.string.unit_percent),
+                    label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.sachetWeightGrams,
-                    label = stringResource(R.string.field_sachet_weight_grams),
-                    suffix = stringResource(R.string.unit_grams),
+                    label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(sachetWeightGrams = it)) },
                 )
@@ -551,15 +545,13 @@ private fun PreparationEditorFields(
             MedicinePreparationType.GEL_CONTAINER -> {
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
-                    label = stringResource(R.string.field_gel_concentration_percent),
-                    suffix = stringResource(R.string.unit_percent),
+                    label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.containerWeightGrams,
-                    label = stringResource(R.string.field_container_weight_grams),
-                    suffix = stringResource(R.string.unit_grams),
+                    label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(containerWeightGrams = it)) },
                 )
@@ -590,16 +582,14 @@ private fun PreparationEditorFields(
                 when (draft.patchSpecKind) {
                     PatchSpecKind.TOTAL_MG -> NumericInputField(
                         value = draft.patchTotalMg,
-                        label = stringResource(R.string.field_patch_total_dosage_mg),
-                        suffix = stringResource(R.string.unit_mg),
+                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, R.string.unit_mg),
                         leadingIconRes = R.drawable.ic_chronic,
                         onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
                     )
 
                     PatchSpecKind.RELEASE_RATE -> NumericInputField(
                         value = draft.patchReleaseRateMcgPerDay,
-                        label = stringResource(R.string.field_patch_release_rate),
-                        suffix = stringResource(R.string.unit_mcg_day),
+                        label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
                         leadingIconRes = R.drawable.ic_speed,
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
@@ -609,6 +599,17 @@ private fun PreparationEditorFields(
             }
         }
     }
+}
+
+// "Tablet strength" + "mg" → "Tablet strength (mg)". Used as the field label
+// so the user can tell what unit they're typing in without scanning to the
+// trailing suffix.
+@Composable
+private fun fieldLabelWithUnit(
+    @androidx.annotation.StringRes labelRes: Int,
+    @androidx.annotation.StringRes unitRes: Int,
+): String {
+    return "${stringResource(labelRes)} (${stringResource(unitRes)})"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -357,8 +357,7 @@ private fun NewMedicinePreparationForm(
     when (medicineDraft.inferredOrSelectedPreparationType() ?: return) {
         MedicinePreparationType.PILL -> NumericField(
             value = medicineDraft.pillStrengthMg,
-            label = stringResource(R.string.field_pill_strength_mg),
-            suffix = stringResource(R.string.unit_mg),
+            label = fieldLabelWithUnit(R.string.field_pill_strength_mg, R.string.unit_mg),
             leadingIconRes = R.drawable.ic_medication,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_pill_strength_required,
@@ -374,8 +373,7 @@ private fun NewMedicinePreparationForm(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericField(
             value = medicineDraft.singleUseVialStrengthMg,
-            label = stringResource(R.string.field_single_use_vial_strength_mg),
-            suffix = stringResource(R.string.unit_mg),
+            label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, R.string.unit_mg),
             leadingIconRes = R.drawable.ic_vaccines,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_vial_strength_required,
@@ -392,8 +390,7 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             NumericField(
                 value = medicineDraft.concentrationMgPerMl,
-                label = stringResource(R.string.field_concentration_mg_per_ml),
-                suffix = stringResource(R.string.unit_mg_per_ml),
+                label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_concentration_required,
@@ -409,8 +406,7 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
                 value = medicineDraft.vialVolumeMl,
-                label = stringResource(R.string.field_vial_volume_ml),
-                suffix = stringResource(R.string.unit_ml),
+                label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
                 leadingIconRes = R.drawable.ic_fluid,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_vial_volume_required,
@@ -428,8 +424,7 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.GEL_SACHET -> {
             NumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = stringResource(R.string.field_gel_concentration_percent),
-                suffix = stringResource(R.string.unit_percent),
+                label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
@@ -445,8 +440,7 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
                 value = medicineDraft.sachetWeightGrams,
-                label = stringResource(R.string.field_sachet_weight_grams),
-                suffix = stringResource(R.string.unit_grams),
+                label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_sachet_weight_required,
@@ -464,8 +458,7 @@ private fun NewMedicinePreparationForm(
         MedicinePreparationType.GEL_CONTAINER -> {
             NumericField(
                 value = medicineDraft.gelConcentrationPercent,
-                label = stringResource(R.string.field_gel_concentration_percent),
-                suffix = stringResource(R.string.unit_percent),
+                label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
@@ -481,8 +474,7 @@ private fun NewMedicinePreparationForm(
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
                 value = medicineDraft.containerWeightGrams,
-                label = stringResource(R.string.field_container_weight_grams),
-                suffix = stringResource(R.string.unit_grams),
+                label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_container_weight_required,
@@ -519,8 +511,7 @@ private fun NewMedicinePreparationForm(
             when (medicineDraft.patchSpecKind) {
                 PatchSpecKind.TOTAL_MG -> NumericField(
                     value = medicineDraft.patchTotalMg,
-                    label = stringResource(R.string.field_patch_total_dosage_mg),
-                    suffix = stringResource(R.string.unit_mg),
+                    label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, R.string.unit_mg),
                     leadingIconRes = R.drawable.ic_chronic,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_total_required,
@@ -536,8 +527,7 @@ private fun NewMedicinePreparationForm(
 
                 PatchSpecKind.RELEASE_RATE -> NumericField(
                     value = medicineDraft.patchReleaseRateMcgPerDay,
-                    label = stringResource(R.string.field_patch_release_rate),
-                    suffix = stringResource(R.string.unit_mcg_day),
+                    label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
                     leadingIconRes = R.drawable.ic_speed,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_release_rate_required,
@@ -597,6 +587,17 @@ private fun ApplicationTypeButtonGroup(
         onOptionSelected = onOptionSelected,
         enabled = enabled,
     )
+}
+
+// "Tablet strength" + "mg" → "Tablet strength (mg)". Used as the OutlinedTextField
+// label so the user can tell what unit they're typing in without scanning to the
+// trailing suffix (which is now redundant and dropped at each call site).
+@Composable
+private fun fieldLabelWithUnit(
+    @StringRes labelRes: Int,
+    @StringRes unitRes: Int,
+): String {
+    return "${stringResource(labelRes)} (${stringResource(unitRes)})"
 }
 
 @Composable
