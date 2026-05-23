@@ -660,7 +660,9 @@ private fun DoseInstructionForm(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.PATCH -> Unit // whole-unit dose; no input needed.
+        MedicinePreparationType.PATCH,
+        // PATCH_OFF emits a Noop dose; no per-instruction form to render.
+        MedicinePreparationType.PATCH_OFF -> Unit // whole-unit dose; no input needed.
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> NumericField(
             value = doseInstructionDraft.volumeMl,
@@ -700,6 +702,9 @@ internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): 
         MedicinePreparationType.GEL_SACHET -> R.string.preparation_type_gel_sachet
         MedicinePreparationType.GEL_CONTAINER -> R.string.preparation_type_gel_container
         MedicinePreparationType.PATCH -> R.string.preparation_type_patch
+        // Surfaced only on the PATCH_OFF singleton's read-only summary; the
+        // create-medicine picker never offers it.
+        MedicinePreparationType.PATCH_OFF -> R.string.medicine_patch_off_name
     }
 }
 

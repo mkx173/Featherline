@@ -15,6 +15,7 @@ fun medicineDisplayName(medicine: Medicine, context: Context): String {
     return when (val selection = medicine.selection) {
         is MedicineSelection.Catalog -> context.getString(selection.medicationKey.labelRes)
         is MedicineSelection.Custom -> selection.medicationName
+        is MedicineSelection.PatchOff -> context.getString(R.string.medicine_patch_off_name)
     }
 }
 
@@ -78,6 +79,8 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
                 spec.valueMcgPerDay.formatDose(locale),
             )
         }
+
+        is MedicinePreparation.PatchOff -> context.getString(R.string.medicine_patch_off_name)
     }
 }
 

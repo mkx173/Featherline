@@ -314,6 +314,8 @@
     <string name="medicine_archive_blocked_count">%1$d active group(s) reference this medicine.</string>
     <string name="medicine_archive_failure">Unable to archive this medicine.</string>
     <string name="medicine_already_archived">This medicine is archived.</string>
+    <string name="medicine_patch_off_name">Patch off</string>
+    <string name="medicine_patch_off_detail_summary">Logging this entry removes any currently-applied estradiol patch.</string>
     <string name="medicine_save_success">Saved.</string>
     <string name="medicine_save_failure">Unable to save this medicine.</string>
     <string name="medicine_save_identity_collision">Another medicine already uses that preparation.</string>

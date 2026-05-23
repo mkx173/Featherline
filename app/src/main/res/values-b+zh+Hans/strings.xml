@@ -305,6 +305,8 @@
     <string name="medicine_archive_blocked_count">%1$d 个当前分组引用了此药物。</string>
     <string name="medicine_archive_failure">无法归档此药物。</string>
     <string name="medicine_already_archived">此药物已归档。</string>
+    <string name="medicine_patch_off_name">贴片取下</string>
+    <string name="medicine_patch_off_detail_summary">记录此条目会取下当前贴敷的雌二醇贴片。</string>
     <string name="medicine_save_success">已保存。</string>
     <string name="medicine_save_failure">无法保存此药物。</string>
     <string name="medicine_save_identity_collision">另一个药物已使用相同制剂。</string>

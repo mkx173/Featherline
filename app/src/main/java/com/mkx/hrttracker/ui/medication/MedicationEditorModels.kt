@@ -180,7 +180,8 @@ internal fun inferredPreparationType(
 
 // The application routes a medicine of this preparation can use. PILL is the
 // only ambiguous one (oral vs sublingual share the same pill); the rest map to
-// a single route. PATCH_OFF is intentionally absent — it carries no medicine.
+// a single route. PATCH_OFF preparation is compatible only with the PATCH_OFF
+// route — the singleton can't be applied any other way.
 fun applicationTypesCompatibleWithPreparation(
     preparationType: MedicinePreparationType,
 ): List<MedicationApplicationType> {
@@ -199,6 +200,9 @@ fun applicationTypesCompatibleWithPreparation(
         )
         MedicinePreparationType.PATCH -> listOf(
             MedicationApplicationType.PATCH_ON,
+        )
+        MedicinePreparationType.PATCH_OFF -> listOf(
+            MedicationApplicationType.PATCH_OFF,
         )
     }
 }
@@ -470,7 +474,9 @@ fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): B
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.GEL_CONTAINER -> false
+        MedicinePreparationType.GEL_CONTAINER,
+        // The singleton has no numeric fields, raw-mass or otherwise.
+        MedicinePreparationType.PATCH_OFF -> false
     }
 }
 
@@ -503,7 +509,9 @@ internal fun requiresEditableDoseInstructionForm(
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
-        MedicinePreparationType.PATCH -> false
+        MedicinePreparationType.PATCH,
+        // PATCH_OFF emits a Noop dose with no editable form.
+        MedicinePreparationType.PATCH_OFF -> false
     }
 }
 
@@ -614,6 +622,12 @@ internal fun MedicinePickerUiState.toMedicinePreparation(
                     )
             },
         )
+
+        // PATCH_OFF is the global singleton — it is never created via the
+        // picker. The medicine manager's create flow can't produce it; the
+        // singleton is auto-created on the first patch medicine creation.
+        MedicinePreparationType.PATCH_OFF ->
+            error("PATCH_OFF is not creatable from the medicine picker.")
     }
 }
 
@@ -648,6 +662,10 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
         MedicinePreparationType.GEL_CONTAINER -> DoseInstruction.WeightGrams(
             valueGrams = checkNotNull(parsePositiveDouble(weightGrams)),
         )
+
+        // The applicationType guard above already returns Noop for PATCH_OFF;
+        // if we ever reach this branch the picker is in an inconsistent state.
+        MedicinePreparationType.PATCH_OFF -> DoseInstruction.Noop
     }
 }
 
@@ -736,6 +754,9 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
                 R.string.validation_patch_release_rate_required
                     .takeIf { parsePositiveDouble(patchReleaseRateMcgPerDay) == null }
         }
+
+        // The singleton has no editable fields, so nothing to validate.
+        MedicinePreparationType.PATCH_OFF -> null
     }
 }
 
@@ -815,6 +836,10 @@ fun compatibleApplicationTypeForMedicine(
         MedicinePreparationType.GEL_CONTAINER -> MedicationApplicationType.GEL
 
         MedicinePreparationType.PATCH -> MedicationApplicationType.PATCH_ON
+
+        // The singleton's only valid route. The slot draft sheet forces this
+        // even if the caller passed something else.
+        MedicinePreparationType.PATCH_OFF -> MedicationApplicationType.PATCH_OFF
     }
 }
 
@@ -861,6 +886,9 @@ private fun MedicinePickerUiState.withPreparationFields(
                     patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toInputString(),
                 )
         }
+
+        // No numeric fields to populate; the singleton's draft is empty.
+        is MedicinePreparation.PatchOff -> this
     }
 }
 
@@ -904,5 +932,10 @@ fun DoseInstructionDraftUiState.validationErrorRes(): Int? {
         MedicinePreparationType.GEL_CONTAINER ->
             R.string.validation_dose_weight_required
                 .takeIf { parsePositiveDouble(weightGrams) == null }
+
+        // PATCH_OFF emits a Noop dose; the early return above for the
+        // PATCH_OFF application route covers the normal flow, this branch
+        // exists only for exhaustiveness.
+        MedicinePreparationType.PATCH_OFF -> null
     }
 }

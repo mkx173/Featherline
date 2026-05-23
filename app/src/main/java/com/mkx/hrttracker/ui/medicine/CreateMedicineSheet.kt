@@ -560,6 +560,11 @@ private fun NewMedicinePreparationForm(
                 )
             }
         }
+
+        // The PATCH_OFF singleton is never created from this sheet — it's
+        // auto-spawned when a patch medicine is created. Guard with Unit so
+        // the when stays exhaustive without rendering an empty form.
+        MedicinePreparationType.PATCH_OFF -> Unit
     }
 }
 
@@ -766,6 +771,9 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
             PatchSpecKind.TOTAL_MG -> fields += CreateMedicineField.PATCH_TOTAL_MG
             PatchSpecKind.RELEASE_RATE -> fields += CreateMedicineField.PATCH_RELEASE_RATE
         }
+        // The PATCH_OFF singleton isn't user-creatable; the picker never
+        // surfaces it, so there are no editable fields for it.
+        MedicinePreparationType.PATCH_OFF -> Unit
         null -> Unit
     }
     // The display-name override is the last field — only rendered for catalog

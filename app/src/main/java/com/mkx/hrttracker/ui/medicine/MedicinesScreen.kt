@@ -412,6 +412,10 @@ private fun inferApplicationTypeForMedicine(
 
         is com.mkx.hrttracker.model.medication.MedicinePreparation.Patch ->
             MedicationApplicationType.PATCH_ON
+
+        // Singleton row in the manager renders with the patch-off icon.
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.PatchOff ->
+            MedicationApplicationType.PATCH_OFF
     }
 }
 

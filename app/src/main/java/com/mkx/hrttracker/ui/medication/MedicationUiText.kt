@@ -19,6 +19,8 @@ fun medicineDisplayName(medicine: Medicine): String {
     return when (val selection = medicine.selection) {
         is MedicineSelection.Catalog -> stringResource(selection.medicationKey.labelRes)
         is MedicineSelection.Custom -> selection.medicationName
+        // Localized name for the global singleton row.
+        is MedicineSelection.PatchOff -> stringResource(R.string.medicine_patch_off_name)
     }
 }
 
@@ -77,6 +79,9 @@ fun medicinePreparationSummary(medicine: Medicine): String {
                 spec.valueMcgPerDay.formatDose(appLocale),
             )
         }
+
+        // Singleton has no strength; the summary just names the action.
+        is MedicinePreparation.PatchOff -> stringResource(R.string.medicine_patch_off_name)
     }
 }
 

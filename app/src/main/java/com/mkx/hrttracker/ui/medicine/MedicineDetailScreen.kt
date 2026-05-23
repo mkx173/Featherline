@@ -177,11 +177,15 @@ private fun MedicineDetailScreenContent(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
                 actions = {
-                    HrtButton(
-                        text = stringResource(R.string.save),
-                        onClick = onSaveDisplayName,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
+                    // The PATCH_OFF singleton has no display name; the Save
+                    // action would be a no-op for it.
+                    if (uiState.medicine?.selection !is MedicineSelection.PatchOff) {
+                        HrtButton(
+                            text = stringResource(R.string.save),
+                            onClick = onSaveDisplayName,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                    }
                 },
                 scrollBehavior = scrollBehavior,
             )
@@ -199,6 +203,11 @@ private fun MedicineDetailScreenContent(
                 return@AppContentContainer
             }
 
+            // The PATCH_OFF singleton is immutable: no display name, no
+            // preparation editor, no archive (the PK simulator and the slot
+            // picker both depend on a single, always-present row).
+            val isPatchOff = medicine.selection is MedicineSelection.PatchOff
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -209,28 +218,35 @@ private fun MedicineDetailScreenContent(
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
-                // Custom medicines already have a user-typed name; an extra
-                // display-name override has no use there. The Save action in
-                // the top bar also becomes a no-op for them, but it costs
-                // nothing to keep visible.
-                if (medicine.selection is MedicineSelection.Catalog) {
-                    item(key = "display-name") {
-                        DisplayNameSection(
-                            displayName = uiState.displayNameText,
-                            isLocked = false,
-                            onValueChange = onDisplayNameChange,
+                if (isPatchOff) {
+                    item(key = "patch-off-summary") {
+                        PatchOffSummarySection()
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    }
+                } else {
+                    // Custom medicines already have a user-typed name; an extra
+                    // display-name override has no use there. The Save action in
+                    // the top bar also becomes a no-op for them, but it costs
+                    // nothing to keep visible.
+                    if (medicine.selection is MedicineSelection.Catalog) {
+                        item(key = "display-name") {
+                            DisplayNameSection(
+                                displayName = uiState.displayNameText,
+                                isLocked = false,
+                                onValueChange = onDisplayNameChange,
+                            )
+                            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                        }
+                    }
+
+                    item(key = "preparation") {
+                        PreparationSection(
+                            medicine = medicine,
+                            isLocked = uiState.isLocked,
+                            onEditClick = { preparationEditorOpen = true },
                         )
                         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                     }
-                }
-
-                item(key = "preparation") {
-                    PreparationSection(
-                        medicine = medicine,
-                        isLocked = uiState.isLocked,
-                        onEditClick = { preparationEditorOpen = true },
-                    )
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
                 item(key = "linked-groups-header") {
@@ -264,16 +280,18 @@ private fun MedicineDetailScreenContent(
                     }
                 }
 
-                item(key = "archive-action") {
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_large)))
-                    ArchiveAction(
-                        isArchived = medicine.isArchived,
-                        canArchive = uiState.linkedActiveSlots.isEmpty(),
-                        linkedActiveGroupCount = uiState.linkedActiveSlots
-                            .distinctBy { it.group.uuid }
-                            .size,
-                        onArchiveClick = { archiveConfirmOpen = true },
-                    )
+                if (!isPatchOff) {
+                    item(key = "archive-action") {
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_large)))
+                        ArchiveAction(
+                            isArchived = medicine.isArchived,
+                            canArchive = uiState.linkedActiveSlots.isEmpty(),
+                            linkedActiveGroupCount = uiState.linkedActiveSlots
+                                .distinctBy { it.group.uuid }
+                                .size,
+                            onArchiveClick = { archiveConfirmOpen = true },
+                        )
+                    }
                 }
             }
         }
@@ -370,6 +388,21 @@ private fun DisplayNameSection(
             },
             singleLine = true,
             enabled = !isLocked,
+        )
+    }
+}
+
+@Composable
+private fun PatchOffSummarySection() {
+    // Static read-only blurb for the immutable PATCH_OFF singleton — no
+    // display-name field, no preparation editor, no archive button.
+    Column {
+        SectionHeader(text = stringResource(R.string.medicine_preparation))
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        Text(
+            text = stringResource(R.string.medicine_patch_off_detail_summary),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -630,6 +663,12 @@ private fun PreparationEditorFields(
                     )
                 }
             }
+
+            // The PATCH_OFF singleton's preparation has no editable fields;
+            // the detail screen hides the preparation editor entirely for it
+            // (see MedicineDetailScreenContent), so this branch only exists
+            // for when-exhaustiveness.
+            MedicinePreparationType.PATCH_OFF -> Unit
         }
     }
 }
@@ -683,6 +722,8 @@ private fun inferApplicationType(medicine: Medicine): MedicationApplicationType 
         is MedicinePreparation.GelSachet,
         is MedicinePreparation.GelContainer -> MedicationApplicationType.GEL
         is MedicinePreparation.Patch -> MedicationApplicationType.PATCH_ON
+        // Singleton row in the manager renders the patch-off icon.
+        is MedicinePreparation.PatchOff -> MedicationApplicationType.PATCH_OFF
     }
 }
 
@@ -731,6 +772,9 @@ private fun MedicinePreparation.toPreparationDraft(
                     patchReleaseRateMcgPerDay = spec.valueMcgPerDay.toEditableString(),
                 )
         }
+
+        // The singleton has no numeric fields to seed.
+        is MedicinePreparation.PatchOff -> base
     }
 }
 
@@ -776,6 +820,11 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
                         )
                 },
             )
+
+            // The singleton's preparation is immutable; the dialog never
+            // reaches this branch because the detail screen hides the edit
+            // action for the singleton.
+            MedicinePreparationType.PATCH_OFF -> MedicinePreparation.PatchOff
         }
     }.getOrNull()
 }
