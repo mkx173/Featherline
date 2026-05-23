@@ -268,40 +268,6 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    fun selectExistingMedicine(medicineUuid: UUID) {
-        onMedicineSelected(medicineUuid)
-    }
-
-    fun onMedicineSelected(medicineUuid: UUID) {
-        val activeMedicine = _uiState.value.activeMedicines.firstOrNull { it.uuid == medicineUuid }
-        if (activeMedicine != null) {
-            applySelectedMedicine(activeMedicine)
-            return
-        }
-        viewModelScope.launch {
-            medicineRepository.getByUuid(medicineUuid)?.let(::applySelectedMedicine)
-        }
-    }
-
-    private fun applySelectedMedicine(medicine: Medicine) {
-        _uiState.update { currentState ->
-            val updatedDraft = medicineDraftFromMedicine(
-                medicine = medicine,
-                applicationType = currentState.medicineDraft.applicationType,
-            )
-            currentState.copy(
-                resolvedMedicine = medicine,
-                medicineDraft = updatedDraft,
-                doseInstructionDraft = DoseInstructionDraftUiState(
-                    applicationType = updatedDraft.applicationType,
-                    preparationType = medicine.preparation.type,
-                ),
-                errorMessageRes = null,
-                isScheduleFulfillmentWarningVisible = false,
-            )
-        }
-    }
-
     fun updateCountText(countText: String) {
         _uiState.update { currentState ->
             currentState.copy(

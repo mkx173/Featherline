@@ -30,7 +30,6 @@ import com.mkx.hrttracker.ui.medication.MedicationLogEntryEditorSheet
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
-import java.util.UUID
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -44,8 +43,6 @@ fun AddEntryScreen(
     quickLogRequest: AddEntryQuickLogRequest? = null,
     editSnapshot: AddEntryEditSnapshot? = null,
     manualSlot: AddEntryManualSlotRequest? = null,
-    selectedMedicineUuid: String? = null,
-    onMedicinePickerResultConsumed: () -> Unit = { },
     onOpenMedicinePicker: () -> Unit,
     onDismissRequest: () -> Unit,
     onEntrySaved: () -> Unit,
@@ -99,13 +96,6 @@ fun AddEntryScreen(
                 onEntrySaved()
             }
         }
-    }
-
-    LaunchedEffect(selectedMedicineUuid) {
-        val medicineUuid = selectedMedicineUuid ?: return@LaunchedEffect
-        runCatching { UUID.fromString(medicineUuid) }
-            .onSuccess(viewModel::onMedicineSelected)
-        onMedicinePickerResultConsumed()
     }
 
     val context = LocalContext.current

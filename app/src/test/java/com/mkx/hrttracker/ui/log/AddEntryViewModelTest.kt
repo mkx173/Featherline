@@ -15,6 +15,7 @@ import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.model.medication.testPatchOffMedicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import io.mockk.coEvery
@@ -247,9 +248,10 @@ class AddEntryViewModelTest {
     }
 
     @Test
-    fun newManualLogFindsOrCreatesMedicineBeforeSaving() = runTest {
-        // A brand-new manual log now receives a medicine UUID from the routed
-        // Medicines picker. Save must use that resolved UUID directly.
+    fun newManualLogFromManualSlotSavesWithResolvedMedicineUuid() = runTest {
+        // The "+ Add log" flow now arrives pre-loaded with medicine + dose
+        // from MedicineSlotResult; the user only confirms the time. Saving
+        // must reuse the resolved UUID, not re-resolve through the catalog.
         coEvery {
             medicationLogRepository.saveEntry(
                 uuid = null,
@@ -273,12 +275,13 @@ class AddEntryViewModelTest {
             medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
             medicineRepository = medicineRepository,
         )
-        viewModel.initialize(emptyList())
-        viewModel.onMedicineSelected(estradiolMedicine.uuid)
+        viewModel.initializeManualSlot(
+            medicineUuid = estradiolMedicine.uuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            medicationCount = 1,
+        )
         advanceUntilIdle()
-        viewModel.updateDoseInstructionDraft {
-            it.copy(tabletFractionNumerator = 1, tabletFractionDenominator = 1)
-        }
         viewModel.saveEntry()
         advanceUntilIdle()
 
@@ -299,47 +302,12 @@ class AddEntryViewModelTest {
         }
     }
 
+    // The "+ Add log → manager → dose sheet → AddEntry pre-filled" flow.
+    // initializeManualSlot must resolve the medicine via the repository when
+    // it isn't already in the active-medicines cache and hydrate the dose
+    // draft from the supplied DoseInstruction.
     @Test
-    fun onMedicineSelected_resolvesMedicineAndUpdatesDoseDraftShape() = runTest {
-        val vialMedicine = testMedicine(
-            uuid = UUID.fromString("aaaa0000-0000-0000-0000-000000000099"),
-            key = MedicationKey.ESTRADIOL_VALERATE,
-            preparation = MedicinePreparation.InjectionMultiUseVial(
-                concentrationMgPerMl = 20.0,
-                vialVolumeMl = 5.0,
-            ),
-        )
-        coEvery { medicineRepository.getByUuid(vialMedicine.uuid) } returns vialMedicine
-
-        val viewModel = AddEntryViewModel(
-            medicationLogRepository = medicationLogRepository,
-            medicationGroupRepository = medicationGroupRepository,
-            medicationReminderScheduler = medicationReminderScheduler,
-            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
-            medicineRepository = medicineRepository,
-        )
-        viewModel.initialize(emptyList())
-
-        viewModel.onMedicineSelected(vialMedicine.uuid)
-        advanceUntilIdle()
-
-        val uiState = viewModel.uiState.value
-        assertEquals(vialMedicine, uiState.resolvedMedicine)
-        assertEquals(vialMedicine.uuid, uiState.medicineDraft.selectedMedicineUuid)
-        assertEquals(MedicationApplicationType.INJECTION, uiState.medicineDraft.applicationType)
-        assertEquals(
-            com.mkx.hrttracker.model.medication.MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
-            uiState.doseInstructionDraft.preparationType,
-        )
-        assertEquals(MedicationApplicationType.INJECTION, uiState.doseInstructionDraft.applicationType)
-    }
-
-    // Encodes the "+ Add log → manager → dose sheet → AddEntry pre-filled"
-    // flow. initializeManualSlot lands the VM in an editor state with the
-    // medicine resolved, dose draft hydrated, and applied time defaulted to
-    // now — the user only needs to confirm the time before saving.
-    @Test
-    fun initializeManualSlot_resolvesMedicineAndSeedsDoseDraft() = runTest {
+    fun initializeManualSlot_resolvesMedicineFromRepositoryOnCacheMiss() = runTest {
         val vialMedicine = testMedicine(
             uuid = UUID.fromString("aaaa0000-0000-0000-0000-0000000000aa"),
             key = MedicationKey.ESTRADIOL_VALERATE,
@@ -360,17 +328,52 @@ class AddEntryViewModelTest {
         viewModel.initializeManualSlot(
             medicineUuid = vialMedicine.uuid,
             applicationType = MedicationApplicationType.INJECTION,
-            doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction.VolumeMl(0.5),
+            doseInstruction = DoseInstruction.VolumeMl(0.5),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { medicineRepository.getByUuid(vialMedicine.uuid) }
+        val uiState = viewModel.uiState.value
+        assertEquals(vialMedicine, uiState.resolvedMedicine)
+        assertEquals(MedicationApplicationType.INJECTION, uiState.medicineDraft.applicationType)
+        assertEquals(null, uiState.sourceGroupUuid)
+        assertEquals(null, uiState.scheduledFor)
+    }
+
+    // The reason this whole flow was rewired: a manual PATCH_OFF log used to
+    // be impossible because the inline picker couldn't represent the
+    // PatchOff sentinel. With the singleton + manualSlot path, picking
+    // PATCH_OFF in the manager produces a (uuid, PATCH_OFF, Noop) slot, and
+    // initializeManualSlot must accept Noop + the PatchOff preparation so
+    // the user can save it as a normal log entry.
+    @Test
+    fun initializeManualSlot_acceptsPatchOffSingletonWithNoopDose() = runTest {
+        val patchOff = testPatchOffMedicine()
+        coEvery { medicineRepository.getByUuid(patchOff.uuid) } returns patchOff
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+
+        viewModel.initializeManualSlot(
+            medicineUuid = patchOff.uuid,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
             medicationCount = 1,
         )
         advanceUntilIdle()
 
         val uiState = viewModel.uiState.value
-        assertEquals(vialMedicine, uiState.resolvedMedicine)
-        assertEquals(MedicationApplicationType.INJECTION, uiState.medicineDraft.applicationType)
-        // No source group on a freestanding manual log.
-        assertEquals(null, uiState.sourceGroupUuid)
-        assertEquals(null, uiState.scheduledFor)
+        assertEquals(patchOff, uiState.resolvedMedicine)
+        assertEquals(MedicationApplicationType.PATCH_OFF, uiState.medicineDraft.applicationType)
+        assertEquals(
+            MedicationApplicationType.PATCH_OFF,
+            uiState.doseInstructionDraft.applicationType,
+        )
     }
 
     @Test

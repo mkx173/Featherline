@@ -91,8 +91,7 @@ fun MedicinesScreen(
         { medicineUuid ->
             // slotResultKey mode: keep the user on the manager and open the
             // dose sheet for the picked medicine. The host's onMedicineClick
-            // is only invoked for non-slot flows (AddEntry uuid pick, normal-
-            // mode open-detail).
+            // is only invoked in normal mode (open detail screen).
             if (slotResultKey != null) {
                 pendingSlotMedicineUuid = medicineUuid.toString()
             } else {
@@ -119,9 +118,9 @@ fun MedicinesScreen(
                     showCreateMedicineSheet = false
                 }
             },
-            // Hand the freshly-created medicine off via the same path tapping an
-            // existing card uses; the slot-result flow opens the dose sheet on
-            // it, and the uuid-only flow propagates to onMedicineClick.
+            // Hand the freshly-created medicine off via the same path tapping
+            // an existing card uses: slot-result mode opens the dose sheet,
+            // normal mode propagates to onMedicineClick.
             onCreated = { medicineUuid ->
                 hideBottomSheet(scope, createMedicineSheetState) {
                     showCreateMedicineSheet = false

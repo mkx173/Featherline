@@ -96,11 +96,11 @@ class HrtTrackerNavHostTest {
     }
 
     @Test
-    fun medicinesCreateRouteIncludesOptionalPickerResultKey() {
+    fun medicinesCreateRouteIncludesOptionalSlotResultKey() {
         assertEquals("medicines/plan", Screen.Medicines.createRoute(Screen.Plan.route))
         assertEquals(
-            "medicines/plan?pickerResultKey=medicineResult",
-            Screen.Medicines.createRoute(Screen.Plan.route, pickerResultKey = "medicineResult"),
+            "medicines/plan?slotResultKey=addEntrySlotResult",
+            Screen.Medicines.createRoute(Screen.Plan.route, slotResultKey = "addEntrySlotResult"),
         )
     }
 
