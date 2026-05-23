@@ -43,6 +43,7 @@ fun AddEntryScreen(
     modifier: Modifier = Modifier,
     quickLogRequest: AddEntryQuickLogRequest? = null,
     editSnapshot: AddEntryEditSnapshot? = null,
+    manualSlot: AddEntryManualSlotRequest? = null,
     selectedMedicineUuid: String? = null,
     onMedicinePickerResultConsumed: () -> Unit = { },
     onOpenMedicinePicker: () -> Unit,
@@ -63,14 +64,9 @@ fun AddEntryScreen(
     BackHandler(enabled = isSheetLockedState.value) { }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(entryIds, quickLogRequest, editSnapshot) {
-        if (quickLogRequest == null) {
-            viewModel.initialize(
-                entryIds = entryIds,
-                editSnapshot = editSnapshot,
-            )
-        } else {
-            viewModel.initializeQuickLog(
+    LaunchedEffect(entryIds, quickLogRequest, editSnapshot, manualSlot) {
+        when {
+            quickLogRequest != null -> viewModel.initializeQuickLog(
                 groupId = quickLogRequest.groupId,
                 scheduleTimeUuid = quickLogRequest.scheduleTimeUuid,
                 scheduledFor = quickLogRequest.scheduledFor,
@@ -82,6 +78,16 @@ fun AddEntryScreen(
                 sourceGroupColorKey = quickLogRequest.sourceGroupColorKey,
                 sourceGroupPreviousScheduledFor = quickLogRequest.sourceGroupPreviousScheduledFor,
                 sourceGroupNextScheduledFor = quickLogRequest.sourceGroupNextScheduledFor,
+            )
+            manualSlot != null -> viewModel.initializeManualSlot(
+                medicineUuid = manualSlot.medicineUuid,
+                applicationType = manualSlot.applicationType,
+                doseInstruction = manualSlot.doseInstruction,
+                medicationCount = manualSlot.medicationCount,
+            )
+            else -> viewModel.initialize(
+                entryIds = entryIds,
+                editSnapshot = editSnapshot,
             )
         }
     }

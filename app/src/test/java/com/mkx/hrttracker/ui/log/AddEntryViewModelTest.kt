@@ -334,6 +334,45 @@ class AddEntryViewModelTest {
         assertEquals(MedicationApplicationType.INJECTION, uiState.doseInstructionDraft.applicationType)
     }
 
+    // Encodes the "+ Add log → manager → dose sheet → AddEntry pre-filled"
+    // flow. initializeManualSlot lands the VM in an editor state with the
+    // medicine resolved, dose draft hydrated, and applied time defaulted to
+    // now — the user only needs to confirm the time before saving.
+    @Test
+    fun initializeManualSlot_resolvesMedicineAndSeedsDoseDraft() = runTest {
+        val vialMedicine = testMedicine(
+            uuid = UUID.fromString("aaaa0000-0000-0000-0000-0000000000aa"),
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 20.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
+        coEvery { medicineRepository.getByUuid(vialMedicine.uuid) } returns vialMedicine
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+
+        viewModel.initializeManualSlot(
+            medicineUuid = vialMedicine.uuid,
+            applicationType = MedicationApplicationType.INJECTION,
+            doseInstruction = com.mkx.hrttracker.model.medication.DoseInstruction.VolumeMl(0.5),
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+
+        val uiState = viewModel.uiState.value
+        assertEquals(vialMedicine, uiState.resolvedMedicine)
+        assertEquals(MedicationApplicationType.INJECTION, uiState.medicineDraft.applicationType)
+        // No source group on a freestanding manual log.
+        assertEquals(null, uiState.sourceGroupUuid)
+        assertEquals(null, uiState.scheduledFor)
+    }
+
     @Test
     fun buildEditingUiState_preserves_existing_count_for_single_counted_entry() {
         val entry = testMedicationLogEntry(
