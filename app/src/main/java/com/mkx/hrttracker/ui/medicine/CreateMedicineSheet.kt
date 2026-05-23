@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medicine
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -313,6 +315,7 @@ private fun NewMedicinePreparationForm(
             value = medicineDraft.pillStrengthMg,
             label = stringResource(R.string.field_pill_strength_mg),
             suffix = stringResource(R.string.unit_mg),
+            leadingIconRes = R.drawable.ic_medication,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_pill_strength_required,
             errorMessageRes = R.string.validation_pill_strength_required
@@ -326,6 +329,7 @@ private fun NewMedicinePreparationForm(
             value = medicineDraft.singleUseVialStrengthMg,
             label = stringResource(R.string.field_single_use_vial_strength_mg),
             suffix = stringResource(R.string.unit_mg),
+            leadingIconRes = R.drawable.ic_vaccines,
             enabled = enabled,
             isError = errorMessageRes == R.string.validation_vial_strength_required,
             errorMessageRes = R.string.validation_vial_strength_required
@@ -340,6 +344,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.concentrationMgPerMl,
                 label = stringResource(R.string.field_concentration_mg_per_ml),
                 suffix = stringResource(R.string.unit_mg_per_ml),
+                leadingIconRes = R.drawable.ic_vaccines,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_concentration_required,
                 errorMessageRes = R.string.validation_concentration_required
@@ -353,6 +358,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.vialVolumeMl,
                 label = stringResource(R.string.field_vial_volume_ml),
                 suffix = stringResource(R.string.unit_ml),
+                leadingIconRes = R.drawable.ic_water_drops,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_vial_volume_required,
                 errorMessageRes = R.string.validation_vial_volume_required
@@ -368,6 +374,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.gelConcentrationPercent,
                 label = stringResource(R.string.field_gel_concentration_percent),
                 suffix = stringResource(R.string.unit_percent),
+                leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
                 errorMessageRes = R.string.validation_gel_concentration_required
@@ -381,6 +388,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.sachetWeightGrams,
                 label = stringResource(R.string.field_sachet_weight_grams),
                 suffix = stringResource(R.string.unit_grams),
+                leadingIconRes = R.drawable.ic_weight,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_sachet_weight_required,
                 errorMessageRes = R.string.validation_sachet_weight_required
@@ -396,6 +404,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.gelConcentrationPercent,
                 label = stringResource(R.string.field_gel_concentration_percent),
                 suffix = stringResource(R.string.unit_percent),
+                leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
                 errorMessageRes = R.string.validation_gel_concentration_required
@@ -409,6 +418,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.containerWeightGrams,
                 label = stringResource(R.string.field_container_weight_grams),
                 suffix = stringResource(R.string.unit_grams),
+                leadingIconRes = R.drawable.ic_weight,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_container_weight_required,
                 errorMessageRes = R.string.validation_container_weight_required
@@ -443,6 +453,7 @@ private fun NewMedicinePreparationForm(
                     value = medicineDraft.patchTotalMg,
                     label = stringResource(R.string.field_patch_total_dosage_mg),
                     suffix = stringResource(R.string.unit_mg),
+                    leadingIconRes = R.drawable.ic_medication,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_total_required,
                     errorMessageRes = R.string.validation_patch_total_required
@@ -456,6 +467,7 @@ private fun NewMedicinePreparationForm(
                     value = medicineDraft.patchReleaseRateMcgPerDay,
                     label = stringResource(R.string.field_patch_release_rate),
                     suffix = stringResource(R.string.unit_mcg_day),
+                    leadingIconRes = R.drawable.ic_total_dissolved_solids,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_release_rate_required,
                     errorMessageRes = R.string.validation_patch_release_rate_required
@@ -535,6 +547,7 @@ private fun NumericField(
     enabled: Boolean = true,
     isError: Boolean = false,
     @StringRes errorMessageRes: Int? = null,
+    @DrawableRes leadingIconRes: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
     showWarningIcon: Boolean = false,
 ) {
@@ -546,6 +559,14 @@ private fun NumericField(
         isError = isError,
         label = { Text(text = label) },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        leadingIcon = leadingIconRes?.let { iconRes ->
+            {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                )
+            }
+        },
         trailingIcon = if (showWarningIcon) {
             {
                 Icon(

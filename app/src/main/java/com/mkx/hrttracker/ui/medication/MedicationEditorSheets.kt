@@ -1,5 +1,6 @@
 package com.mkx.hrttracker.ui.medication
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -665,6 +666,7 @@ private fun DoseInstructionForm(
             value = doseInstructionDraft.volumeMl,
             label = stringResource(R.string.field_dose_volume_ml),
             suffix = stringResource(R.string.unit_ml),
+            leadingIconRes = R.drawable.ic_water_drops,
             isError = errorMessageRes == R.string.validation_dose_volume_required,
             errorMessageRes = R.string.validation_dose_volume_required
                 .takeIf { errorMessageRes == it },
@@ -677,6 +679,7 @@ private fun DoseInstructionForm(
             value = doseInstructionDraft.weightGrams,
             label = stringResource(R.string.field_dose_weight_grams),
             suffix = stringResource(R.string.unit_grams),
+            leadingIconRes = R.drawable.ic_weight,
             isError = errorMessageRes == R.string.validation_dose_weight_required,
             errorMessageRes = R.string.validation_dose_weight_required
                 .takeIf { errorMessageRes == it },
@@ -969,6 +972,7 @@ private fun NumericField(
     suffix: String? = null,
     isError: Boolean = false,
     @StringRes errorMessageRes: Int? = null,
+    @DrawableRes leadingIconRes: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
     showWarningIcon: Boolean = false,
 ) {
@@ -979,6 +983,14 @@ private fun NumericField(
         isError = isError,
         label = { Text(text = label) },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
+        leadingIcon = leadingIconRes?.let { iconRes ->
+            {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                )
+            }
+        },
         trailingIcon = if (showWarningIcon) {
             {
                 Icon(

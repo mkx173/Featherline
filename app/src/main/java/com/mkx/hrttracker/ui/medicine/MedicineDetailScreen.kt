@@ -496,6 +496,7 @@ private fun PreparationEditorFields(
                 value = draft.pillStrengthMg,
                 label = stringResource(R.string.field_pill_strength_mg),
                 suffix = stringResource(R.string.unit_mg),
+                leadingIconRes = R.drawable.ic_medication,
                 onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
             )
 
@@ -503,6 +504,7 @@ private fun PreparationEditorFields(
                 value = draft.singleUseVialStrengthMg,
                 label = stringResource(R.string.field_single_use_vial_strength_mg),
                 suffix = stringResource(R.string.unit_mg),
+                leadingIconRes = R.drawable.ic_vaccines,
                 onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
             )
 
@@ -511,12 +513,14 @@ private fun PreparationEditorFields(
                     value = draft.concentrationMgPerMl,
                     label = stringResource(R.string.field_concentration_mg_per_ml),
                     suffix = stringResource(R.string.unit_mg_per_ml),
+                    leadingIconRes = R.drawable.ic_vaccines,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
                     label = stringResource(R.string.field_vial_volume_ml),
                     suffix = stringResource(R.string.unit_ml),
+                    leadingIconRes = R.drawable.ic_water_drops,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
             }
@@ -526,12 +530,14 @@ private fun PreparationEditorFields(
                     value = draft.gelConcentrationPercent,
                     label = stringResource(R.string.field_gel_concentration_percent),
                     suffix = stringResource(R.string.unit_percent),
+                    leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.sachetWeightGrams,
                     label = stringResource(R.string.field_sachet_weight_grams),
                     suffix = stringResource(R.string.unit_grams),
+                    leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(sachetWeightGrams = it)) },
                 )
             }
@@ -541,12 +547,14 @@ private fun PreparationEditorFields(
                     value = draft.gelConcentrationPercent,
                     label = stringResource(R.string.field_gel_concentration_percent),
                     suffix = stringResource(R.string.unit_percent),
+                    leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.containerWeightGrams,
                     label = stringResource(R.string.field_container_weight_grams),
                     suffix = stringResource(R.string.unit_grams),
+                    leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(containerWeightGrams = it)) },
                 )
             }
@@ -578,6 +586,7 @@ private fun PreparationEditorFields(
                         value = draft.patchTotalMg,
                         label = stringResource(R.string.field_patch_total_dosage_mg),
                         suffix = stringResource(R.string.unit_mg),
+                        leadingIconRes = R.drawable.ic_medication,
                         onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
                     )
 
@@ -585,6 +594,7 @@ private fun PreparationEditorFields(
                         value = draft.patchReleaseRateMcgPerDay,
                         label = stringResource(R.string.field_patch_release_rate),
                         suffix = stringResource(R.string.unit_mcg_day),
+                        leadingIconRes = R.drawable.ic_total_dissolved_solids,
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
                         },
@@ -602,6 +612,7 @@ private fun NumericInputField(
     label: String,
     onValueChange: (String) -> Unit,
     suffix: String? = null,
+    @androidx.annotation.DrawableRes leadingIconRes: Int? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -609,6 +620,14 @@ private fun NumericInputField(
         modifier = Modifier.fillMaxWidth(),
         label = { Text(text = label) },
         suffix = suffix?.let { { Text(text = it) } },
+        leadingIcon = leadingIconRes?.let { iconRes ->
+            {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                )
+            }
+        },
         singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
             keyboardType = KeyboardType.Decimal,
