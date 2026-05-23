@@ -27,6 +27,7 @@ class MedicationGroupNameFieldTest {
                     groupName = "",
                     defaultGroupName = defaultGroupName,
                     isEditing = false,
+                    isFinishingAfterSave = false,
                     selectedColorKey = MedicationGroupColorKey.ROSE,
                     enabled = true,
                     focusRequester = remember { FocusRequester() },

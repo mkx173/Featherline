@@ -1237,6 +1237,7 @@ private fun MedicationGroupEditorScreenContent(
                     groupName = uiState.groupName,
                     defaultGroupName = uiState.defaultGroupName,
                     isEditing = uiState.isEditing,
+                    isFinishingAfterSave = uiState.isFinishingAfterSave,
                     selectedColorKey = uiState.groupColorKey,
                     enabled = !uiState.isArchived,
                     focusRequester = groupNameFocusRequester,
@@ -1982,6 +1983,7 @@ internal fun MedicationGroupNameField(
     groupName: String,
     defaultGroupName: String,
     isEditing: Boolean,
+    isFinishingAfterSave: Boolean,
     selectedColorKey: MedicationGroupColorKey,
     enabled: Boolean,
     focusRequester: FocusRequester,
@@ -2011,6 +2013,7 @@ internal fun MedicationGroupNameField(
     val groupNamePlaceholder = medicationGroupNamePlaceholder(
         defaultGroupName = defaultGroupName,
         isEditing = isEditing,
+        isFinishingAfterSave = isFinishingAfterSave,
     )
     Column(
         modifier = modifier,
@@ -2046,8 +2049,13 @@ internal fun MedicationGroupNameField(
 internal fun medicationGroupNamePlaceholder(
     defaultGroupName: String,
     isEditing: Boolean,
+    isFinishingAfterSave: Boolean,
 ): String? {
-    return defaultGroupName.takeIf { !isEditing && it.isNotBlank() }
+    // isFinishingAfterSave bridges the one-frame gap where the snapshot has
+    // already flipped isEditing=true but the TextFieldState hasn't synced the
+    // resolved groupName yet, which would otherwise flash an empty field.
+    val suppress = isEditing && !isFinishingAfterSave
+    return defaultGroupName.takeIf { !suppress && it.isNotBlank() }
 }
 
 internal fun medicationGroupNameFieldLabelPosition(): TextFieldLabelPosition {

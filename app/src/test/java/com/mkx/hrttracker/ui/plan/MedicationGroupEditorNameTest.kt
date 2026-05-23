@@ -112,6 +112,7 @@ class MedicationGroupEditorNameTest {
             medicationGroupNamePlaceholder(
                 defaultGroupName = "Group 3",
                 isEditing = false,
+                isFinishingAfterSave = false,
             )
         )
     }
@@ -122,6 +123,22 @@ class MedicationGroupEditorNameTest {
             medicationGroupNamePlaceholder(
                 defaultGroupName = "Morning meds",
                 isEditing = true,
+                isFinishingAfterSave = false,
+            )
+        )
+    }
+
+    @Test
+    fun medicationGroupNamePlaceholder_kept_alive_during_finish_after_save() {
+        // Bridges the one-frame gap where isEditing flips true alongside the
+        // resolved groupName but the TextFieldState hasn't synced yet, which
+        // would otherwise flash an empty field as the editor closes.
+        assertEquals(
+            "Group 3",
+            medicationGroupNamePlaceholder(
+                defaultGroupName = "Group 3",
+                isEditing = true,
+                isFinishingAfterSave = true,
             )
         )
     }
