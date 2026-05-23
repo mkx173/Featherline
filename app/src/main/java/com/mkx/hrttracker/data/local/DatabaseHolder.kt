@@ -82,13 +82,19 @@ class DatabaseHolder @Inject constructor(
                 MIGRATION_25_26,
                 MIGRATION_26_27,
                 MIGRATION_27_28,
-                MIGRATION_28_29,
+                // MIGRATION_28_29 intentionally excluded: Room 2.7+ rejects a
+                // migration ending at the same version that
+                // fallbackToDestructiveMigrationFrom starts at. The v28 → v29
+                // step (dropping the legacy home_pk_sql_cache table) is moot
+                // because v30 destructively wipes everything anyway, so v28
+                // and v29 both fall through to the destructive reset below.
             )
             // v29 → v30 reshapes medication slot/log storage around the new
-            // Medicine entity. The transformation is non-trivial and the schema
-            // reset is documented; the destructive fallback owns this hop in
-            // release builds too.
-            .fallbackToDestructiveMigrationFrom(dropAllTables = true, 29)
+            // Medicine entity. The transformation is non-trivial and the
+            // schema reset is documented; the destructive fallback owns this
+            // hop in release builds too. v28 is included because excluding
+            // MIGRATION_28_29 means v28 has no migration path either.
+            .fallbackToDestructiveMigrationFrom(dropAllTables = true, 28, 29)
         if (BuildConfig.DEBUG) {
             // Debug-only: side-loading older APKs is common during development.
             // Release builds intentionally crash on a missing migration so silent
