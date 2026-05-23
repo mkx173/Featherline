@@ -1111,7 +1111,10 @@ private fun pkDoseAmounts(
     count: Int,
 ): PkDoseAmounts {
     val multiplier = count.coerceAtLeast(1)
-    // medicine is null only for PATCH_OFF (route PATCH_REMOVE), which uses neither branch.
+    // PATCH_OFF carries the PatchOff singleton medicine; the simulator still
+    // routes patch removals on applicationType alone (handled by the
+    // PATCH_REMOVE branch below). Legacy log rows from before the singleton
+    // existed pass medicine == null here; both paths fall through cleanly.
     val patchSpec = (medicine?.preparation as? MedicinePreparation.Patch)?.specification
     val perUnitDoseMg = when (route) {
         PkRoute.PATCH_REMOVE -> 0.0
@@ -1144,7 +1147,11 @@ private fun MedicationLogEntry.toEstradiolPkDoseEvent(
         return null
     }
     val route = applicationType.toPkRoute()
-    // PATCH_OFF carries no medicine; a removal is always estradiol (the only patch).
+    // PATCH_OFF now carries the singleton PatchOff medicine, but its selection
+    // is PatchOff (not Catalog), so toEstradiolPkCompound returns null. The
+    // simulator only needs *some* compound for the PATCH_REMOVE route and the
+    // only patch today is estradiol, so we fall back to E2. Legacy log rows
+    // with medicine == null follow the same path.
     val compound = medicine?.toEstradiolPkCompound()
         ?: if (route == PkRoute.PATCH_REMOVE) PkCompound.E2 else return null
     val amounts = pkDoseAmounts(
