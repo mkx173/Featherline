@@ -126,6 +126,7 @@ fun PlanScreen(
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
     onArchivedGroupsClick: () -> Unit,
+    onMedicinesClick: () -> Unit,
     scrollToTopSignal: Int = 0,
     viewModel: PlanViewModel = hiltViewModel(
         viewModelStoreOwner = LocalActivity.current as ComponentActivity
@@ -142,6 +143,7 @@ fun PlanScreen(
         onHistoryClick = onHistoryClick,
         onBatchAddClick = onBatchAddClick,
         onArchivedGroupsClick = onArchivedGroupsClick,
+        onMedicinesClick = onMedicinesClick,
         onDateSelected = viewModel::toggleSelectedDate,
         onDateSelectionReset = viewModel::clearSelectedDate,
         scrollToTopSignal = scrollToTopSignal,
@@ -161,6 +163,7 @@ private fun PlanScreenContent(
     onHistoryClick: () -> Unit,
     onBatchAddClick: () -> Unit,
     onArchivedGroupsClick: () -> Unit,
+    onMedicinesClick: () -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onDateSelectionReset: () -> Unit,
     scrollToTopSignal: Int = 0,
@@ -318,6 +321,12 @@ private fun PlanScreenContent(
                             )
                         }
                         val menuItems = buildList {
+                            add(
+                                HrtDropdownMenuItem(
+                                    text = stringResource(R.string.medicines_title),
+                                    onClick = onMedicinesClick,
+                                )
+                            )
                             add(
                                 HrtDropdownMenuItem(
                                     text = stringResource(R.string.plan_archived_groups),
@@ -1180,6 +1189,7 @@ private fun PlanScreenPreview() {
             onHistoryClick = { },
             onBatchAddClick = { },
             onArchivedGroupsClick = { },
+            onMedicinesClick = { },
             onDateSelected = { },
             onDateSelectionReset = { }
         )

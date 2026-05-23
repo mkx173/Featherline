@@ -60,6 +60,9 @@ import com.mkx.hrttracker.ui.log.AddEntryQuickLogRequest
 import com.mkx.hrttracker.ui.log.AddEntryScreen
 import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
+import com.mkx.hrttracker.ui.medicine.MedicineDetailScreen
+import com.mkx.hrttracker.ui.medicine.MedicineDetailViewModel
+import com.mkx.hrttracker.ui.medicine.MedicinesScreen
 import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -146,6 +149,32 @@ sealed class Screen(val route: String, @get:StringRes val label: Int) {
             } else {
                 "$baseRoute?${CalibrationEditorViewModel.PANEL_ID_ARG}=$panelId&$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
             }
+        }
+    }
+
+    data object Medicines : Screen(
+        "medicines?$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.medicines_title,
+    ) {
+        const val baseRoute = "medicines"
+
+        fun createRoute(topLevelParentRoute: String = Plan.route): String {
+            return "$baseRoute?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
+        }
+    }
+
+    data object MedicineDetail : Screen(
+        "medicine_detail/{${MedicineDetailViewModel.MEDICINE_ID_ARG}}?" +
+                "$TOP_LEVEL_PARENT_ARG={$TOP_LEVEL_PARENT_ARG}",
+        R.string.medicine_detail_title,
+    ) {
+        const val baseRoute = "medicine_detail"
+
+        fun createRoute(
+            medicineId: String,
+            topLevelParentRoute: String = Plan.route,
+        ): String {
+            return "$baseRoute/$medicineId?$TOP_LEVEL_PARENT_ARG=$topLevelParentRoute"
         }
     }
 
@@ -552,6 +581,11 @@ fun HrtTrackerNavHost(
                             navController.navigate(Screen.PlanArchivedGroups.createRoute(Screen.Plan.route)) {
                                 launchSingleTop = true
                             }
+                        },
+                        onMedicinesClick = {
+                            navController.navigate(Screen.Medicines.createRoute(Screen.Plan.route)) {
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -686,6 +720,53 @@ fun HrtTrackerNavHost(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStack() },
                         onSaved = { navController.popBackStack() }
+                    )
+                }
+                composable(
+                    route = Screen.Medicines.route,
+                    arguments = listOf(
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        },
+                    ),
+                ) {
+                    MedicinesScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onMedicineClick = { medicineId ->
+                            navController.navigate(
+                                Screen.MedicineDetail.createRoute(
+                                    medicineId = medicineId.toString(),
+                                    topLevelParentRoute = Screen.Plan.route,
+                                ),
+                            )
+                        },
+                    )
+                }
+                composable(
+                    route = Screen.MedicineDetail.route,
+                    arguments = listOf(
+                        navArgument(MedicineDetailViewModel.MEDICINE_ID_ARG) {
+                            type = NavType.StringType
+                        },
+                        navArgument(TOP_LEVEL_PARENT_ARG) {
+                            type = NavType.StringType
+                            defaultValue = Screen.Plan.route
+                        },
+                    ),
+                ) {
+                    MedicineDetailScreen(
+                        modifier = modifier,
+                        onNavigateBack = { navController.popBackStack() },
+                        onGroupClick = { groupId ->
+                            navController.navigate(
+                                Screen.EditMedicationGroup.createRoute(
+                                    topLevelParentRoute = Screen.Plan.route,
+                                    groupId = groupId.toString(),
+                                ),
+                            )
+                        },
                     )
                 }
                 composable(
