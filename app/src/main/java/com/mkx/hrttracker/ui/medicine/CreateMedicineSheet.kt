@@ -346,7 +346,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.concentrationMgPerMl,
                 label = stringResource(R.string.field_concentration_mg_per_ml),
                 suffix = stringResource(R.string.unit_mg_per_ml),
-                leadingIconRes = R.drawable.ic_vaccines,
+                leadingIconRes = R.drawable.ic_humidity_percentage,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_concentration_required,
                 errorMessageRes = R.string.validation_concentration_required
@@ -360,7 +360,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.vialVolumeMl,
                 label = stringResource(R.string.field_vial_volume_ml),
                 suffix = stringResource(R.string.unit_ml),
-                leadingIconRes = R.drawable.ic_water_drops,
+                leadingIconRes = R.drawable.ic_fluid,
                 enabled = enabled,
                 isError = errorMessageRes == R.string.validation_vial_volume_required,
                 errorMessageRes = R.string.validation_vial_volume_required

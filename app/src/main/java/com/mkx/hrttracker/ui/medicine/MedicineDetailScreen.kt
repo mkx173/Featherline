@@ -519,14 +519,14 @@ private fun PreparationEditorFields(
                     value = draft.concentrationMgPerMl,
                     label = stringResource(R.string.field_concentration_mg_per_ml),
                     suffix = stringResource(R.string.unit_mg_per_ml),
-                    leadingIconRes = R.drawable.ic_vaccines,
+                    leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
                     label = stringResource(R.string.field_vial_volume_ml),
                     suffix = stringResource(R.string.unit_ml),
-                    leadingIconRes = R.drawable.ic_water_drops,
+                    leadingIconRes = R.drawable.ic_fluid,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
             }
