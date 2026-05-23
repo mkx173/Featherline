@@ -453,7 +453,7 @@ private fun NewMedicinePreparationForm(
                     value = medicineDraft.patchTotalMg,
                     label = stringResource(R.string.field_patch_total_dosage_mg),
                     suffix = stringResource(R.string.unit_mg),
-                    leadingIconRes = R.drawable.ic_medication,
+                    leadingIconRes = R.drawable.ic_chronic,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_total_required,
                     errorMessageRes = R.string.validation_patch_total_required
@@ -467,7 +467,7 @@ private fun NewMedicinePreparationForm(
                     value = medicineDraft.patchReleaseRateMcgPerDay,
                     label = stringResource(R.string.field_patch_release_rate),
                     suffix = stringResource(R.string.unit_mcg_day),
-                    leadingIconRes = R.drawable.ic_total_dissolved_solids,
+                    leadingIconRes = R.drawable.ic_speed,
                     enabled = enabled,
                     isError = errorMessageRes == R.string.validation_patch_release_rate_required,
                     errorMessageRes = R.string.validation_patch_release_rate_required

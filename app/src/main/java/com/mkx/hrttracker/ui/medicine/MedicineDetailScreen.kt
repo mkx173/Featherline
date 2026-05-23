@@ -586,7 +586,7 @@ private fun PreparationEditorFields(
                         value = draft.patchTotalMg,
                         label = stringResource(R.string.field_patch_total_dosage_mg),
                         suffix = stringResource(R.string.unit_mg),
-                        leadingIconRes = R.drawable.ic_medication,
+                        leadingIconRes = R.drawable.ic_chronic,
                         onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
                     )
 
@@ -594,7 +594,7 @@ private fun PreparationEditorFields(
                         value = draft.patchReleaseRateMcgPerDay,
                         label = stringResource(R.string.field_patch_release_rate),
                         suffix = stringResource(R.string.unit_mcg_day),
-                        leadingIconRes = R.drawable.ic_total_dissolved_solids,
+                        leadingIconRes = R.drawable.ic_speed,
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
                         },
