@@ -66,15 +66,35 @@ class MedicationEditorModelsTest {
         assertEquals(DoseInstruction.TabletFraction(1, 2), doseDraft.toDoseInstruction())
     }
 
+    // The picker still shows up for ambiguous routes — but draft starts with a
+    // sensible default preparation, so the editor's dose form renders
+    // immediately and validation fails on the strength field, not on "pick a
+    // preparation type". Without a default, switching to gel/injection looks
+    // broken (no fields appear) until the user taps a sub-type chip.
     @Test
-    fun injectionDraftRequiresPreparationTypeWhenRouteIsAmbiguous() {
+    fun injectionDraftDefaultsToFirstAmbiguousPreparation() {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.INJECTION,
         )
 
         assertTrue(draft.requiresPreparationTypeSelection())
-        assertEquals(R.string.validation_preparation_type_required, draft.validationErrorRes())
+        assertEquals(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+            draft.preparationType,
+        )
+        // Strength field validation fires (no "preparation type required" stop).
+        assertEquals(R.string.validation_vial_strength_required, draft.validationErrorRes())
+    }
+
+    @Test
+    fun gelDraftDefaultsToContainer() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL,
+        )
+
+        assertEquals(MedicinePreparationType.GEL_CONTAINER, draft.preparationType)
     }
 
     @Test

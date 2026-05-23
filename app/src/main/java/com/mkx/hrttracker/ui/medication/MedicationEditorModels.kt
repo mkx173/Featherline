@@ -138,7 +138,11 @@ fun defaultMedicineDraft(
         } else {
             category
         },
-        preparationType = inferredPreparationType(resolvedApplicationType),
+        // Ambiguous routes (gel, injection) still need an initial preparation
+        // or the dose form has nothing to render — falls back to the first
+        // ambiguous option (container for gel, single-use vial for injection).
+        preparationType = inferredPreparationType(resolvedApplicationType)
+            ?: ambiguousPreparationTypes(resolvedApplicationType).firstOrNull(),
     )
 }
 
@@ -199,8 +203,10 @@ internal fun ambiguousPreparationTypes(
         )
 
         MedicationApplicationType.GEL -> listOf(
-            MedicinePreparationType.GEL_SACHET,
+            // Container before sachet: a refillable bottle is the more common
+            // dispenser; sachet is the single-dose alternative.
             MedicinePreparationType.GEL_CONTAINER,
+            MedicinePreparationType.GEL_SACHET,
         )
 
         else -> emptyList()
