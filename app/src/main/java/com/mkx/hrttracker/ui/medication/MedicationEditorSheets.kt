@@ -137,7 +137,10 @@ fun MedicationDefinitionEditorSheet(
         confirmButtonText = confirmButtonText,
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
-        fillAvailableHeight = true,
+        // Slot editor sizes to its content. Fields collapse based on whether
+        // a medicine is resolved and the route's dose form, so a fixed
+        // fill-max-size hole below the buttons looks broken.
+        fillAvailableHeight = false,
         isSaving = isSaving,
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = onConfirm,
