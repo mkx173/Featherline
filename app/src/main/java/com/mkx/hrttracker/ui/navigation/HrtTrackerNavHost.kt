@@ -980,7 +980,7 @@ private fun NavHostController.navigateToTopLevelScreen(
     }
 }
 
-private const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
+internal const val TOP_LEVEL_PARENT_ARG = "topLevelParent"
 private const val SLOT_RESULT_KEY_ARG = "slotResultKey"
 private const val ADD_ENTRY_SLOT_RESULT_KEY = "addEntrySlotResult"
 private const val GROUP_SLOT_MEDICINE_RESULT_KEY_PREFIX = "groupSlot_"

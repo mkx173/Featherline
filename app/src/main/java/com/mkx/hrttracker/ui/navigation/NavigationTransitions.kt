@@ -66,6 +66,8 @@ internal fun resolveNavigationMotionPattern(
     initialRoute: String?,
     targetRoute: String?,
     isPop: Boolean,
+    initialTopLevelParentRoute: String? = null,
+    targetTopLevelParentRoute: String? = null,
 ): NavigationMotionPattern {
     val normalizedInitialRoute = normalizeNavigationRoute(initialRoute) ?: return NavigationMotionPattern.NONE
     val normalizedTargetRoute = normalizeNavigationRoute(targetRoute) ?: return NavigationMotionPattern.NONE
@@ -73,9 +75,15 @@ internal fun resolveNavigationMotionPattern(
         return NavigationMotionPattern.NONE
     }
 
-    val initialContext = navigationRouteContextFor(normalizedInitialRoute)
+    val initialContext = navigationRouteContextFor(
+        route = normalizedInitialRoute,
+        topLevelParentRoute = initialTopLevelParentRoute,
+    )
         ?: return NavigationMotionPattern.NONE
-    val targetContext = navigationRouteContextFor(normalizedTargetRoute)
+    val targetContext = navigationRouteContextFor(
+        route = normalizedTargetRoute,
+        topLevelParentRoute = targetTopLevelParentRoute,
+    )
         ?: return NavigationMotionPattern.NONE
 
     if (initialContext.topLevelScreen != targetContext.topLevelScreen) {
@@ -98,6 +106,8 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostEnterTr
             initialRoute = initialState.destination.route,
             targetRoute = targetState.destination.route,
             isPop = false,
+            initialTopLevelParentRoute = initialState.topLevelParentRoute,
+            targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
@@ -119,6 +129,8 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostExitTra
             initialRoute = initialState.destination.route,
             targetRoute = targetState.destination.route,
             isPop = false,
+            initialTopLevelParentRoute = initialState.topLevelParentRoute,
+            targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
@@ -140,6 +152,8 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopEnte
             initialRoute = initialState.destination.route,
             targetRoute = targetState.destination.route,
             isPop = true,
+            initialTopLevelParentRoute = initialState.topLevelParentRoute,
+            targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelEnterTransition()
@@ -161,6 +175,8 @@ internal fun AnimatedContentTransitionScope<NavBackStackEntry>.hrtNavHostPopExit
             initialRoute = initialState.destination.route,
             targetRoute = targetState.destination.route,
             isPop = true,
+            initialTopLevelParentRoute = initialState.topLevelParentRoute,
+            targetTopLevelParentRoute = targetState.topLevelParentRoute,
         )
     ) {
         NavigationMotionPattern.TOP_LEVEL -> topLevelExitTransition()
@@ -255,20 +271,33 @@ internal fun sharedAxisXExitTransition(
     )
 }
 
-private fun navigationRouteContextFor(route: String): NavigationRouteContext? {
+private val NavBackStackEntry.topLevelParentRoute: String?
+    get() = arguments?.getString(TOP_LEVEL_PARENT_ARG)
+
+private fun navigationRouteContextFor(
+    route: String,
+    topLevelParentRoute: String? = null,
+): NavigationRouteContext? {
+    fun childContext(defaultTopLevelScreen: Screen): NavigationRouteContext {
+        return NavigationRouteContext(
+            topLevelScreen = Screen.topLevelScreenForRoute(topLevelParentRoute)
+                ?: defaultTopLevelScreen,
+        )
+    }
+
     return when (route) {
         Screen.Main.route -> NavigationRouteContext(topLevelScreen = Screen.Main)
         Screen.Plan.route -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.PlanBatchAdd.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.PlanArchivedGroups.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.History.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
+        Screen.PlanBatchAdd.baseRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.PlanArchivedGroups.baseRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.History.baseRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
         Screen.Settings.route -> NavigationRouteContext(topLevelScreen = Screen.Settings)
-        Screen.EditMedicationGroup.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.Medicines.motionRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.MedicineDetail.motionRoute -> NavigationRouteContext(topLevelScreen = Screen.Plan)
-        Screen.SettingsCalibration.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Settings)
-        Screen.SettingsCalibrationUnits.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Settings)
-        Screen.SettingsCalibrationEntry.baseRoute -> NavigationRouteContext(topLevelScreen = Screen.Settings)
+        Screen.EditMedicationGroup.baseRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.Medicines.motionRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.MedicineDetail.motionRoute -> childContext(defaultTopLevelScreen = Screen.Plan)
+        Screen.SettingsCalibration.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
+        Screen.SettingsCalibrationUnits.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
+        Screen.SettingsCalibrationEntry.baseRoute -> childContext(defaultTopLevelScreen = Screen.Settings)
         else -> null
     }
 }
