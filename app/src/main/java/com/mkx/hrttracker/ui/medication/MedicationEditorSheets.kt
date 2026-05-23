@@ -431,16 +431,23 @@ private fun MedicationEditorContent(
         MedicationCatalog.applicationTypesFor(medicineDraft.category)
     }
 
-    EditorSectionLabel(stringResource(R.string.field_medication_category))
-    ConnectedButtonGroup(
-        options = editorMedicationCategories(),
-        selectedOption = medicineDraft.category,
-        optionLabel = { category -> stringResource(category.labelRes) },
-        onOptionSelected = { category ->
-            onMedicineDraftChange { it.changeCategory(category) }
-        },
-        enabled = canEditMedicationIdentity && !isSaving,
-    )
+    // Category is fixed by the medicine — switching to a different category
+    // would orphan the resolved medicine (changeCategory clears the selection).
+    // Hide the picker entirely once a medicine is in hand; PATCH_OFF slots keep
+    // it because they carry no medicine and the user must still choose ANTIANDROGEN
+    // vs ESTRADIOL etc.
+    if (resolvedMedicine == null) {
+        EditorSectionLabel(stringResource(R.string.field_medication_category))
+        ConnectedButtonGroup(
+            options = editorMedicationCategories(),
+            selectedOption = medicineDraft.category,
+            optionLabel = { category -> stringResource(category.labelRes) },
+            onOptionSelected = { category ->
+                onMedicineDraftChange { it.changeCategory(category) }
+            },
+            enabled = canEditMedicationIdentity && !isSaving,
+        )
+    }
 
     if (applicationTypeOptions.size > 1) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
