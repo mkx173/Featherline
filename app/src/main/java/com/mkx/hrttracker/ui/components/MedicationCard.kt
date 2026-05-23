@@ -84,15 +84,19 @@ internal fun MedicationCard(
             count = medicationCount,
             extraSupportingText = extraSupportingText
         )
-    val leadingSurfaceColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        groupColorScheme.primaryContainer
+    // No group color → no group identity to express. Fall back to the app's
+    // primary container so the icon still reads as a colored chip; the slate
+    // group palette renders as a gray that visually disappears against the
+    // card.
+    val leadingSurfaceColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        groupColorKey == null -> MaterialTheme.colorScheme.primaryContainer
+        else -> groupColorScheme.primaryContainer
     }
-    val leadingContentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else {
-        groupColorScheme.onPrimaryContainer
+    val leadingContentColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        groupColorKey == null -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> groupColorScheme.onPrimaryContainer
     }
     val leadingIconModifier = Modifier
         .size(36.dp)
