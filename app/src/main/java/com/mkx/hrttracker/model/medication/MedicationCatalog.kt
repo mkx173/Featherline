@@ -68,12 +68,35 @@ enum class MedicationKey(val category: MedicationCategory) {
     }
 }
 
-// Catalog entries now carry only medication-key identity. Preparation fields
-// and dose-instruction presets moved into picker drafts when the picker
-// migrated to the new Medicine + DoseInstruction model.
+// Catalog entries carry medication-key identity plus assist-chip presets for
+// raw preparation/dose fields. The actual preparation and dose values still
+// live in the picker drafts until save.
 data class MedicationCatalogEntry(
     val medicationKey: MedicationKey?,
+    val doseAssistPresets: Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> = emptyMap(),
 )
+
+sealed interface MedicationDoseAssistPreset {
+    data class MgAsMedicine(
+        val valueMg: String,
+    ) : MedicationDoseAssistPreset
+
+    data class GelPercent(
+        val percent: String,
+    ) : MedicationDoseAssistPreset
+
+    data class GelWeightGrams(
+        val weightGrams: String,
+    ) : MedicationDoseAssistPreset
+
+    data class PatchTotalMg(
+        val valueMg: String,
+    ) : MedicationDoseAssistPreset
+
+    data class PatchReleaseRateMcgPerDay(
+        val valueMcgPerDay: String,
+    ) : MedicationDoseAssistPreset
+}
 
 data class MedicationApplicationCatalog(
     val category: MedicationCategory,
@@ -88,8 +111,14 @@ object MedicationCatalog {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_VALERATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "2", "3"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "2", "3"),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -97,8 +126,14 @@ object MedicationCatalog {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.SUBLINGUAL,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_VALERATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "2"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    doseAssistPresets = pillMgDoseAssistPresets("1", "2"),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -106,10 +141,22 @@ object MedicationCatalog {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.INJECTION,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_VALERATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_CYPIONATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_ENANTHATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_BENZOATE),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_CYPIONATE,
+                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
+                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
+                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10"),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -117,7 +164,10 @@ object MedicationCatalog {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.GEL,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_GEL),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_GEL,
+                    doseAssistPresets = gelDoseAssistPresets(),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -125,7 +175,10 @@ object MedicationCatalog {
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.PATCH_ON,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.ESTRADIOL_PATCH),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.ESTRADIOL_PATCH,
+                    doseAssistPresets = patchDoseAssistPresets(),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -151,9 +204,18 @@ object MedicationCatalog {
             category = MedicationCategory.ANTIANDROGEN,
             applicationType = MedicationApplicationType.ORAL,
             entries = listOf(
-                MedicationCatalogEntry(medicationKey = MedicationKey.SPIRONOLACTONE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.CYPROTERONE_ACETATE),
-                MedicationCatalogEntry(medicationKey = MedicationKey.BICALUTAMIDE),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.SPIRONOLACTONE,
+                    doseAssistPresets = pillMgDoseAssistPresets("100", "200"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.CYPROTERONE_ACETATE,
+                    doseAssistPresets = pillMgDoseAssistPresets("6.25", "12.5", "25"),
+                ),
+                MedicationCatalogEntry(
+                    medicationKey = MedicationKey.BICALUTAMIDE,
+                    doseAssistPresets = pillMgDoseAssistPresets("25", "50"),
+                ),
             ),
             allowCustomMedicationName = false,
         ),
@@ -199,5 +261,51 @@ object MedicationCatalog {
         applicationType: MedicationApplicationType,
     ): MedicationCatalogEntry {
         return catalogFor(category, applicationType).entries.first()
+    }
+
+    private fun pillMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.PILL to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
+
+    private fun singleUseVialMgDoseAssistPresets(
+        vararg valuesMg: String,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL to valuesMg.map {
+                MedicationDoseAssistPreset.MgAsMedicine(it)
+            },
+        )
+    }
+
+    private fun gelDoseAssistPresets(): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        val presets = listOf(
+            MedicationDoseAssistPreset.GelPercent("0.06"),
+            MedicationDoseAssistPreset.GelPercent("0.3"),
+            MedicationDoseAssistPreset.GelPercent("0.6"),
+            MedicationDoseAssistPreset.GelWeightGrams("1.25"),
+            MedicationDoseAssistPreset.GelWeightGrams("2.5"),
+        )
+        return mapOf(
+            MedicinePreparationType.GEL_SACHET to presets,
+            MedicinePreparationType.GEL_CONTAINER to presets,
+        )
+    }
+
+    private fun patchDoseAssistPresets(): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return mapOf(
+            MedicinePreparationType.PATCH to listOf(
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("50"),
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("75"),
+                MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("100"),
+                MedicationDoseAssistPreset.PatchTotalMg("0.36"),
+                MedicationDoseAssistPreset.PatchTotalMg("0.72"),
+            ),
+        )
     }
 }

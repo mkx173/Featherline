@@ -1,6 +1,8 @@
 package com.mkx.hrttracker.ui.medicine
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,12 +18,15 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -32,11 +37,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -61,25 +68,44 @@ import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.labelRes
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MedicinesScreen(
     onNavigateBack: () -> Unit,
     onMedicineClick: (UUID) -> Unit,
     modifier: Modifier = Modifier,
     slotResultKey: String? = null,
+    slotDraftMode: MedicineSlotDraftMode = MedicineSlotDraftMode.GROUP_SLOT,
     onSlotResolved: (MedicineSlotResult) -> Unit = { },
+    onManualLogSaved: () -> Unit = { },
     viewModel: MedicinesViewModel = hiltViewModel(),
     createMedicineViewModel: CreateMedicineViewModel = hiltViewModel(),
+    slotDraftViewModel: MedicineSlotDraftViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val slotDraftUiState by slotDraftViewModel.uiState.collectAsStateWithLifecycle()
+    val isManualSlotLocked = slotDraftMode == MedicineSlotDraftMode.MANUAL_LOG &&
+        (slotDraftUiState.isSaving || slotDraftUiState.isSaved)
+    val isManualSlotLockedState = rememberUpdatedState(isManualSlotLocked)
+    val allowManualSlotCompletionHideState = remember { mutableStateOf(false) }
     var showCreateMedicineSheet by rememberSaveable { mutableStateOf(false) }
     // The slot-result flow keeps the picked medicine in this state while the
     // dose sheet is up; clearing it dismisses the sheet.
     var pendingSlotMedicineUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val createMedicineSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val slotDraftSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val slotDraftSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { value ->
+            canHideManualSlotSheet(
+                value = value,
+                isManualSlotLocked = isManualSlotLockedState.value,
+                allowManualSlotCompletionHide = allowManualSlotCompletionHideState.value,
+            )
+        },
+    )
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val saveEntryFailureMessage = stringResource(R.string.save_entry_failure)
 
     // Reset the shared draft when the sheet opens so a previously-dismissed
     // attempt doesn't leak into the next one.
@@ -87,12 +113,20 @@ fun MedicinesScreen(
         if (showCreateMedicineSheet) createMedicineViewModel.reset()
     }
 
-    val handleMedicineTap: (UUID) -> Unit = remember(slotResultKey, onMedicineClick) {
+    val handleMedicineTap: (UUID) -> Unit = remember(
+        slotResultKey,
+        slotDraftMode,
+        slotDraftViewModel,
+        onMedicineClick,
+    ) {
         { medicineUuid ->
             // slotResultKey mode: keep the user on the manager and open the
             // dose sheet for the picked medicine. The host's onMedicineClick
             // is only invoked in normal mode (open detail screen).
-            if (slotResultKey != null) {
+            if (slotResultKey != null || slotDraftMode == MedicineSlotDraftMode.MANUAL_LOG) {
+                if (slotDraftMode == MedicineSlotDraftMode.MANUAL_LOG) {
+                    slotDraftViewModel.resetManualLogDraft()
+                }
                 pendingSlotMedicineUuid = medicineUuid.toString()
             } else {
                 onMedicineClick(medicineUuid)
@@ -124,7 +158,9 @@ fun MedicinesScreen(
             onCreated = { medicineUuid ->
                 hideBottomSheet(scope, createMedicineSheetState) {
                     showCreateMedicineSheet = false
-                    handleMedicineTap(medicineUuid)
+                    if (slotResultKey != null || slotDraftMode == MedicineSlotDraftMode.MANUAL_LOG) {
+                        handleMedicineTap(medicineUuid)
+                    }
                 }
             },
             viewModel = createMedicineViewModel,
@@ -138,10 +174,16 @@ fun MedicinesScreen(
         MedicineSlotDraftSheet(
             medicine = pendingMedicine,
             sheetState = slotDraftSheetState,
-            onDismissRequest = { pendingSlotMedicineUuid = null },
-            onCloseClick = {
-                hideBottomSheet(scope, slotDraftSheetState) {
+            onDismissRequest = {
+                if (!isManualSlotLocked) {
                     pendingSlotMedicineUuid = null
+                }
+            },
+            onCloseClick = {
+                if (!isManualSlotLocked) {
+                    hideBottomSheet(scope, slotDraftSheetState) {
+                        pendingSlotMedicineUuid = null
+                    }
                 }
             },
             onConfirm = { slotResult ->
@@ -150,8 +192,37 @@ fun MedicinesScreen(
                     onSlotResolved(slotResult)
                 }
             },
+            mode = slotDraftMode,
+            onManualLogSaved = { consumeSavedState ->
+                allowManualSlotCompletionHideState.value = true
+                hideBottomSheet(scope, slotDraftSheetState) {
+                    pendingSlotMedicineUuid = null
+                    allowManualSlotCompletionHideState.value = false
+                    consumeSavedState()
+                    onManualLogSaved()
+                }
+            },
+            onManualLogSaveFailure = {
+                Toast.makeText(
+                    context,
+                    saveEntryFailureMessage,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            },
+            viewModel = slotDraftViewModel,
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun canHideManualSlotSheet(
+    value: SheetValue,
+    isManualSlotLocked: Boolean,
+    allowManualSlotCompletionHide: Boolean,
+): Boolean {
+    return value != SheetValue.Hidden ||
+        !isManualSlotLocked ||
+        allowManualSlotCompletionHide
 }
 
 private fun MedicinesUiState.findMedicineByUuid(
@@ -211,6 +282,16 @@ private fun MedicinesScreenContent(
         },
     ) { innerPadding ->
         AppContentContainer(modifier = Modifier.padding(innerPadding)) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingIndicator()
+                }
+                return@AppContentContainer
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),

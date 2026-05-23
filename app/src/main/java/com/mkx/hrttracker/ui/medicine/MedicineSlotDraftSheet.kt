@@ -2,21 +2,29 @@ package com.mkx.hrttracker.ui.medicine
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SheetState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
+import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
@@ -28,6 +36,10 @@ import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import com.mkx.hrttracker.util.dateLabelFormatter
+import com.mkx.hrttracker.util.rememberAppLocale
+import com.mkx.hrttracker.util.rememberLocalizedShortTimeFormatter
+import java.time.LocalDate
 
 /**
  * Dose-instruction sheet hosted by the medicine manager when a picker tap
@@ -44,14 +56,41 @@ fun MedicineSlotDraftSheet(
     onCloseClick: () -> Unit,
     onConfirm: (MedicineSlotResult) -> Unit,
     modifier: Modifier = Modifier,
+    mode: MedicineSlotDraftMode = MedicineSlotDraftMode.GROUP_SLOT,
+    onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
+    onManualLogSaveFailure: () -> Unit = { },
+    viewModel: MedicineSlotDraftViewModel = hiltViewModel(),
 ) {
+    val manualLogUiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isManualLogMode = mode == MedicineSlotDraftMode.MANUAL_LOG
+    val isSaving = isManualLogMode && (manualLogUiState.isSaving || manualLogUiState.isSaved)
+    val appLocale = rememberAppLocale()
+    val today = remember { LocalDate.now() }
+    val dateFormatter = remember(appLocale, today) {
+        dateLabelFormatter(appLocale, today)
+    }
+    val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+
+    LaunchedEffect(isManualLogMode, manualLogUiState.isSaved) {
+        if (isManualLogMode && manualLogUiState.isSaved) {
+            onManualLogSaved(viewModel::consumeSavedState)
+        }
+    }
+
+    LaunchedEffect(isManualLogMode, manualLogUiState.saveResult) {
+        if (isManualLogMode && manualLogUiState.saveResult == MedicineSlotDraftSaveResult.FAILURE) {
+            onManualLogSaveFailure()
+            viewModel.consumeSaveResult()
+        }
+    }
+
     // Per-medicine remembered drafts: tapping a different card replaces the
     // medicine and starts the form fresh.
     var medicineDraft by remember(medicine.uuid) {
         mutableStateOf(
             medicineDraftFromMedicine(
                 medicine = medicine,
-                applicationType = MedicationApplicationType.ORAL,
+                applicationType = initialApplicationTypeForSlotDraft(medicine),
             )
         )
     }
@@ -74,7 +113,7 @@ fun MedicineSlotDraftSheet(
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         fillAvailableHeight = false,
-        isSaving = false,
+        isSaving = isSaving,
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = {
             val error = medicineDraft.selectedMedicineValidationErrorRes()
@@ -93,17 +132,25 @@ fun MedicineSlotDraftSheet(
             } else {
                 doseInstructionDraft.toDoseInstruction()
             }
-            onConfirm(
-                MedicineSlotResult(
+            val resolvedCount = resolvedMedicationCountForSave(
+                applicationType = applicationType,
+                countText = countText,
+            )
+            val slotResult = MedicineSlotResult(
+                medicineUuid = medicine.uuid,
+                applicationType = applicationType,
+                doseInstruction = resolvedDose,
+                count = resolvedCount,
+            )
+            when (mode) {
+                MedicineSlotDraftMode.GROUP_SLOT -> onConfirm(slotResult)
+                MedicineSlotDraftMode.MANUAL_LOG -> viewModel.saveManualLog(
                     medicineUuid = medicine.uuid,
                     applicationType = applicationType,
                     doseInstruction = resolvedDose,
-                    count = resolvedMedicationCountForSave(
-                        applicationType = applicationType,
-                        countText = countText,
-                    ),
+                    count = resolvedCount,
                 )
-            )
+            }
         },
     ) {
         MedicationEditorContent(
@@ -157,7 +204,34 @@ fun MedicineSlotDraftSheet(
                 ).toString()
             },
             errorMessageRes = errorMessageRes,
-            isSaving = false,
+            isSaving = isSaving,
         )
+
+        if (isManualLogMode) {
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+            MedicationLogAppliedAtFields(
+                appliedDate = manualLogUiState.appliedDate,
+                appliedTime = manualLogUiState.appliedTime,
+                appliedDateText = dateFormatter(manualLogUiState.appliedDate),
+                appliedTimeText = manualLogUiState.appliedTime.format(timeFormatter),
+                appliedZoneId = manualLogUiState.appliedZoneId,
+                onAppliedDateChange = viewModel::updateAppliedDate,
+                onAppliedTimeChange = viewModel::updateAppliedTime,
+            )
+        }
+    }
+}
+
+enum class MedicineSlotDraftMode {
+    GROUP_SLOT,
+    MANUAL_LOG,
+}
+
+internal fun initialApplicationTypeForSlotDraft(
+    medicine: Medicine,
+): MedicationApplicationType {
+    return when (medicine.preparation.type) {
+        MedicinePreparationType.PATCH_OFF -> MedicationApplicationType.PATCH_OFF
+        else -> MedicationApplicationType.ORAL
     }
 }

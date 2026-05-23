@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,11 +38,13 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,11 +73,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -457,7 +463,7 @@ internal fun MedicationEditorContent(
         )
     }
 
-    if (applicationTypeOptions.size > 1) {
+    if (!isPatchOff && applicationTypeOptions.size > 1) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
         EditorSectionLabel(stringResource(R.string.field_medication_application))
@@ -480,16 +486,27 @@ internal fun MedicationEditorContent(
     }
 
     if (isPatchOff) {
-        // PATCH_OFF carries no medicine — no identity, preparation, or dose.
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        OutlinedTextField(
+
+        MedicationSummaryHeader(
+            medicine = resolvedMedicine,
+            applicationType = medicineDraft.applicationType,
+            doseInstructionDraft = doseInstructionDraft,
+            countText = countText,
+            canOpenMedicinePicker = canRepickMedicine && !isSaving,
+            onOpenMedicinePicker = onOpenMedicinePicker,
+            errorMessageRes = errorMessageRes,
+        )
+
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        NumericField(
             value = "",
-            onValueChange = {},
-            modifier = Modifier.fillMaxWidth(),
+            label = stringResource(R.string.field_dosage_mg),
+            placeholder = stringResource(R.string.medication_editor_patch_off_hint),
+            leadingIconRes = medicationApplicationOutlinedIconRes(MedicationApplicationType.PATCH_OFF),
             enabled = false,
             readOnly = true,
-            label = { Text(text = stringResource(R.string.field_dosage_mg)) },
-            placeholder = { Text(text = stringResource(R.string.medication_editor_patch_off_hint)) },
+            onValueChange = {},
         )
         return
     }
@@ -525,10 +542,12 @@ internal fun MedicationEditorContent(
         requiresEditableDoseInstructionForm(doseInstructionDraft.preparationType)
     ) {
         DoseInstructionForm(
+            medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
             errorMessageRes = errorMessageRes,
             showsDoseWarning = showsDoseWarning,
+            enabled = !isSaving,
         )
     }
 
@@ -627,10 +646,12 @@ private fun MedicationSummaryHeader(
 
 @Composable
 private fun DoseInstructionForm(
+    medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
     showsDoseWarning: Boolean = false,
+    enabled: Boolean = true,
 ) {
     when (doseInstructionDraft.preparationType) {
         MedicinePreparationType.PILL -> {
@@ -677,18 +698,30 @@ private fun DoseInstructionForm(
             },
         )
 
-        MedicinePreparationType.GEL_CONTAINER -> NumericField(
-            value = doseInstructionDraft.weightGrams,
-            label = stringResource(R.string.field_dose_weight_grams),
-            suffix = stringResource(R.string.unit_grams),
-            leadingIconRes = R.drawable.ic_weight,
-            isError = errorMessageRes == R.string.validation_dose_weight_required,
-            errorMessageRes = R.string.validation_dose_weight_required
-                .takeIf { errorMessageRes == it },
-            onValueChange = { value ->
-                onDoseInstructionDraftChange { it.copy(weightGrams = value) }
-            },
-        )
+        MedicinePreparationType.GEL_CONTAINER -> {
+            NumericField(
+                value = doseInstructionDraft.weightGrams,
+                label = stringResource(R.string.field_dose_weight_grams),
+                suffix = stringResource(R.string.unit_grams),
+                leadingIconRes = R.drawable.ic_weight,
+                isError = errorMessageRes == R.string.validation_dose_weight_required,
+                errorMessageRes = R.string.validation_dose_weight_required
+                    .takeIf { errorMessageRes == it },
+                onValueChange = { value ->
+                    onDoseInstructionDraftChange { it.copy(weightGrams = value) }
+                },
+            )
+            DoseAssistPresetRow(
+                presets = activeDoseAssistPresets(
+                    medicineDraft = medicineDraft,
+                    doseInstructionDraft = doseInstructionDraft,
+                ),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onDoseInstructionDraftChange { it.applyDoseAssistPreset(preset) }
+                },
+            )
+        }
     }
 }
 
@@ -762,7 +795,7 @@ private fun MedicationLogEntryLinkedMedicationSummary(
 }
 
 @Composable
-private fun MedicationLogAppliedAtFields(
+internal fun MedicationLogAppliedAtFields(
     appliedDate: LocalDate,
     appliedTime: LocalTime,
     appliedDateText: String,
@@ -975,18 +1008,24 @@ private fun NumericField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     suffix: String? = null,
+    placeholder: String? = null,
     isError: Boolean = false,
     @StringRes errorMessageRes: Int? = null,
     @DrawableRes leadingIconRes: Int? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
     showWarningIcon: Boolean = false,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
+        readOnly = readOnly,
         isError = isError,
         label = { Text(text = label) },
+        placeholder = placeholder?.let { placeholderText -> { Text(text = placeholderText) } },
         suffix = suffix?.let { suffixText -> { Text(text = suffixText) } },
         leadingIcon = leadingIconRes?.let { iconRes ->
             {
@@ -1023,6 +1062,67 @@ private fun NumericField(
         ),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
     )
+}
+
+@Composable
+internal fun DoseAssistPresetRow(
+    presets: List<MedicationDoseAssistPreset>,
+    onPresetClick: (MedicationDoseAssistPreset) -> Unit,
+    enabled: Boolean = true,
+) {
+    if (presets.isEmpty()) {
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+        ) {
+            presets.forEach { preset ->
+                AssistChip(
+                    onClick = { onPresetClick(preset) },
+                    enabled = enabled,
+                    label = { Text(text = doseAssistPresetLabel(preset)) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
+    return when (preset) {
+        is MedicationDoseAssistPreset.MgAsMedicine -> stringResource(
+            R.string.medication_editor_dose_assist_mg,
+            preset.valueMg,
+        )
+
+        is MedicationDoseAssistPreset.GelPercent -> stringResource(
+            R.string.medication_editor_dose_assist_percent,
+            preset.percent,
+        )
+
+        is MedicationDoseAssistPreset.GelWeightGrams -> stringResource(
+            R.string.medication_editor_dose_assist_grams,
+            preset.weightGrams,
+        )
+
+        is MedicationDoseAssistPreset.PatchTotalMg -> stringResource(
+            R.string.medication_editor_dose_assist_mg,
+            preset.valueMg,
+        )
+
+        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> stringResource(
+            R.string.medication_editor_dose_assist_mcg_day,
+            preset.valueMcgPerDay,
+        )
+    }
 }
 
 @Composable

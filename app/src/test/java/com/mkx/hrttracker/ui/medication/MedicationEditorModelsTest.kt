@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
@@ -161,6 +162,110 @@ class MedicationEditorModelsTest {
             ),
             preparation,
         )
+    }
+
+    @Test
+    fun pill_strength_assist_chip_fills_catalog_medicine_raw_strength_and_round_trips() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).copy(medicationKey = MedicationKey.ESTRADIOL)
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("1"),
+                MedicationDoseAssistPreset.MgAsMedicine("2"),
+                MedicationDoseAssistPreset.MgAsMedicine("3"),
+            ),
+            draft.activeDoseAssistPresets(),
+        )
+
+        val updated = draft.applyDoseAssistPreset(
+            MedicationDoseAssistPreset.MgAsMedicine("2"),
+        )
+
+        assertEquals("2", updated.pillStrengthMg)
+        assertEquals(MedicinePreparation.Pill(2.0), updated.toMedicinePreparation())
+    }
+
+    @Test
+    fun active_assist_chips_follow_selected_catalog_entry_not_first_entry() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ANTIANDROGEN,
+            applicationType = MedicationApplicationType.ORAL,
+        ).changeMedicationKey(MedicationKey.CYPROTERONE_ACETATE)
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("6.25"),
+                MedicationDoseAssistPreset.MgAsMedicine("12.5"),
+                MedicationDoseAssistPreset.MgAsMedicine("25"),
+            ),
+            draft.activeDoseAssistPresets(),
+        )
+    }
+
+    @Test
+    fun gel_weight_assist_chip_fills_container_dose_instruction_and_round_trips() {
+        val medicineDraft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.GEL,
+        ).changePreparationType(MedicinePreparationType.GEL_CONTAINER)
+        val doseDraft = medicineDraft.toDoseInstructionDraft()
+
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.GelWeightGrams("1.25"),
+                MedicationDoseAssistPreset.GelWeightGrams("2.5"),
+            ),
+            activeDoseAssistPresets(
+                medicineDraft = medicineDraft,
+                doseInstructionDraft = doseDraft,
+            ),
+        )
+
+        val updated = doseDraft.applyDoseAssistPreset(
+            MedicationDoseAssistPreset.GelWeightGrams("1.25"),
+        )
+
+        assertEquals("1.25", updated.weightGrams)
+        assertEquals(DoseInstruction.WeightGrams(1.25), updated.toDoseInstruction())
+    }
+
+    @Test
+    fun patch_release_rate_assist_chip_fills_patch_raw_field_and_round_trips() {
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_ON,
+        )
+
+        val updated = draft.applyDoseAssistPreset(
+            MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay("75"),
+        )
+
+        assertEquals(PatchSpecKind.RELEASE_RATE, updated.patchSpecKind)
+        assertEquals("75", updated.patchReleaseRateMcgPerDay)
+        assertEquals(
+            MedicinePreparation.Patch(
+                MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(75.0),
+            ),
+            updated.toMedicinePreparation(),
+        )
+    }
+
+    @Test
+    fun custom_and_patch_off_drafts_do_not_show_catalog_assist_chips() {
+        val custom = defaultMedicineDraft(
+            category = MedicationCategory.CUSTOM,
+            applicationType = MedicationApplicationType.ORAL,
+        )
+        val patchOff = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+        )
+
+        assertEquals(emptyList<MedicationDoseAssistPreset>(), custom.activeDoseAssistPresets())
+        assertEquals(emptyList<MedicationDoseAssistPreset>(), patchOff.activeDoseAssistPresets())
     }
 
     @Test

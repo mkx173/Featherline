@@ -103,50 +103,6 @@ class AddEntryViewModel @Inject constructor(
         }
     }
 
-    // Manual "+ Add log" path: the medicine manager hosts the dose sheet just
-    // like the group editor's "+ Add medication" flow does, so this VM gets
-    // the medicine + dose + count fully resolved. The user only chooses the
-    // applied time before saving.
-    fun initializeManualSlot(
-        medicineUuid: UUID,
-        applicationType: MedicationApplicationType,
-        doseInstruction: DoseInstruction,
-        medicationCount: Int,
-        appliedAt: LocalDateTime = LocalDateTime.now(),
-    ) {
-        loadEntryJob?.cancel()
-        pendingSave = null
-        pendingDelete = null
-        val cachedMedicine = _uiState.value.activeMedicines.firstOrNull { it.uuid == medicineUuid }
-        if (cachedMedicine != null) {
-            _uiState.value = buildManualSlotUiState(
-                medicine = cachedMedicine,
-                applicationType = applicationType,
-                doseInstruction = doseInstruction,
-                medicationCount = medicationCount,
-                appliedAt = appliedAt,
-            )
-            return
-        }
-        _uiState.value = AddEntryUiState(isLoading = true)
-        loadEntryJob = viewModelScope.launch {
-            val medicine = medicineRepository.getByUuid(medicineUuid)
-            if (medicine == null) {
-                // Bail out — the singleton or any other medicine should have
-                // been resolvable. Reset to a blank state rather than crashing.
-                _uiState.value = AddEntryUiState()
-                return@launch
-            }
-            _uiState.value = buildManualSlotUiState(
-                medicine = medicine,
-                applicationType = applicationType,
-                doseInstruction = doseInstruction,
-                medicationCount = medicationCount,
-                appliedAt = appliedAt,
-            )
-        }
-    }
-
     fun initializeQuickLog(
         groupId: UUID,
         scheduleTimeUuid: UUID? = null,
@@ -740,17 +696,6 @@ data class AddEntryUiState(
     }
 }
 
-// A manual "+ Add log" was dispatched from the medicine manager's dose sheet,
-// which emits a MedicineSlotResult. NavHost decodes the Bundle, builds this
-// request, and hands it to AddEntryScreen so the sheet opens pre-filled —
-// the only thing left for the user is the applied time.
-data class AddEntryManualSlotRequest(
-    val medicineUuid: UUID,
-    val applicationType: MedicationApplicationType,
-    val doseInstruction: DoseInstruction,
-    val medicationCount: Int,
-)
-
 data class AddEntryQuickLogRequest(
     val groupId: UUID,
     val scheduleTimeUuid: UUID? = null,
@@ -917,32 +862,6 @@ private fun AddEntryEditSnapshot.toEditingUiState(): AddEntryUiState? {
         sourceGroupColorKey = sourceGroupColorKey,
         sourceGroupPreviousScheduledFor = sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = sourceGroupNextScheduledFor,
-    )
-}
-
-// Parallel to buildQuickLogUiState but without source-group context — the
-// manual-slot path is a freestanding log with no scheduled-for / source group.
-internal fun buildManualSlotUiState(
-    medicine: Medicine,
-    applicationType: MedicationApplicationType,
-    doseInstruction: DoseInstruction,
-    medicationCount: Int,
-    appliedAt: LocalDateTime,
-): AddEntryUiState {
-    return AddEntryUiState(
-        medicineDraft = medicineDraftFromMedicine(
-            medicine = medicine,
-            applicationType = applicationType,
-        ),
-        doseInstructionDraft = doseInstructionDraftFromInstruction(
-            applicationType = applicationType,
-            preparationType = medicine.preparation.type,
-            doseInstruction = doseInstruction,
-        ),
-        resolvedMedicine = medicine,
-        countText = normalizeMedicationCount(applicationType, medicationCount).toString(),
-        appliedDate = appliedAt.toLocalDate(),
-        appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0),
     )
 }
 

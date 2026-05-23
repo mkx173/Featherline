@@ -64,6 +64,7 @@ import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailViewModel
+import com.mkx.hrttracker.ui.medicine.MedicineSlotDraftMode
 import com.mkx.hrttracker.ui.medicine.MedicinesScreen
 import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
@@ -348,44 +349,6 @@ fun HrtTrackerNavHost(
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
     val explicitParentRoute = currentBackStackEntry?.arguments?.getString(TOP_LEVEL_PARENT_ARG)
-    val addEntryMedicineResultSavedStateHandle = currentBackStackEntry?.savedStateHandle
-    // The manual "+ Add log" flow navigates straight to the medicines manager
-    // (slot-result mode) and skips the empty AddEntry sheet. The dose sheet
-    // there emits a MedicineSlotResult Bundle; the observer below decodes it,
-    // opens AddEntry pre-filled, and clears the savedStateHandle slot so a
-    // configuration change can't re-trigger the open.
-    val addEntrySlotResultBundle by if (addEntryMedicineResultSavedStateHandle != null) {
-        addEntryMedicineResultSavedStateHandle
-            .getStateFlow<android.os.Bundle?>(ADD_ENTRY_SLOT_RESULT_KEY, null)
-            .collectAsStateWithLifecycle()
-    } else {
-        remember { mutableStateOf<android.os.Bundle?>(null) }
-    }
-    LaunchedEffect(addEntrySlotResultBundle) {
-        val bundle = addEntrySlotResultBundle ?: return@LaunchedEffect
-        // Always clear the slot key, even when we decline to apply, so a
-        // rotation or recomposition can't re-fire a consumed result.
-        addEntryMedicineResultSavedStateHandle
-            ?.remove<android.os.Bundle>(ADD_ENTRY_SLOT_RESULT_KEY)
-        val current = addEntrySheetRequest
-        // Only apply when no sheet is open, or when the open sheet is itself
-        // a manualSlot — never clobber an in-flight edit or quick-log
-        // request, since those carry data the user can't recover.
-        val canApply = current == null ||
-            (current.editSnapshot == null && current.quickLogRequest == null)
-        if (!canApply) return@LaunchedEffect
-        com.mkx.hrttracker.ui.medicine.MedicineSlotResult.fromBundle(bundle)?.let { slotResult ->
-            addEntrySheetRequest = AddEntrySheetRequest(
-                manualSlot = com.mkx.hrttracker.ui.log.AddEntryManualSlotRequest(
-                    medicineUuid = slotResult.medicineUuid,
-                    applicationType = slotResult.applicationType,
-                    doseInstruction = slotResult.doseInstruction,
-                    medicationCount = slotResult.count,
-                ),
-            )
-        }
-    }
-
     val selectedBottomScreen =
         Screen.topLevelScreenForRoute(explicitParentRoute)
             ?: topLevelNavigationItems.firstOrNull { navItem ->
@@ -564,11 +527,8 @@ fun HrtTrackerNavHost(
                             )
                         },
                         onAddEntryClick = {
-                            // Mirror the group editor's "+ Add medication"
-                            // flow: jump straight to the manager (slot-result
-                            // mode). The slot-result observer above will open
-                            // the AddEntry sheet pre-filled once the user
-                            // saves the dose sheet on the manager.
+                            // Jump straight to the manager; its dose sheet saves
+                            // the manual log directly in manual-log mode.
                             navController.navigate(
                                 Screen.Medicines.createRoute(
                                     topLevelParentRoute = selectedBottomScreen.route,
@@ -810,6 +770,7 @@ fun HrtTrackerNavHost(
                             ?: Screen.Plan.route
                     val slotResultKey =
                         backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
+                    val isManualLogFlow = slotResultKey == ADD_ENTRY_SLOT_RESULT_KEY
                     MedicinesScreen(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStackSafely() },
@@ -828,11 +789,21 @@ fun HrtTrackerNavHost(
                             }
                         },
                         slotResultKey = slotResultKey,
+                        slotDraftMode = if (isManualLogFlow) {
+                            MedicineSlotDraftMode.MANUAL_LOG
+                        } else {
+                            MedicineSlotDraftMode.GROUP_SLOT
+                        },
                         onSlotResolved = { slotResult ->
-                            slotResultKey ?: return@MedicinesScreen
+                            if (slotResultKey == null || isManualLogFlow) {
+                                return@MedicinesScreen
+                            }
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set(slotResultKey, slotResult.toBundle())
+                            navController.popBackStackSafely()
+                        },
+                        onManualLogSaved = {
                             navController.popBackStackSafely()
                         },
                     )
@@ -956,18 +927,10 @@ fun HrtTrackerNavHost(
             entryIds = request.entryIds,
             quickLogRequest = request.quickLogRequest,
             editSnapshot = request.editSnapshot,
-            manualSlot = request.manualSlot,
-            // In-sheet "Change medicine" goes through the same manager+dose
-            // flow as "+ Add log"; the slot-result observer above swaps the
-            // sheet's manualSlot when the user saves the new dose.
-            onOpenMedicinePicker = {
-                navController.navigate(
-                    Screen.Medicines.createRoute(
-                        topLevelParentRoute = selectedBottomScreen.route,
-                        slotResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
-                    ),
-                )
-            },
+            // Direct manual logs now save from the medicine manager's slot
+            // sheet. Existing AddEntry usages are edit/quick-log flows, where
+            // medicine identity is locked, so there is no routed picker here.
+            onOpenMedicinePicker = { },
             onDismissRequest = { addEntrySheetRequest = null },
             onEntrySaved = { addEntrySheetRequest = null }
         )
@@ -1028,10 +991,6 @@ internal data class AddEntrySheetRequest(
     val entryIds: List<String> = emptyList(),
     val quickLogRequest: AddEntryQuickLogRequest? = null,
     val editSnapshot: AddEntryEditSnapshot? = null,
-    // Set by the "+ Add log" → manager → dose sheet flow. When non-null the
-    // AddEntry sheet opens pre-filled with the resolved medicine + dose +
-    // count; the user only confirms the applied time.
-    val manualSlot: com.mkx.hrttracker.ui.log.AddEntryManualSlotRequest? = null,
 )
 
 internal val AddEntrySheetRequestSaver: Saver<AddEntrySheetRequest?, Any> = Saver(
@@ -1048,7 +1007,6 @@ private fun saveAddEntrySheetRequest(request: AddEntrySheetRequest): ArrayList<A
         ArrayList(request.entryIds),
         request.quickLogRequest?.let(::saveQuickLogRequest),
         request.editSnapshot?.let(::saveEditSnapshot),
-        request.manualSlot?.let(::saveManualSlotRequest),
     )
 }
 
@@ -1059,31 +1017,6 @@ private fun restoreAddEntrySheetRequest(saved: Any): AddEntrySheetRequest {
         entryIds = (list[0] as? ArrayList<String>).orEmpty().toList(),
         quickLogRequest = list[1]?.let(::restoreQuickLogRequest),
         editSnapshot = list.getOrNull(2)?.let(::restoreEditSnapshot),
-        manualSlot = list.getOrNull(3)?.let(::restoreManualSlotRequest),
-    )
-}
-
-private fun saveManualSlotRequest(
-    request: com.mkx.hrttracker.ui.log.AddEntryManualSlotRequest,
-): ArrayList<Any?> {
-    return arrayListOf(
-        request.medicineUuid.toString(),
-        request.applicationType.name,
-        saveDoseInstruction(request.doseInstruction),
-        request.medicationCount,
-    )
-}
-
-@Suppress("UNCHECKED_CAST")
-private fun restoreManualSlotRequest(
-    saved: Any,
-): com.mkx.hrttracker.ui.log.AddEntryManualSlotRequest {
-    val list = saved as ArrayList<Any?>
-    return com.mkx.hrttracker.ui.log.AddEntryManualSlotRequest(
-        medicineUuid = UUID.fromString(list[0] as String),
-        applicationType = MedicationApplicationType.fromStorageValue(list[1] as String),
-        doseInstruction = restoreDoseInstruction(list[2]!!),
-        medicationCount = list[3] as Int,
     )
 }
 

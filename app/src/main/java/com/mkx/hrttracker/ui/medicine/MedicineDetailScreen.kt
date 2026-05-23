@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -29,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +45,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,6 +58,7 @@ import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.ui.components.AppContentContainer
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.HrtButton
 import com.mkx.hrttracker.ui.components.HrtFilledTonalButton
 import com.mkx.hrttracker.ui.components.MedicationCard
@@ -543,40 +548,47 @@ private fun PreparationEditorFields(
     // would change the identityKey and is better modeled as "create a new
     // medicine" than "edit this one".)
     Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.padding_small))) {
-        if (showsUnitPicker) {
-            Text(
-                text = stringResource(R.string.field_strength_unit),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ConnectedButtonGroup(
-                options = MedicineDisplayDoseUnit.entries,
-                selectedOption = draft.displayDoseUnit,
-                optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
-                onOptionSelected = { unit ->
-                    onDraftChange(draft.copy(displayDoseUnit = unit))
-                },
-            )
-        }
         val rawMassUnit = if (showsUnitPicker) {
             draft.displayDoseUnit.shortLabelRes()
         } else {
             R.string.unit_mg
         }
         when (draft.preparationType) {
-            MedicinePreparationType.PILL -> NumericInputField(
-                value = draft.pillStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
-                leadingIconRes = R.drawable.ic_medication,
-                onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
-            )
+            MedicinePreparationType.PILL -> {
+                Column {
+                    NumericInputField(
+                        value = draft.pillStrengthMg,
+                        label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
+                        leadingIconRes = R.drawable.ic_medication,
+                        onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
+                    )
+                    PreparationDoseUnitPicker(
+                        selectedUnit = draft.displayDoseUnit,
+                        onUnitSelected = { unit ->
+                            onDraftChange(draft.copy(displayDoseUnit = unit))
+                        },
+                        visible = showsUnitPicker,
+                    )
+                }
+            }
 
-            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericInputField(
-                value = draft.singleUseVialStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
-                leadingIconRes = R.drawable.ic_vaccines,
-                onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
-            )
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+                Column {
+                    NumericInputField(
+                        value = draft.singleUseVialStrengthMg,
+                        label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                        leadingIconRes = R.drawable.ic_vaccines,
+                        onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
+                    )
+                    PreparationDoseUnitPicker(
+                        selectedUnit = draft.displayDoseUnit,
+                        onUnitSelected = { unit ->
+                            onDraftChange(draft.copy(displayDoseUnit = unit))
+                        },
+                        visible = showsUnitPicker,
+                    )
+                }
+            }
 
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
                 NumericInputField(
@@ -646,12 +658,25 @@ private fun PreparationEditorFields(
                     },
                 )
                 when (draft.patchSpecKind) {
-                    PatchSpecKind.TOTAL_MG -> NumericInputField(
-                        value = draft.patchTotalMg,
-                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
-                        leadingIconRes = R.drawable.ic_chronic,
-                        onValueChange = { onDraftChange(draft.copy(patchTotalMg = it)) },
-                    )
+                    PatchSpecKind.TOTAL_MG -> {
+                        Column {
+                            NumericInputField(
+                                value = draft.patchTotalMg,
+                                label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                                leadingIconRes = R.drawable.ic_chronic,
+                                onValueChange = {
+                                    onDraftChange(draft.copy(patchTotalMg = it))
+                                },
+                            )
+                            PreparationDoseUnitPicker(
+                                selectedUnit = draft.displayDoseUnit,
+                                onUnitSelected = { unit ->
+                                    onDraftChange(draft.copy(displayDoseUnit = unit))
+                                },
+                                visible = showsUnitPicker,
+                            )
+                        }
+                    }
 
                     PatchSpecKind.RELEASE_RATE -> NumericInputField(
                         value = draft.patchReleaseRateMcgPerDay,
@@ -669,6 +694,44 @@ private fun PreparationEditorFields(
             // (see MedicineDetailScreenContent), so this branch only exists
             // for when-exhaustiveness.
             MedicinePreparationType.PATCH_OFF -> Unit
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun PreparationDoseUnitPicker(
+    selectedUnit: MedicineDisplayDoseUnit,
+    onUnitSelected: (MedicineDisplayDoseUnit) -> Unit,
+    visible: Boolean,
+) {
+    if (!visible) {
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_calibration_unit_label),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 16.dp),
+        )
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+        ) {
+            ConnectedButtonGroup(
+                options = MedicineDisplayDoseUnit.entries,
+                selectedOption = selectedUnit,
+                optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
+                onOptionSelected = onUnitSelected,
+                layout = ConnectedButtonGroupLayout.ROW,
+                applyCjkTextOffset = false,
+            )
         }
     }
 }

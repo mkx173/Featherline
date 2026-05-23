@@ -325,6 +325,26 @@ class MedicinesViewModelTest {
         collectJob.cancel()
     }
 
+    // Why this matters: without a distinct loading state, the manager flashes
+    // the "no medicines yet" empty state while repository flows are still
+    // warming up. The initial state must be loading, and the first combined
+    // repository emission must clear that flag even when the lists are empty.
+    @Test
+    fun uiStateStartsLoadingAndClearsAfterRepositoryEmission() = runTest {
+        every { medicineRepository.observeAllActive() } returns flowOf(emptyList())
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+
+        val viewModel = MedicinesViewModel(medicineRepository, medicationGroupRepository)
+        assertTrue(viewModel.uiState.value.isLoading)
+
+        val collectJob = startUiStateCollection(viewModel)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        collectJob.cancel()
+    }
+
     private fun TestScope.startUiStateCollection(viewModel: MedicinesViewModel): Job {
         return backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }

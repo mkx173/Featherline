@@ -2,6 +2,8 @@ package com.mkx.hrttracker.ui.medicine
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,15 +17,18 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
@@ -32,22 +37,28 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
+import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
+import com.mkx.hrttracker.ui.medication.DoseAssistPresetRow
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
+import com.mkx.hrttracker.ui.medication.applyDoseAssistPreset
 import com.mkx.hrttracker.ui.medication.shortLabelRes
 import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
 import com.mkx.hrttracker.ui.medication.ambiguousPreparationTypes
@@ -357,53 +368,74 @@ private fun NewMedicinePreparationForm(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
 
-    // Custom medicines render a mg/μg/g picker above their raw-mass field so
-    // the user can type whatever unit makes sense for the medicine — storage
-    // stays in mg via toMedicinePreparation()'s conversion.
-    if (medicineDraft.showsCustomDoseUnitPicker()) {
-        CustomDoseUnitPicker(
-            selectedUnit = medicineDraft.customDoseUnit,
-            onUnitSelected = { unit ->
-                onMedicineDraftChange { it.copy(customDoseUnit = unit) }
-            },
-            enabled = enabled,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    val rawMassUnit = if (medicineDraft.showsCustomDoseUnitPicker()) {
+        medicineDraft.customDoseUnit.shortLabelRes()
+    } else {
+        R.string.unit_mg
     }
-
-    val rawMassUnit = medicineDraft.customDoseUnit.shortLabelRes()
+    val doseAssistPresets = medicineDraft.activeDoseAssistPresets()
     when (medicineDraft.inferredOrSelectedPreparationType() ?: return) {
-        MedicinePreparationType.PILL -> NumericField(
-            value = medicineDraft.pillStrengthMg,
-            label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
-            leadingIconRes = R.drawable.ic_medication,
-            enabled = enabled,
-            isError = errorMessageRes == R.string.validation_pill_strength_required,
-            errorMessageRes = R.string.validation_pill_strength_required
-                .takeIf { errorMessageRes == it },
-            onValueChange = { value ->
-                onMedicineDraftChange { it.copy(pillStrengthMg = value) }
-            },
-            focusRequester = focusRequesters.getValue(CreateMedicineField.PILL_STRENGTH),
-            imeAction = imeActionFor(editableFields, CreateMedicineField.PILL_STRENGTH),
-            onImeNext = onImeNextFor(CreateMedicineField.PILL_STRENGTH),
-        )
+        MedicinePreparationType.PILL -> {
+            NumericField(
+                value = medicineDraft.pillStrengthMg,
+                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
+                leadingIconRes = R.drawable.ic_medication,
+                enabled = enabled,
+                isError = errorMessageRes == R.string.validation_pill_strength_required,
+                errorMessageRes = R.string.validation_pill_strength_required
+                    .takeIf { errorMessageRes == it },
+                onValueChange = { value ->
+                    onMedicineDraftChange { it.copy(pillStrengthMg = value) }
+                },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.PILL_STRENGTH),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.PILL_STRENGTH),
+                onImeNext = onImeNextFor(CreateMedicineField.PILL_STRENGTH),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>(),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
+            )
+            CustomDoseUnitPickerForRawMassField(
+                medicineDraft = medicineDraft,
+                onMedicineDraftChange = onMedicineDraftChange,
+                enabled = enabled,
+            )
+        }
 
-        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> NumericField(
-            value = medicineDraft.singleUseVialStrengthMg,
-            label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
-            leadingIconRes = R.drawable.ic_vaccines,
-            enabled = enabled,
-            isError = errorMessageRes == R.string.validation_vial_strength_required,
-            errorMessageRes = R.string.validation_vial_strength_required
-                .takeIf { errorMessageRes == it },
-            onValueChange = { value ->
-                onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
-            },
-            focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_STRENGTH),
-            imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_STRENGTH),
-            onImeNext = onImeNextFor(CreateMedicineField.VIAL_STRENGTH),
-        )
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
+            NumericField(
+                value = medicineDraft.singleUseVialStrengthMg,
+                label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                leadingIconRes = R.drawable.ic_vaccines,
+                enabled = enabled,
+                isError = errorMessageRes == R.string.validation_vial_strength_required,
+                errorMessageRes = R.string.validation_vial_strength_required
+                    .takeIf { errorMessageRes == it },
+                onValueChange = { value ->
+                    onMedicineDraftChange { it.copy(singleUseVialStrengthMg = value) }
+                },
+                focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_STRENGTH),
+                imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_STRENGTH),
+                onImeNext = onImeNextFor(CreateMedicineField.VIAL_STRENGTH),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>(),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
+            )
+            CustomDoseUnitPickerForRawMassField(
+                medicineDraft = medicineDraft,
+                onMedicineDraftChange = onMedicineDraftChange,
+                enabled = enabled,
+            )
+        }
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {
             NumericField(
@@ -455,6 +487,14 @@ private fun NewMedicinePreparationForm(
                 imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
                 onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
             )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
+            )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
                 value = medicineDraft.sachetWeightGrams,
@@ -470,6 +510,14 @@ private fun NewMedicinePreparationForm(
                 focusRequester = focusRequesters.getValue(CreateMedicineField.SACHET_WEIGHT),
                 imeAction = imeActionFor(editableFields, CreateMedicineField.SACHET_WEIGHT),
                 onImeNext = onImeNextFor(CreateMedicineField.SACHET_WEIGHT),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
             )
         }
 
@@ -488,6 +536,14 @@ private fun NewMedicinePreparationForm(
                 focusRequester = focusRequesters.getValue(CreateMedicineField.GEL_PERCENT),
                 imeAction = imeActionFor(editableFields, CreateMedicineField.GEL_PERCENT),
                 onImeNext = onImeNextFor(CreateMedicineField.GEL_PERCENT),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                enabled = enabled,
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
@@ -527,37 +583,65 @@ private fun NewMedicinePreparationForm(
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             when (medicineDraft.patchSpecKind) {
-                PatchSpecKind.TOTAL_MG -> NumericField(
-                    value = medicineDraft.patchTotalMg,
-                    label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
-                    leadingIconRes = R.drawable.ic_chronic,
-                    enabled = enabled,
-                    isError = errorMessageRes == R.string.validation_patch_total_required,
-                    errorMessageRes = R.string.validation_patch_total_required
-                        .takeIf { errorMessageRes == it },
-                    onValueChange = { value ->
-                        onMedicineDraftChange { it.copy(patchTotalMg = value) }
-                    },
-                    focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
-                    imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_TOTAL_MG),
-                    onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
-                )
+                PatchSpecKind.TOTAL_MG -> {
+                    NumericField(
+                        value = medicineDraft.patchTotalMg,
+                        label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                        leadingIconRes = R.drawable.ic_chronic,
+                        enabled = enabled,
+                        isError = errorMessageRes == R.string.validation_patch_total_required,
+                        errorMessageRes = R.string.validation_patch_total_required
+                            .takeIf { errorMessageRes == it },
+                        onValueChange = { value ->
+                            onMedicineDraftChange { it.copy(patchTotalMg = value) }
+                        },
+                        focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_TOTAL_MG),
+                        imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_TOTAL_MG),
+                        onImeNext = onImeNextFor(CreateMedicineField.PATCH_TOTAL_MG),
+                    )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets
+                            .filterIsInstance<MedicationDoseAssistPreset.PatchTotalMg>(),
+                        enabled = enabled,
+                        onPresetClick = { preset ->
+                            onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                        },
+                    )
+                    CustomDoseUnitPickerForRawMassField(
+                        medicineDraft = medicineDraft,
+                        onMedicineDraftChange = onMedicineDraftChange,
+                        enabled = enabled,
+                    )
+                }
 
-                PatchSpecKind.RELEASE_RATE -> NumericField(
-                    value = medicineDraft.patchReleaseRateMcgPerDay,
-                    label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
-                    leadingIconRes = R.drawable.ic_speed,
-                    enabled = enabled,
-                    isError = errorMessageRes == R.string.validation_patch_release_rate_required,
-                    errorMessageRes = R.string.validation_patch_release_rate_required
-                        .takeIf { errorMessageRes == it },
-                    onValueChange = { value ->
-                        onMedicineDraftChange { it.copy(patchReleaseRateMcgPerDay = value) }
-                    },
-                    focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
-                    imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_RELEASE_RATE),
-                    onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
-                )
+                PatchSpecKind.RELEASE_RATE -> {
+                    NumericField(
+                        value = medicineDraft.patchReleaseRateMcgPerDay,
+                        label = fieldLabelWithUnit(
+                            R.string.field_patch_release_rate,
+                            R.string.unit_mcg_day,
+                        ),
+                        leadingIconRes = R.drawable.ic_speed,
+                        enabled = enabled,
+                        isError = errorMessageRes == R.string.validation_patch_release_rate_required,
+                        errorMessageRes = R.string.validation_patch_release_rate_required
+                            .takeIf { errorMessageRes == it },
+                        onValueChange = { value ->
+                            onMedicineDraftChange { it.copy(patchReleaseRateMcgPerDay = value) }
+                        },
+                        focusRequester = focusRequesters.getValue(CreateMedicineField.PATCH_RELEASE_RATE),
+                        imeAction = imeActionFor(editableFields, CreateMedicineField.PATCH_RELEASE_RATE),
+                        onImeNext = onImeNextFor(CreateMedicineField.PATCH_RELEASE_RATE),
+                    )
+                    DoseAssistPresetRow(
+                        presets = doseAssistPresets
+                            .filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>(),
+                        enabled = enabled,
+                        onPresetClick = { preset ->
+                            onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                        },
+                    )
+                }
             }
         }
 
@@ -612,10 +696,26 @@ private fun ApplicationTypeButtonGroup(
     )
 }
 
-// Three-segment picker for the custom-medicine raw-mass unit. Only rendered
-// when MedicinePickerUiState.showsCustomDoseUnitPicker() is true; the chosen
-// unit drives both the strength field's suffix/label and how the value is
-// converted on save (see MedicinePickerUiState.toMedicinePreparation).
+@Composable
+private fun CustomDoseUnitPickerForRawMassField(
+    medicineDraft: MedicinePickerUiState,
+    onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    enabled: Boolean,
+) {
+    if (!medicineDraft.showsCustomDoseUnitPicker()) {
+        return
+    }
+    CustomDoseUnitPicker(
+        selectedUnit = medicineDraft.customDoseUnit,
+        onUnitSelected = { unit ->
+            onMedicineDraftChange { it.copy(customDoseUnit = unit) }
+        },
+        enabled = enabled,
+    )
+}
+
+// Three-segment picker for the custom-medicine raw-mass unit. It sits below
+// the raw-mass field so the field label and compact picker read as one unit.
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CustomDoseUnitPicker(
@@ -623,14 +723,33 @@ private fun CustomDoseUnitPicker(
     onUnitSelected: (MedicineDisplayDoseUnit) -> Unit,
     enabled: Boolean,
 ) {
-    EditorSectionLabel(stringResource(R.string.field_strength_unit))
-    ConnectedButtonGroup(
-        options = MedicineDisplayDoseUnit.entries,
-        selectedOption = selectedUnit,
-        optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
-        onOptionSelected = onUnitSelected,
-        enabled = enabled,
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.settings_calibration_unit_label),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 16.dp),
+        )
+        CompositionLocalProvider(
+            LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
+        ) {
+            ConnectedButtonGroup(
+                options = MedicineDisplayDoseUnit.entries,
+                selectedOption = selectedUnit,
+                optionLabel = { unit -> stringResource(unit.shortLabelRes()) },
+                onOptionSelected = onUnitSelected,
+                enabled = enabled,
+                layout = ConnectedButtonGroupLayout.ROW,
+                applyCjkTextOffset = false,
+            )
+        }
+    }
 }
 
 // "Tablet strength" + "mg" → "Tablet strength (mg)". Used as the OutlinedTextField

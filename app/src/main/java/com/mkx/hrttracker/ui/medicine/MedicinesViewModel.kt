@@ -52,6 +52,7 @@ class MedicinesViewModel @Inject constructor(
             ),
             archivedMedicines = archivedMedicines,
             archivedExpanded = isArchivedExpanded,
+            isLoading = false,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -121,6 +122,7 @@ data class MedicinesUiState(
     val activeSections: List<MedicineCategorySection> = emptyList(),
     val archivedMedicines: List<Medicine> = emptyList(),
     val archivedExpanded: Boolean = false,
+    val isLoading: Boolean = true,
 )
 
 data class MedicineCategorySection(

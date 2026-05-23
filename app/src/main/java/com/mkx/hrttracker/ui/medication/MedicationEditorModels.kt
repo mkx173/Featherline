@@ -6,6 +6,8 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
+import com.mkx.hrttracker.model.medication.MedicationCatalogEntry
+import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
@@ -117,6 +119,63 @@ fun MedicinePickerUiState.requiresCustomName(): Boolean {
 
 fun MedicinePickerUiState.availableCatalogKeys(): List<MedicationKey> {
     return catalog().entries.mapNotNull { it.medicationKey }
+}
+
+fun MedicinePickerUiState.selectedCatalogEntry(): MedicationCatalogEntry {
+    val catalog = catalog()
+    return if (selectionKind == MedicationSelectionKind.CATALOG) {
+        catalog.entries.firstOrNull { it.medicationKey == medicationKey } ?: catalog.entries.first()
+    } else {
+        catalog.entries.first()
+    }
+}
+
+fun MedicinePickerUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPreset> {
+    if (selectionKind != MedicationSelectionKind.CATALOG) {
+        return emptyList()
+    }
+    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+        return emptyList()
+    }
+    val preparationType = inferredOrSelectedPreparationType() ?: return emptyList()
+    val presets = selectedCatalogEntry().doseAssistPresets[preparationType].orEmpty()
+    return when (preparationType) {
+        MedicinePreparationType.PATCH -> when (patchSpecKind) {
+            PatchSpecKind.TOTAL_MG ->
+                presets.filterIsInstance<MedicationDoseAssistPreset.PatchTotalMg>()
+
+            PatchSpecKind.RELEASE_RATE ->
+                presets.filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>()
+        }
+
+        else -> presets
+    }
+}
+
+fun activeDoseAssistPresets(
+    medicineDraft: MedicinePickerUiState,
+    doseInstructionDraft: DoseInstructionDraftUiState,
+): List<MedicationDoseAssistPreset> {
+    if (medicineDraft.selectionKind != MedicationSelectionKind.CATALOG) {
+        return emptyList()
+    }
+    if (doseInstructionDraft.applicationType == MedicationApplicationType.PATCH_OFF) {
+        return emptyList()
+    }
+    val presets = medicineDraft.selectedCatalogEntry()
+        .doseAssistPresets[doseInstructionDraft.preparationType]
+        .orEmpty()
+    return when (doseInstructionDraft.preparationType) {
+        MedicinePreparationType.GEL_CONTAINER ->
+            presets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>()
+
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.PATCH,
+        MedicinePreparationType.PATCH_OFF -> emptyList()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +347,57 @@ fun MedicinePickerUiState.changePreparationType(
         return this
     }
     return copy(preparationType = preparationType)
+}
+
+fun MedicinePickerUiState.applyDoseAssistPreset(
+    preset: MedicationDoseAssistPreset,
+): MedicinePickerUiState {
+    return when (preset) {
+        is MedicationDoseAssistPreset.MgAsMedicine -> when (inferredOrSelectedPreparationType()) {
+            MedicinePreparationType.PILL -> copy(pillStrengthMg = preset.valueMg)
+            MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
+                copy(singleUseVialStrengthMg = preset.valueMg)
+
+            else -> this
+        }
+
+        is MedicationDoseAssistPreset.GelPercent -> copy(
+            gelConcentrationPercent = preset.percent,
+        )
+
+        is MedicationDoseAssistPreset.GelWeightGrams -> when (inferredOrSelectedPreparationType()) {
+            MedicinePreparationType.GEL_SACHET -> copy(sachetWeightGrams = preset.weightGrams)
+            else -> this
+        }
+
+        is MedicationDoseAssistPreset.PatchTotalMg -> copy(
+            patchSpecKind = PatchSpecKind.TOTAL_MG,
+            patchTotalMg = preset.valueMg,
+        )
+
+        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> copy(
+            patchSpecKind = PatchSpecKind.RELEASE_RATE,
+            patchReleaseRateMcgPerDay = preset.valueMcgPerDay,
+        )
+    }
+}
+
+fun DoseInstructionDraftUiState.applyDoseAssistPreset(
+    preset: MedicationDoseAssistPreset,
+): DoseInstructionDraftUiState {
+    return when (preset) {
+        is MedicationDoseAssistPreset.GelWeightGrams ->
+            if (preparationType == MedicinePreparationType.GEL_CONTAINER) {
+                copy(weightGrams = preset.weightGrams)
+            } else {
+                this
+            }
+
+        is MedicationDoseAssistPreset.MgAsMedicine,
+        is MedicationDoseAssistPreset.GelPercent,
+        is MedicationDoseAssistPreset.PatchTotalMg,
+        is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> this
+    }
 }
 
 // ---------------------------------------------------------------------------
