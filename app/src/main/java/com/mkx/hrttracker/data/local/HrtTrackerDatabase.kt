@@ -2,6 +2,8 @@ package com.mkx.hrttracker.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -16,7 +18,7 @@ import androidx.room.RoomDatabase
         BloodTestResultEntity::class,
         CustomBloodAnalyteEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class HrtTrackerDatabase : RoomDatabase() {
@@ -26,4 +28,15 @@ abstract class HrtTrackerDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun bloodTestDao(): BloodTestDao
     abstract fun homeDao(): HomeDao
+}
+
+// v1 → v2: adds `displayDoseUnit` to `medicines`. Rows that pre-date this
+// column default to `MG`, which matches the model default and matches existing
+// behavior (all medicines were displayed in mg before the picker existed).
+internal val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE medicines ADD COLUMN displayDoseUnit TEXT NOT NULL DEFAULT 'MG'"
+        )
+    }
 }

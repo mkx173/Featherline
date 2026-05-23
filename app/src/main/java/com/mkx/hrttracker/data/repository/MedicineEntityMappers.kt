@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -26,6 +27,10 @@ internal fun MedicineEntity.toMedicineModel(): Medicine {
         createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
         updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis),
         archivedAt = archivedAtEpochMillis?.let(Instant::ofEpochMilli),
+        // Defaults to MG for any row missing/with an unknown unit, so rows
+        // written before the column existed (handled by MIGRATION_1_2) and
+        // any future unknown values stay safely readable.
+        displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit),
     )
 }
 
@@ -62,6 +67,7 @@ internal fun Medicine.toEntity(): MedicineEntity {
         createdAtEpochMillis = createdAt.toEpochMilli(),
         updatedAtEpochMillis = updatedAt.toEpochMilli(),
         archivedAtEpochMillis = archivedAt?.toEpochMilli(),
+        displayDoseUnit = displayDoseUnit.name,
     )
 }
 

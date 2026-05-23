@@ -171,6 +171,10 @@ data class Medicine(
     val createdAt: Instant,
     val updatedAt: Instant,
     val archivedAt: Instant?,
+    // The unit a custom medicine's raw-mass fields (pill strength, single-use
+    // vial strength, patch total mg) are entered and displayed in. Catalog
+    // medicines always store MG; the picker only renders for custom medicines.
+    val displayDoseUnit: MedicineDisplayDoseUnit = MedicineDisplayDoseUnit.MG,
 ) {
     init {
         if (selection is MedicineSelection.Catalog) {

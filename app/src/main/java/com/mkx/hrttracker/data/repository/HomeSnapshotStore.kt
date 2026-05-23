@@ -25,6 +25,7 @@ import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -490,6 +491,7 @@ internal object HomeSnapshotCodec {
         writeLong(medicine.createdAt.toEpochMilli())
         writeLong(medicine.updatedAt.toEpochMilli())
         writeNullableLong(medicine.archivedAt?.toEpochMilli())
+        writeString(medicine.displayDoseUnit.name)
     }
 
     private fun DataInputStream.readMedicine(): Medicine {
@@ -502,6 +504,7 @@ internal object HomeSnapshotCodec {
         val createdAt = Instant.ofEpochMilli(readLong())
         val updatedAt = Instant.ofEpochMilli(readLong())
         val archivedAt = readNullableLong()?.let(Instant::ofEpochMilli)
+        val displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(readString())
         val expectedIdentityKey = when (selection) {
             is MedicineSelection.Catalog ->
                 MedicineIdentityKey.catalog(selection.medicationKey, preparation)
@@ -521,6 +524,7 @@ internal object HomeSnapshotCodec {
             createdAt = createdAt,
             updatedAt = updatedAt,
             archivedAt = archivedAt,
+            displayDoseUnit = displayDoseUnit,
         )
     }
 
@@ -797,7 +801,7 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-private const val SNAPSHOT_CODEC_VERSION = 11
+private const val SNAPSHOT_CODEC_VERSION = 12
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

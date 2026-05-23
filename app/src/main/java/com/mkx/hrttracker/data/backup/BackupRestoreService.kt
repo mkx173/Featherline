@@ -27,6 +27,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
@@ -893,6 +894,9 @@ private fun BackupMedicineSnapshot.toValidatedEntity(): MedicineEntity {
         createdAtEpochMillis = createdAtEpochMillis,
         updatedAtEpochMillis = updatedAtEpochMillis,
         archivedAtEpochMillis = archivedAtEpochMillis,
+        // Backups exported before this column existed simply omit it; default
+        // to MG (matches both pre-picker behavior and the model default).
+        displayDoseUnit = MedicineDisplayDoseUnit.fromStorageValue(displayDoseUnit).name,
     )
 }
 

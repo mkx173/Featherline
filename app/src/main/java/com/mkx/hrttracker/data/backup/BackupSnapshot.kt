@@ -78,6 +78,9 @@ data class BackupMedicineSnapshot(
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val archivedAtEpochMillis: Long?,
+    // Optional for backwards compatibility — backups exported before the
+    // picker existed simply default to "MG" on restore.
+    val displayDoseUnit: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
