@@ -203,13 +203,19 @@ private fun MedicineDetailScreenContent(
                     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
                 }
 
-                item(key = "display-name") {
-                    DisplayNameSection(
-                        displayName = uiState.displayNameText,
-                        isLocked = false,
-                        onValueChange = onDisplayNameChange,
-                    )
-                    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                // Custom medicines already have a user-typed name; an extra
+                // display-name override has no use there. The Save action in
+                // the top bar also becomes a no-op for them, but it costs
+                // nothing to keep visible.
+                if (medicine.selection is com.mkx.hrttracker.model.medication.MedicineSelection.Catalog) {
+                    item(key = "display-name") {
+                        DisplayNameSection(
+                            displayName = uiState.displayNameText,
+                            isLocked = false,
+                            onValueChange = onDisplayNameChange,
+                        )
+                        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_medium)))
+                    }
                 }
 
                 item(key = "preparation") {

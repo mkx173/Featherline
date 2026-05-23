@@ -235,12 +235,19 @@ private fun CreateMedicineForm(
         enabled = enabled,
     )
 
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-    DisplayNameField(
-        medicineDraft = medicineDraft,
-        onMedicineDraftChange = onMedicineDraftChange,
-        enabled = enabled,
-    )
+    // Custom medicines already have a user-typed name; the display-name field
+    // only makes sense for catalog medicines whose default name is the
+    // catalog key label.
+    if (medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
+        !medicineDraft.requiresCustomName()
+    ) {
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        DisplayNameField(
+            medicineDraft = medicineDraft,
+            onMedicineDraftChange = onMedicineDraftChange,
+            enabled = enabled,
+        )
+    }
 }
 
 @Composable
@@ -249,16 +256,11 @@ private fun DisplayNameField(
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     enabled: Boolean,
 ) {
-    // The placeholder shows the auto-derived default — catalog key label for
-    // catalog medicines, the typed custom name otherwise. Empty input keeps
-    // the medicine's displayName null so the rest of the UI falls back to
-    // that same default.
-    val defaultName = when (medicineDraft.selectionKind) {
-        MedicationSelectionKind.CATALOG -> medicineDraft.medicationKey
-            ?.let { stringResource(it.labelRes) }
-            .orEmpty()
-        MedicationSelectionKind.CUSTOM -> medicineDraft.customMedicationName.trim()
-    }
+    // Catalog medicines only: the placeholder shows the catalog key label so
+    // an empty input keeps the medicine using that name everywhere it appears.
+    val defaultName = medicineDraft.medicationKey
+        ?.let { stringResource(it.labelRes) }
+        .orEmpty()
     OutlinedTextField(
         value = medicineDraft.displayName,
         onValueChange = { value ->
