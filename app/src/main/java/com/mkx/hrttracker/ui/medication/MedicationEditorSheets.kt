@@ -422,6 +422,14 @@ private fun MedicationEditorContent(
     isSaving: Boolean,
 ) {
     val isPatchOff = medicineDraft.applicationType == MedicationApplicationType.PATCH_OFF
+    // Once a medicine is resolved, lock the route picker to options compatible
+    // with its preparation type (PILL → oral/sublingual; everything else →
+    // single fixed route). PATCH_OFF is unaffected — it has no medicine.
+    val applicationTypeOptions = if (resolvedMedicine != null && !isPatchOff) {
+        applicationTypesCompatibleWithPreparation(resolvedMedicine.preparation.type)
+    } else {
+        MedicationCatalog.applicationTypesFor(medicineDraft.category)
+    }
 
     EditorSectionLabel(stringResource(R.string.field_medication_category))
     ConnectedButtonGroup(
@@ -434,25 +442,27 @@ private fun MedicationEditorContent(
         enabled = canEditMedicationIdentity && !isSaving,
     )
 
-    Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    if (applicationTypeOptions.size > 1) {
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    EditorSectionLabel(stringResource(R.string.field_medication_application))
-    ConnectedButtonGroup(
-        options = MedicationCatalog.applicationTypesFor(medicineDraft.category),
-        selectedOption = medicineDraft.applicationType,
-        optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-        optionLeadingContent = { applicationType ->
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = null,
-                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
-            )
-        },
-        onOptionSelected = { applicationType ->
-            onMedicineDraftChange { it.changeApplicationType(applicationType) }
-        },
-        enabled = canEditMedicationIdentity && !isSaving,
-    )
+        EditorSectionLabel(stringResource(R.string.field_medication_application))
+        ConnectedButtonGroup(
+            options = applicationTypeOptions,
+            selectedOption = medicineDraft.applicationType,
+            optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
+            optionLeadingContent = { applicationType ->
+                MedicationApplicationIcon(
+                    applicationType = applicationType,
+                    contentDescription = null,
+                    modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+                )
+            },
+            onOptionSelected = { applicationType ->
+                onMedicineDraftChange { it.changeApplicationType(applicationType) }
+            },
+            enabled = canEditMedicationIdentity && !isSaving,
+        )
+    }
 
     if (isPatchOff) {
         // PATCH_OFF carries no medicine — no identity, preparation, or dose.

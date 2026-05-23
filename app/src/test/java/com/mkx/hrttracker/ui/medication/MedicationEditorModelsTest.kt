@@ -204,6 +204,67 @@ class MedicationEditorModelsTest {
         )
     }
 
+    // Encodes the new lock rule: switching between routes that share a
+    // preparation (oral ↔ sublingual for PILL) must preserve the resolved
+    // medicine — the previous behavior wiped it via defaultMedicineDraft().
+    @Test
+    fun changeApplicationType_preservesResolvedMedicine_betweenCompatibleRoutes() {
+        val medicineUuid = java.util.UUID.fromString("aaaa0000-0000-0000-0000-000000000001")
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).copy(
+            selectedMedicineUuid = medicineUuid,
+            preparationType = MedicinePreparationType.PILL,
+            pillStrengthMg = "2",
+        )
+
+        val switched = draft.changeApplicationType(MedicationApplicationType.SUBLINGUAL)
+
+        assertEquals(MedicationApplicationType.SUBLINGUAL, switched.applicationType)
+        assertEquals(medicineUuid, switched.selectedMedicineUuid)
+        assertEquals("2", switched.pillStrengthMg)
+    }
+
+    // Incompatible routes (e.g. PILL → INJECTION) intentionally reset the
+    // draft — the resolved medicine no longer fits and the picker must rerun.
+    @Test
+    fun changeApplicationType_clearsResolvedMedicine_acrossIncompatibleRoutes() {
+        val medicineUuid = java.util.UUID.fromString("aaaa0000-0000-0000-0000-000000000002")
+        val draft = defaultMedicineDraft(
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.ORAL,
+        ).copy(
+            selectedMedicineUuid = medicineUuid,
+            preparationType = MedicinePreparationType.PILL,
+        )
+
+        val switched = draft.changeApplicationType(MedicationApplicationType.INJECTION)
+
+        assertEquals(MedicationApplicationType.INJECTION, switched.applicationType)
+        assertNull(switched.selectedMedicineUuid)
+    }
+
+    @Test
+    fun applicationTypesCompatibleWithPreparation_matchesPreparationFamily() {
+        assertEquals(
+            listOf(MedicationApplicationType.ORAL, MedicationApplicationType.SUBLINGUAL),
+            applicationTypesCompatibleWithPreparation(MedicinePreparationType.PILL),
+        )
+        assertEquals(
+            listOf(MedicationApplicationType.INJECTION),
+            applicationTypesCompatibleWithPreparation(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL),
+        )
+        assertEquals(
+            listOf(MedicationApplicationType.GEL),
+            applicationTypesCompatibleWithPreparation(MedicinePreparationType.GEL_CONTAINER),
+        )
+        assertEquals(
+            listOf(MedicationApplicationType.PATCH_ON),
+            applicationTypesCompatibleWithPreparation(MedicinePreparationType.PATCH),
+        )
+    }
+
     @Test
     fun resolving_medication_count_text_resets_when_application_type_changes() {
         val previousDraft = defaultMedicineDraft(applicationType = MedicationApplicationType.ORAL)

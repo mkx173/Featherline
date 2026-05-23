@@ -164,6 +164,31 @@ internal fun inferredPreparationType(
     }
 }
 
+// The application routes a medicine of this preparation can use. PILL is the
+// only ambiguous one (oral vs sublingual share the same pill); the rest map to
+// a single route. PATCH_OFF is intentionally absent — it carries no medicine.
+fun applicationTypesCompatibleWithPreparation(
+    preparationType: MedicinePreparationType,
+): List<MedicationApplicationType> {
+    return when (preparationType) {
+        MedicinePreparationType.PILL -> listOf(
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL,
+        )
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
+            MedicationApplicationType.INJECTION,
+        )
+        MedicinePreparationType.GEL_SACHET,
+        MedicinePreparationType.GEL_CONTAINER -> listOf(
+            MedicationApplicationType.GEL,
+        )
+        MedicinePreparationType.PATCH -> listOf(
+            MedicationApplicationType.PATCH_ON,
+        )
+    }
+}
+
 internal fun ambiguousPreparationTypes(
     applicationType: MedicationApplicationType,
 ): List<MedicinePreparationType> {
@@ -205,6 +230,18 @@ fun MedicinePickerUiState.changeCategory(category: MedicationCategory): Medicine
 fun MedicinePickerUiState.changeApplicationType(
     applicationType: MedicationApplicationType,
 ): MedicinePickerUiState {
+    if (applicationType == this.applicationType) return this
+    // For a resolved medicine, switching between routes that share its
+    // preparation (PILL: oral ↔ sublingual) preserves the medicine selection;
+    // any other switch resets the draft (the resolved medicine no longer fits).
+    val preparation = inferredOrSelectedPreparationType()
+    if (
+        selectedMedicineUuid != null &&
+        preparation != null &&
+        applicationType in applicationTypesCompatibleWithPreparation(preparation)
+    ) {
+        return copy(applicationType = applicationType)
+    }
     return defaultMedicineDraft(
         category = category,
         applicationType = applicationType,
