@@ -345,9 +345,6 @@ private fun DisplayNameField(
                 contentDescription = null,
             )
         },
-        supportingText = {
-            Text(text = stringResource(R.string.medicine_display_name_hint))
-        },
         modifier = Modifier
             .fillMaxWidth()
             .focusRequester(focusRequester),
