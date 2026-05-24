@@ -11,6 +11,8 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.model.pk.PkConcentrationUnit
 import org.junit.Assert.assertEquals
@@ -192,6 +194,61 @@ class HomeSnapshotCodecTest {
         val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
 
         assertEquals(record, decoded)
+    }
+
+    @Test
+    fun encodeDecode_roundTripsCapsulePreparation() {
+        val capsuleMedicine = testCustomMedicine(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000001"),
+            medicationName = "Progesterone",
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+        val capsuleMedication = MedicationGroupMedication(
+            uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000002"),
+            medicine = capsuleMedicine,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 1,
+        )
+        val record = HomeSnapshotRecord(
+            schemaVersion = HOME_SNAPSHOT_SCHEMA_VERSION,
+            generation = 1L,
+            generatedAtEpochMillis = 100L,
+            anchorDateEpochDay = LocalDate.of(2026, 5, 6).toEpochDay(),
+            zoneId = "Asia/Tokyo",
+            pkProjection = null,
+            activeGroups = listOf(
+                MedicationGroup(
+                    uuid = UUID.fromString("8aaaaaaa-0000-0000-0000-000000000010"),
+                    name = "Capsules",
+                    colorKey = MedicationGroupColorKey.TEAL,
+                    schedule = MedicationGroupSchedule(
+                        type = MedicationGroupScheduleType.DAILY,
+                        interval = 1,
+                        since = LocalDate.of(2026, 5, 1),
+                        weeklyDaysOfWeek = emptySet(),
+                        times = listOf(LocalTime.of(9, 0)),
+                    ),
+                    medications = listOf(capsuleMedication),
+                    notificationsEnabled = false,
+                    createdAt = Instant.ofEpochMilli(0L),
+                    updatedAt = Instant.ofEpochMilli(0L),
+                )
+            ),
+            scheduleEntries = emptyList(),
+            antiandrogenHistoryEntries = emptyList(),
+        )
+
+        val decoded = HomeSnapshotCodec.decode(HomeSnapshotCodec.encode(record))
+
+        val restoredPreparation = decoded.activeGroups.single()
+            .medications.single()
+            .medicine
+            ?.preparation
+        assertEquals(
+            MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            restoredPreparation,
+        )
     }
 
     @Test

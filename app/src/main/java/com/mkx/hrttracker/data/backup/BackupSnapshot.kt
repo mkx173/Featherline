@@ -203,4 +203,4 @@ data class BackupBloodTestResultSnapshot(
 // fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
 // medicine unit picker shipped) are additive and don't require a bump; missing
 // values fall through their defaults on restore.
-const val CURRENT_BACKUP_SNAPSHOT_VERSION = 2
+const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3

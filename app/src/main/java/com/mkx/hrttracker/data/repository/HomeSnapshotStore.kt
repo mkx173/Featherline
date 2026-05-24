@@ -831,9 +831,9 @@ private class AndroidHomeSnapshotCrypto : HomeSnapshotCrypto {
 }
 
 private const val TAG = "HomeSnapshotStore"
-// v13 introduces the PATCH_OFF preparation/selection sentinel; older caches
-// don't carry the marker and will be rejected by codec-version mismatch.
-private const val SNAPSHOT_CODEC_VERSION = 13
+// v14 introduces the CAPSULE preparation marker; older caches don't carry the
+// marker and will be rejected by codec-version mismatch.
+private const val SNAPSHOT_CODEC_VERSION = 14
 private const val POLICY_DISCRIMINATOR_INTERVAL = 0
 private const val POLICY_DISCRIMINATOR_BUDGET = 1
 private const val PATCH_SPECIFICATION_TOTAL_MG = 0

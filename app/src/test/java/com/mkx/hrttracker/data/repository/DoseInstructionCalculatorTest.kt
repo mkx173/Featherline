@@ -36,6 +36,40 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun capsuleWholeUnitUsesStrengthMgPerCapsule() {
+        val medicine = medicine(
+            selection = MedicineSelection.Custom(medicationName = "Progesterone"),
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertEquals(
+            100.0,
+            requireNotNull(
+                DoseInstructionCalculator.perUnitAmountMg(
+                    medicine = medicine,
+                    doseInstruction = DoseInstruction.WholeUnit,
+                )
+            ),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun capsuleTabletFractionReturnsNull() {
+        val medicine = medicine(
+            selection = MedicineSelection.Custom(medicationName = "Progesterone"),
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertNull(
+            DoseInstructionCalculator.perUnitAmountMg(
+                medicine = medicine,
+                doseInstruction = DoseInstruction.TabletFraction(1, 2),
+            )
+        )
+    }
+
+    @Test
     fun multiUseInjectionUsesConcentrationAndVolume() {
         val medicine = medicine(
             selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_VALERATE),

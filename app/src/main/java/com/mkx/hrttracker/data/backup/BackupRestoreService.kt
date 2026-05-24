@@ -270,7 +270,7 @@ class BackupRestoreService @Inject constructor(
 internal fun BackupSnapshot.toValidatedSnapshot(
     expectedPackageName: String,
 ): ValidatedBackupSnapshot {
-    require(snapshotVersion == CURRENT_BACKUP_SNAPSHOT_VERSION) {
+    require(snapshotVersion in MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION..CURRENT_BACKUP_SNAPSHOT_VERSION) {
         "Unsupported backup snapshot version: $snapshotVersion."
     }
     require(app.packageName == expectedPackageName) {
@@ -673,6 +673,8 @@ private fun List<MedicationGroupEntity>.withDerivedRecreatedFromGroupUuids(): Li
         }
     }
 }
+
+private const val MIN_SUPPORTED_BACKUP_SNAPSHOT_VERSION = 2
 
 private fun BackupSettingsSnapshot.toValidatedSettings(): ValidatedBackupSettings {
     val darkModeOption = requireEnumName<DarkModeOption>(

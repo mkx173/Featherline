@@ -1,6 +1,7 @@
 package com.mkx.hrttracker.model.medication
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -28,6 +29,22 @@ class MedicineIdentityKeyTest {
         )
 
         assertEquals("C|ESTRADIOL|PILL|strengthMgPerTablet=2", identityKey)
+    }
+
+    @Test
+    fun customCapsuleIdentityDiffersFromCustomPillAtSameStrength() {
+        val pillKey = MedicineIdentityKey.custom(
+            customMedicationName = "Progesterone",
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 100.0),
+        )
+        val capsuleKey = MedicineIdentityKey.custom(
+            customMedicationName = "Progesterone",
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertEquals("X|progesterone|PILL|strengthMgPerTablet=100", pillKey)
+        assertEquals("X|progesterone|CAPSULE|strengthMgPerTablet=100", capsuleKey)
+        assertNotEquals(pillKey, capsuleKey)
     }
 
     @Test

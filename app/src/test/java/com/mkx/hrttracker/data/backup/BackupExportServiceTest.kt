@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
@@ -87,6 +88,41 @@ class BackupExportServiceTest {
     @After
     fun tearDown() {
         cacheDir.deleteRecursively()
+    }
+
+    @Test
+    fun backupExport_usesVersion3AfterCapsuleEnumAddition() {
+        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION)
+    }
+
+    @Test
+    fun buildBackupSnapshotJson_serializesCapsulePreparationUsingPerTabletColumn() = runTest {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000000c0")
+        val capsuleMedicine = testCustomMedicine(
+            uuid = medicineUuid,
+            medicationName = "Progesterone",
+            category = MedicationCategory.CUSTOM,
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        every { settingsRepository.onboardingCompleted } returns flowOf(false)
+        coEvery { settingsRepository.getCurrentSettings() } returns SettingsState()
+        coEvery { userProfileRepository.getCurrentProfile() } returns UserProfile()
+        coEvery { medicineRepository.getAll() } returns listOf(capsuleMedicine)
+        coEvery { medicationGroupRepository.getGroups() } returns emptyList()
+        coEvery { medicationLogRepository.getEntries() } returns emptyList()
+        coEvery { bloodTestRepository.getCustomAnalytes() } returns emptyList()
+        coEvery { bloodTestRepository.getPanels() } returns emptyList()
+
+        val snapshot = BackupSnapshotJsonCodec.decode(
+            service.buildBackupSnapshotJson(Instant.parse("2026-04-26T03:04:05Z"))
+        )!!
+
+        val backedUpMedicine = snapshot.medicines.single()
+        assertEquals(medicineUuid.toString(), backedUpMedicine.uuid)
+        assertEquals("CAPSULE", backedUpMedicine.preparationType)
+        assertEquals(100.0, backedUpMedicine.strengthMgPerTablet!!, 1e-9)
+        assertEquals(null, backedUpMedicine.strengthMgPerVial)
     }
 
     @Test
@@ -253,7 +289,7 @@ class BackupExportServiceTest {
         snapshot!!
 
         assertEquals(CURRENT_BACKUP_SNAPSHOT_VERSION, snapshot.snapshotVersion)
-        assertEquals(2, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
+        assertEquals(3, CURRENT_BACKUP_SNAPSHOT_VERSION) // Catches a stale bump.
         assertEquals(exportedAt.toEpochMilli(), snapshot.exportedAtEpochMillis)
         assertEquals("com.mkx.hrttracker", snapshot.app.packageName)
 

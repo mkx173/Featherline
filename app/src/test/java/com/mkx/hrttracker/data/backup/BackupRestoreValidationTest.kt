@@ -5,6 +5,7 @@ import com.mkx.hrttracker.model.bloodtest.BloodAnalyteKey
 import com.mkx.hrttracker.model.bloodtest.BloodUnitKey
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.pk.HomeE2ChartWindowOption
 import com.mkx.hrttracker.model.settings.AppLanguageOption
 import com.mkx.hrttracker.model.settings.AppLockGracePeriodOption
@@ -20,7 +21,7 @@ import java.util.UUID
 class BackupRestoreValidationTest {
 
     @Test
-    fun toValidatedSnapshot_maps_current_v2_snapshot_to_restorable_entities() {
+    fun toValidatedSnapshot_mapsCurrentSnapshotToRestorableEntities() {
         val exportedAt = Instant.parse("2026-04-26T03:04:05Z").toEpochMilli()
         val profileUpdatedAt = Instant.parse("2026-04-25T00:00:00Z").toEpochMilli()
         val medicineUuid = UUID.fromString("00000000-0000-0000-0000-000000000010")
@@ -217,6 +218,73 @@ class BackupRestoreValidationTest {
         assertEquals(2, restoredResults.size)
         assertEquals(builtinResultUuid.toString(), restoredResults[0].uuid)
         assertEquals(customResultUuid.toString(), restoredResults[1].uuid)
+    }
+
+    @Test
+    fun toValidatedSnapshot_acceptsVersion2BackupWithoutCapsules() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006a0")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 2,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        assertEquals(medicineUuid.toString(), result.medicines.single().uuid)
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsVersionBelowSupportedFloor() {
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 1,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = emptyList(),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected v1 snapshots to be rejected.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals("Unsupported backup snapshot version: 1.", error.message)
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_restoresCapsulePreparationFromVersion3() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006b0")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val result = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredMedicine = result.medicines.single()
+        assertEquals(MedicinePreparationType.CAPSULE.name, restoredMedicine.preparationType)
+        assertEquals(100.0, restoredMedicine.strengthMgPerTablet!!, 1e-9)
     }
 
     @Test
@@ -601,6 +669,33 @@ class BackupRestoreValidationTest {
                 com.mkx.hrttracker.model.medication.MedicationKey.ESTRADIOL,
                 preparation,
             ),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    private fun capsuleMedicineSnapshot(uuid: UUID): BackupMedicineSnapshot {
+        val preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0)
+        return BackupMedicineSnapshot(
+            uuid = uuid.toString(),
+            selectionKind = "CUSTOM",
+            medicationKey = null,
+            customMedicationName = "Progesterone",
+            customMedicationNameNormalized = "progesterone",
+            category = "CUSTOM",
+            preparationType = "CAPSULE",
+            strengthMgPerTablet = 100.0,
+            strengthMgPerVial = null,
+            concentrationMgPerMl = null,
+            vialVolumeMl = null,
+            concentrationPercent = null,
+            sachetWeightGrams = null,
+            containerWeightGrams = null,
+            patchTotalMg = null,
+            patchReleaseRateMcgPerDay = null,
+            displayName = null,
+            identityKey = MedicineIdentityKey.custom("Progesterone", preparation),
             createdAtEpochMillis = 0L,
             updatedAtEpochMillis = 0L,
             archivedAtEpochMillis = null,
