@@ -85,7 +85,9 @@ fun NewMedicineSlotSheet(
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
-        title = stringResource(R.string.create_medicine_title),
+        title = stringResource(
+            if (isManualLogMode) R.string.add_entry else R.string.create_medicine_title,
+        ),
         sheetState = sheetState,
         confirmButtonText = stringResource(R.string.save),
         onDismissRequest = onDismissRequest,
