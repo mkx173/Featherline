@@ -22,10 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldLabelPosition
 import androidx.compose.runtime.Composable
@@ -709,7 +706,6 @@ private fun NewMedicinePreparationForm(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PreparationFormButtonGroup(
     options: List<MedicinePreparationForm>,
@@ -718,21 +714,20 @@ private fun PreparationFormButtonGroup(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, form ->
-            SegmentedButton(
-                selected = form == selectedOption,
-                onClick = { onOptionSelected(form) },
-                enabled = enabled,
-                shape = SegmentedButtonDefaults.itemShape(
-                    index = index,
-                    count = options.size,
-                ),
-            ) {
-                Text(text = stringResource(preparationFormLabelRes(form)))
-            }
-        }
-    }
+    ConnectedButtonGroup(
+        modifier = modifier.fillMaxWidth(),
+        options = options,
+        selectedOption = selectedOption,
+        optionLabel = { form -> stringResource(preparationFormLabelRes(form)) },
+        optionLeadingContent = { form ->
+            Icon(
+                painter = painterResource(preparationFormIconRes(form)),
+                contentDescription = null,
+            )
+        },
+        onOptionSelected = onOptionSelected,
+        enabled = enabled,
+    )
 }
 
 @StringRes
@@ -743,6 +738,17 @@ private fun preparationFormLabelRes(form: MedicinePreparationForm): Int {
         MedicinePreparationForm.INJECTION -> R.string.medicine_preparation_form_injection
         MedicinePreparationForm.GEL -> R.string.medicine_preparation_form_gel
         MedicinePreparationForm.PATCH -> R.string.medicine_preparation_form_patch
+    }
+}
+
+@DrawableRes
+private fun preparationFormIconRes(form: MedicinePreparationForm): Int {
+    return when (form) {
+        MedicinePreparationForm.TABLET -> R.drawable.ic_control_point_duplicate
+        MedicinePreparationForm.CAPSULE -> R.drawable.ic_pill
+        MedicinePreparationForm.INJECTION -> R.drawable.ic_syringe
+        MedicinePreparationForm.GEL -> R.drawable.ic_water_drops
+        MedicinePreparationForm.PATCH -> R.drawable.ic_sticker_add
     }
 }
 

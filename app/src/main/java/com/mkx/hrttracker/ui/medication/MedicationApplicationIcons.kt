@@ -64,7 +64,7 @@ internal fun MedicationApplicationIcon(
 @DrawableRes
 internal fun medicationApplicationIconRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
-        MedicationApplicationType.ORAL -> R.drawable.ic_pill
+        MedicationApplicationType.ORAL -> R.drawable.ic_oral
         MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_sublingual
         MedicationApplicationType.INJECTION -> R.drawable.ic_syringe
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops
@@ -76,7 +76,7 @@ internal fun medicationApplicationIconRes(applicationType: MedicationApplication
 @DrawableRes
 internal fun medicationApplicationOutlinedIconRes(applicationType: MedicationApplicationType): Int {
     return when (applicationType) {
-        MedicationApplicationType.ORAL -> R.drawable.ic_pill_alt
+        MedicationApplicationType.ORAL -> R.drawable.ic_oral_alt
         MedicationApplicationType.SUBLINGUAL -> R.drawable.ic_sublingual_alt
         MedicationApplicationType.INJECTION -> R.drawable.ic_syringe_alt
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops_alt

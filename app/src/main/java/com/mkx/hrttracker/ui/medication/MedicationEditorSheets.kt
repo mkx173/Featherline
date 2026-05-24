@@ -48,12 +48,10 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -81,13 +79,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
-import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.DatePickerModal
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.HrtButton
@@ -646,26 +644,43 @@ internal fun DoseInstructionForm(
     enabled: Boolean = true,
 ) {
     if (activePreparationType == MedicinePreparationType.PILL) {
-        TabletRouteRow(
-            applicationType = when (doseInstructionDraft.applicationType) {
-                MedicationApplicationType.ORAL,
-                MedicationApplicationType.SUBLINGUAL -> doseInstructionDraft.applicationType
+        val availableRoutes = MedicationCatalog.tabletRoutesFor(medicineDraft.category)
+        val currentRoute = when (doseInstructionDraft.applicationType) {
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL -> doseInstructionDraft.applicationType
 
-                MedicationApplicationType.INJECTION,
-                MedicationApplicationType.GEL,
-                MedicationApplicationType.PATCH_ON,
-                MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
-            },
-            onApplicationTypeChange = { route ->
+            MedicationApplicationType.INJECTION,
+            MedicationApplicationType.GEL,
+            MedicationApplicationType.PATCH_ON,
+            MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
+        }
+        // Coerce drafts created with SUBLINGUAL into ORAL when the category no
+        // longer supports SUBLINGUAL (e.g. user switched the medicine to an
+        // antiandrogen). Without this the saved slot would carry a route the
+        // user can no longer see in the editor.
+        LaunchedEffect(availableRoutes, doseInstructionDraft.applicationType) {
+            if (doseInstructionDraft.applicationType !in availableRoutes &&
+                availableRoutes.isNotEmpty()
+            ) {
                 onDoseInstructionDraftChange {
-                    it.copy(
-                        applicationType = route,
-                    )
+                    it.copy(applicationType = availableRoutes.first())
                 }
-            },
-            enabled = enabled,
-        )
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+            }
+        }
+        if (availableRoutes.size >= 2) {
+            EditorSectionLabel(stringResource(R.string.field_medication_application))
+            TabletRouteRow(
+                availableRoutes = availableRoutes,
+                applicationType = currentRoute,
+                onApplicationTypeChange = { route ->
+                    onDoseInstructionDraftChange {
+                        it.copy(applicationType = route)
+                    }
+                },
+                enabled = enabled,
+            )
+            Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+        }
     }
 
     when (activePreparationType) {
@@ -761,30 +776,27 @@ internal fun DoseInstructionForm(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun TabletRouteRow(
+    availableRoutes: List<MedicationApplicationType>,
     applicationType: MedicationApplicationType,
     onApplicationTypeChange: (MedicationApplicationType) -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val options = listOf(
-        MedicationApplicationType.ORAL,
-        MedicationApplicationType.SUBLINGUAL,
+    ConnectedButtonGroup(
+        modifier = modifier.fillMaxWidth(),
+        options = availableRoutes,
+        selectedOption = applicationType,
+        optionLabel = { route -> stringResource(route.labelRes) },
+        optionLeadingContent = { route ->
+            MedicationApplicationIcon(
+                applicationType = route,
+                contentDescription = null,
+                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+            )
+        },
+        onOptionSelected = onApplicationTypeChange,
+        enabled = enabled,
     )
-    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, route ->
-            SegmentedButton(
-                selected = applicationType == route,
-                onClick = { onApplicationTypeChange(route) },
-                enabled = enabled,
-                shape = SegmentedButtonDefaults.itemShape(
-                    index = index,
-                    count = options.size,
-                ),
-            ) {
-                Text(text = stringResource(route.labelRes))
-            }
-        }
-    }
 }
 
 internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): Int {

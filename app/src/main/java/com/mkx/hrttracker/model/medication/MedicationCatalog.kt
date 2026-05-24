@@ -261,6 +261,17 @@ object MedicationCatalog {
         return catalogFor(category, applicationType).entries.first()
     }
 
+    // Routes the user can choose for a TABLET-form medicine in this category.
+    // Antiandrogen and custom catalogs only register ORAL pills, so picking
+    // sublingual for them would be unsupported; callers use this to suppress
+    // the route picker when there is no real choice.
+    fun tabletRoutesFor(category: MedicationCategory): List<MedicationApplicationType> {
+        return applicationTypesFor(category).filter { applicationType ->
+            applicationType == MedicationApplicationType.ORAL ||
+                applicationType == MedicationApplicationType.SUBLINGUAL
+        }
+    }
+
     fun preparationFormsFor(category: MedicationCategory): List<MedicinePreparationForm> {
         val forms = applicationTypesFor(category)
             .flatMap { applicationType -> applicationType.preparationForms() }

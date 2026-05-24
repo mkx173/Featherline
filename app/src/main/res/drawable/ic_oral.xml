@@ -1,0 +1,30 @@
+<!--
+  ~ Copyright (C) 2026 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:pathData="M15.62,12.06h4.18c0.31,-0.4 0.59,-0.82 0.78,-1.28 0.28,-0.68 0.42,-1.4 0.42,-2.15 0,-1.57 -0.55,-2.9 -1.64,-3.99s-2.42,-1.64 -3.99,-1.64c-0.75,0 -1.47,0.14 -2.15,0.42 -0.68,0.28 -1.29,0.69 -1.82,1.23l-2.68,2.65 5.32,5.32c0.44,-0.36 0.97,-0.56 1.57,-0.56Z"
+      android:fillColor="#e3e3e3"/>
+  <path
+      android:pathData="M13.15,14.82c0,-0.08 0,-0.17 0,-0.25l-5.85,-5.85 -2.65,2.68c-0.53,0.53 -0.94,1.14 -1.23,1.82 -0.28,0.68 -0.42,1.4 -0.42,2.15 0,1.57 0.55,2.9 1.64,3.99s2.42,1.64 3.99,1.64c0.75,0 1.47,-0.14 2.15,-0.42 0.68,-0.28 1.29,-0.69 1.82,-1.23l0.94,-0.94 -0.4,-3.59Z"
+      android:fillColor="#e3e3e3"/>
+  <path
+      android:pathData="M15.91,17.26c0.31,-0.13 0.61,-0.23 0.92,-0.29s0.61,-0.1 0.92,-0.1c0.21,0 0.42,0.01 0.63,0.04 0.21,0.03 0.42,0.07 0.62,0.13 0.33,0.09 0.58,0.15 0.75,0.19 0.17,0.03 0.35,0.05 0.54,0.05h0.02l0.28,-2.73h-4.97l0.29,2.71ZM16.28,21.83c-0.31,0 -0.59,-0.1 -0.82,-0.31s-0.36,-0.47 -0.4,-0.78l-0.67,-6.06c-0.04,-0.37 0.06,-0.7 0.3,-0.97 0.24,-0.27 0.55,-0.41 0.92,-0.41h4.97c0.37,0 0.68,0.14 0.93,0.41s0.35,0.59 0.31,0.97l-0.67,6.06c-0.03,0.31 -0.17,0.57 -0.4,0.78s-0.51,0.31 -0.82,0.31h-3.66Z"
+      android:fillColor="#e3e3e3"/>
+</vector>
