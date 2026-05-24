@@ -18,6 +18,7 @@ fun medicationDetailLine(
     val doseText = doseInstructionText(context, medication.medicine, medication.doseInstruction)
     val countText = medicationCountIndicatorText(context = context, count = medication.count)
 
-    return listOfNotNull(groupName, name, appType, countText, doseText)
+    // For PATCH_OFF the title falls back to the route name; drop the duplicate.
+    return listOfNotNull(groupName, name, appType.takeIf { it != name }, countText, doseText)
         .joinToString(separator = " · ")
 }

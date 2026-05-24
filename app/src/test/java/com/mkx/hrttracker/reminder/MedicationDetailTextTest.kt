@@ -126,6 +126,7 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Estrogens", medication)
 
-        assertEquals("Estrogens · Patch off · Patch off", result)
+        // Route falls back into the title for PATCH_OFF; don't duplicate the label.
+        assertEquals("Estrogens · Patch off", result)
     }
 }
