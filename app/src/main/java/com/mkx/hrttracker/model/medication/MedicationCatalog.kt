@@ -173,13 +173,17 @@ object MedicationCatalog {
                     medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
                     doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
                         multiUseVialDoseAssistPresets(
-                            concentrationsMgPerMl = listOf("20", "40", "50"),
+                            concentrationsMgPerMl = listOf("20", "40"),
                             volumesMl = listOf("5", "10"),
                         ),
                 ),
                 MedicationCatalogEntry(
                     medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
-                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10"),
+                    doseAssistPresets = singleUseVialMgDoseAssistPresets("5", "10") +
+                        multiUseVialDoseAssistPresets(
+                            concentrationsMgPerMl = listOf("20", "40"),
+                            volumesMl = listOf("5", "10"),
+                        ),
                 ),
             ),
             allowCustomMedicationName = false,

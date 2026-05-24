@@ -89,42 +89,31 @@ class MedicationCatalogTest {
 
     @Test
     fun estradiol_injection_catalog_includes_multi_use_vial_assist_values() {
-        assertEquals(
-            listOf(
-                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
-                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
-                MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
-                MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
-            ),
-            catalogEntry(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.INJECTION,
-                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_MULTI_USE_VIAL),
+        // All four esters share the same multi-use vial chip set: real homebrew
+        // configurations cluster around 20/40 mg/mL × 5/10 mL, and rather than
+        // splitting per ester we expose the same affordances everywhere so
+        // users can describe the vial they actually have.
+        val expectedMultiUsePresets = listOf(
+            MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
+            MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
+            MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
+            MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
         )
-        assertEquals(
-            listOf(
-                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
-                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
-                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("50"),
-                MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
-                MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
-            ),
-            catalogEntry(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.INJECTION,
-                medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
-            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_MULTI_USE_VIAL),
-        )
-        // Benzoate has no homebrew references; the multi-use map omits it.
-        assertEquals(
-            null,
-            catalogEntry(
-                category = MedicationCategory.ESTRADIOL,
-                applicationType = MedicationApplicationType.INJECTION,
-                medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
-            ).doseAssistPresets[MedicinePreparationType.INJECTION_MULTI_USE_VIAL],
-        )
+        listOf(
+            MedicationKey.ESTRADIOL_VALERATE,
+            MedicationKey.ESTRADIOL_CYPIONATE,
+            MedicationKey.ESTRADIOL_ENANTHATE,
+            MedicationKey.ESTRADIOL_BENZOATE,
+        ).forEach { medicationKey ->
+            assertEquals(
+                expectedMultiUsePresets,
+                catalogEntry(
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = MedicationApplicationType.INJECTION,
+                    medicationKey = medicationKey,
+                ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_MULTI_USE_VIAL),
+            )
+        }
     }
 
     @Test
