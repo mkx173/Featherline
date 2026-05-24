@@ -383,8 +383,8 @@
     <string name="medicine_capsule_strength_label">mg per capsule</string>
     <string name="medication_preparation_summary_pill">Tablet · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
-    <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>
-    <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
+    <string name="medication_preparation_summary_capsule">%1$s mg per capsule</string>
+    <string name="medication_preparation_summary_capsule_with_unit">%1$s %2$s per capsule</string>
     <string name="medication_preparation_summary_single_use_vial">Single-use vial · %1$s mg</string>
     <string name="medication_preparation_summary_single_use_vial_with_unit">Single-use vial · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">Multi-use vial · %1$s mg/mL · %2$s mL</string>

@@ -5,7 +5,9 @@ import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
+import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.every
 import io.mockk.mockk
@@ -14,6 +16,21 @@ import org.junit.Test
 
 class MedicationDetailTextTest {
     private val context: Context = mockk()
+
+    @Test
+    fun capsulePreparationSummaryUsesCapsuleStrength() {
+        every {
+            context.getString(R.string.medication_preparation_summary_capsule, "100")
+        } returns "100 mg per capsule"
+        val medicine = testCustomMedicine(
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertEquals(
+            "100 mg per capsule",
+            com.mkx.hrttracker.util.medicinePreparationSummary(medicine, context),
+        )
+    }
 
     @Test
     fun medicationDetailLine_catalogMedication_singleCount() {

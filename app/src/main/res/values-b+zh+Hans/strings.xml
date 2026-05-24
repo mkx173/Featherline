@@ -374,8 +374,8 @@
     <string name="medication_picker_add_new">+ 新建</string>
     <string name="medication_preparation_summary_pill">片剂 · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">片剂 · %1$s %2$s</string>
-    <string name="medication_preparation_summary_capsule">胶囊 · %1$s mg</string>
-    <string name="medication_preparation_summary_capsule_with_unit">胶囊 · %1$s %2$s</string>
+    <string name="medication_preparation_summary_capsule">每粒 %1$s mg</string>
+    <string name="medication_preparation_summary_capsule_with_unit">每粒 %1$s %2$s</string>
     <string name="medication_preparation_summary_single_use_vial">单次使用药瓶 · %1$s mg</string>
     <string name="medication_preparation_summary_single_use_vial_with_unit">单次使用药瓶 · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">多次使用药瓶 · %1$s mg/mL · %2$s mL</string>

@@ -327,6 +327,39 @@ class MedicineDetailViewModelTest {
         )
     }
 
+    @Test
+    fun savePreparation_acceptsCapsulePreparation() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000009")
+        val medicine = testMedicine(uuid = medicineUuid)
+        every { medicineRepository.observeAllActive() } returns flowOf(listOf(medicine))
+        every { medicineRepository.observeAllArchived() } returns flowOf(emptyList())
+        every { medicationGroupRepository.observeGroups() } returns flowOf(emptyList())
+        coEvery { medicineRepository.isLocked(medicineUuid) } returns false
+        coEvery {
+            medicineRepository.updatePreparation(medicineUuid, any(), any(), any())
+        } just Runs
+
+        val viewModel = MedicineDetailViewModel(
+            medicineRepository = medicineRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(MedicineDetailViewModel.MEDICINE_ID_ARG to medicineUuid.toString()),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.savePreparation(MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            medicineRepository.updatePreparation(
+                medicineUuid,
+                MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+                null,
+                any(),
+            )
+        }
+    }
+
     // Why this matters: `updatePreparation` produces a new identityKey; if a
     // medicine with that identityKey already exists the repo throws. The UI
     // must distinguish this from a generic failure so the message can guide
