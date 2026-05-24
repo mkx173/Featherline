@@ -7,15 +7,12 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
@@ -73,15 +70,6 @@ class MedicineSlotDraftViewModel @Inject constructor(
         if (currentState.isSaving || currentState.isSaved) {
             return
         }
-        val appliedAt = LocalDateTime.of(
-            currentState.appliedDate,
-            currentState.appliedTime,
-        ).atZone(currentState.appliedZoneId).toInstant()
-        val resolvedDose = if (applicationType == MedicationApplicationType.PATCH_OFF) {
-            DoseInstruction.Noop
-        } else {
-            doseInstruction
-        }
 
         _uiState.update {
             it.copy(
@@ -90,28 +78,17 @@ class MedicineSlotDraftViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val saveResult = runCatching {
-                medicationLogRepository.saveEntry(
-                    uuid = null,
-                    medicineUuid = medicineUuid,
-                    applicationType = applicationType,
-                    doseInstruction = resolvedDose,
-                    sourceGroupUuid = null,
-                    scheduleTimeUuid = null,
-                    appliedAt = appliedAt,
-                    scheduledFor = null,
-                    count = count.coerceAtLeast(1),
-                    appliedAtTimeZoneId = currentState.appliedZoneId.id,
-                )
-            }.fold(
-                onSuccess = { null },
-                onFailure = { MedicineSlotDraftSaveResult.FAILURE },
+            val saveResult = saveManualMedicineLog(
+                medicationLogRepository = medicationLogRepository,
+                medicationReminderScheduler = medicationReminderScheduler,
+                medicineUuid = medicineUuid,
+                applicationType = applicationType,
+                doseInstruction = doseInstruction,
+                count = count,
+                appliedDate = currentState.appliedDate,
+                appliedTime = currentState.appliedTime,
+                appliedZoneId = currentState.appliedZoneId,
             )
-            if (saveResult == null) {
-                withContext(NonCancellable) {
-                    runCatching { medicationReminderScheduler.rescheduleAll() }
-                }
-            }
             _uiState.update {
                 it.copy(
                     isSaving = false,
