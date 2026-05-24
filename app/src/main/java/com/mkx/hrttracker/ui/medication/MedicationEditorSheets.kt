@@ -48,10 +48,12 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -79,7 +81,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
@@ -270,9 +271,14 @@ fun MedicationLogEntryEditorSheet(
                 isSaving = isSaving,
             )
         } else {
+            val linkedApplicationType = doseInstructionDraft?.let { draft ->
+                lockedMedicine?.let { medicine ->
+                    resolvedApplicationTypeForDose(medicine.preparation.type, draft)
+                }
+            } ?: medicineDraft.catalogFilterApplicationType
             MedicationLogEntryLinkedMedicationSummary(
                 lockedMedicine = lockedMedicine,
-                applicationType = medicineDraft.applicationType,
+                applicationType = linkedApplicationType,
                 doseInstruction = doseInstructionDraft?.toDoseInstructionOrNull(),
                 countText = countText,
                 sourceGroupName = sourceGroupName,
@@ -417,7 +423,6 @@ internal fun MedicationEditorSheetScaffold(
 // Medication editor content — slot/log dose fields plus routed picker summary.
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun MedicationEditorContent(
     medicineDraft: MedicinePickerUiState,
@@ -438,15 +443,14 @@ internal fun MedicationEditorContent(
     // since re-tapping a card in the manager itself is the re-pick UI.
     canRepickMedicine: Boolean = canEditMedicationIdentity,
 ) {
-    val isPatchOff = medicineDraft.applicationType == MedicationApplicationType.PATCH_OFF
-    // Once a medicine is resolved, lock the route picker to options compatible
-    // with its preparation type (PILL → oral/sublingual; everything else →
-    // single fixed route). PATCH_OFF is unaffected — it has no medicine.
-    val applicationTypeOptions = if (resolvedMedicine != null && !isPatchOff) {
-        applicationTypesCompatibleWithPreparation(resolvedMedicine.preparation.type)
+    val activePreparationType = resolvedMedicine?.preparation?.type
+        ?: doseInstructionDraft?.preparationType
+    val applicationType = if (activePreparationType != null && doseInstructionDraft != null) {
+        resolvedApplicationTypeForDose(activePreparationType, doseInstructionDraft)
     } else {
-        MedicationCatalog.applicationTypesFor(medicineDraft.category)
+        medicineDraft.catalogFilterApplicationType
     }
+    val isPatchOff = applicationType == MedicationApplicationType.PATCH_OFF
 
     // Category is fixed by the medicine — switching to a different category
     // would orphan the resolved medicine (changeCategory clears the selection).
@@ -466,38 +470,12 @@ internal fun MedicationEditorContent(
         )
     }
 
-    if (!isPatchOff && applicationTypeOptions.size > 1) {
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-
-        EditorSectionLabel(stringResource(R.string.field_medication_application))
-        ConnectedButtonGroup(
-            options = applicationTypeOptions,
-            selectedOption = medicineDraft.applicationType,
-            optionLabel = { applicationType -> stringResource(applicationType.labelRes) },
-            optionLeadingContent = { applicationType ->
-                MedicationApplicationIcon(
-                    applicationType = applicationType,
-                    contentDescription = null,
-                    modifier = Modifier.size(ToggleButtonDefaults.IconSize),
-                )
-            },
-            onOptionSelected = { applicationType ->
-                onMedicineDraftChange { it.changeApplicationType(applicationType) }
-            },
-            // Route stays editable for an already-resolved medicine even when
-            // identity is otherwise locked: for PILL (the only resolved
-            // preparation with >1 compatible route) ORAL <-> SUBLINGUAL is a
-            // presentation choice over the same medicine, not an identity change.
-            enabled = !isSaving && (canEditMedicationIdentity || resolvedMedicine != null),
-        )
-    }
-
     if (isPatchOff) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
         MedicationSummaryHeader(
             medicine = resolvedMedicine,
-            applicationType = medicineDraft.applicationType,
+            applicationType = applicationType,
             doseInstructionDraft = doseInstructionDraft,
             countText = countText,
             canOpenMedicinePicker = canRepickMedicine && !isSaving,
@@ -529,7 +507,7 @@ internal fun MedicationEditorContent(
     }
     MedicationSummaryHeader(
         medicine = resolvedMedicine,
-        applicationType = medicineDraft.applicationType,
+        applicationType = applicationType,
         doseInstructionDraft = doseInstructionDraft,
         countText = countText,
         canOpenMedicinePicker = canRepickMedicine && !isSaving,
@@ -549,18 +527,20 @@ internal fun MedicationEditorContent(
     // DoseInstructionDraftUiState.validationErrorRes(): the editor is otherwise
     // unsaveable when the user picks an existing multi-use vial / gel container.
     if (doseInstructionDraft != null &&
-        requiresEditableDoseInstructionForm(doseInstructionDraft.preparationType)
+        activePreparationType != null &&
+        requiresEditableDoseInstructionForm(activePreparationType)
     ) {
         DoseInstructionForm(
             medicineDraft = medicineDraft,
             doseInstructionDraft = doseInstructionDraft,
+            activePreparationType = activePreparationType,
             onDoseInstructionDraftChange = onDoseInstructionDraftChange,
             errorMessageRes = errorMessageRes,
             enabled = !isSaving,
         )
     }
 
-    if (medicineDraft.showsMedicationCountEditor()) {
+    if (applicationType.supportsMedicationCountEditor()) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         MedicationCountTextField(
             value = countText,
@@ -660,11 +640,35 @@ private fun MedicationSummaryHeader(
 internal fun DoseInstructionForm(
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState,
+    activePreparationType: MedicinePreparationType = doseInstructionDraft.preparationType,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
     errorMessageRes: Int?,
     enabled: Boolean = true,
 ) {
-    when (doseInstructionDraft.preparationType) {
+    if (activePreparationType == MedicinePreparationType.PILL) {
+        TabletRouteRow(
+            applicationType = when (doseInstructionDraft.applicationType) {
+                MedicationApplicationType.ORAL,
+                MedicationApplicationType.SUBLINGUAL -> doseInstructionDraft.applicationType
+
+                MedicationApplicationType.INJECTION,
+                MedicationApplicationType.GEL,
+                MedicationApplicationType.PATCH_ON,
+                MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
+            },
+            onApplicationTypeChange = { route ->
+                onDoseInstructionDraftChange {
+                    it.copy(
+                        applicationType = route,
+                    )
+                }
+            },
+            enabled = enabled,
+        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    }
+
+    when (activePreparationType) {
         MedicinePreparationType.PILL -> {
             val current = doseInstructionDraft.selectedTabletFractionOption()
             val options = TabletFractionOption.entries
@@ -750,6 +754,35 @@ internal fun DoseInstructionForm(
                     onDoseInstructionDraftChange { it.applyDoseAssistPreset(preset) }
                 },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun TabletRouteRow(
+    applicationType: MedicationApplicationType,
+    onApplicationTypeChange: (MedicationApplicationType) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val options = listOf(
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL,
+    )
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, route ->
+            SegmentedButton(
+                selected = applicationType == route,
+                onClick = { onApplicationTypeChange(route) },
+                enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = options.size,
+                ),
+            ) {
+                Text(text = stringResource(route.labelRes))
+            }
         }
     }
 }

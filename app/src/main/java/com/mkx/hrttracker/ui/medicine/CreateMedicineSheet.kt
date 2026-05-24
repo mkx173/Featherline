@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -23,10 +22,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldLabelPosition
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -49,17 +50,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mkx.hrttracker.R
-import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroup
 import com.mkx.hrttracker.ui.components.ConnectedButtonGroupLayout
 import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
-import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
-import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.DoseAssistPresetRow
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
@@ -70,8 +70,8 @@ import com.mkx.hrttracker.ui.medication.shortLabelRes
 import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
 import com.mkx.hrttracker.ui.medication.ambiguousPreparationTypes
 import com.mkx.hrttracker.ui.medication.availableCatalogKeys
-import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.changeCategory
+import com.mkx.hrttracker.ui.medication.changeForm
 import com.mkx.hrttracker.ui.medication.changeMedicationKey
 import com.mkx.hrttracker.ui.medication.changePreparationType
 import com.mkx.hrttracker.ui.medication.editorMedicationCategories
@@ -192,25 +192,15 @@ internal fun CreateMedicineForm(
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    EditorSectionLabel(stringResource(R.string.field_medication_application))
-    ApplicationTypeButtonGroup(
-        options = createMedicineApplicationTypesFor(medicineDraft.category),
-        selectedOption = medicineDraft.applicationType,
-        onOptionSelected = { applicationType ->
-            onMedicineDraftChange { it.changeApplicationType(applicationType) }
+    EditorSectionLabel(stringResource(R.string.field_preparation_form))
+    PreparationFormButtonGroup(
+        options = MedicationCatalog.preparationFormsFor(medicineDraft.category),
+        selectedOption = medicineDraft.form,
+        onOptionSelected = { form ->
+            onMedicineDraftChange { it.changeForm(form) }
         },
         enabled = enabled,
     )
-
-    if (medicineDraft.applicationType == MedicationApplicationType.PATCH_OFF) {
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        Text(
-            text = stringResource(R.string.medication_editor_patch_off_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return
-    }
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
@@ -400,7 +390,7 @@ private fun NewMedicinePreparationForm(
     }
     if (medicineDraft.requiresPreparationTypeSelection()) {
         EditorSectionLabel(stringResource(R.string.field_preparation_type))
-        val options = ambiguousPreparationTypes(medicineDraft.applicationType)
+        val options = ambiguousPreparationTypes(medicineDraft.form)
         ConnectedButtonGroup(
             options = options,
             selectedOption = medicineDraft.preparationType ?: options.first(),
@@ -432,10 +422,11 @@ private fun NewMedicinePreparationForm(
             }
             NumericField(
                 value = medicineDraft.pillStrengthMg,
-                label = fieldLabelWithUnit(
-                    if (isCapsule) R.string.field_capsule_strength_mg else R.string.field_pill_strength_mg,
-                    rawMassUnit,
-                ),
+                label = if (isCapsule) {
+                    fieldLabelWithUnit(R.string.field_capsule_strength_mg, rawMassUnit)
+                } else {
+                    fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit)
+                },
                 leadingIconRes = R.drawable.ic_medication,
                 enabled = enabled,
                 readOnly = readOnly,
@@ -718,48 +709,41 @@ private fun NewMedicinePreparationForm(
     }
 }
 
-private fun createMedicineApplicationTypesFor(
-    category: com.mkx.hrttracker.model.medication.MedicationCategory,
-): List<MedicationApplicationType> {
-    return MedicationCatalog.applicationTypesFor(category)
-        .filterNot { it == MedicationApplicationType.PATCH_OFF }
-}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ApplicationTypeButtonGroup(
-    options: List<MedicationApplicationType>,
-    selectedOption: MedicationApplicationType,
-    onOptionSelected: (MedicationApplicationType) -> Unit,
+private fun PreparationFormButtonGroup(
+    options: List<MedicinePreparationForm>,
+    selectedOption: MedicinePreparationForm,
+    onOptionSelected: (MedicinePreparationForm) -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
-    // MedicationApplicationIcon wraps the icon in a Box(modifier), so the
-    // modifier must constrain both axes — a height-only modifier lets the Box
-    // grow to fill the ToggleButton's row, pushing the label off-screen and
-    // forcing the FlowRow to wrap each button onto its own line.
-    ConnectedButtonGroup(
-        options = options,
-        selectedOption = selectedOption,
-        // PATCH_OFF is filtered out of the create-medicine picker, so "Patch
-        // on" reads as an action label without a matching "off" counterpart.
-        // Use the preparation name ("Patch") in this context instead.
-        optionLabel = { applicationType ->
-            if (applicationType == MedicationApplicationType.PATCH_ON) {
-                stringResource(R.string.preparation_type_patch)
-            } else {
-                stringResource(applicationType.labelRes)
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, form ->
+            SegmentedButton(
+                selected = form == selectedOption,
+                onClick = { onOptionSelected(form) },
+                enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = options.size,
+                ),
+            ) {
+                Text(text = stringResource(preparationFormLabelRes(form)))
             }
-        },
-        optionLeadingContent = { applicationType ->
-            MedicationApplicationIcon(
-                applicationType = applicationType,
-                contentDescription = null,
-                modifier = Modifier.size(ToggleButtonDefaults.IconSize),
-            )
-        },
-        onOptionSelected = onOptionSelected,
-        enabled = enabled,
-    )
+        }
+    }
+}
+
+@StringRes
+private fun preparationFormLabelRes(form: MedicinePreparationForm): Int {
+    return when (form) {
+        MedicinePreparationForm.TABLET -> R.string.medicine_preparation_form_tablet
+        MedicinePreparationForm.CAPSULE -> R.string.medicine_preparation_form_capsule
+        MedicinePreparationForm.INJECTION -> R.string.medicine_preparation_form_injection
+        MedicinePreparationForm.GEL -> R.string.medicine_preparation_form_gel
+        MedicinePreparationForm.PATCH -> R.string.medicine_preparation_form_patch
+    }
 }
 
 @Composable
@@ -931,9 +915,6 @@ internal enum class CreateMedicineField {
 }
 
 internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineField> {
-    if (draft.applicationType == MedicationApplicationType.PATCH_OFF) {
-        return emptyList()
-    }
     val fields = mutableListOf<CreateMedicineField>()
     if (draft.requiresCustomName()) {
         fields += CreateMedicineField.CUSTOM_NAME
@@ -969,6 +950,32 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         null -> Unit
     }
     return fields
+}
+
+internal fun createMedicineRequiredFields(draft: MedicinePickerUiState): List<CreateMedicineField> {
+    return when (draft.inferredOrSelectedPreparationType()) {
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE -> listOf(CreateMedicineField.PILL_STRENGTH)
+        MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> listOf(CreateMedicineField.VIAL_STRENGTH)
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
+            CreateMedicineField.CONCENTRATION_MG_PER_ML,
+            CreateMedicineField.VIAL_VOLUME_ML,
+        )
+        MedicinePreparationType.GEL_SACHET -> listOf(
+            CreateMedicineField.GEL_PERCENT,
+            CreateMedicineField.SACHET_WEIGHT,
+        )
+        MedicinePreparationType.GEL_CONTAINER -> listOf(
+            CreateMedicineField.GEL_PERCENT,
+            CreateMedicineField.CONTAINER_WEIGHT,
+        )
+        MedicinePreparationType.PATCH -> when (draft.patchSpecKind) {
+            PatchSpecKind.TOTAL_MG -> listOf(CreateMedicineField.PATCH_TOTAL_MG)
+            PatchSpecKind.RELEASE_RATE -> listOf(CreateMedicineField.PATCH_RELEASE_RATE)
+        }
+        MedicinePreparationType.PATCH_OFF,
+        null -> emptyList()
+    }
 }
 
 internal fun imeActionFor(

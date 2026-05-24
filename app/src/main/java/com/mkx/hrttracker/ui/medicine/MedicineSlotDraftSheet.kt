@@ -26,11 +26,11 @@ import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
-import com.mkx.hrttracker.ui.medication.changeApplicationType
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
@@ -97,7 +97,7 @@ fun MedicineSlotDraftSheet(
     var doseInstructionDraft by remember(medicine.uuid) {
         mutableStateOf(
             DoseInstructionDraftUiState(
-                applicationType = medicineDraft.applicationType,
+                applicationType = initialApplicationTypeForSlotDraft(medicine),
                 preparationType = medicine.preparation.type,
             )
         )
@@ -119,14 +119,20 @@ fun MedicineSlotDraftSheet(
             val error = medicineDraft.selectedMedicineValidationErrorRes()
                 ?: doseInstructionDraft.validationErrorRes()
                 ?: medicationCountValidationErrorRes(
-                    applicationType = medicineDraft.applicationType,
+                    applicationType = resolvedApplicationTypeForDose(
+                        preparationType = medicine.preparation.type,
+                        doseInstructionDraft = doseInstructionDraft,
+                    ),
                     countText = countText,
                 )
             if (error != null) {
                 errorMessageRes = error
                 return@MedicationEditorSheetScaffold
             }
-            val applicationType = medicineDraft.applicationType
+            val applicationType = resolvedApplicationTypeForDose(
+                preparationType = medicine.preparation.type,
+                doseInstructionDraft = doseInstructionDraft,
+            )
             val resolvedDose = if (applicationType == MedicationApplicationType.PATCH_OFF) {
                 DoseInstruction.Noop
             } else {
@@ -167,7 +173,6 @@ fun MedicineSlotDraftSheet(
                 val updatedDraft = transform(previousDraft)
                 medicineDraft = updatedDraft
                 doseInstructionDraft = doseInstructionDraft.copy(
-                    applicationType = updatedDraft.applicationType,
                     preparationType = updatedDraft.inferredOrSelectedPreparationType()
                         ?: doseInstructionDraft.preparationType,
                 )
@@ -191,14 +196,20 @@ fun MedicineSlotDraftSheet(
             },
             onDecreaseCountClick = {
                 countText = stepMedicationCount(
-                    applicationType = medicineDraft.applicationType,
+                    applicationType = resolvedApplicationTypeForDose(
+                        preparationType = medicine.preparation.type,
+                        doseInstructionDraft = doseInstructionDraft,
+                    ),
                     countText = countText,
                     delta = -1,
                 ).toString()
             },
             onIncreaseCountClick = {
                 countText = stepMedicationCount(
-                    applicationType = medicineDraft.applicationType,
+                    applicationType = resolvedApplicationTypeForDose(
+                        preparationType = medicine.preparation.type,
+                        doseInstructionDraft = doseInstructionDraft,
+                    ),
                     countText = countText,
                     delta = 1,
                 ).toString()

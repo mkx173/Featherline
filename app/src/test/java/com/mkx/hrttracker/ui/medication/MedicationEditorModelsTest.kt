@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationDoseAssistPreset
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
@@ -67,6 +68,96 @@ class MedicationEditorModelsTest {
         assertEquals(DoseInstruction.TabletFraction(1, 2), doseDraft.toDoseInstruction())
     }
 
+    @Test
+    fun defaultCustomDraft_usesTabletFormAndPillPreparation() {
+        val draft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+
+        assertEquals(MedicinePreparationForm.TABLET, draft.form)
+        assertEquals(MedicinePreparationType.PILL, draft.inferredOrSelectedPreparationType())
+        assertEquals(MedicationApplicationType.ORAL, draft.catalogFilterApplicationType)
+    }
+
+    @Test
+    fun changingCustomDraftToCapsuleProducesOralCapsule() {
+        val draft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+            .changeForm(MedicinePreparationForm.CAPSULE)
+            .copy(pillStrengthMg = "100")
+
+        assertEquals(MedicinePreparationForm.CAPSULE, draft.form)
+        assertEquals(MedicinePreparationType.CAPSULE, draft.inferredOrSelectedPreparationType())
+        assertEquals(MedicationApplicationType.ORAL, draft.catalogFilterApplicationType)
+        assertEquals(
+            MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            draft.toMedicinePreparation(),
+        )
+    }
+
+    @Test
+    fun changingToInjectionFormSelectsFirstInjectionPreparation() {
+        val draft = defaultMedicineDraft(category = MedicationCategory.ESTRADIOL)
+            .changeForm(MedicinePreparationForm.INJECTION)
+
+        assertEquals(MedicinePreparationForm.INJECTION, draft.form)
+        assertEquals(MedicationApplicationType.INJECTION, draft.catalogFilterApplicationType)
+        assertEquals(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL, draft.inferredOrSelectedPreparationType())
+    }
+
+    @Test
+    fun doseInstructionDraftForCapsuleUsesWholeUnitShape() {
+        val draft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+            .changeForm(MedicinePreparationForm.CAPSULE)
+
+        val doseDraft = draft.toDoseInstructionDraft()
+
+        assertEquals(MedicationApplicationType.ORAL, doseDraft.applicationType)
+        assertEquals(MedicinePreparationType.CAPSULE, doseDraft.preparationType)
+        assertEquals(DoseInstruction.WholeUnit, doseDraft.toDoseInstruction())
+    }
+
+    @Test
+    fun doseInstructionDraftPreservesCompatibilityRouteCursor() {
+        val sublingualDoseDraft = defaultMedicineDraft(
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+        ).toDoseInstructionDraft()
+        val patchOffDoseDraft = defaultMedicineDraft(
+            applicationType = MedicationApplicationType.PATCH_OFF,
+        ).toDoseInstructionDraft()
+
+        assertEquals(MedicationApplicationType.SUBLINGUAL, sublingualDoseDraft.applicationType)
+        assertEquals(DoseInstruction.TabletFraction(1, 1), sublingualDoseDraft.toDoseInstruction())
+        assertEquals(MedicationApplicationType.PATCH_OFF, patchOffDoseDraft.applicationType)
+        assertEquals(DoseInstruction.Noop, patchOffDoseDraft.toDoseInstruction())
+    }
+
+    @Test
+    fun resolvedApplicationTypeForDose_preservesTabletDraftRoute() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            preparationType = MedicinePreparationType.PILL,
+        )
+
+        assertEquals(
+            MedicationApplicationType.SUBLINGUAL,
+            resolvedApplicationTypeForDose(medicine.preparation.type, doseDraft),
+        )
+    }
+
+    @Test
+    fun resolvedApplicationTypeForDose_derivesNonTabletRouteFromPreparation() {
+        val doseDraft = DoseInstructionDraftUiState(
+            applicationType = MedicationApplicationType.SUBLINGUAL,
+            preparationType = MedicinePreparationType.CAPSULE,
+        )
+
+        assertEquals(
+            MedicationApplicationType.ORAL,
+            resolvedApplicationTypeForDose(MedicinePreparationType.CAPSULE, doseDraft),
+        )
+    }
+
     // The picker still shows up for ambiguous routes — but draft starts with a
     // sensible default preparation, so the editor's dose form renders
     // immediately and validation fails on the strength field, not on "pick a
@@ -99,13 +190,12 @@ class MedicationEditorModelsTest {
     }
 
     @Test
-    fun patchOffDraftProducesNoopDoseInstruction() {
+    fun patchFormProducesWholeUnitDoseInstruction() {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.PATCH_OFF,
-        )
+        ).changeForm(MedicinePreparationForm.PATCH)
 
-        assertEquals(DoseInstruction.Noop, draft.toDoseInstructionDraft().toDoseInstruction())
+        assertEquals(DoseInstruction.WholeUnit, draft.toDoseInstructionDraft().toDoseInstruction())
     }
 
     // --- Preparation-type inference ----------------------------------------
@@ -254,18 +344,16 @@ class MedicationEditorModelsTest {
     }
 
     @Test
-    fun custom_and_patch_off_drafts_do_not_show_catalog_assist_chips() {
+    fun custom_and_capsule_drafts_do_not_show_catalog_assist_chips() {
         val custom = defaultMedicineDraft(
             category = MedicationCategory.CUSTOM,
             applicationType = MedicationApplicationType.ORAL,
         )
-        val patchOff = defaultMedicineDraft(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.PATCH_OFF,
-        )
+        val capsule = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+            .changeForm(MedicinePreparationForm.CAPSULE)
 
         assertEquals(emptyList<MedicationDoseAssistPreset>(), custom.activeDoseAssistPresets())
-        assertEquals(emptyList<MedicationDoseAssistPreset>(), patchOff.activeDoseAssistPresets())
+        assertEquals(emptyList<MedicationDoseAssistPreset>(), capsule.activeDoseAssistPresets())
     }
 
     @Test
@@ -334,47 +422,6 @@ class MedicationEditorModelsTest {
         )
     }
 
-    // Encodes the new lock rule: switching between routes that share a
-    // preparation (oral ↔ sublingual for PILL) must preserve the resolved
-    // medicine — the previous behavior wiped it via defaultMedicineDraft().
-    @Test
-    fun changeApplicationType_preservesResolvedMedicine_betweenCompatibleRoutes() {
-        val medicineUuid = java.util.UUID.fromString("aaaa0000-0000-0000-0000-000000000001")
-        val draft = defaultMedicineDraft(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-        ).copy(
-            selectedMedicineUuid = medicineUuid,
-            preparationType = MedicinePreparationType.PILL,
-            pillStrengthMg = "2",
-        )
-
-        val switched = draft.changeApplicationType(MedicationApplicationType.SUBLINGUAL)
-
-        assertEquals(MedicationApplicationType.SUBLINGUAL, switched.applicationType)
-        assertEquals(medicineUuid, switched.selectedMedicineUuid)
-        assertEquals("2", switched.pillStrengthMg)
-    }
-
-    // Incompatible routes (e.g. PILL → INJECTION) intentionally reset the
-    // draft — the resolved medicine no longer fits and the picker must rerun.
-    @Test
-    fun changeApplicationType_clearsResolvedMedicine_acrossIncompatibleRoutes() {
-        val medicineUuid = java.util.UUID.fromString("aaaa0000-0000-0000-0000-000000000002")
-        val draft = defaultMedicineDraft(
-            category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.ORAL,
-        ).copy(
-            selectedMedicineUuid = medicineUuid,
-            preparationType = MedicinePreparationType.PILL,
-        )
-
-        val switched = draft.changeApplicationType(MedicationApplicationType.INJECTION)
-
-        assertEquals(MedicationApplicationType.INJECTION, switched.applicationType)
-        assertNull(switched.selectedMedicineUuid)
-    }
-
     @Test
     fun applicationTypesCompatibleWithPreparation_matchesPreparationFamily() {
         assertEquals(
@@ -396,11 +443,9 @@ class MedicationEditorModelsTest {
     }
 
     @Test
-    fun resolving_medication_count_text_resets_when_application_type_changes() {
-        val previousDraft = defaultMedicineDraft(applicationType = MedicationApplicationType.ORAL)
-        val updatedDraft = previousDraft.changeApplicationType(
-            MedicationApplicationType.SUBLINGUAL,
-        )
+    fun resolving_medication_count_text_resets_when_preparation_type_changes() {
+        val previousDraft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+        val updatedDraft = previousDraft.changeForm(MedicinePreparationForm.CAPSULE)
 
         assertEquals(
             "1",

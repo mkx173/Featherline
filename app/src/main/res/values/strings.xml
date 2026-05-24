@@ -345,6 +345,7 @@
     <string name="validation_dose_volume_required">Enter a valid volume.</string>
     <string name="validation_dose_weight_required">Enter a valid weight.</string>
     <string name="validation_dose_tablet_fraction_required">Enter a valid tablet amount.</string>
+    <string name="field_preparation_form">Preparation form</string>
     <string name="field_preparation_type">Preparation type</string>
     <string name="field_strength_unit">Strength unit</string>
     <string name="field_pill_strength_mg">Tablet strength</string>
@@ -363,6 +364,11 @@
     <string name="field_dose_volume_ml">Volume per dose</string>
     <string name="field_dose_weight_grams">Weight per dose</string>
     <string name="field_dose_tablet_fraction">Tablets per dose</string>
+    <string name="medicine_preparation_form_tablet">Tablet</string>
+    <string name="medicine_preparation_form_capsule">Capsule</string>
+    <string name="medicine_preparation_form_injection">Injection</string>
+    <string name="medicine_preparation_form_gel">Gel</string>
+    <string name="medicine_preparation_form_patch">Patch</string>
     <string name="preparation_type_pill">Tablet</string>
     <string name="preparation_type_capsule">Capsule</string>
     <string name="preparation_type_injection_single_use_vial">Single-use vial</string>
@@ -374,6 +380,7 @@
     <string name="medication_picker_add_new">+ New</string>
     <string name="medicine_picker_select_medicine">Select medicine</string>
     <string name="medicine_picker_change_medicine">Change medicine</string>
+    <string name="medicine_capsule_strength_label">mg per capsule</string>
     <string name="medication_preparation_summary_pill">Tablet · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
     <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>

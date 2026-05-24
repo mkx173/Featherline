@@ -92,7 +92,7 @@ class MedicineSlotDraftViewModel @Inject constructor(
                     medicationLogRepository = medicationLogRepository,
                     medicationReminderScheduler = medicationReminderScheduler,
                     medicineUuid = medicineUuid,
-                    applicationType = applicationType,
+                    resolvedApplicationType = applicationType,
                     doseInstruction = doseInstruction,
                     count = count,
                     appliedDate = currentState.appliedDate,

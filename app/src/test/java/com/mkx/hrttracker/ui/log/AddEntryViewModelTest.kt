@@ -10,10 +10,13 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationLogEntry
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.medication.changeForm
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
 import io.mockk.coEvery
@@ -350,6 +353,80 @@ class AddEntryViewModelTest {
         assertEquals(LocalTime.of(21, 15), uiState.appliedTime)
         assertFalse(uiState.canEditMedicationIdentity)
         assertFalse(uiState.canDelete)
+    }
+
+    @Test
+    fun buildQuickLogUiState_usesPatchOffPreparationForNullMedicinePatchOff() {
+        val uiState = buildQuickLogUiState(
+            groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6"),
+            group = null,
+            scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0),
+            medicine = null,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            medicationCount = 1,
+            appliedAt = LocalDateTime.of(2026, 4, 22, 21, 15),
+        )
+
+        assertEquals(MedicinePreparationType.PATCH_OFF, uiState.doseInstructionDraft.preparationType)
+    }
+
+    @Test
+    fun updateMedicineDraft_resetsDoseDraftWhenPreparationTypeChanges() = runTest {
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+        viewModel.updateDoseInstructionDraft {
+            it.copy(
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                tabletFractionNumerator = 1,
+                tabletFractionDenominator = 2,
+                volumeMl = "0.5",
+            )
+        }
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.changeForm(MedicinePreparationForm.INJECTION)
+        }
+
+        val doseDraft = viewModel.uiState.value.doseInstructionDraft
+        assertEquals(MedicationApplicationType.INJECTION, doseDraft.applicationType)
+        assertEquals(MedicinePreparationType.INJECTION_SINGLE_USE_VIAL, doseDraft.preparationType)
+        assertEquals("", doseDraft.volumeMl)
+        assertEquals(1, doseDraft.tabletFractionNumerator)
+        assertEquals(1, doseDraft.tabletFractionDenominator)
+    }
+
+    @Test
+    fun updateMedicineDraft_preservesDoseDraftWhenPreparationTypeStaysSame() = runTest {
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+        viewModel.updateDoseInstructionDraft {
+            it.copy(
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                tabletFractionNumerator = 1,
+                tabletFractionDenominator = 2,
+            )
+        }
+
+        viewModel.updateMedicineDraft { draft ->
+            draft.copy(pillStrengthMg = "2")
+        }
+
+        val doseDraft = viewModel.uiState.value.doseInstructionDraft
+        assertEquals(MedicationApplicationType.SUBLINGUAL, doseDraft.applicationType)
+        assertEquals(MedicinePreparationType.PILL, doseDraft.preparationType)
+        assertEquals(1, doseDraft.tabletFractionNumerator)
+        assertEquals(2, doseDraft.tabletFractionDenominator)
     }
 
     @Test
@@ -900,6 +977,67 @@ class AddEntryViewModelTest {
             )
         }
         coVerify(exactly = 1) { medicationReminderScheduler.rescheduleAll(any()) }
+    }
+
+    @Test
+    fun saveEntry_forPatchOffQuickLogWithNullMedicineSavesPatchOffRoute() = runTest {
+        val groupId = UUID.fromString("67b2057c-9271-461d-a30d-b28fd7624fb6")
+        val scheduledFor = LocalDateTime.of(2026, 4, 22, 21, 0)
+        val group = testMedicationGroup(
+            groupId = groupId,
+            name = "Patch schedule",
+            colorKey = MedicationGroupColorKey.INDIGO,
+        )
+        every { medicationGroupRepository.getCachedGroup(groupId) } returns group
+        coEvery {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = null,
+                applicationType = MedicationApplicationType.PATCH_OFF,
+                doseInstruction = DoseInstruction.Noop,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+
+        val viewModel = AddEntryViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationGroupRepository = medicationGroupRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            medicationReminderSnoozeScheduler = medicationReminderSnoozeScheduler,
+            medicineRepository = medicineRepository,
+        )
+        viewModel.initializeQuickLog(
+            groupId = groupId,
+            scheduledFor = scheduledFor,
+            medicine = null,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            medicationCount = 1,
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(scheduledFor.toLocalDate())
+        viewModel.updateAppliedTime(scheduledFor.toLocalTime())
+
+        viewModel.saveEntry()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        coVerify(exactly = 1) {
+            medicationLogRepository.saveEntry(
+                uuid = null,
+                medicineUuid = null,
+                applicationType = MedicationApplicationType.PATCH_OFF,
+                doseInstruction = DoseInstruction.Noop,
+                sourceGroupUuid = groupId,
+                appliedAt = any(),
+                scheduledFor = scheduledFor,
+                count = 1,
+            )
+        }
     }
 
     @Test

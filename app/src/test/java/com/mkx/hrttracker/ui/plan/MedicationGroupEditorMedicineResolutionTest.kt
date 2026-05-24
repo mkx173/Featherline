@@ -216,7 +216,7 @@ class MedicationGroupEditorMedicineResolutionTest {
         val editingMedication = requireNotNull(viewModel.uiState.value.editingMedication)
         assertEquals(listOf(firstMedicine.uuid), medications.mapNotNull { it.resolvedMedicine?.uuid })
         assertEquals(secondMedicine.uuid, editingMedication.resolvedMedicine?.uuid)
-        assertEquals(MedicationApplicationType.INJECTION, editingMedication.medicineDraft.applicationType)
+        assertEquals(MedicationApplicationType.INJECTION, editingMedication.resolvedApplicationType())
         assertEquals(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
             editingMedication.doseInstructionDraft.preparationType,
@@ -311,7 +311,7 @@ class MedicationGroupEditorMedicineResolutionTest {
         assertEquals(medicine.uuid, editingMedication.resolvedMedicine?.uuid)
         // The route is forced to the medicine's preparation, not left at the
         // default — this is what makes the pre-filled sheet actually usable.
-        assertEquals(MedicationApplicationType.INJECTION, editingMedication.medicineDraft.applicationType)
+        assertEquals(MedicationApplicationType.INJECTION, editingMedication.resolvedApplicationType())
         assertEquals(
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
             editingMedication.doseInstructionDraft.preparationType,

@@ -5,7 +5,9 @@ import androidx.compose.ui.text.input.ImeAction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.changeForm
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -72,13 +74,29 @@ class CreateMedicineFieldsTest {
     }
 
     @Test
-    fun editableFields_forPatchOff_isEmpty() {
+    fun editableFields_forPatchForm_usesPatchTotalByDefault() {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
-            applicationType = MedicationApplicationType.PATCH_OFF,
-        )
+        ).changeForm(MedicinePreparationForm.PATCH)
 
-        assertEquals(emptyList<CreateMedicineField>(), editableFields(draft))
+        assertEquals(
+            listOf(
+                CreateMedicineField.DISPLAY_NAME,
+                CreateMedicineField.PATCH_TOTAL_MG,
+            ),
+            editableFields(draft),
+        )
+    }
+
+    @Test
+    fun requiredFieldsForCapsule_containsOnlyUnitStrength() {
+        val draft = defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+            .changeForm(MedicinePreparationForm.CAPSULE)
+
+        assertEquals(
+            listOf(CreateMedicineField.PILL_STRENGTH),
+            createMedicineRequiredFields(draft),
+        )
     }
 
     // Encodes the IME promise: all but the last get Next, the last gets Done.

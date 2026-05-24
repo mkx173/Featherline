@@ -348,6 +348,7 @@
     <string name="validation_dose_volume_required">请输入有效体积</string>
     <string name="validation_dose_weight_required">请输入有效重量</string>
     <string name="validation_dose_tablet_fraction_required">请输入有效的片剂数量</string>
+    <string name="field_preparation_form">剂型</string>
     <string name="field_preparation_type">制剂类型</string>
     <string name="field_strength_unit">含量单位</string>
     <string name="field_pill_strength_mg">片剂含量</string>
@@ -363,6 +364,12 @@
     <string name="field_dose_volume_ml">每剂体积</string>
     <string name="field_dose_weight_grams">每剂重量</string>
     <string name="field_dose_tablet_fraction">每剂片数</string>
+    <string name="medicine_preparation_form_tablet">片剂</string>
+    <string name="medicine_preparation_form_capsule">胶囊</string>
+    <string name="medicine_preparation_form_injection">注射</string>
+    <string name="medicine_preparation_form_gel">凝胶</string>
+    <string name="medicine_preparation_form_patch">贴片</string>
+    <string name="medicine_capsule_strength_label">每粒含量（mg）</string>
     <string name="medication_picker_existing_medicines">现有药物</string>
     <string name="medication_picker_add_new">+ 新建</string>
     <string name="medication_preparation_summary_pill">片剂 · %1$s mg</string>

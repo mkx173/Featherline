@@ -5,9 +5,14 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.medication.changeForm
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -89,6 +94,73 @@ class NewMedicineSlotViewModelTest {
     }
 
     @Test
+    fun saveGroupSlot_usesDoseDraftRouteForNewTabletMedicine() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000310"),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCustom(
+                customMedicationName = "Custom E2",
+                displayName = any(),
+                category = MedicationCategory.CUSTOM,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                displayDoseUnit = any(),
+                now = any(),
+            )
+        } returns medicine
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft {
+            defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+                .copy(customMedicationName = "Custom E2", pillStrengthMg = "2")
+        }
+        viewModel.updateDoseInstructionDraft {
+            it.copy(
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+            )
+        }
+
+        viewModel.saveGroupSlot()?.join()
+
+        val result = viewModel.uiState.value.slotResult!!
+        assertEquals(MedicationApplicationType.SUBLINGUAL, result.applicationType)
+    }
+
+    @Test
+    fun saveGroupSlot_usesOralForNewCapsuleRegardlessOfDraftRoute() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000311"),
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCustom(
+                customMedicationName = "Progesterone",
+                displayName = any(),
+                category = MedicationCategory.CUSTOM,
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+                displayDoseUnit = any(),
+                now = any(),
+            )
+        } returns medicine
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft {
+            defaultMedicineDraft(category = MedicationCategory.CUSTOM)
+                .changeForm(MedicinePreparationForm.CAPSULE)
+                .copy(customMedicationName = "Progesterone", pillStrengthMg = "100")
+        }
+        viewModel.updateDoseInstructionDraft {
+            it.copy(
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+            )
+        }
+
+        viewModel.saveGroupSlot()?.join()
+
+        val result = viewModel.uiState.value.slotResult!!
+        assertEquals(MedicationApplicationType.ORAL, result.applicationType)
+    }
+
+    @Test
     fun consumeSavedState_afterGroupSaveClearsPublishedSlotResult() = runTest {
         val medicine = testMedicine(
             uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000308"),
@@ -111,10 +183,9 @@ class NewMedicineSlotViewModelTest {
     fun saveGroupSlot_validatesInputBeforeCreatingMedicine() = runTest {
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft {
-            it.copy(
-                applicationType = MedicationApplicationType.INJECTION,
+            it.changeForm(MedicinePreparationForm.INJECTION).copy(
                 medicationKey = MedicationKey.ESTRADIOL_VALERATE,
-                preparationType = com.mkx.hrttracker.model.medication.MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
+                preparationType = MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
                 concentrationMgPerMl = "20",
                 vialVolumeMl = "5",
             )

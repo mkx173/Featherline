@@ -2,7 +2,6 @@ package com.mkx.hrttracker.ui.medication
 
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.DoseInstruction
-import com.mkx.hrttracker.model.medication.MedicationApplicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCatalog
 import com.mkx.hrttracker.model.medication.MedicationCategory
@@ -13,8 +12,12 @@ import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.form
+import com.mkx.hrttracker.model.medication.preparationForms
+import com.mkx.hrttracker.model.medication.requiredApplicationType
 import java.util.UUID
 
 // ---------------------------------------------------------------------------
@@ -26,7 +29,8 @@ enum class PatchSpecKind { TOTAL_MG, RELEASE_RATE }
 
 data class MedicinePickerUiState(
     val category: MedicationCategory = MedicationCategory.ESTRADIOL,
-    val applicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
+    val form: MedicinePreparationForm = MedicinePreparationForm.TABLET,
+    val catalogFilterApplicationType: MedicationApplicationType = MedicationApplicationType.ORAL,
     val selectionKind: MedicationSelectionKind = MedicationSelectionKind.CATALOG,
     val medicationKey: MedicationKey? = MedicationKey.ESTRADIOL_VALERATE,
     val customMedicationName: String = "",
@@ -101,16 +105,17 @@ fun editorMedicationCategories(): List<MedicationCategory> {
     return MedicationCategory.entries.filterNot { it == MedicationCategory.TESTOSTERONE }
 }
 
-fun MedicinePickerUiState.catalog(): MedicationApplicationCatalog {
-    return MedicationCatalog.catalogFor(category, applicationType)
+fun MedicinePickerUiState.catalogEntries(): List<MedicationCatalogEntry> {
+    return MedicationCatalog.entriesForForm(category, form)
 }
 
 fun MedicinePickerUiState.supportsCatalogSelection(): Boolean {
-    return catalog().entries.any { it.medicationKey != null }
+    return catalogEntries().any { it.medicationKey != null }
 }
 
 fun MedicinePickerUiState.supportsCustomName(): Boolean {
-    return catalog().allowCustomMedicationName
+    return category == MedicationCategory.CUSTOM ||
+        catalogEntries().all { it.medicationKey == null }
 }
 
 fun MedicinePickerUiState.requiresCustomName(): Boolean {
@@ -118,23 +123,20 @@ fun MedicinePickerUiState.requiresCustomName(): Boolean {
 }
 
 fun MedicinePickerUiState.availableCatalogKeys(): List<MedicationKey> {
-    return catalog().entries.mapNotNull { it.medicationKey }
+    return catalogEntries().mapNotNull { it.medicationKey }
 }
 
 fun MedicinePickerUiState.selectedCatalogEntry(): MedicationCatalogEntry {
-    val catalog = catalog()
+    val entries = catalogEntries()
     return if (selectionKind == MedicationSelectionKind.CATALOG) {
-        catalog.entries.firstOrNull { it.medicationKey == medicationKey } ?: catalog.entries.first()
+        entries.firstOrNull { it.medicationKey == medicationKey } ?: entries.first()
     } else {
-        catalog.entries.first()
+        entries.first()
     }
 }
 
 fun MedicinePickerUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPreset> {
     if (selectionKind != MedicationSelectionKind.CATALOG) {
-        return emptyList()
-    }
-    if (applicationType == MedicationApplicationType.PATCH_OFF) {
         return emptyList()
     }
     val preparationType = inferredOrSelectedPreparationType() ?: return emptyList()
@@ -147,6 +149,8 @@ fun MedicinePickerUiState.activeDoseAssistPresets(): List<MedicationDoseAssistPr
             PatchSpecKind.RELEASE_RATE ->
                 presets.filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>()
         }
+
+        MedicinePreparationType.CAPSULE -> emptyList()
 
         else -> presets
     }
@@ -185,14 +189,13 @@ fun activeDoseAssistPresets(
 
 fun defaultMedicineDraft(
     category: MedicationCategory = MedicationCategory.ESTRADIOL,
-    applicationType: MedicationApplicationType =
-        MedicationCatalog.applicationTypesFor(category).first(),
+    form: MedicinePreparationForm =
+        MedicationCatalog.preparationFormsFor(category).first(),
 ): MedicinePickerUiState {
-    val resolvedApplicationType = MedicationCatalog.applicationTypesFor(category)
-        .firstOrNull { it == applicationType }
-        ?: MedicationCatalog.applicationTypesFor(category).first()
-    val catalog = MedicationCatalog.catalogFor(category, resolvedApplicationType)
-    val supportsCatalog = catalog.entries.any { it.medicationKey != null }
+    val availableForms = MedicationCatalog.preparationFormsFor(category)
+    val resolvedForm = availableForms.firstOrNull { it == form } ?: availableForms.first()
+    val entries = MedicationCatalog.entriesForForm(category, resolvedForm)
+    val supportsCatalog = entries.any { it.medicationKey != null }
     val selectionKind = if (supportsCatalog) {
         MedicationSelectionKind.CATALOG
     } else {
@@ -200,19 +203,30 @@ fun defaultMedicineDraft(
     }
     return MedicinePickerUiState(
         category = category,
-        applicationType = resolvedApplicationType,
+        form = resolvedForm,
+        catalogFilterApplicationType = resolvedForm.defaultApplicationType(),
         selectionKind = selectionKind,
-        medicationKey = catalog.entries.firstOrNull { it.medicationKey != null }?.medicationKey,
+        medicationKey = entries.firstOrNull { it.medicationKey != null }?.medicationKey,
         customCategory = if (category == MedicationCategory.CUSTOM) {
             MedicationCategory.CUSTOM
         } else {
             category
         },
-        // Ambiguous routes (gel, injection) still need an initial preparation
-        // or the dose form has nothing to render — falls back to the first
-        // ambiguous option (container for gel, single-use vial for injection).
-        preparationType = inferredPreparationType(resolvedApplicationType)
-            ?: ambiguousPreparationTypes(resolvedApplicationType).firstOrNull(),
+        preparationType = resolvedForm.defaultPreparationType(),
+    )
+}
+
+fun defaultMedicineDraft(
+    category: MedicationCategory = MedicationCategory.ESTRADIOL,
+    applicationType: MedicationApplicationType,
+): MedicinePickerUiState {
+    val resolvedForm = applicationType.preparationForms().firstOrNull()
+        ?: MedicationCatalog.preparationFormsFor(category).first()
+    return defaultMedicineDraft(
+        category = category,
+        form = resolvedForm,
+    ).copy(
+        catalogFilterApplicationType = applicationType,
     )
 }
 
@@ -220,21 +234,35 @@ fun defaultMedicineDraft(
 // Preparation-type inference
 // ---------------------------------------------------------------------------
 
-// PILL and PATCH are inferred straight from the application route; INJECTION
-// and GEL are ambiguous (single/multi vial, sachet/container) so the user must
-// pick. PATCH_OFF carries no medicine, so it has no preparation.
 internal fun inferredPreparationType(
-    applicationType: MedicationApplicationType,
+    form: MedicinePreparationForm,
 ): MedicinePreparationType? {
-    return when (applicationType) {
-        MedicationApplicationType.ORAL,
-        MedicationApplicationType.SUBLINGUAL -> MedicinePreparationType.PILL
+    return when (form) {
+        MedicinePreparationForm.TABLET -> MedicinePreparationType.PILL
+        MedicinePreparationForm.CAPSULE -> MedicinePreparationType.CAPSULE
+        MedicinePreparationForm.PATCH -> MedicinePreparationType.PATCH
+        MedicinePreparationForm.INJECTION,
+        MedicinePreparationForm.GEL -> null
+    }
+}
 
-        MedicationApplicationType.PATCH_ON -> MedicinePreparationType.PATCH
+fun MedicinePreparationForm.defaultApplicationType(): MedicationApplicationType {
+    return when (this) {
+        MedicinePreparationForm.TABLET -> MedicationApplicationType.ORAL
+        MedicinePreparationForm.CAPSULE -> MedicationApplicationType.ORAL
+        MedicinePreparationForm.INJECTION -> MedicationApplicationType.INJECTION
+        MedicinePreparationForm.GEL -> MedicationApplicationType.GEL
+        MedicinePreparationForm.PATCH -> MedicationApplicationType.PATCH_ON
+    }
+}
 
-        MedicationApplicationType.INJECTION,
-        MedicationApplicationType.GEL,
-        MedicationApplicationType.PATCH_OFF -> null
+fun MedicinePreparationForm.defaultPreparationType(): MedicinePreparationType {
+    return when (this) {
+        MedicinePreparationForm.TABLET -> MedicinePreparationType.PILL
+        MedicinePreparationForm.CAPSULE -> MedicinePreparationType.CAPSULE
+        MedicinePreparationForm.INJECTION -> MedicinePreparationType.INJECTION_SINGLE_USE_VIAL
+        MedicinePreparationForm.GEL -> MedicinePreparationType.GEL_CONTAINER
+        MedicinePreparationForm.PATCH -> MedicinePreparationType.PATCH
     }
 }
 
@@ -271,32 +299,41 @@ fun applicationTypesCompatibleWithPreparation(
 }
 
 internal fun ambiguousPreparationTypes(
-    applicationType: MedicationApplicationType,
+    form: MedicinePreparationForm,
 ): List<MedicinePreparationType> {
-    return when (applicationType) {
-        MedicationApplicationType.INJECTION -> listOf(
+    return when (form) {
+        MedicinePreparationForm.INJECTION -> listOf(
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
             MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         )
 
-        MedicationApplicationType.GEL -> listOf(
+        MedicinePreparationForm.GEL -> listOf(
             // Container before sachet: a refillable bottle is the more common
             // dispenser; sachet is the single-dose alternative.
             MedicinePreparationType.GEL_CONTAINER,
             MedicinePreparationType.GEL_SACHET,
         )
 
-        else -> emptyList()
+        MedicinePreparationForm.TABLET,
+        MedicinePreparationForm.CAPSULE,
+        MedicinePreparationForm.PATCH -> emptyList()
     }
 }
 
+internal fun ambiguousPreparationTypes(
+    applicationType: MedicationApplicationType,
+): List<MedicinePreparationType> {
+    val form = applicationType.preparationForms().firstOrNull() ?: return emptyList()
+    return ambiguousPreparationTypes(form)
+}
+
 fun MedicinePickerUiState.requiresPreparationTypeSelection(): Boolean {
-    return inferredPreparationType(applicationType) == null &&
-        ambiguousPreparationTypes(applicationType).isNotEmpty()
+    return inferredPreparationType(form) == null &&
+        ambiguousPreparationTypes(form).isNotEmpty()
 }
 
 fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparationType? {
-    return inferredPreparationType(applicationType) ?: preparationType
+    return inferredPreparationType(form) ?: preparationType
 }
 
 // ---------------------------------------------------------------------------
@@ -306,28 +343,16 @@ fun MedicinePickerUiState.inferredOrSelectedPreparationType(): MedicinePreparati
 fun MedicinePickerUiState.changeCategory(category: MedicationCategory): MedicinePickerUiState {
     return defaultMedicineDraft(
         category = category,
-        applicationType = MedicationCatalog.applicationTypesFor(category).first(),
     ).copy(customMedicationName = customMedicationName)
 }
 
-fun MedicinePickerUiState.changeApplicationType(
-    applicationType: MedicationApplicationType,
+fun MedicinePickerUiState.changeForm(
+    form: MedicinePreparationForm,
 ): MedicinePickerUiState {
-    if (applicationType == this.applicationType) return this
-    // For a resolved medicine, switching between routes that share its
-    // preparation (PILL: oral ↔ sublingual) preserves the medicine selection;
-    // any other switch resets the draft (the resolved medicine no longer fits).
-    val preparation = inferredOrSelectedPreparationType()
-    if (
-        selectedMedicineUuid != null &&
-        preparation != null &&
-        applicationType in applicationTypesCompatibleWithPreparation(preparation)
-    ) {
-        return copy(applicationType = applicationType)
-    }
+    if (form == this.form) return this
     return defaultMedicineDraft(
         category = category,
-        applicationType = applicationType,
+        form = form,
     ).copy(customMedicationName = customMedicationName)
 }
 
@@ -347,7 +372,7 @@ fun MedicinePickerUiState.changeMedicationKey(
 fun MedicinePickerUiState.changePreparationType(
     preparationType: MedicinePreparationType,
 ): MedicinePickerUiState {
-    if (preparationType !in ambiguousPreparationTypes(applicationType)) {
+    if (preparationType !in ambiguousPreparationTypes(form)) {
         return this
     }
     return copy(preparationType = preparationType)
@@ -425,7 +450,23 @@ fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
 }
 
 fun MedicinePickerUiState.showsMedicationCountEditor(): Boolean {
-    return applicationType.supportsMedicationCountEditor()
+    return catalogFilterApplicationType.supportsMedicationCountEditor()
+}
+
+fun resolvedApplicationTypeForDose(
+    preparationType: MedicinePreparationType,
+    doseInstructionDraft: DoseInstructionDraftUiState,
+): MedicationApplicationType {
+    return preparationType.requiredApplicationType()
+        ?: when (doseInstructionDraft.applicationType) {
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL -> doseInstructionDraft.applicationType
+
+            MedicationApplicationType.INJECTION,
+            MedicationApplicationType.GEL,
+            MedicationApplicationType.PATCH_ON,
+            MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
+        }
 }
 
 fun normalizeMedicationCount(
@@ -473,13 +514,12 @@ fun resolveMedicationCountTextAfterDraftChange(
 ): String {
     return if (
         previousDraft.category != updatedDraft.category ||
-        previousDraft.applicationType != updatedDraft.applicationType
+        previousDraft.inferredOrSelectedPreparationType() !=
+        updatedDraft.inferredOrSelectedPreparationType()
     ) {
         "1"
-    } else if (updatedDraft.applicationType.supportsMedicationCountEditor()) {
-        currentCountText
     } else {
-        "1"
+        currentCountText
     }
 }
 
@@ -778,7 +818,7 @@ internal fun MedicinePickerUiState.toMedicinePreparation(
 // preparation type (never read, since PATCH_OFF emits Noop unconditionally).
 fun MedicinePickerUiState.toDoseInstructionDraft(): DoseInstructionDraftUiState {
     return DoseInstructionDraftUiState(
-        applicationType = applicationType,
+        applicationType = catalogFilterApplicationType,
         preparationType = inferredOrSelectedPreparationType() ?: MedicinePreparationType.PILL,
     )
 }
@@ -835,9 +875,6 @@ internal fun DoseInstructionDraftUiState.selectTabletFraction(
 fun MedicinePickerUiState.validationErrorRes(): Int? {
     // An existing medicine is fully resolved — nothing to validate in the form.
     if (selectedMedicineUuid != null) {
-        return null
-    }
-    if (applicationType == MedicationApplicationType.PATCH_OFF) {
         return null
     }
     if (requiresCustomName() && customMedicationName.trim().isEmpty()) {
@@ -908,7 +945,7 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
 }
 
 fun MedicinePickerUiState.selectedMedicineValidationErrorRes(): Int? {
-    if (applicationType == MedicationApplicationType.PATCH_OFF) {
+    if (catalogFilterApplicationType == MedicationApplicationType.PATCH_OFF) {
         return null
     }
     return R.string.validation_medication_selection_required
@@ -933,7 +970,7 @@ fun medicineDraftFromMedicine(
     )
     val base = defaultMedicineDraft(
         category = medicine.category,
-        applicationType = resolvedApplicationType,
+        form = medicine.preparation.type.form(),
     )
     val isCatalog = medicine.selection is MedicineSelection.Catalog
     // Catalog medicines always render in MG. Reusing the stored value avoids
@@ -958,6 +995,7 @@ fun medicineDraftFromMedicine(
         preparationType = medicine.preparation.type,
         displayName = medicine.displayName.orEmpty(),
         customDoseUnit = resolvedDoseUnit,
+        catalogFilterApplicationType = resolvedApplicationType,
     ).withPreparationFields(medicine.preparation, resolvedDoseUnit)
 }
 
@@ -974,7 +1012,7 @@ fun compatibleApplicationTypeForMedicine(
             MedicationApplicationType.GEL,
             MedicationApplicationType.PATCH_ON,
             MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
-            }
+        }
 
         MedicinePreparationType.CAPSULE -> MedicationApplicationType.ORAL
 

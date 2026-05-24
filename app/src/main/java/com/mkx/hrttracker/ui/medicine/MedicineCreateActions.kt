@@ -19,7 +19,7 @@ internal sealed interface MedicineCreateResult {
 }
 
 internal fun validateMedicineDraftForCreate(draft: MedicinePickerUiState): Int? {
-    if (draft.applicationType == MedicationApplicationType.PATCH_OFF) {
+    if (draft.catalogFilterApplicationType == MedicationApplicationType.PATCH_OFF) {
         return R.string.validation_preparation_type_required
     }
     return draft.validationErrorRes()

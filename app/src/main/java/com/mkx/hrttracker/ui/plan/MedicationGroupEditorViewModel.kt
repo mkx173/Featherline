@@ -23,6 +23,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.nextAvailableMedicationGroupColor
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.reminder.MedicationReminderSnoozeScheduler
@@ -35,6 +36,7 @@ import com.mkx.hrttracker.ui.medication.requiresCustomName
 import com.mkx.hrttracker.ui.medication.normalizeMedicationCount
 import com.mkx.hrttracker.ui.medication.parseMedicationCountText
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.selectedMedicineValidationErrorRes
@@ -468,7 +470,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         updateEditingMedication { medication ->
             medication.copy(
                 countText = stepMedicationCount(
-                    applicationType = medication.medicineDraft.applicationType,
+                    applicationType = medication.resolvedApplicationType(),
                     countText = medication.countText,
                     delta = -1
                 ).toString()
@@ -480,7 +482,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
         updateEditingMedication { medication ->
             medication.copy(
                 countText = stepMedicationCount(
-                    applicationType = medication.medicineDraft.applicationType,
+                    applicationType = medication.resolvedApplicationType(),
                     countText = medication.countText,
                     delta = 1
                 ).toString()
@@ -544,6 +546,9 @@ class MedicationGroupEditorViewModel @Inject constructor(
     ) {
         updateEditingMedication { medication ->
             val updatedDraft = transform(medication.medicineDraft)
+            val shouldResetDoseDraft =
+                medication.medicineDraft.inferredOrSelectedPreparationType() !=
+                    updatedDraft.inferredOrSelectedPreparationType()
             medication.copy(
                 medicineDraft = updatedDraft,
                 // A picker edit invalidates a previously-resolved medicine.
@@ -552,11 +557,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 } else {
                     medication.resolvedMedicine
                 },
-                doseInstructionDraft = medication.doseInstructionDraft.copy(
-                    applicationType = updatedDraft.applicationType,
-                    preparationType = updatedDraft.inferredOrSelectedPreparationType()
-                        ?: medication.doseInstructionDraft.preparationType,
-                ),
+                doseInstructionDraft = if (shouldResetDoseDraft) {
+                    updatedDraft.toDoseInstructionDraft()
+                } else {
+                    medication.doseInstructionDraft.copy(
+                        preparationType = updatedDraft.inferredOrSelectedPreparationType()
+                            ?: medication.doseInstructionDraft.preparationType,
+                    )
+                },
                 countText = resolveMedicationCountTextAfterDraftChange(
                     previousDraft = medication.medicineDraft,
                     updatedDraft = updatedDraft,
@@ -702,7 +710,7 @@ class MedicationGroupEditorViewModel @Inject constructor(
                     resolvedMedicine = medicine,
                     medicineDraft = draft,
                     doseInstructionDraft = DoseInstructionDraftUiState(
-                        applicationType = draft.applicationType,
+                        applicationType = draft.catalogFilterApplicationType,
                         preparationType = medicine.preparation.type,
                     ),
                 ),
@@ -720,15 +728,18 @@ class MedicationGroupEditorViewModel @Inject constructor(
             }
             val updatedDraft = com.mkx.hrttracker.ui.medication.medicineDraftFromMedicine(
                 medicine = medicine,
-                applicationType = medication.medicineDraft.applicationType,
+                applicationType = medication.resolvedApplicationType(),
             )
+            val previousPreparationType = medication.doseInstructionDraft.preparationType
+            val updatedDoseDraft = if (previousPreparationType == medicine.preparation.type) {
+                medication.doseInstructionDraft.copy(preparationType = medicine.preparation.type)
+            } else {
+                updatedDraft.toDoseInstructionDraft().copy(preparationType = medicine.preparation.type)
+            }
             medication.copy(
                 resolvedMedicine = medicine,
                 medicineDraft = updatedDraft,
-                doseInstructionDraft = DoseInstructionDraftUiState(
-                    applicationType = updatedDraft.applicationType,
-                    preparationType = medicine.preparation.type,
-                ),
+                doseInstructionDraft = updatedDoseDraft,
             )
         }
     }
@@ -746,12 +757,12 @@ class MedicationGroupEditorViewModel @Inject constructor(
             return
         }
         val editingMedication = currentState.editingMedication ?: return
-        val isPatchOff = editingMedication.medicineDraft.applicationType ==
-            MedicationApplicationType.PATCH_OFF
+        val applicationType = editingMedication.resolvedApplicationType()
+        val isPatchOff = applicationType == MedicationApplicationType.PATCH_OFF
         val errorRes = editingMedication.medicineDraft.selectedMedicineValidationErrorRes()
             ?: editingMedication.doseInstructionDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
-                applicationType = editingMedication.medicineDraft.applicationType,
+                applicationType = applicationType,
                 countText = editingMedication.countText
             )
 
@@ -773,14 +784,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
             resolvedMedicine = editingMedication.resolvedMedicine,
             medicineDraft = editingMedication.medicineDraft,
             doseInstructionDraft = editingMedication.doseInstructionDraft,
-            applicationType = editingMedication.medicineDraft.applicationType,
+            applicationType = applicationType,
             doseInstruction = if (isPatchOff) {
                 DoseInstruction.Noop
             } else {
                 editingMedication.doseInstructionDraft.toDoseInstruction()
             },
             count = resolvedMedicationCountForSave(
-                applicationType = editingMedication.medicineDraft.applicationType,
+                applicationType = applicationType,
                 countText = editingMedication.countText
             )
         )
@@ -2297,7 +2308,7 @@ data class MedicationGroupMedicationItemUiState(
     val medicineDraft: MedicinePickerUiState = defaultMedicineDraft(),
     val doseInstructionDraft: DoseInstructionDraftUiState =
         defaultMedicineDraft().toDoseInstructionDraft(),
-    val applicationType: MedicationApplicationType = medicineDraft.applicationType,
+    val applicationType: MedicationApplicationType = medicineDraft.catalogFilterApplicationType,
     val doseInstruction: DoseInstruction = DoseInstruction.Noop,
     val count: Int = 1,
 ) {
@@ -2326,6 +2337,14 @@ data class MedicationGroupMedicationEditorUiState(
         get() = parseMedicationCountText(countText)
 }
 
+internal fun MedicationGroupMedicationEditorUiState.resolvedApplicationType(): MedicationApplicationType {
+    return resolvedApplicationTypeForDose(
+        preparationType = resolvedMedicine?.preparation?.type
+            ?: doseInstructionDraft.preparationType,
+        doseInstructionDraft = doseInstructionDraft,
+    )
+}
+
 // Builds an editor slot draft from a loaded domain medication. A PATCH_OFF slot
 // carries no medicine; its picker draft keeps `resolvedMedicine` null.
 internal fun MedicationGroupMedication.toItemUiState(): MedicationGroupMedicationItemUiState {
@@ -2344,8 +2363,14 @@ internal fun MedicationGroupMedication.toItemUiState(): MedicationGroupMedicatio
         medicineDraft = medicineDraft,
         doseInstructionDraft = com.mkx.hrttracker.ui.medication.doseInstructionDraftFromInstruction(
             applicationType = applicationType,
-            preparationType = medicine?.preparation?.type
-                ?: com.mkx.hrttracker.model.medication.MedicinePreparationType.PILL,
+            preparationType = medicine?.preparation?.type ?: when (applicationType) {
+                MedicationApplicationType.PATCH_OFF -> MedicinePreparationType.PATCH_OFF
+                MedicationApplicationType.ORAL,
+                MedicationApplicationType.SUBLINGUAL,
+                MedicationApplicationType.INJECTION,
+                MedicationApplicationType.GEL,
+                MedicationApplicationType.PATCH_ON -> MedicinePreparationType.PILL
+            },
             doseInstruction = doseInstruction,
         ),
         applicationType = applicationType,

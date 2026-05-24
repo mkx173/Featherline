@@ -20,8 +20,10 @@ import com.mkx.hrttracker.ui.medication.DoseInstructionForm
 import com.mkx.hrttracker.ui.medication.MedicationCountTextField
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicationLogAppliedAtFields
+import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.requiresEditableDoseInstructionForm
-import com.mkx.hrttracker.ui.medication.showsMedicationCountEditor
+import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
+import com.mkx.hrttracker.ui.medication.supportsMedicationCountEditor
 import com.mkx.hrttracker.ui.medication.stepMedicationCount
 import com.mkx.hrttracker.util.dateLabelFormatter
 import com.mkx.hrttracker.util.rememberAppLocale
@@ -50,6 +52,12 @@ fun NewMedicineSlotSheet(
         dateLabelFormatter(appLocale, today)
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
+    val activePreparationType = uiState.medicineDraft.inferredOrSelectedPreparationType()
+        ?: uiState.doseInstructionDraft.preparationType
+    val applicationType = resolvedApplicationTypeForDose(
+        preparationType = activePreparationType,
+        doseInstructionDraft = uiState.doseInstructionDraft,
+    )
 
     LaunchedEffect(isManualLogMode, uiState.slotResult) {
         if (!isManualLogMode) {
@@ -102,19 +110,20 @@ fun NewMedicineSlotSheet(
         )
 
         if (
-            requiresEditableDoseInstructionForm(uiState.doseInstructionDraft.preparationType)
+            requiresEditableDoseInstructionForm(activePreparationType)
         ) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             DoseInstructionForm(
                 medicineDraft = uiState.medicineDraft,
                 doseInstructionDraft = uiState.doseInstructionDraft,
+                activePreparationType = activePreparationType,
                 onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
                 errorMessageRes = uiState.errorMessageRes,
                 enabled = !isSheetLocked,
             )
         }
 
-        if (uiState.medicineDraft.showsMedicationCountEditor()) {
+        if (applicationType.supportsMedicationCountEditor()) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationCountTextField(
                 value = uiState.countText,
@@ -122,7 +131,7 @@ fun NewMedicineSlotSheet(
                 onDecreaseClick = {
                     viewModel.updateCountText(
                         stepMedicationCount(
-                            applicationType = uiState.medicineDraft.applicationType,
+                            applicationType = applicationType,
                             countText = uiState.countText,
                             delta = -1,
                         ).toString(),
@@ -131,7 +140,7 @@ fun NewMedicineSlotSheet(
                 onIncreaseClick = {
                     viewModel.updateCountText(
                         stepMedicationCount(
-                            applicationType = uiState.medicineDraft.applicationType,
+                            applicationType = applicationType,
                             countText = uiState.countText,
                             delta = 1,
                         ).toString(),

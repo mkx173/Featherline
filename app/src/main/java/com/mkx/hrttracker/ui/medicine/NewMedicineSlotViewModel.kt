@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
@@ -14,6 +15,7 @@ import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import com.mkx.hrttracker.ui.medication.inferredOrSelectedPreparationType
 import com.mkx.hrttracker.ui.medication.medicationCountValidationErrorRes
 import com.mkx.hrttracker.ui.medication.resolveMedicationCountTextAfterDraftChange
+import com.mkx.hrttracker.ui.medication.resolvedApplicationTypeForDose
 import com.mkx.hrttracker.ui.medication.resolvedMedicationCountForSave
 import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
@@ -71,8 +73,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             } else {
                 val updatedDraft = transform(state.medicineDraft)
                 val shouldResetDoseDraft =
-                    state.medicineDraft.applicationType != updatedDraft.applicationType ||
-                        state.medicineDraft.inferredOrSelectedPreparationType() !=
+                    state.medicineDraft.inferredOrSelectedPreparationType() !=
                         updatedDraft.inferredOrSelectedPreparationType()
                 state.copy(
                     medicineDraft = updatedDraft,
@@ -80,7 +81,6 @@ class NewMedicineSlotViewModel @Inject constructor(
                         updatedDraft.toDoseInstructionDraft()
                     } else {
                         state.doseInstructionDraft.copy(
-                            applicationType = updatedDraft.applicationType,
                             preparationType = updatedDraft.inferredOrSelectedPreparationType()
                                 ?: state.doseInstructionDraft.preparationType,
                         )
@@ -189,16 +189,17 @@ class NewMedicineSlotViewModel @Inject constructor(
         return viewModelScope.launch {
             try {
                 saveMedicineThen(currentState, operationGeneration) { medicine ->
+                    val applicationType = resolvedApplicationType(currentState)
                     updateIfCurrent(operationGeneration) {
                         it.copy(
                             isSaving = false,
                             isSaved = true,
                             slotResult = MedicineSlotResult(
                                 medicineUuid = medicine.uuid,
-                                applicationType = currentState.medicineDraft.applicationType,
+                                applicationType = applicationType,
                                 doseInstruction = resolvedDoseInstruction(currentState),
                                 count = resolvedMedicationCountForSave(
-                                    currentState.medicineDraft.applicationType,
+                                    applicationType,
                                     currentState.countText,
                                 ),
                             ),
@@ -242,14 +243,15 @@ class NewMedicineSlotViewModel @Inject constructor(
         return viewModelScope.launch {
             try {
                 saveMedicineThen(currentState, operationGeneration) { medicine ->
+                    val applicationType = resolvedApplicationType(currentState)
                     val saveResult = saveManualMedicineLog(
                         medicationLogRepository = medicationLogRepository,
                         medicationReminderScheduler = medicationReminderScheduler,
                         medicineUuid = medicine.uuid,
-                        applicationType = currentState.medicineDraft.applicationType,
+                        resolvedApplicationType = applicationType,
                         doseInstruction = resolvedDoseInstruction(currentState),
                         count = resolvedMedicationCountForSave(
-                            currentState.medicineDraft.applicationType,
+                            applicationType,
                             currentState.countText,
                         ),
                         appliedDate = currentState.appliedDate,
@@ -328,13 +330,26 @@ class NewMedicineSlotViewModel @Inject constructor(
         validateMedicineDraftForCreate(state.medicineDraft)?.let { return it }
         state.doseInstructionDraft.validationErrorRes()?.let { return it }
         return medicationCountValidationErrorRes(
-            applicationType = state.medicineDraft.applicationType,
+            applicationType = resolvedApplicationType(state),
             countText = state.countText,
         )
     }
 
+    private fun resolvedApplicationType(state: NewMedicineSlotUiState): MedicationApplicationType {
+        return resolvedApplicationTypeForDose(
+            preparationType = state.medicineDraft.inferredOrSelectedPreparationType()
+                ?: state.doseInstructionDraft.preparationType,
+            doseInstructionDraft = state.doseInstructionDraft,
+        )
+    }
+
     private fun resolvedDoseInstruction(state: NewMedicineSlotUiState): DoseInstruction {
-        return state.doseInstructionDraft.toDoseInstruction()
+        val resolvedApplicationType = resolvedApplicationType(state)
+        return if (resolvedApplicationType == MedicationApplicationType.PATCH_OFF) {
+            DoseInstruction.Noop
+        } else {
+            state.doseInstructionDraft.toDoseInstruction()
+        }
     }
 
     private fun nextSaveGeneration(): Int {

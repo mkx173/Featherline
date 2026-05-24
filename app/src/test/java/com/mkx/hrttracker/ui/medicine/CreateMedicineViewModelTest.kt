@@ -8,9 +8,11 @@ import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.testCustomMedicine
 import com.mkx.hrttracker.model.medication.testMedicine
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
+import com.mkx.hrttracker.ui.medication.changeForm
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -200,10 +202,10 @@ class CreateMedicineViewModelTest {
     }
 
     @Test
-    fun patchOffDraftDoesNotCreateMedicine() = runTest {
+    fun patchDraftWithoutRequiredFieldDoesNotCreateMedicine() = runTest {
         val viewModel = CreateMedicineViewModel(medicineRepository)
         viewModel.updateDraft {
-            it.copy(applicationType = MedicationApplicationType.PATCH_OFF)
+            it.changeForm(MedicinePreparationForm.PATCH)
         }
         var createdUuid: UUID? = null
 
@@ -212,7 +214,7 @@ class CreateMedicineViewModelTest {
 
         assertNull(createdUuid)
         assertEquals(
-            R.string.validation_preparation_type_required,
+            R.string.validation_patch_total_required,
             viewModel.uiState.value.errorMessageRes,
         )
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }

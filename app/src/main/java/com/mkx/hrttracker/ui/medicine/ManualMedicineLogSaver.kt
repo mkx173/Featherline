@@ -17,7 +17,7 @@ internal suspend fun saveManualMedicineLog(
     medicationLogRepository: MedicationLogRepository,
     medicationReminderScheduler: MedicationReminderScheduler,
     medicineUuid: UUID,
-    applicationType: MedicationApplicationType,
+    resolvedApplicationType: MedicationApplicationType,
     doseInstruction: DoseInstruction,
     count: Int,
     appliedDate: LocalDate,
@@ -28,7 +28,7 @@ internal suspend fun saveManualMedicineLog(
         appliedDate,
         appliedTime.withSecond(0).withNano(0),
     ).atZone(appliedZoneId).toInstant()
-    val resolvedDose = if (applicationType == MedicationApplicationType.PATCH_OFF) {
+    val resolvedDose = if (resolvedApplicationType == MedicationApplicationType.PATCH_OFF) {
         DoseInstruction.Noop
     } else {
         doseInstruction
@@ -38,7 +38,7 @@ internal suspend fun saveManualMedicineLog(
         medicationLogRepository.saveEntry(
             uuid = null,
             medicineUuid = medicineUuid,
-            applicationType = applicationType,
+            applicationType = resolvedApplicationType,
             doseInstruction = resolvedDose,
             sourceGroupUuid = null,
             scheduleTimeUuid = null,

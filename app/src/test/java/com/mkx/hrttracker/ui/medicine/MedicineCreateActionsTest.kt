@@ -3,11 +3,13 @@ package com.mkx.hrttracker.ui.medicine
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineRepository
-import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.model.medication.MedicinePreparation
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.testMedicine
+import com.mkx.hrttracker.ui.medication.changeForm
+import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -57,16 +59,14 @@ class MedicineCreateActionsTest {
     }
 
     @Test
-    fun createMedicineFromDraft_patchOffReturnsValidationErrorWithoutRepositoryCall() = runTest {
+    fun createMedicineFromDraft_patchWithoutRequiredFieldReturnsValidationErrorWithoutRepositoryCall() = runTest {
         val result = createMedicineFromDraft(
             medicineRepository = medicineRepository,
-            draft = com.mkx.hrttracker.ui.medication.defaultMedicineDraft().copy(
-                applicationType = MedicationApplicationType.PATCH_OFF,
-            ),
+            draft = defaultMedicineDraft().changeForm(MedicinePreparationForm.PATCH),
         )
 
         assertEquals(
-            MedicineCreateResult.ValidationError(R.string.validation_preparation_type_required),
+            MedicineCreateResult.ValidationError(R.string.validation_patch_total_required),
             result,
         )
         coVerify(exactly = 0) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
