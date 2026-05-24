@@ -142,7 +142,7 @@ private fun CreateMedicineSheetContent(
 }
 
 @Composable
-private fun CreateMedicineResultText(saveResult: CreateMedicineSaveResult?) {
+internal fun CreateMedicineResultText(saveResult: CreateMedicineSaveResult?) {
     val messageRes = when (saveResult) {
         CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION ->
             R.string.medicine_save_identity_collision
@@ -162,7 +162,7 @@ private fun CreateMedicineResultText(saveResult: CreateMedicineSaveResult?) {
 }
 
 @Composable
-private fun CreateMedicineForm(
+internal fun CreateMedicineForm(
     medicineDraft: MedicinePickerUiState,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     errorMessageRes: Int?,

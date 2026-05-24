@@ -654,7 +654,7 @@ private fun MedicationSummaryHeader(
 }
 
 @Composable
-private fun DoseInstructionForm(
+internal fun DoseInstructionForm(
     medicineDraft: MedicinePickerUiState,
     doseInstructionDraft: DoseInstructionDraftUiState,
     onDoseInstructionDraftChange: ((DoseInstructionDraftUiState) -> DoseInstructionDraftUiState) -> Unit,
@@ -1158,7 +1158,7 @@ private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
 }
 
 @Composable
-private fun MedicationCountTextField(
+internal fun MedicationCountTextField(
     value: String,
     onValueChange: (String) -> Unit,
     onDecreaseClick: () -> Unit,

@@ -49,4 +49,26 @@ class MedicineSlotDraftSheetTest {
             )
         )
     }
+
+    @Test
+    fun canHideNewMedicineSlotSheet_allowsCompletionHideWhileLocked() {
+        assertTrue(
+            canHideNewMedicineSlotSheet(
+                value = SheetValue.Hidden,
+                isManualLogLocked = true,
+                allowCompletionHide = true,
+            )
+        )
+    }
+
+    @Test
+    fun canHideNewMedicineSlotSheet_blocksUserHideWhileLocked() {
+        assertFalse(
+            canHideNewMedicineSlotSheet(
+                value = SheetValue.Hidden,
+                isManualLogLocked = true,
+                allowCompletionHide = false,
+            )
+        )
+    }
 }
