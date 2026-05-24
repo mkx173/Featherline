@@ -107,7 +107,9 @@ fun MedicineSlotDraftSheet(
 
     MedicationEditorSheetScaffold(
         modifier = modifier,
-        title = stringResource(R.string.add_medication_to_group),
+        title = stringResource(
+            if (isManualLogMode) R.string.add_entry else R.string.add_medication_to_group,
+        ),
         sheetState = sheetState,
         confirmButtonText = stringResource(R.string.save),
         onDismissRequest = onDismissRequest,
