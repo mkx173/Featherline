@@ -12,8 +12,10 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -205,6 +207,131 @@ class NewMedicineSlotViewModelTest {
         assertNull(viewModel.uiState.value.manualLogSaveResult)
         assertNull(viewModel.uiState.value.slotResult)
         assertEquals(zoneId, viewModel.uiState.value.appliedZoneId)
+    }
+
+    @Test
+    fun resetWhileSaveIsSuspendedPreventsOldCompletionFromMutatingResetState() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000304"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val saveStarted = CompletableDeferred<Unit>()
+        val allowSaveToComplete = CompletableDeferred<Unit>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            saveStarted.complete(Unit)
+            allowSaveToComplete.await()
+            medicine
+        }
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+        saveStarted.await()
+        viewModel.reset()
+        allowSaveToComplete.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertNull(viewModel.uiState.value.slotResult)
+        assertEquals("", viewModel.uiState.value.medicineDraft.pillStrengthMg)
+    }
+
+    @Test
+    fun saveManualLog_whenReturnedJobIsCancelledClearsSavingState() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000305"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val logSaveStarted = CompletableDeferred<Unit>()
+        val neverCompletes = CompletableDeferred<Unit>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        coEvery {
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            logSaveStarted.complete(Unit)
+            neverCompletes.await()
+        }
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        val job = checkNotNull(viewModel.saveManualLog())
+        advanceUntilIdle()
+        logSaveStarted.await()
+        job.cancelAndJoin()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.manualLogSaveResult)
+    }
+
+    @Test
+    fun saveGroupSlot_whenSaveAlreadyInFlightDoesNotStartSecondRepositoryCall() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000306"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val saveStarted = CompletableDeferred<Unit>()
+        val allowSaveToComplete = CompletableDeferred<Unit>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            saveStarted.complete(Unit)
+            allowSaveToComplete.await()
+            medicine
+        }
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+        saveStarted.await()
+        val secondJob = viewModel.saveGroupSlot()
+        allowSaveToComplete.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(secondJob)
+        coVerify(exactly = 1) { medicineRepository.findOrCreateForCatalog(any(), any(), any()) }
+    }
+
+    @Test
+    fun updateMethodsWhileSavingAreIgnored() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000307"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val saveStarted = CompletableDeferred<Unit>()
+        val allowSaveToComplete = CompletableDeferred<Unit>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            saveStarted.complete(Unit)
+            allowSaveToComplete.await()
+            medicine
+        }
+        val viewModel = newViewModel()
+        val originalDate = viewModel.uiState.value.appliedDate
+        val originalTime = viewModel.uiState.value.appliedTime
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+        saveStarted.await()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "4") }
+        viewModel.updateDoseInstructionDraft { it.copy(tabletFractionNumerator = 2) }
+        viewModel.updateCountText("3")
+        viewModel.updateAppliedDate(LocalDate.of(2026, 5, 2))
+        viewModel.updateAppliedTime(LocalTime.of(8, 15))
+        allowSaveToComplete.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals("2", viewModel.uiState.value.medicineDraft.pillStrengthMg)
+        assertEquals(DoseInstruction.TabletFraction(1, 1), viewModel.uiState.value.slotResult?.doseInstruction)
+        assertEquals("1", viewModel.uiState.value.countText)
+        assertEquals(originalDate, viewModel.uiState.value.appliedDate)
+        assertEquals(originalTime, viewModel.uiState.value.appliedTime)
     }
 
     private fun newViewModel(

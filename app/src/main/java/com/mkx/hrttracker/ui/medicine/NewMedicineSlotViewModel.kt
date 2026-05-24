@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
@@ -18,8 +19,8 @@ import com.mkx.hrttracker.ui.medication.sanitizeMedicationCountText
 import com.mkx.hrttracker.ui.medication.toDoseInstruction
 import com.mkx.hrttracker.ui.medication.toDoseInstructionDraft
 import com.mkx.hrttracker.ui.medication.validationErrorRes
-import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         NewMedicineSlotUiState(appliedZoneId = ZoneId.systemDefault())
     )
     val uiState: StateFlow<NewMedicineSlotUiState> = _uiState.asStateFlow()
+    private var saveGeneration = 0
 
     internal constructor(
         medicineRepository: MedicineRepository,
@@ -56,6 +58,7 @@ class NewMedicineSlotViewModel @Inject constructor(
     }
 
     fun reset() {
+        saveGeneration += 1
         _uiState.update {
             NewMedicineSlotUiState(appliedZoneId = it.appliedZoneId)
         }
@@ -172,6 +175,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             }
             return null
         }
+        val operationGeneration = nextSaveGeneration()
 
         _uiState.update {
             it.copy(
@@ -183,22 +187,27 @@ class NewMedicineSlotViewModel @Inject constructor(
             )
         }
         return viewModelScope.launch {
-            saveMedicineThen(currentState) { medicine ->
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        isSaved = true,
-                        slotResult = MedicineSlotResult(
-                            medicineUuid = medicine.uuid,
-                            applicationType = currentState.medicineDraft.applicationType,
-                            doseInstruction = resolvedDoseInstruction(currentState),
-                            count = resolvedMedicationCountForSave(
-                                currentState.medicineDraft.applicationType,
-                                currentState.countText,
+            try {
+                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                    updateIfCurrent(operationGeneration) {
+                        it.copy(
+                            isSaving = false,
+                            isSaved = true,
+                            slotResult = MedicineSlotResult(
+                                medicineUuid = medicine.uuid,
+                                applicationType = currentState.medicineDraft.applicationType,
+                                doseInstruction = resolvedDoseInstruction(currentState),
+                                count = resolvedMedicationCountForSave(
+                                    currentState.medicineDraft.applicationType,
+                                    currentState.countText,
+                                ),
                             ),
-                        ),
-                    )
+                        )
+                    }
                 }
+            } catch (exception: CancellationException) {
+                clearSavingIfCurrent(operationGeneration)
+                throw exception
             }
         }
     }
@@ -219,6 +228,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             }
             return null
         }
+        val operationGeneration = nextSaveGeneration()
 
         _uiState.update {
             it.copy(
@@ -230,28 +240,33 @@ class NewMedicineSlotViewModel @Inject constructor(
             )
         }
         return viewModelScope.launch {
-            saveMedicineThen(currentState) { medicine ->
-                val saveResult = saveManualMedicineLog(
-                    medicationLogRepository = medicationLogRepository,
-                    medicationReminderScheduler = medicationReminderScheduler,
-                    medicineUuid = medicine.uuid,
-                    applicationType = currentState.medicineDraft.applicationType,
-                    doseInstruction = resolvedDoseInstruction(currentState),
-                    count = resolvedMedicationCountForSave(
-                        currentState.medicineDraft.applicationType,
-                        currentState.countText,
-                    ),
-                    appliedDate = currentState.appliedDate,
-                    appliedTime = currentState.appliedTime,
-                    appliedZoneId = currentState.appliedZoneId,
-                )
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        isSaved = saveResult == null,
-                        manualLogSaveResult = saveResult,
+            try {
+                saveMedicineThen(currentState, operationGeneration) { medicine ->
+                    val saveResult = saveManualMedicineLog(
+                        medicationLogRepository = medicationLogRepository,
+                        medicationReminderScheduler = medicationReminderScheduler,
+                        medicineUuid = medicine.uuid,
+                        applicationType = currentState.medicineDraft.applicationType,
+                        doseInstruction = resolvedDoseInstruction(currentState),
+                        count = resolvedMedicationCountForSave(
+                            currentState.medicineDraft.applicationType,
+                            currentState.countText,
+                        ),
+                        appliedDate = currentState.appliedDate,
+                        appliedTime = currentState.appliedTime,
+                        appliedZoneId = currentState.appliedZoneId,
                     )
+                    updateIfCurrent(operationGeneration) {
+                        it.copy(
+                            isSaving = false,
+                            isSaved = saveResult == null,
+                            manualLogSaveResult = saveResult,
+                        )
+                    }
                 }
+            } catch (exception: CancellationException) {
+                clearSavingIfCurrent(operationGeneration)
+                throw exception
             }
         }
     }
@@ -266,6 +281,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     private suspend fun saveMedicineThen(
         state: NewMedicineSlotUiState,
+        operationGeneration: Int,
         onCreated: suspend (Medicine) -> Unit,
     ) {
         // validateSlot already ran before this point; validate again inside the shared create helper as a defensive guard.
@@ -275,9 +291,14 @@ class NewMedicineSlotViewModel @Inject constructor(
                 draft = state.medicineDraft,
             )
         ) {
-            is MedicineCreateResult.Success -> onCreated(result.medicine)
+            is MedicineCreateResult.Success -> {
+                if (isCurrentSave(operationGeneration)) {
+                    onCreated(result.medicine)
+                }
+            }
+
             is MedicineCreateResult.ValidationError -> {
-                _uiState.update {
+                updateIfCurrent(operationGeneration) {
                     it.copy(
                         isSaving = false,
                         errorMessageRes = result.messageRes,
@@ -287,7 +308,7 @@ class NewMedicineSlotViewModel @Inject constructor(
             }
 
             is MedicineCreateResult.SaveFailure -> {
-                _uiState.update {
+                updateIfCurrent(operationGeneration) {
                     it.copy(
                         isSaving = false,
                         createSaveResult = result.saveResult,
@@ -309,6 +330,30 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     private fun resolvedDoseInstruction(state: NewMedicineSlotUiState): DoseInstruction {
         return state.doseInstructionDraft.toDoseInstruction()
+    }
+
+    private fun nextSaveGeneration(): Int {
+        saveGeneration += 1
+        return saveGeneration
+    }
+
+    private fun isCurrentSave(operationGeneration: Int): Boolean {
+        return operationGeneration == saveGeneration
+    }
+
+    private fun updateIfCurrent(
+        operationGeneration: Int,
+        transform: (NewMedicineSlotUiState) -> NewMedicineSlotUiState,
+    ) {
+        if (isCurrentSave(operationGeneration)) {
+            _uiState.update(transform)
+        }
+    }
+
+    private fun clearSavingIfCurrent(operationGeneration: Int) {
+        updateIfCurrent(operationGeneration) {
+            it.copy(isSaving = false)
+        }
     }
 }
 
