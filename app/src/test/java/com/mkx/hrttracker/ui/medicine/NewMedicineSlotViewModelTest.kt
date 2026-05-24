@@ -403,6 +403,37 @@ class NewMedicineSlotViewModelTest {
         assertEquals(originalTime, viewModel.uiState.value.appliedTime)
     }
 
+    @Test
+    fun updateMethodsAfterGroupSaveBeforeConsumptionAreIgnoredAndKeepSlotResult() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000309"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        val viewModel = newViewModel()
+        val originalDate = viewModel.uiState.value.appliedDate
+        val originalTime = viewModel.uiState.value.appliedTime
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+        val savedSlotResult = viewModel.uiState.value.slotResult
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "4") }
+        viewModel.updateDoseInstructionDraft { it.copy(tabletFractionNumerator = 2) }
+        viewModel.updateCountText("3")
+        viewModel.updateAppliedDate(LocalDate.of(2026, 5, 2))
+        viewModel.updateAppliedTime(LocalTime.of(8, 15))
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals("2", viewModel.uiState.value.medicineDraft.pillStrengthMg)
+        assertEquals(DoseInstruction.TabletFraction(1, 1), viewModel.uiState.value.slotResult?.doseInstruction)
+        assertEquals(savedSlotResult, viewModel.uiState.value.slotResult)
+        assertEquals("1", viewModel.uiState.value.countText)
+        assertEquals(originalDate, viewModel.uiState.value.appliedDate)
+        assertEquals(originalTime, viewModel.uiState.value.appliedTime)
+    }
+
     private fun newViewModel(
         zoneId: ZoneId = ZoneId.of("Asia/Tokyo"),
     ): NewMedicineSlotViewModel {

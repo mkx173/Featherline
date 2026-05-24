@@ -99,6 +99,7 @@ fun NewMedicineSlotSheet(
             onMedicineDraftChange = viewModel::updateMedicineDraft,
             errorMessageRes = uiState.errorMessageRes,
             readOnly = isSheetLocked,
+            enabled = !isSheetLocked,
         )
 
         if (

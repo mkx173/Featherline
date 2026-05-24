@@ -66,7 +66,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     fun updateMedicineDraft(transform: (MedicinePickerUiState) -> MedicinePickerUiState) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 val updatedDraft = transform(state.medicineDraft)
@@ -103,7 +103,7 @@ class NewMedicineSlotViewModel @Inject constructor(
         transform: (DoseInstructionDraftUiState) -> DoseInstructionDraftUiState,
     ) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 state.copy(
@@ -119,7 +119,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     fun updateCountText(countText: String) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 state.copy(
@@ -135,7 +135,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     fun updateAppliedDate(appliedDate: LocalDate) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 state.copy(
@@ -148,7 +148,7 @@ class NewMedicineSlotViewModel @Inject constructor(
 
     fun updateAppliedTime(appliedTime: LocalTime) {
         _uiState.update { state ->
-            if (state.isSaving) {
+            if (state.isLockedForUpdates()) {
                 state
             } else {
                 state.copy(
@@ -359,6 +359,10 @@ class NewMedicineSlotViewModel @Inject constructor(
         updateIfCurrent(operationGeneration) {
             it.copy(isSaving = false)
         }
+    }
+
+    private fun NewMedicineSlotUiState.isLockedForUpdates(): Boolean {
+        return isSaving || isSaved
     }
 }
 

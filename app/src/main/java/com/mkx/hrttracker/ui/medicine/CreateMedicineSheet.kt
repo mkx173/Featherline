@@ -167,6 +167,7 @@ internal fun CreateMedicineForm(
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     errorMessageRes: Int?,
     readOnly: Boolean,
+    enabled: Boolean = true,
 ) {
     val focusManager = LocalFocusManager.current
     // One requester per slot in CreateMedicineField; the set is fixed so the
@@ -186,6 +187,7 @@ internal fun CreateMedicineForm(
         onOptionSelected = { category ->
             onMedicineDraftChange { it.changeCategory(category) }
         },
+        enabled = enabled,
     )
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
@@ -197,6 +199,7 @@ internal fun CreateMedicineForm(
         onOptionSelected = { applicationType ->
             onMedicineDraftChange { it.changeApplicationType(applicationType) }
         },
+        enabled = enabled,
     )
 
     if (medicineDraft.applicationType == MedicationApplicationType.PATCH_OFF) {
@@ -226,6 +229,7 @@ internal fun CreateMedicineForm(
             onOptionSelected = { medicationKey ->
                 onMedicineDraftChange { it.changeMedicationKey(medicationKey) }
             },
+            enabled = enabled,
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
@@ -237,6 +241,7 @@ internal fun CreateMedicineForm(
             onValueChange = { value ->
                 onMedicineDraftChange { it.copy(customMedicationName = value) }
             },
+            enabled = enabled,
             readOnly = readOnly,
             isError = errorMessageRes == R.string.validation_name_required,
             label = { Text(text = stringResource(R.string.field_medication_name)) },
@@ -278,6 +283,7 @@ internal fun CreateMedicineForm(
         onMedicineDraftChange = onMedicineDraftChange,
         errorMessageRes = errorMessageRes,
         readOnly = readOnly,
+        enabled = enabled,
         focusRequesters = focusRequesters,
         editableFields = editableFields,
     )
@@ -293,6 +299,7 @@ internal fun CreateMedicineForm(
             medicineDraft = medicineDraft,
             onMedicineDraftChange = onMedicineDraftChange,
             readOnly = readOnly,
+            enabled = enabled,
             focusRequester = focusRequesters.getValue(CreateMedicineField.DISPLAY_NAME),
         )
     }
@@ -303,6 +310,7 @@ private fun DisplayNameField(
     medicineDraft: MedicinePickerUiState,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     readOnly: Boolean,
+    enabled: Boolean,
     focusRequester: FocusRequester,
 ) {
     val focusManager = LocalFocusManager.current
@@ -331,6 +339,7 @@ private fun DisplayNameField(
         .orEmpty()
     OutlinedTextField(
         state = displayNameState,
+        enabled = enabled,
         readOnly = readOnly,
         labelPosition = displayNameFieldLabelPosition(),
         label = { Text(text = stringResource(R.string.medicine_display_name)) },
@@ -364,6 +373,7 @@ private fun NewMedicinePreparationForm(
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
     errorMessageRes: Int?,
     readOnly: Boolean,
+    enabled: Boolean,
     focusRequesters: Map<CreateMedicineField, FocusRequester>,
     editableFields: List<CreateMedicineField>,
 ) {
@@ -387,6 +397,7 @@ private fun NewMedicinePreparationForm(
             onOptionSelected = { preparationType ->
                 onMedicineDraftChange { it.changePreparationType(preparationType) }
             },
+            enabled = enabled,
         )
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
@@ -403,6 +414,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.pillStrengthMg,
                 label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
                 leadingIconRes = R.drawable.ic_medication,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_pill_strength_required,
                 errorMessageRes = R.string.validation_pill_strength_required
@@ -417,6 +429,7 @@ private fun NewMedicinePreparationForm(
             DoseAssistPresetRow(
                 presets = doseAssistPresets
                     .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>(),
+                enabled = enabled,
                 onPresetClick = { preset ->
                     onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -424,6 +437,7 @@ private fun NewMedicinePreparationForm(
             CustomDoseUnitPickerForRawMassField(
                 medicineDraft = medicineDraft,
                 onMedicineDraftChange = onMedicineDraftChange,
+                enabled = enabled,
             )
         }
 
@@ -432,6 +446,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.singleUseVialStrengthMg,
                 label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_vial_strength_required,
                 errorMessageRes = R.string.validation_vial_strength_required
@@ -446,6 +461,7 @@ private fun NewMedicinePreparationForm(
             DoseAssistPresetRow(
                 presets = doseAssistPresets
                     .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>(),
+                enabled = enabled,
                 onPresetClick = { preset ->
                     onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -453,6 +469,7 @@ private fun NewMedicinePreparationForm(
             CustomDoseUnitPickerForRawMassField(
                 medicineDraft = medicineDraft,
                 onMedicineDraftChange = onMedicineDraftChange,
+                enabled = enabled,
             )
         }
 
@@ -461,6 +478,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.concentrationMgPerMl,
                 label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_concentration_required,
                 errorMessageRes = R.string.validation_concentration_required
@@ -477,6 +495,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.vialVolumeMl,
                 label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
                 leadingIconRes = R.drawable.ic_fluid,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_vial_volume_required,
                 errorMessageRes = R.string.validation_vial_volume_required
@@ -495,6 +514,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.gelConcentrationPercent,
                 label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
                 errorMessageRes = R.string.validation_gel_concentration_required
@@ -509,6 +529,7 @@ private fun NewMedicinePreparationForm(
             DoseAssistPresetRow(
                 presets = doseAssistPresets
                     .filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                enabled = enabled,
                 onPresetClick = { preset ->
                     onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -518,6 +539,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.sachetWeightGrams,
                 label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_sachet_weight_required,
                 errorMessageRes = R.string.validation_sachet_weight_required
@@ -532,6 +554,7 @@ private fun NewMedicinePreparationForm(
             DoseAssistPresetRow(
                 presets = doseAssistPresets
                     .filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>(),
+                enabled = enabled,
                 onPresetClick = { preset ->
                     onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -543,6 +566,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.gelConcentrationPercent,
                 label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
                 errorMessageRes = R.string.validation_gel_concentration_required
@@ -557,6 +581,7 @@ private fun NewMedicinePreparationForm(
             DoseAssistPresetRow(
                 presets = doseAssistPresets
                     .filterIsInstance<MedicationDoseAssistPreset.GelPercent>(),
+                enabled = enabled,
                 onPresetClick = { preset ->
                     onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                 },
@@ -566,6 +591,7 @@ private fun NewMedicinePreparationForm(
                 value = medicineDraft.containerWeightGrams,
                 label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
+                enabled = enabled,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_container_weight_required,
                 errorMessageRes = R.string.validation_container_weight_required
@@ -595,6 +621,7 @@ private fun NewMedicinePreparationForm(
                 onOptionSelected = { kind ->
                     onMedicineDraftChange { it.copy(patchSpecKind = kind) }
                 },
+                enabled = enabled,
             )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             when (medicineDraft.patchSpecKind) {
@@ -603,6 +630,7 @@ private fun NewMedicinePreparationForm(
                         value = medicineDraft.patchTotalMg,
                         label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
                         leadingIconRes = R.drawable.ic_chronic,
+                        enabled = enabled,
                         readOnly = readOnly,
                         isError = errorMessageRes == R.string.validation_patch_total_required,
                         errorMessageRes = R.string.validation_patch_total_required
@@ -617,6 +645,7 @@ private fun NewMedicinePreparationForm(
                     DoseAssistPresetRow(
                         presets = doseAssistPresets
                             .filterIsInstance<MedicationDoseAssistPreset.PatchTotalMg>(),
+                        enabled = enabled,
                         onPresetClick = { preset ->
                             onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                         },
@@ -624,6 +653,7 @@ private fun NewMedicinePreparationForm(
                     CustomDoseUnitPickerForRawMassField(
                         medicineDraft = medicineDraft,
                         onMedicineDraftChange = onMedicineDraftChange,
+                        enabled = enabled,
                     )
                 }
 
@@ -635,6 +665,7 @@ private fun NewMedicinePreparationForm(
                             R.string.unit_mcg_day,
                         ),
                         leadingIconRes = R.drawable.ic_speed,
+                        enabled = enabled,
                         readOnly = readOnly,
                         isError = errorMessageRes == R.string.validation_patch_release_rate_required,
                         errorMessageRes = R.string.validation_patch_release_rate_required
@@ -649,6 +680,7 @@ private fun NewMedicinePreparationForm(
                     DoseAssistPresetRow(
                         presets = doseAssistPresets
                             .filterIsInstance<MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay>(),
+                        enabled = enabled,
                         onPresetClick = { preset ->
                             onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
                         },
@@ -677,6 +709,7 @@ private fun ApplicationTypeButtonGroup(
     options: List<MedicationApplicationType>,
     selectedOption: MedicationApplicationType,
     onOptionSelected: (MedicationApplicationType) -> Unit,
+    enabled: Boolean = true,
 ) {
     // MedicationApplicationIcon wraps the icon in a Box(modifier), so the
     // modifier must constrain both axes — a height-only modifier lets the Box
@@ -703,6 +736,7 @@ private fun ApplicationTypeButtonGroup(
             )
         },
         onOptionSelected = onOptionSelected,
+        enabled = enabled,
     )
 }
 
@@ -710,6 +744,7 @@ private fun ApplicationTypeButtonGroup(
 private fun CustomDoseUnitPickerForRawMassField(
     medicineDraft: MedicinePickerUiState,
     onMedicineDraftChange: ((MedicinePickerUiState) -> MedicinePickerUiState) -> Unit,
+    enabled: Boolean,
 ) {
     if (!medicineDraft.showsCustomDoseUnitPicker()) {
         return
@@ -719,6 +754,7 @@ private fun CustomDoseUnitPickerForRawMassField(
         onUnitSelected = { unit ->
             onMedicineDraftChange { it.copy(customDoseUnit = unit) }
         },
+        enabled = enabled,
     )
 }
 
@@ -729,6 +765,7 @@ private fun CustomDoseUnitPickerForRawMassField(
 private fun CustomDoseUnitPicker(
     selectedUnit: MedicineDisplayDoseUnit,
     onUnitSelected: (MedicineDisplayDoseUnit) -> Unit,
+    enabled: Boolean,
 ) {
     Row(
         modifier = Modifier
@@ -753,6 +790,7 @@ private fun CustomDoseUnitPicker(
                 onOptionSelected = onUnitSelected,
                 layout = ConnectedButtonGroupLayout.ROW,
                 applyCjkTextOffset = false,
+                enabled = enabled,
             )
         }
     }
