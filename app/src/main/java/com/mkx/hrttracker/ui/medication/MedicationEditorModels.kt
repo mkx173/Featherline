@@ -86,8 +86,8 @@ internal enum class TabletFractionOption(val numerator: Int, val denominator: In
 
     fun label(): String {
         return when (this) {
-            QUARTER -> "¼"
-            HALF -> "½"
+            QUARTER -> "1/4"
+            HALF -> "1/2"
             WHOLE -> "1"
         }
     }

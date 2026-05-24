@@ -49,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -110,6 +111,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
 // Public sheet entry points (Task 6 Step 5).
@@ -665,18 +667,40 @@ internal fun DoseInstructionForm(
     when (doseInstructionDraft.preparationType) {
         MedicinePreparationType.PILL -> {
             val current = doseInstructionDraft.selectedTabletFractionOption()
-            EditorSectionLabel(stringResource(R.string.field_dose_tablet_fraction))
-            ConnectedButtonGroup(
-                options = TabletFractionOption.entries,
-                selectedOptions = setOf(current),
-                optionLabel = { option -> option.label() },
-                onOptionToggled = { selected ->
-                    onDoseInstructionDraftChange {
-                        it.selectTabletFraction(selected)
+            val options = TabletFractionOption.entries
+            val currentIndex = options.indexOf(current).coerceAtLeast(0)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.field_dose_tablet_fraction),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = current.label(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Slider(
+                value = currentIndex.toFloat(),
+                onValueChange = { value ->
+                    val selected = options[
+                        value.roundToInt().coerceIn(0, options.size - 1)
+                    ]
+                    if (selected != current) {
+                        onDoseInstructionDraftChange { it.selectTabletFraction(selected) }
                     }
                 },
-                layout = ConnectedButtonGroupLayout.ROW,
-                expandOptions = true,
+                valueRange = 0f..(options.size - 1).toFloat(),
+                // Slider.steps counts intermediate stops between the endpoints,
+                // so 3 selectable options (1/4, 1/2, 1) need 1 intermediate step.
+                steps = options.size - 2,
                 enabled = enabled,
             )
         }
