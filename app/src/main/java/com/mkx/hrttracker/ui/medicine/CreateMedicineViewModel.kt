@@ -39,11 +39,15 @@ class CreateMedicineViewModel @Inject constructor(
 
     fun updateDraft(transform: (MedicinePickerUiState) -> MedicinePickerUiState) {
         _uiState.update { state ->
-            state.copy(
-                draft = transform(state.draft),
-                errorMessageRes = null,
-                saveResult = null,
-            )
+            if (state.isSaving) {
+                state
+            } else {
+                state.copy(
+                    draft = transform(state.draft),
+                    errorMessageRes = null,
+                    saveResult = null,
+                )
+            }
         }
     }
 

@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.UUID
@@ -252,6 +253,35 @@ class CreateMedicineViewModelTest {
                 any(),
             )
         }
+    }
+
+    @Test
+    fun updateDraft_ignoresMutationsWhileSaving() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000005"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(
+                MedicationKey.ESTRADIOL,
+                MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                any(),
+            )
+        } returns medicine
+        val viewModel = CreateMedicineViewModel(medicineRepository)
+        viewModel.updateDraft {
+            it.copy(
+                medicationKey = MedicationKey.ESTRADIOL,
+                pillStrengthMg = "2",
+            )
+        }
+
+        viewModel.create { }
+        viewModel.updateDraft { it.copy(pillStrengthMg = "5") }
+
+        assertTrue(viewModel.uiState.value.isSaving)
+        assertEquals("2", viewModel.uiState.value.draft.pillStrengthMg)
     }
 
     @Test
