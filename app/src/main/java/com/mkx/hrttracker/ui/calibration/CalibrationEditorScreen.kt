@@ -250,7 +250,10 @@ fun CalibrationEditorScreen(
                 addAnalyteSheetOptions = calibrationAddAnalyteOptions(uiState)
             }
         },
-        onDeleteClick = { isDeleteDialogVisible = true },
+        onDeleteClick = {
+            if (isCalibrationEditorBusy(uiState)) return@CalibrationEditorScreenContent
+            isDeleteDialogVisible = true
+        },
         onSaveClick = { notes ->
             viewModel.updateNotes(notes)
             viewModel.save()
@@ -531,7 +534,6 @@ private fun CalibrationEditorScreenContent(
                     HrtButton(
                         text = stringResource(R.string.delete_entries_confirm),
                         onClick = onDeleteClick,
-                        enabled = !isCalibrationEditorBusy(uiState),
                         modifier = Modifier.fillMaxWidth(),
                         icon = Icons.Rounded.Delete,
                         iconModifier = Modifier.size(
