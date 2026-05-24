@@ -199,8 +199,9 @@ class NewMedicineSlotViewModel @Inject constructor(
                                 applicationType = applicationType,
                                 doseInstruction = resolvedDoseInstruction(currentState),
                                 count = resolvedMedicationCountForSave(
-                                    applicationType,
-                                    currentState.countText,
+                                    applicationType = applicationType,
+                                    countText = currentState.countText,
+                                    preparationType = resolvedPreparationType(currentState),
                                 ),
                             ),
                         )
@@ -251,8 +252,9 @@ class NewMedicineSlotViewModel @Inject constructor(
                         resolvedApplicationType = applicationType,
                         doseInstruction = resolvedDoseInstruction(currentState),
                         count = resolvedMedicationCountForSave(
-                            applicationType,
-                            currentState.countText,
+                            applicationType = applicationType,
+                            countText = currentState.countText,
+                            preparationType = resolvedPreparationType(currentState),
                         ),
                         appliedDate = currentState.appliedDate,
                         appliedTime = currentState.appliedTime,
@@ -332,16 +334,20 @@ class NewMedicineSlotViewModel @Inject constructor(
         return medicationCountValidationErrorRes(
             applicationType = resolvedApplicationType(state),
             countText = state.countText,
+            preparationType = resolvedPreparationType(state),
         )
     }
 
     private fun resolvedApplicationType(state: NewMedicineSlotUiState): MedicationApplicationType {
         return resolvedApplicationTypeForDose(
-            preparationType = state.medicineDraft.inferredOrSelectedPreparationType()
-                ?: state.doseInstructionDraft.preparationType,
+            preparationType = resolvedPreparationType(state),
             doseInstructionDraft = state.doseInstructionDraft,
         )
     }
+
+    private fun resolvedPreparationType(state: NewMedicineSlotUiState) =
+        state.medicineDraft.inferredOrSelectedPreparationType()
+            ?: state.doseInstructionDraft.preparationType
 
     private fun resolvedDoseInstruction(state: NewMedicineSlotUiState): DoseInstruction {
         val resolvedApplicationType = resolvedApplicationType(state)

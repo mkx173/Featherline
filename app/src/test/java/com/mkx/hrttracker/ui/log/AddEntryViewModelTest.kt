@@ -291,10 +291,39 @@ class AddEntryViewModelTest {
 
     @Test
     fun buildEditingUiState_coerces_unsupported_routes_to_count_one() {
-        // GEL is currently the only non-PATCH_OFF unsupported route; INJECTION
-        // now supports a count editor ("N vials" / "N injections of dose").
+        // GEL_CONTAINER is "one bottle dispenses N grams per dose" — count is
+        // not a per-occurrence axis. (GEL_SACHET is the sibling preparation
+        // where N sachets at once IS a real choice, so it now keeps the count.)
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("62f549eb-3870-4ce8-b476-6dd44759d78d"),
+            medicine = testMedicine(
+                key = MedicationKey.ESTRADIOL_GEL,
+                preparation = MedicinePreparation.GelContainer(
+                    concentrationPercent = 0.06,
+                    containerWeightGrams = 80.0,
+                ),
+            ),
+            applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WeightGrams(1.25),
+            equivalentE2Mg = 5.0,
+            sourceGroupUuid = null,
+            appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),
+            count = 3
+        )
+
+        val uiState = buildEditingUiState(listOf(entry))
+
+        requireNotNull(uiState)
+        assertEquals(1, uiState.count)
+    }
+
+    @Test
+    fun buildEditingUiState_preserves_count_for_gel_sachet() {
+        // Per-occurrence "N sachets at once" is a real choice; the calculator
+        // already multiplies the WholeUnit dose by count, so the editor
+        // surfaces the saved value instead of coercing it to 1.
+        val entry = testMedicationLogEntry(
+            uuid = UUID.fromString("9c5a4e6d-8aaf-4f5c-9b41-f0a55b85d4fa"),
             medicine = testMedicine(
                 key = MedicationKey.ESTRADIOL_GEL,
                 preparation = MedicinePreparation.GelSachet(
@@ -313,7 +342,7 @@ class AddEntryViewModelTest {
         val uiState = buildEditingUiState(listOf(entry))
 
         requireNotNull(uiState)
-        assertEquals(1, uiState.count)
+        assertEquals(3, uiState.count)
     }
 
     @Test

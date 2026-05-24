@@ -542,7 +542,7 @@ internal fun MedicationEditorContent(
         )
     }
 
-    if (applicationType.supportsMedicationCountEditor()) {
+    if (applicationType.supportsMedicationCountEditor(activePreparationType)) {
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
         MedicationCountTextField(
             value = countText,
@@ -734,7 +734,10 @@ internal fun DoseInstructionForm(
 
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> NumericField(
             value = doseInstructionDraft.volumeMl,
-            label = stringResource(R.string.field_dose_volume_ml),
+            label = doseInstructionFieldLabelWithUnit(
+                R.string.field_dose_volume_ml,
+                R.string.unit_ml,
+            ),
             suffix = stringResource(R.string.unit_ml),
             leadingIconRes = R.drawable.ic_water_drops,
             isError = errorMessageRes == R.string.validation_dose_volume_required,
@@ -748,7 +751,10 @@ internal fun DoseInstructionForm(
         MedicinePreparationType.GEL_CONTAINER -> {
             NumericField(
                 value = doseInstructionDraft.weightGrams,
-                label = stringResource(R.string.field_dose_weight_grams),
+                label = doseInstructionFieldLabelWithUnit(
+                    R.string.field_dose_weight_grams,
+                    R.string.unit_grams,
+                ),
                 suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 isError = errorMessageRes == R.string.validation_dose_weight_required,
@@ -1102,6 +1108,17 @@ private fun MedicationEditorGroupInfoCard(
 // ---------------------------------------------------------------------------
 // Reusable fields
 // ---------------------------------------------------------------------------
+
+// Mirrors fieldLabelWithUnit in CreateMedicineSheet — keeps the unit visible
+// in the label's resting state while the trailing suffix continues to remind
+// the user while they type.
+@Composable
+private fun doseInstructionFieldLabelWithUnit(
+    @StringRes labelRes: Int,
+    @StringRes unitRes: Int,
+): String {
+    return "${stringResource(labelRes)} (${stringResource(unitRes)})"
+}
 
 @Composable
 private fun NumericField(

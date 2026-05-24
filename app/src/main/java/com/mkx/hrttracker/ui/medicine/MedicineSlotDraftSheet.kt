@@ -118,21 +118,23 @@ fun MedicineSlotDraftSheet(
         isSaving = isSaving,
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = {
+            val preparationType = medicine.preparation.type
             val error = medicineDraft.selectedMedicineValidationErrorRes()
                 ?: doseInstructionDraft.validationErrorRes()
                 ?: medicationCountValidationErrorRes(
                     applicationType = resolvedApplicationTypeForDose(
-                        preparationType = medicine.preparation.type,
+                        preparationType = preparationType,
                         doseInstructionDraft = doseInstructionDraft,
                     ),
                     countText = countText,
+                    preparationType = preparationType,
                 )
             if (error != null) {
                 errorMessageRes = error
                 return@MedicationEditorSheetScaffold
             }
             val applicationType = resolvedApplicationTypeForDose(
-                preparationType = medicine.preparation.type,
+                preparationType = preparationType,
                 doseInstructionDraft = doseInstructionDraft,
             )
             val resolvedDose = if (applicationType == MedicationApplicationType.PATCH_OFF) {
@@ -143,6 +145,7 @@ fun MedicineSlotDraftSheet(
             val resolvedCount = resolvedMedicationCountForSave(
                 applicationType = applicationType,
                 countText = countText,
+                preparationType = preparationType,
             )
             val slotResult = MedicineSlotResult(
                 medicineUuid = medicine.uuid,
@@ -204,6 +207,7 @@ fun MedicineSlotDraftSheet(
                     ),
                     countText = countText,
                     delta = -1,
+                    preparationType = medicine.preparation.type,
                 ).toString()
             },
             onIncreaseCountClick = {
@@ -214,6 +218,7 @@ fun MedicineSlotDraftSheet(
                     ),
                     countText = countText,
                     delta = 1,
+                    preparationType = medicine.preparation.type,
                 ).toString()
             },
             errorMessageRes = errorMessageRes,

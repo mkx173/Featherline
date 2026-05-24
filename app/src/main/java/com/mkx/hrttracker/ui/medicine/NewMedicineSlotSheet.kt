@@ -127,7 +127,7 @@ fun NewMedicineSlotSheet(
             )
         }
 
-        if (applicationType.supportsMedicationCountEditor()) {
+        if (applicationType.supportsMedicationCountEditor(activePreparationType)) {
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             MedicationCountTextField(
                 value = uiState.countText,
@@ -138,6 +138,7 @@ fun NewMedicineSlotSheet(
                             applicationType = applicationType,
                             countText = uiState.countText,
                             delta = -1,
+                            preparationType = activePreparationType,
                         ).toString(),
                     )
                 },
@@ -147,6 +148,7 @@ fun NewMedicineSlotSheet(
                             applicationType = applicationType,
                             countText = uiState.countText,
                             delta = 1,
+                            preparationType = activePreparationType,
                         ).toString(),
                     )
                 },

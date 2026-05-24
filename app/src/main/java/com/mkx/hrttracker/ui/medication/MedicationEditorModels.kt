@@ -445,7 +445,21 @@ fun DoseInstructionDraftUiState.applyDoseAssistPreset(
 // Count handling — preserved from the previous draft model, keyed on route.
 // ---------------------------------------------------------------------------
 
-fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
+fun MedicationApplicationType.supportsMedicationCountEditor(
+    // Two preparation types override their parent application route's default:
+    //   INJECTION_MULTI_USE_VIAL — dose is the drawn volume; "N injections" is
+    //     not how users describe it, so the count editor is hidden and the
+    //     saved count is forced to 1.
+    //   GEL_SACHET — single-sachet packaging means N sachets at once is a
+    //     real per-occurrence choice; the DoseInstructionCalculator already
+    //     multiplies the WholeUnit dose by count.
+    preparationType: MedicinePreparationType? = null,
+): Boolean {
+    when (preparationType) {
+        MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> return false
+        MedicinePreparationType.GEL_SACHET -> return true
+        else -> Unit
+    }
     return when (this) {
         MedicationApplicationType.ORAL,
         MedicationApplicationType.SUBLINGUAL,
@@ -462,7 +476,9 @@ fun MedicationApplicationType.supportsMedicationCountEditor(): Boolean {
 }
 
 fun MedicinePickerUiState.showsMedicationCountEditor(): Boolean {
-    return catalogFilterApplicationType.supportsMedicationCountEditor()
+    return catalogFilterApplicationType.supportsMedicationCountEditor(
+        preparationType = inferredOrSelectedPreparationType(),
+    )
 }
 
 fun resolvedApplicationTypeForDose(
@@ -484,8 +500,9 @@ fun resolvedApplicationTypeForDose(
 fun normalizeMedicationCount(
     applicationType: MedicationApplicationType,
     count: Int,
+    preparationType: MedicinePreparationType? = null,
 ): Int {
-    return if (applicationType.supportsMedicationCountEditor()) {
+    return if (applicationType.supportsMedicationCountEditor(preparationType)) {
         count.coerceAtLeast(1)
     } else {
         1
@@ -512,10 +529,12 @@ fun stepMedicationCount(
     applicationType: MedicationApplicationType,
     countText: String,
     delta: Int,
+    preparationType: MedicinePreparationType? = null,
 ): Int {
     return normalizeMedicationCount(
         applicationType = applicationType,
         count = countStepBase(countText) + delta,
+        preparationType = preparationType,
     )
 }
 
@@ -538,8 +557,9 @@ fun resolveMedicationCountTextAfterDraftChange(
 fun medicationCountValidationErrorRes(
     applicationType: MedicationApplicationType,
     countText: String,
+    preparationType: MedicinePreparationType? = null,
 ): Int? {
-    if (!applicationType.supportsMedicationCountEditor()) {
+    if (!applicationType.supportsMedicationCountEditor(preparationType)) {
         return null
     }
     return if (parsePositiveMedicationCountOrNull(countText) == null) {
@@ -552,8 +572,9 @@ fun medicationCountValidationErrorRes(
 fun resolvedMedicationCountForSave(
     applicationType: MedicationApplicationType,
     countText: String,
+    preparationType: MedicinePreparationType? = null,
 ): Int {
-    return if (applicationType.supportsMedicationCountEditor()) {
+    return if (applicationType.supportsMedicationCountEditor(preparationType)) {
         checkNotNull(parsePositiveMedicationCountOrNull(countText))
     } else {
         1

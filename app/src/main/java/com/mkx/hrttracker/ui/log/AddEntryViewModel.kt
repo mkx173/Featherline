@@ -248,7 +248,8 @@ class AddEntryViewModel @Inject constructor(
                 countText = stepMedicationCount(
                     applicationType = resolvedApplicationType(currentState),
                     countText = currentState.countText,
-                    delta = -1
+                    delta = -1,
+                    preparationType = resolvedPreparationType(currentState),
                 ).toString(),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
@@ -262,7 +263,8 @@ class AddEntryViewModel @Inject constructor(
                 countText = stepMedicationCount(
                     applicationType = resolvedApplicationType(currentState),
                     countText = currentState.countText,
-                    delta = 1
+                    delta = 1,
+                    preparationType = resolvedPreparationType(currentState),
                 ).toString(),
                 errorMessageRes = null,
                 isScheduleFulfillmentWarningVisible = false
@@ -316,11 +318,13 @@ class AddEntryViewModel @Inject constructor(
         val appliedAt = appliedAtLocal.atZone(currentState.appliedZoneId).toInstant()
         val appliedAtTimeZoneId = currentState.appliedZoneId.id
         val applicationType = resolvedApplicationType(currentState)
+        val preparationType = resolvedPreparationType(currentState)
         val errorRes = currentState.medicineDraft.selectedMedicineValidationErrorRes()
             ?: currentState.doseInstructionDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
                 applicationType = applicationType,
-                countText = currentState.countText
+                countText = currentState.countText,
+                preparationType = preparationType,
             )
 
         if (errorRes != null) {
@@ -374,6 +378,7 @@ class AddEntryViewModel @Inject constructor(
             count = resolvedMedicationCountForSave(
                 applicationType = applicationType,
                 countText = currentState.countText,
+                preparationType = preparationType,
             ),
         )
 
@@ -588,10 +593,14 @@ class AddEntryViewModel @Inject constructor(
 
     private fun resolvedApplicationType(state: AddEntryUiState): MedicationApplicationType {
         return resolvedApplicationTypeForDose(
-            preparationType = state.resolvedMedicine?.preparation?.type
-                ?: state.doseInstructionDraft.preparationType,
+            preparationType = resolvedPreparationType(state),
             doseInstructionDraft = state.doseInstructionDraft,
         )
+    }
+
+    private fun resolvedPreparationType(state: AddEntryUiState): MedicinePreparationType {
+        return state.resolvedMedicine?.preparation?.type
+            ?: state.doseInstructionDraft.preparationType
     }
 
     private fun loadEntriesForEditing(
@@ -815,8 +824,9 @@ internal fun buildEditingUiState(
                 ?: sourceGroupNextScheduledFor?.takeIf { hasMatchingSourceGroupSnapshot }
         },
         countText = normalizeMedicationCount(
-            representativeEntry.applicationType,
-            representativeEntry.count
+            applicationType = representativeEntry.applicationType,
+            count = representativeEntry.count,
+            preparationType = representativeEntry.medicine?.preparation?.type,
         ).toString(),
         appliedZoneId = displayZoneOf(representativeEntry),
         appliedDate = appliedAtLocal.toLocalDate(),
@@ -919,7 +929,11 @@ internal fun buildQuickLogUiState(
             ?: sourceGroupPreviousScheduledFor,
         sourceGroupNextScheduledFor = group?.nextScheduledForAfter(scheduledFor)
             ?: sourceGroupNextScheduledFor,
-        countText = normalizeMedicationCount(applicationType, medicationCount).toString(),
+        countText = normalizeMedicationCount(
+            applicationType = applicationType,
+            count = medicationCount,
+            preparationType = medicine?.preparation?.type,
+        ).toString(),
         appliedDate = appliedAt.toLocalDate(),
         appliedTime = appliedAt.toLocalTime().withSecond(0).withNano(0),
         isLoading = isLoading,

@@ -472,7 +472,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 countText = stepMedicationCount(
                     applicationType = medication.resolvedApplicationType(),
                     countText = medication.countText,
-                    delta = -1
+                    delta = -1,
+                    preparationType = medication.resolvedPreparationType(),
                 ).toString()
             )
         }
@@ -484,7 +485,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 countText = stepMedicationCount(
                     applicationType = medication.resolvedApplicationType(),
                     countText = medication.countText,
-                    delta = 1
+                    delta = 1,
+                    preparationType = medication.resolvedPreparationType(),
                 ).toString()
             )
         }
@@ -655,7 +657,11 @@ class MedicationGroupEditorViewModel @Inject constructor(
                 ),
                 applicationType = slot.applicationType,
                 doseInstruction = slot.doseInstruction,
-                count = normalizeMedicationCount(slot.applicationType, slot.count),
+                count = normalizeMedicationCount(
+                    applicationType = slot.applicationType,
+                    count = slot.count,
+                    preparationType = medicine.preparation.type,
+                ),
             )
             val upsertResult = upsertMedication(
                 medications = state.medications,
@@ -758,12 +764,14 @@ class MedicationGroupEditorViewModel @Inject constructor(
         }
         val editingMedication = currentState.editingMedication ?: return
         val applicationType = editingMedication.resolvedApplicationType()
+        val preparationType = editingMedication.resolvedPreparationType()
         val isPatchOff = applicationType == MedicationApplicationType.PATCH_OFF
         val errorRes = editingMedication.medicineDraft.selectedMedicineValidationErrorRes()
             ?: editingMedication.doseInstructionDraft.validationErrorRes()
             ?: medicationCountValidationErrorRes(
                 applicationType = applicationType,
-                countText = editingMedication.countText
+                countText = editingMedication.countText,
+                preparationType = preparationType,
             )
 
         if (errorRes != null) {
@@ -792,7 +800,8 @@ class MedicationGroupEditorViewModel @Inject constructor(
             },
             count = resolvedMedicationCountForSave(
                 applicationType = applicationType,
-                countText = editingMedication.countText
+                countText = editingMedication.countText,
+                preparationType = preparationType,
             )
         )
 
@@ -2339,10 +2348,14 @@ data class MedicationGroupMedicationEditorUiState(
 
 internal fun MedicationGroupMedicationEditorUiState.resolvedApplicationType(): MedicationApplicationType {
     return resolvedApplicationTypeForDose(
-        preparationType = resolvedMedicine?.preparation?.type
-            ?: doseInstructionDraft.preparationType,
+        preparationType = resolvedPreparationType(),
         doseInstructionDraft = doseInstructionDraft,
     )
+}
+
+internal fun MedicationGroupMedicationEditorUiState.resolvedPreparationType(): MedicinePreparationType {
+    return resolvedMedicine?.preparation?.type
+        ?: doseInstructionDraft.preparationType
 }
 
 // Builds an editor slot draft from a loaded domain medication. A PATCH_OFF slot
@@ -2375,7 +2388,11 @@ internal fun MedicationGroupMedication.toItemUiState(): MedicationGroupMedicatio
         ),
         applicationType = applicationType,
         doseInstruction = doseInstruction,
-        count = normalizeMedicationCount(applicationType, count),
+        count = normalizeMedicationCount(
+            applicationType = applicationType,
+            count = count,
+            preparationType = medicine?.preparation?.type,
+        ),
     )
 }
 
