@@ -3,15 +3,9 @@ package com.mkx.hrttracker.ui.medicine
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mkx.hrttracker.R
-import com.mkx.hrttracker.data.repository.MedicineIdentityCollisionException
 import com.mkx.hrttracker.data.repository.MedicineRepository
-import com.mkx.hrttracker.model.medication.MedicationApplicationType
-import com.mkx.hrttracker.model.medication.MedicationSelectionKind
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
-import com.mkx.hrttracker.ui.medication.toNewMedicineRequest
-import com.mkx.hrttracker.ui.medication.validationErrorRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,16 +50,7 @@ class CreateMedicineViewModel @Inject constructor(
             return null
         }
         val draft = _uiState.value.draft
-        if (draft.applicationType == MedicationApplicationType.PATCH_OFF) {
-            _uiState.update {
-                it.copy(
-                    errorMessageRes = R.string.validation_preparation_type_required,
-                    saveResult = null,
-                )
-            }
-            return null
-        }
-        draft.validationErrorRes()?.let { errorMessageRes ->
+        validateMedicineDraftForCreate(draft)?.let { errorMessageRes ->
             _uiState.update {
                 it.copy(
                     errorMessageRes = errorMessageRes,
@@ -79,42 +64,40 @@ class CreateMedicineViewModel @Inject constructor(
             it.copy(isSaving = true, errorMessageRes = null, saveResult = null)
         }
         return viewModelScope.launch {
-            runCatching {
-                val request = draft.toNewMedicineRequest()
-                when (request.selectionKind) {
-                    MedicationSelectionKind.CATALOG -> medicineRepository.findOrCreateForCatalog(
-                        medicationKey = checkNotNull(request.medicationKey),
-                        preparation = request.preparation,
-                    )
-
-                    MedicationSelectionKind.CUSTOM -> medicineRepository.findOrCreateForCustom(
-                        customMedicationName = checkNotNull(request.customMedicationName),
-                        displayName = request.displayName,
-                        category = request.category,
-                        preparation = request.preparation,
-                        displayDoseUnit = request.displayDoseUnit,
-                    )
+            when (
+                val result = createMedicineFromDraft(
+                    medicineRepository = medicineRepository,
+                    draft = draft,
+                )
+            ) {
+                is MedicineCreateResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            errorMessageRes = null,
+                            saveResult = CreateMedicineSaveResult.SUCCESS,
+                        )
+                    }
+                    onCreated(result.medicine.uuid)
                 }
-            }.onSuccess { medicine ->
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        errorMessageRes = null,
-                        saveResult = CreateMedicineSaveResult.SUCCESS,
-                    )
-                }
-                onCreated(medicine.uuid)
-            }.onFailure { error ->
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        saveResult = when (error) {
-                            is MedicineIdentityCollisionException ->
-                                CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION
 
-                            else -> CreateMedicineSaveResult.FAILURE_OTHER
-                        },
-                    )
+                is MedicineCreateResult.ValidationError -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            errorMessageRes = result.messageRes,
+                            saveResult = null,
+                        )
+                    }
+                }
+
+                is MedicineCreateResult.SaveFailure -> {
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            saveResult = result.saveResult,
+                        )
+                    }
                 }
             }
         }
