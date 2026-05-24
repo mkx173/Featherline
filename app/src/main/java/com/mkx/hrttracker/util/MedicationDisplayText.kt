@@ -102,10 +102,15 @@ fun doseInstructionText(
     }
     val locale = Locale.getDefault()
     val portion = when (doseInstruction) {
-        is DoseInstruction.TabletFraction -> context.getString(
-            R.string.dose_instruction_summary_tablet_fraction,
-            formatTabletFraction(doseInstruction),
-        )
+        // A single whole tablet is implied by the active mg line; skip "1 tablet".
+        is DoseInstruction.TabletFraction -> if (doseInstruction.numerator == 1 && doseInstruction.denominator == 1) {
+            null
+        } else {
+            context.getString(
+                R.string.dose_instruction_summary_tablet_fraction,
+                formatTabletFraction(doseInstruction),
+            )
+        }
         is DoseInstruction.VolumeMl -> context.getString(
             R.string.dose_instruction_summary_volume_ml,
             doseInstruction.valueMl.formatDose(locale),

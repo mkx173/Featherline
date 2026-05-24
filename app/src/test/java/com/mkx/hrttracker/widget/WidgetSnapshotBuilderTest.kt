@@ -54,8 +54,8 @@ class WidgetSnapshotBuilderTest {
 
         val todayRow = snapshot.doseRows.first { row -> row.contextChip == null && !row.isManualRecord }
         assertEquals("Bicalutamide", todayRow.medicationName)
-        // Pill at count=1: portion + active joined; count piece is Hidden.
-        assertEquals("1 tablet · 2 mg", todayRow.doseText)
+        // Pill at count=1 with TabletFraction(1, 1): "1 tablet" portion suppressed; only active mg shown.
+        assertEquals("2 mg", todayRow.doseText)
         assertEquals(1, snapshot.totalCount)
         assertEquals(0, snapshot.doneCount)
         assertEquals(now.toLocalDate().toEpochDay(), snapshot.anchorDateEpochDay)
@@ -129,9 +129,6 @@ class WidgetSnapshotBuilderTest {
     private fun stubMedicationStrings() {
         every { context.getString(R.string.medication_name_bicalutamide) } returns "Bicalutamide"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
-        every {
-            context.getString(R.string.dose_instruction_summary_tablet_fraction, any())
-        } returns "1 tablet"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
             context.getString(R.string.dose_instruction_summary_active_amount, any(), any())

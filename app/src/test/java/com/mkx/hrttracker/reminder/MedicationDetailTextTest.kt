@@ -102,9 +102,6 @@ class MedicationDetailTextTest {
             context.getString(R.string.medication_name_estradiol_valerate)
         } returns "Estradiol valerate"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
-        every {
-            context.getString(R.string.dose_instruction_summary_tablet_fraction, "1")
-        } returns "1 tablet"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
             context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
@@ -119,7 +116,8 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Estrogens", medication)
 
-        assertEquals("Estrogens · Estradiol valerate · Oral · 1 tablet · 2 mg", result)
+        // A single whole tablet is implied by the active mg line; "1 tablet" portion is suppressed.
+        assertEquals("Estrogens · Estradiol valerate · Oral · 2 mg", result)
     }
 
     @Test
@@ -128,9 +126,6 @@ class MedicationDetailTextTest {
             context.getString(R.string.medication_name_spironolactone)
         } returns "Spironolactone"
         every { context.getString(R.string.medication_application_oral) } returns "Oral"
-        every {
-            context.getString(R.string.dose_instruction_summary_tablet_fraction, "1")
-        } returns "1 tablet"
         every { context.getString(R.string.unit_mg) } returns "mg"
         every {
             context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
@@ -148,7 +143,8 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Hormones", medication)
 
-        assertEquals("Hormones · Spironolactone · Oral · 2x · 1 tablet · 2 mg", result)
+        // Count is rendered separately; "1 tablet" portion remains suppressed regardless of count.
+        assertEquals("Hormones · Spironolactone · Oral · 2x · 2 mg", result)
     }
 
     @Test

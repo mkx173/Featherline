@@ -99,10 +99,15 @@ fun doseInstructionSummary(
 ): String? {
     val appLocale = rememberAppLocale()
     val portion = when (instruction) {
-        is DoseInstruction.TabletFraction -> stringResource(
-            R.string.dose_instruction_summary_tablet_fraction,
-            formatTabletFraction(instruction),
-        )
+        // A single whole tablet is implied by the active mg line; skip "1 tablet".
+        is DoseInstruction.TabletFraction -> if (instruction.numerator == 1 && instruction.denominator == 1) {
+            null
+        } else {
+            stringResource(
+                R.string.dose_instruction_summary_tablet_fraction,
+                formatTabletFraction(instruction),
+            )
+        }
         is DoseInstruction.VolumeMl -> stringResource(
             R.string.dose_instruction_summary_volume_ml,
             instruction.valueMl.formatDose(appLocale),
