@@ -114,7 +114,15 @@ fun doseInstructionText(
             R.string.dose_instruction_summary_weight_grams,
             doseInstruction.valueGrams.formatDose(locale),
         )
-        DoseInstruction.WholeUnit, DoseInstruction.Noop -> null
+        // Gel sachets dose one whole packet at a time but the packet's gram weight
+        // is still useful context — render it alongside the active mg.
+        DoseInstruction.WholeUnit -> (medicine.preparation as? MedicinePreparation.GelSachet)?.let {
+            context.getString(
+                R.string.dose_instruction_summary_weight_grams,
+                it.sachetWeightGrams.formatDose(locale),
+            )
+        }
+        DoseInstruction.Noop -> null
     }
 
     val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
