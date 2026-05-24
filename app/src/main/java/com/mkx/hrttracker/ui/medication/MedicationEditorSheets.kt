@@ -835,12 +835,13 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         missingGroupColorTreatment = linkedMedicationSummaryMissingGroupColorTreatment(
             sourceGroupColorKey = sourceGroupColorKey,
         ),
-        onClick = { },
+        // Medicine identity is locked on existing log entries; render the
+        // card as a non-clickable summary so it neither ripples nor grays.
+        onClick = null,
         modifier = Modifier.fillMaxWidth(),
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         index = if (hasGroupInfo) 1 else 0,
         itemCount = if (hasGroupInfo) 2 else 1,
-        enabled = false,
     )
 }
 
@@ -989,7 +990,6 @@ private fun MedicationEditorGroupInfoCard(
 
     Column {
         EditorSegmentedListItem(
-            onClick = {},
             index = 0,
             count = 2,
             modifier = modifier,

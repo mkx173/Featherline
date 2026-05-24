@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.AddChip
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
-import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.LocalDateFormatter
 import com.mkx.hrttracker.util.localizedShortTimeFormatter
@@ -152,7 +149,6 @@ private fun DailyTimesCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = {},
     ) {
         Column(
             modifier = Modifier.padding(bottom = 6.dp)
@@ -240,7 +236,6 @@ internal fun ScheduleOccurrencesCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = {},
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
@@ -295,7 +290,11 @@ private fun ScheduleOccurrenceRow(
     index: Int = 0,
     count: Int = 1
 ) {
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        cornerShape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_event_upcoming),
@@ -304,7 +303,6 @@ private fun ScheduleOccurrenceRow(
                 modifier = Modifier.size(20.dp)
             )
         },
-        onClick = {},
         supportingContent = {
             Text(
                 text = formattedDate,
@@ -312,16 +310,6 @@ private fun ScheduleOccurrenceRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
-            cornerShape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        )
     ) {
         Text(
             text = formattedTime,

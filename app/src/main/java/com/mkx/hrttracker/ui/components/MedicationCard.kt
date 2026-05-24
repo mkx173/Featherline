@@ -83,7 +83,10 @@ internal fun MedicationCard(
     groupColorKey: MedicationGroupColorKey?,
     missingGroupColorTreatment: MedicationCardMissingGroupColorTreatment =
         MedicationCardMissingGroupColorTreatment.PRIMARY_CONTAINER,
-    onClick: () -> Unit,
+    // Null onClick renders a non-clickable static card (no ripple, no
+    // disabled gray-out) — used for purely informational summary cards
+    // such as the locked medicine on existing log entries.
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,

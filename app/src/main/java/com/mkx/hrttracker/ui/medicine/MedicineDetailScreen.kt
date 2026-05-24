@@ -369,7 +369,7 @@ private fun MedicineHeaderCard(medicine: Medicine) {
         applicationType = inferApplicationType(medicine),
         medicationCount = 1,
         groupColorKey = null,
-        onClick = { },
+        onClick = null,
         extraSupportingText = medicinePreparationSummary(medicine),
     )
 }

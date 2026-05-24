@@ -54,8 +54,6 @@ internal fun IntervalStepperCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = { },
-        enabled = true,
         overlineContent = {
             Text(
                 text = label.uppercase(),
@@ -291,7 +289,11 @@ internal fun LockedScheduleTimeNoteRow(
     count: Int = 1,
 ) {
     val text = stringResource(R.string.group_locked_time_note)
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        cornerShape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_edit_calendar),
@@ -300,18 +302,7 @@ internal fun LockedScheduleTimeNoteRow(
                 modifier = Modifier.size(20.dp)
             )
         },
-        onClick = {},
-        enabled = true,
-        shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
-            cornerShape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
-        modifier = Modifier.padding(top = dimensionResource(R.dimen.list_segment_gap))
+        modifier = Modifier.padding(top = dimensionResource(R.dimen.list_segment_gap)),
     ) {
         Text(
             text = text,

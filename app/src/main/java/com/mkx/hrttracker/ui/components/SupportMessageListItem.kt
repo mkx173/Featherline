@@ -49,7 +49,7 @@ fun SupportMessageListItem(
             supportingText = supportingText,
             index = index,
             count = count,
-            onClick = onClick ?: {},
+            onClick = onClick,
             modifier = modifier.wrapContentHeight(),
             enabled = enabled,
             leadingContent = when {

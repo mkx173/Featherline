@@ -347,7 +347,6 @@ private fun CalibrationUnitPreferenceItem(
         title = title,
         index = index,
         count = count,
-        onClick = {},
         titleTextStyle = MaterialTheme.typography.labelLarge,
         titleColor = MaterialTheme.colorScheme.onSurface,
         trailingContent = {

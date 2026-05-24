@@ -85,7 +85,6 @@ internal fun CalibrationEditorCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = {}
     ) {
         Box(
             modifier = modifier,

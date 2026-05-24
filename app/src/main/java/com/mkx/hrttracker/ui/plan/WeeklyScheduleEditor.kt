@@ -111,8 +111,6 @@ internal fun WeeklyScheduleEditor(
         EditorSegmentedListItem(
             index = itemIndex++,
             count = totalCount,
-            onClick = {},
-            enabled = true,
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -209,8 +207,6 @@ private fun WeeklyTimeCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = {},
-        enabled = true,
     ) {
         Column(
             modifier = Modifier.padding(bottom = 6.dp),

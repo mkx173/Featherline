@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -22,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.cjkTextOffset
-import com.mkx.hrttracker.ui.components.segmentedListItemShapes
 
 internal data class PastScheduleSelectorUiState(
     val selectedOption: PastScheduleOption,
@@ -44,8 +41,7 @@ internal fun PastScheduleSelectorCard(
     EditorSegmentedListItem(
         index = index,
         count = count,
-        onClick = {},
-        modifier = modifier
+        modifier = modifier,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.list_segment_gap)),
@@ -116,7 +112,16 @@ private fun PastScheduleOptionRow(
     count: Int,
     onOptionSelected: (PastScheduleOption) -> Unit,
 ) {
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        cornerShape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        onClick = if (interactive) {
+            { onOptionSelected(option) }
+        } else {
+            null
+        },
         leadingContent = {
             Icon(
                 painter = painterResource(pastScheduleOptionIconRes(option)),
@@ -136,22 +141,6 @@ private fun PastScheduleOptionRow(
                 enabled = enabled,
             )
         },
-        onClick = if (interactive) {
-            { onOptionSelected(option) }
-        } else {
-            {}
-        },
-        enabled = true,
-        shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
-            cornerShape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        )
     ) {
         Text(
             text = title,
@@ -179,7 +168,11 @@ private fun PastScheduleLockedRow(
     index: Int,
     count: Int,
 ) {
-    SegmentedListItem(
+    EditorSegmentedListItem(
+        index = index,
+        count = count,
+        cornerShape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         leadingContent = {
             Icon(
                 painter = painterResource(R.drawable.ic_calendar_lock),
@@ -188,18 +181,6 @@ private fun PastScheduleLockedRow(
                 modifier = Modifier.size(20.dp),
             )
         },
-        onClick = {},
-        enabled = true,
-        shapes = segmentedListItemShapes(
-            index = index,
-            count = count,
-            cornerShape = MaterialTheme.shapes.medium,
-            pressedShape = MaterialTheme.shapes.medium
-        ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        )
     ) {
         Text(
             text = text,
