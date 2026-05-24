@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.scheduleFulfillmentAllowedOffset
@@ -294,8 +295,15 @@ class AddEntryViewModelTest {
         // now supports a count editor ("N vials" / "N injections of dose").
         val entry = testMedicationLogEntry(
             uuid = UUID.fromString("62f549eb-3870-4ce8-b476-6dd44759d78d"),
-            medicine = testMedicine(key = MedicationKey.ESTRADIOL),
+            medicine = testMedicine(
+                key = MedicationKey.ESTRADIOL_GEL,
+                preparation = MedicinePreparation.GelSachet(
+                    concentrationPercent = 0.06,
+                    sachetWeightGrams = 1.0,
+                ),
+            ),
             applicationType = MedicationApplicationType.GEL,
+            doseInstruction = DoseInstruction.WholeUnit,
             equivalentE2Mg = 5.0,
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 22, 21, 15)),

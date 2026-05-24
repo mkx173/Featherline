@@ -1,6 +1,9 @@
 package com.mkx.hrttracker.model.medication
 
+import java.time.Instant
+import java.util.UUID
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -91,6 +94,99 @@ class MedicationCompatibilityTest {
                 .requiredApplicationType() == MedicationApplicationType.PATCH_ON,
         )
         assertTrue(MedicinePreparation.PatchOff.requiredApplicationType() == MedicationApplicationType.PATCH_OFF)
+    }
+
+    @Test
+    fun medicationGroupMedication_rejectsRouteIncompatibleWithPreparation() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicationGroupMedication(
+                uuid = UUID.randomUUID(),
+                medicine = medicine,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseInstruction = DoseInstruction.WholeUnit,
+            )
+        }
+    }
+
+    @Test
+    fun medicationGroupMedication_rejectsDoseShapeIncompatibleWithPreparation() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicationGroupMedication(
+                uuid = UUID.randomUUID(),
+                medicine = medicine,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            )
+        }
+    }
+
+    @Test
+    fun medicationLogEntry_rejectsRouteIncompatibleWithPreparation() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicationLogEntry(
+                uuid = UUID.randomUUID(),
+                medicine = medicine,
+                category = medicine.category,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseInstruction = DoseInstruction.WholeUnit,
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = Instant.EPOCH,
+            )
+        }
+    }
+
+    @Test
+    fun medicationLogEntry_rejectsDoseShapeIncompatibleWithPreparation() {
+        val medicine = testMedicine(
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            MedicationLogEntry(
+                uuid = UUID.randomUUID(),
+                medicine = medicine,
+                category = medicine.category,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.WholeUnit,
+                equivalentE2Mg = null,
+                sourceGroupUuid = null,
+                appliedAt = Instant.EPOCH,
+            )
+        }
+    }
+
+    @Test
+    fun patchOffNullMedicineFallbackStillWorks() {
+        MedicationGroupMedication(
+            uuid = UUID.randomUUID(),
+            medicine = null,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+        )
+
+        MedicationLogEntry(
+            uuid = UUID.randomUUID(),
+            medicine = null,
+            category = MedicationCategory.ESTRADIOL,
+            applicationType = MedicationApplicationType.PATCH_OFF,
+            doseInstruction = DoseInstruction.Noop,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAt = Instant.EPOCH,
+        )
     }
 
     private fun assertForm(

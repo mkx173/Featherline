@@ -9,6 +9,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupSchedule
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.testInstant
 import com.mkx.hrttracker.model.medication.testMedicationGroupMedication
@@ -44,7 +45,13 @@ class MainUiModelsTest {
     @Test
     fun buildMainE2Hero_uses_pk_trend_and_latest_actual_estradiol_dose() {
         val latestEstradiolDoseTime = LocalDateTime.of(2026, 4, 18, 20, 5)
-        val latestEstradiolMedicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE)
+        val latestEstradiolMedicine = testMedicine(
+            key = MedicationKey.ESTRADIOL_VALERATE,
+            preparation = MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 10.0,
+                vialVolumeMl = 5.0,
+            ),
+        )
         val latestEstradiolDoseInstruction = DoseInstruction.VolumeMl(0.5)
         val trendResult = PkTrendResult(
             currentConcentration = 160.4,

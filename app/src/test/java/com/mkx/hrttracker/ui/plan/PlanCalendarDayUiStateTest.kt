@@ -948,10 +948,21 @@ class PlanCalendarDayUiStateTest {
             else -> null
         }
         val uuid = medicineUuidsByKey.getOrPut(key) { UUID.randomUUID() }
+        val preparation = when (applicationType) {
+            MedicationApplicationType.INJECTION -> MedicinePreparation.InjectionMultiUseVial(
+                concentrationMgPerMl = 10.0,
+                vialVolumeMl = 5.0,
+            )
+            else -> MedicinePreparation.Pill(strengthMgPerTablet = dose)
+        }
+        val doseInstruction = when (applicationType) {
+            MedicationApplicationType.INJECTION -> DoseInstruction.VolumeMl(valueMl = dose)
+            else -> DoseInstruction.TabletFraction(1, 1)
+        }
         return TestMedicationDetails(
-            medicine = testMedicine(uuid = uuid, key = key),
+            medicine = testMedicine(uuid = uuid, key = key, preparation = preparation),
             applicationType = applicationType,
-            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            doseInstruction = doseInstruction,
             equivalentE2Mg = equivalent,
         )
     }

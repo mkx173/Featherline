@@ -24,6 +24,12 @@ data class MedicationLogEntry(
         require(medicine != null || applicationType == MedicationApplicationType.PATCH_OFF) {
             "Only a PATCH_OFF log may omit its medicine."
         }
+        require(applicationType.isCompatibleWith(medicine?.preparation?.type)) {
+            "applicationType=$applicationType is not compatible with preparation=${medicine?.preparation?.type}"
+        }
+        require(doseInstruction.isCompatibleWith(medicine?.preparation?.type)) {
+            "doseInstruction=${doseInstruction.kind} is not compatible with preparation=${medicine?.preparation?.type}"
+        }
     }
 
     val medicineUuid: UUID?
