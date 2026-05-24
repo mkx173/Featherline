@@ -414,6 +414,7 @@ private fun NewMedicinePreparationForm(
                 } else {
                     fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit)
                 },
+                suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_medication,
                 readOnly = readOnly,
                 isError = errorMessageRes == strengthErrorRes,
@@ -442,6 +443,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.singleUseVialStrengthMg,
                 label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                suffix = stringResource(rawMassUnit),
                 leadingIconRes = R.drawable.ic_vaccines,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_vial_strength_required,
@@ -471,6 +473,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.concentrationMgPerMl,
                 label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
+                suffix = stringResource(R.string.unit_mg_per_ml),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_concentration_required,
@@ -487,6 +490,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.vialVolumeMl,
                 label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
+                suffix = stringResource(R.string.unit_ml),
                 leadingIconRes = R.drawable.ic_fluid,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_vial_volume_required,
@@ -505,6 +509,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.gelConcentrationPercent,
                 label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
@@ -528,6 +533,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.sachetWeightGrams,
                 label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
+                suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_sachet_weight_required,
@@ -553,6 +559,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.gelConcentrationPercent,
                 label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                suffix = stringResource(R.string.unit_percent),
                 leadingIconRes = R.drawable.ic_humidity_percentage,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_gel_concentration_required,
@@ -576,6 +583,7 @@ private fun NewMedicinePreparationForm(
             NumericField(
                 value = medicineDraft.containerWeightGrams,
                 label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
+                suffix = stringResource(R.string.unit_grams),
                 leadingIconRes = R.drawable.ic_weight,
                 readOnly = readOnly,
                 isError = errorMessageRes == R.string.validation_container_weight_required,
@@ -613,6 +621,7 @@ private fun NewMedicinePreparationForm(
                     NumericField(
                         value = medicineDraft.patchTotalMg,
                         label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                        suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_chronic,
                         readOnly = readOnly,
                         isError = errorMessageRes == R.string.validation_patch_total_required,
@@ -645,6 +654,7 @@ private fun NewMedicinePreparationForm(
                             R.string.field_patch_release_rate,
                             R.string.unit_mcg_day,
                         ),
+                        suffix = stringResource(R.string.unit_mcg_day),
                         leadingIconRes = R.drawable.ic_speed,
                         readOnly = readOnly,
                         isError = errorMessageRes == R.string.validation_patch_release_rate_required,

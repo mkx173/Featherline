@@ -565,6 +565,7 @@ private fun PreparationEditorFields(
                             if (isCapsule) R.string.field_capsule_strength_mg else R.string.field_pill_strength_mg,
                             rawMassUnit,
                         ),
+                        suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_medication,
                         onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
                     )
@@ -583,6 +584,7 @@ private fun PreparationEditorFields(
                     NumericInputField(
                         value = draft.singleUseVialStrengthMg,
                         label = fieldLabelWithUnit(R.string.field_single_use_vial_strength_mg, rawMassUnit),
+                        suffix = stringResource(rawMassUnit),
                         leadingIconRes = R.drawable.ic_vaccines,
                         onValueChange = { onDraftChange(draft.copy(singleUseVialStrengthMg = it)) },
                     )
@@ -600,12 +602,14 @@ private fun PreparationEditorFields(
                 NumericInputField(
                     value = draft.concentrationMgPerMl,
                     label = fieldLabelWithUnit(R.string.field_concentration_mg_per_ml, R.string.unit_mg_per_ml),
+                    suffix = stringResource(R.string.unit_mg_per_ml),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(concentrationMgPerMl = it)) },
                 )
                 NumericInputField(
                     value = draft.vialVolumeMl,
                     label = fieldLabelWithUnit(R.string.field_vial_volume_ml, R.string.unit_ml),
+                    suffix = stringResource(R.string.unit_ml),
                     leadingIconRes = R.drawable.ic_fluid,
                     onValueChange = { onDraftChange(draft.copy(vialVolumeMl = it)) },
                 )
@@ -615,12 +619,14 @@ private fun PreparationEditorFields(
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
                     label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                    suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.sachetWeightGrams,
                     label = fieldLabelWithUnit(R.string.field_sachet_weight_grams, R.string.unit_grams),
+                    suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(sachetWeightGrams = it)) },
                 )
@@ -630,12 +636,14 @@ private fun PreparationEditorFields(
                 NumericInputField(
                     value = draft.gelConcentrationPercent,
                     label = fieldLabelWithUnit(R.string.field_gel_concentration_percent, R.string.unit_percent),
+                    suffix = stringResource(R.string.unit_percent),
                     leadingIconRes = R.drawable.ic_humidity_percentage,
                     onValueChange = { onDraftChange(draft.copy(gelConcentrationPercent = it)) },
                 )
                 NumericInputField(
                     value = draft.containerWeightGrams,
                     label = fieldLabelWithUnit(R.string.field_container_weight_grams, R.string.unit_grams),
+                    suffix = stringResource(R.string.unit_grams),
                     leadingIconRes = R.drawable.ic_weight,
                     onValueChange = { onDraftChange(draft.copy(containerWeightGrams = it)) },
                 )
@@ -669,6 +677,7 @@ private fun PreparationEditorFields(
                             NumericInputField(
                                 value = draft.patchTotalMg,
                                 label = fieldLabelWithUnit(R.string.field_patch_total_dosage_mg, rawMassUnit),
+                                suffix = stringResource(rawMassUnit),
                                 leadingIconRes = R.drawable.ic_chronic,
                                 onValueChange = {
                                     onDraftChange(draft.copy(patchTotalMg = it))
@@ -687,6 +696,7 @@ private fun PreparationEditorFields(
                     PatchSpecKind.RELEASE_RATE -> NumericInputField(
                         value = draft.patchReleaseRateMcgPerDay,
                         label = fieldLabelWithUnit(R.string.field_patch_release_rate, R.string.unit_mcg_day),
+                        suffix = stringResource(R.string.unit_mcg_day),
                         leadingIconRes = R.drawable.ic_speed,
                         onValueChange = {
                             onDraftChange(draft.copy(patchReleaseRateMcgPerDay = it))
