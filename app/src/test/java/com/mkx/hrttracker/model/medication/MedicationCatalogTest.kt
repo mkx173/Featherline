@@ -166,6 +166,58 @@ class MedicationCatalogTest {
         )
     }
 
+    @Test
+    fun preparationFormsFor_custom_includesCapsule() {
+        assertEquals(
+            listOf(MedicinePreparationForm.TABLET, MedicinePreparationForm.CAPSULE),
+            MedicationCatalog.preparationFormsFor(MedicationCategory.CUSTOM),
+        )
+    }
+
+    @Test
+    fun entriesForForm_tablet_mergesOralAndSublingualPresets() {
+        val entry = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.ESTRADIOL,
+            form = MedicinePreparationForm.TABLET,
+        ).first { it.medicationKey == MedicationKey.ESTRADIOL_VALERATE }
+        val expectedPresets = listOf(
+            MedicationApplicationType.ORAL,
+            MedicationApplicationType.SUBLINGUAL,
+        )
+            .flatMap { applicationType ->
+                MedicationCatalog.catalogFor(
+                    category = MedicationCategory.ESTRADIOL,
+                    applicationType = applicationType,
+                ).entries
+            }
+            .filter { sourceEntry -> sourceEntry.medicationKey == MedicationKey.ESTRADIOL_VALERATE }
+            .flatMap { sourceEntry ->
+                sourceEntry.doseAssistPresets
+                    .getValue(MedicinePreparationType.PILL)
+                    .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>()
+                    .map { preset -> preset.valueMg }
+            }
+            .distinct()
+
+        assertEquals(
+            expectedPresets,
+            entry.doseAssistPresets
+                .getValue(MedicinePreparationType.PILL)
+                .filterIsInstance<MedicationDoseAssistPreset.MgAsMedicine>()
+                .map { it.valueMg },
+        )
+    }
+
+    @Test
+    fun entriesForForm_capsule_isCustomOnly() {
+        val entries = MedicationCatalog.entriesForForm(
+            category = MedicationCategory.CUSTOM,
+            form = MedicinePreparationForm.CAPSULE,
+        )
+
+        assertEquals(listOf(MedicationCatalogEntry(medicationKey = null)), entries)
+    }
+
     private fun catalogEntry(
         category: MedicationCategory,
         applicationType: MedicationApplicationType,

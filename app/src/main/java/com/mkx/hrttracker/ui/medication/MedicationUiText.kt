@@ -43,6 +43,12 @@ fun medicinePreparationSummary(medicine: Medicine): String {
             unitLabel,
         )
 
+        is MedicinePreparation.Capsule -> stringResource(
+            R.string.medication_preparation_summary_capsule_with_unit,
+            displayUnit.fromMg(preparation.strengthMgPerCapsule).formatDose(appLocale),
+            unitLabel,
+        )
+
         is MedicinePreparation.InjectionSingleUseVial -> stringResource(
             R.string.medication_preparation_summary_single_use_vial_with_unit,
             displayUnit.fromMg(preparation.strengthMgPerVial).formatDose(appLocale),

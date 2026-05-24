@@ -45,6 +45,11 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
             preparation.strengthMgPerTablet.formatDose(locale),
         )
 
+        is MedicinePreparation.Capsule -> context.getString(
+            R.string.medication_preparation_summary_capsule,
+            preparation.strengthMgPerCapsule.formatDose(locale),
+        )
+
         is MedicinePreparation.InjectionSingleUseVial -> context.getString(
             R.string.medication_preparation_summary_single_use_vial,
             preparation.strengthMgPerVial.formatDose(locale),

@@ -314,6 +314,7 @@
     <string name="field_patch_spec_total_mg">总剂量</string>
     <string name="field_patch_spec_release_rate">释放速率</string>
     <string name="preparation_type_pill">片剂</string>
+    <string name="preparation_type_capsule">胶囊</string>
     <string name="preparation_type_injection_single_use_vial">单次使用药瓶</string>
     <string name="preparation_type_injection_multi_use_vial">多次使用药瓶</string>
     <string name="preparation_type_gel_sachet">小袋装</string>
@@ -336,6 +337,7 @@
     <string name="validation_count_required">请输入有效数量</string>
     <string name="validation_preparation_type_required">请选择制剂类型</string>
     <string name="validation_pill_strength_required">请输入有效的片剂含量</string>
+    <string name="validation_capsule_strength_required">请输入有效的胶囊含量</string>
     <string name="validation_vial_strength_required">请输入有效的药瓶含量</string>
     <string name="validation_concentration_required">请输入有效浓度</string>
     <string name="validation_vial_volume_required">请输入有效的药瓶体积</string>
@@ -349,6 +351,7 @@
     <string name="field_preparation_type">制剂类型</string>
     <string name="field_strength_unit">含量单位</string>
     <string name="field_pill_strength_mg">片剂含量</string>
+    <string name="field_capsule_strength_mg">胶囊含量</string>
     <string name="field_single_use_vial_strength_mg">单次使用药瓶含量</string>
     <string name="field_concentration_mg_per_ml">浓度</string>
     <string name="field_vial_volume_ml">药瓶体积</string>
@@ -364,6 +367,8 @@
     <string name="medication_picker_add_new">+ 新建</string>
     <string name="medication_preparation_summary_pill">片剂 · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">片剂 · %1$s %2$s</string>
+    <string name="medication_preparation_summary_capsule">胶囊 · %1$s mg</string>
+    <string name="medication_preparation_summary_capsule_with_unit">胶囊 · %1$s %2$s</string>
     <string name="medication_preparation_summary_single_use_vial">单次使用药瓶 · %1$s mg</string>
     <string name="medication_preparation_summary_single_use_vial_with_unit">单次使用药瓶 · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">多次使用药瓶 · %1$s mg/mL · %2$s mL</string>

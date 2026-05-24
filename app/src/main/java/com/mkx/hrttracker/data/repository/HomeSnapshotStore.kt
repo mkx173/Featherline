@@ -574,6 +574,7 @@ internal object HomeSnapshotCodec {
         writeString(preparation.type.name)
         when (preparation) {
             is MedicinePreparation.Pill -> writeDouble(preparation.strengthMgPerTablet)
+            is MedicinePreparation.Capsule -> writeDouble(preparation.strengthMgPerCapsule)
             is MedicinePreparation.InjectionSingleUseVial -> writeDouble(preparation.strengthMgPerVial)
             is MedicinePreparation.InjectionMultiUseVial -> {
                 writeDouble(preparation.concentrationMgPerMl)
@@ -606,6 +607,9 @@ internal object HomeSnapshotCodec {
         return when (MedicinePreparationType.fromStorageValue(readString())) {
             MedicinePreparationType.PILL -> MedicinePreparation.Pill(
                 strengthMgPerTablet = readDouble()
+            )
+            MedicinePreparationType.CAPSULE -> MedicinePreparation.Capsule(
+                strengthMgPerCapsule = readDouble()
             )
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = readDouble()

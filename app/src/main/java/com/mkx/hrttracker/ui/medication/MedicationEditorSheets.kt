@@ -706,6 +706,7 @@ internal fun DoseInstructionForm(
         }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
         // PATCH_OFF emits a Noop dose; no per-instruction form to render.
@@ -756,6 +757,7 @@ internal fun DoseInstructionForm(
 internal fun preparationTypeLabelRes(preparationType: MedicinePreparationType): Int {
     return when (preparationType) {
         MedicinePreparationType.PILL -> R.string.preparation_type_pill
+        MedicinePreparationType.CAPSULE -> R.string.preparation_type_capsule
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             R.string.preparation_type_injection_single_use_vial
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL ->

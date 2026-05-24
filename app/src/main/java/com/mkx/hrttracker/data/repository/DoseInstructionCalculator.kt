@@ -33,6 +33,13 @@ object DoseInstructionCalculator {
                 val fraction = doseInstruction as? DoseInstruction.TabletFraction ?: return null
                 preparation.strengthMgPerTablet * fraction.numerator / fraction.denominator
             }
+            is MedicinePreparation.Capsule -> {
+                if (doseInstruction == DoseInstruction.WholeUnit) {
+                    preparation.strengthMgPerCapsule
+                } else {
+                    null
+                }
+            }
             is MedicinePreparation.InjectionSingleUseVial -> {
                 if (doseInstruction == DoseInstruction.WholeUnit) {
                     preparation.strengthMgPerVial

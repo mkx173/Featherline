@@ -631,6 +631,9 @@ private fun inferApplicationTypeForMedicine(
         is com.mkx.hrttracker.model.medication.MedicinePreparation.Pill ->
             MedicationApplicationType.ORAL
 
+        is com.mkx.hrttracker.model.medication.MedicinePreparation.Capsule ->
+            MedicationApplicationType.ORAL
+
         is com.mkx.hrttracker.model.medication.MedicinePreparation.InjectionSingleUseVial,
         is com.mkx.hrttracker.model.medication.MedicinePreparation.InjectionMultiUseVial ->
             MedicationApplicationType.INJECTION

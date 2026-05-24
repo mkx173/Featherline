@@ -170,6 +170,7 @@ fun activeDoseAssistPresets(
             presets.filterIsInstance<MedicationDoseAssistPreset.GelWeightGrams>()
 
         MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
@@ -248,6 +249,9 @@ fun applicationTypesCompatibleWithPreparation(
         MedicinePreparationType.PILL -> listOf(
             MedicationApplicationType.ORAL,
             MedicationApplicationType.SUBLINGUAL,
+        )
+        MedicinePreparationType.CAPSULE -> listOf(
+            MedicationApplicationType.ORAL,
         )
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> listOf(
@@ -598,6 +602,7 @@ fun MedicineDisplayDoseUnit.shortLabelRes(): Int {
 fun MedicinePreparationType.hasRawMassDoseField(patchSpecKind: PatchSpecKind): Boolean {
     return when (this) {
         MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> true
 
         MedicinePreparationType.PATCH -> patchSpecKind == PatchSpecKind.TOTAL_MG
@@ -637,6 +642,7 @@ internal fun requiresEditableDoseInstructionForm(
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL,
         MedicinePreparationType.GEL_CONTAINER -> true
 
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH,
@@ -713,6 +719,12 @@ internal fun MedicinePickerUiState.toMedicinePreparation(
             ),
         )
 
+        MedicinePreparationType.CAPSULE -> MedicinePreparation.Capsule(
+            strengthMgPerCapsule = displayDoseUnit.toMg(
+                checkNotNull(parsePositiveDouble(pillStrengthMg)),
+            ),
+        )
+
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             MedicinePreparation.InjectionSingleUseVial(
                 strengthMgPerVial = displayDoseUnit.toMg(
@@ -782,6 +794,7 @@ fun DoseInstructionDraftUiState.toDoseInstruction(): DoseInstruction {
         )
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH -> DoseInstruction.WholeUnit
 
@@ -839,6 +852,10 @@ fun MedicinePickerUiState.validationErrorRes(): Int? {
     return when (resolvedPreparationType) {
         MedicinePreparationType.PILL ->
             R.string.validation_pill_strength_required
+                .takeIf { parsePositiveDouble(pillStrengthMg) == null }
+
+        MedicinePreparationType.CAPSULE ->
+            R.string.validation_capsule_strength_required
                 .takeIf { parsePositiveDouble(pillStrengthMg) == null }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
@@ -957,7 +974,9 @@ fun compatibleApplicationTypeForMedicine(
             MedicationApplicationType.GEL,
             MedicationApplicationType.PATCH_ON,
             MedicationApplicationType.PATCH_OFF -> MedicationApplicationType.ORAL
-        }
+            }
+
+        MedicinePreparationType.CAPSULE -> MedicationApplicationType.ORAL
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> MedicationApplicationType.INJECTION
@@ -984,6 +1003,9 @@ private fun MedicinePickerUiState.withPreparationFields(
     return when (preparation) {
         is MedicinePreparation.Pill ->
             copy(pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerTablet).toInputString())
+
+        is MedicinePreparation.Capsule ->
+            copy(pillStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerCapsule).toInputString())
 
         is MedicinePreparation.InjectionSingleUseVial ->
             copy(singleUseVialStrengthMg = displayDoseUnit.fromMg(preparation.strengthMgPerVial).toInputString())
@@ -1052,6 +1074,7 @@ fun DoseInstructionDraftUiState.validationErrorRes(): Int? {
             }
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL,
+        MedicinePreparationType.CAPSULE,
         MedicinePreparationType.GEL_SACHET,
         MedicinePreparationType.PATCH -> null
 

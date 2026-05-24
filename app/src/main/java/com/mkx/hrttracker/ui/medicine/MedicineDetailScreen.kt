@@ -554,11 +554,16 @@ private fun PreparationEditorFields(
             R.string.unit_mg
         }
         when (draft.preparationType) {
-            MedicinePreparationType.PILL -> {
+            MedicinePreparationType.PILL,
+            MedicinePreparationType.CAPSULE -> {
+                val isCapsule = draft.preparationType == MedicinePreparationType.CAPSULE
                 Column {
                     NumericInputField(
                         value = draft.pillStrengthMg,
-                        label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
+                        label = fieldLabelWithUnit(
+                            if (isCapsule) R.string.field_capsule_strength_mg else R.string.field_pill_strength_mg,
+                            rawMassUnit,
+                        ),
                         leadingIconRes = R.drawable.ic_medication,
                         onValueChange = { onDraftChange(draft.copy(pillStrengthMg = it)) },
                     )
@@ -780,6 +785,7 @@ private fun NumericInputField(
 private fun inferApplicationType(medicine: Medicine): MedicationApplicationType {
     return when (medicine.preparation) {
         is MedicinePreparation.Pill -> MedicationApplicationType.ORAL
+        is MedicinePreparation.Capsule -> MedicationApplicationType.ORAL
         is MedicinePreparation.InjectionSingleUseVial,
         is MedicinePreparation.InjectionMultiUseVial -> MedicationApplicationType.INJECTION
         is MedicinePreparation.GelSachet,
@@ -801,6 +807,10 @@ private fun MedicinePreparation.toPreparationDraft(
     return when (this) {
         is MedicinePreparation.Pill -> base.copy(
             pillStrengthMg = displayDoseUnit.fromMg(strengthMgPerTablet).toEditableString(),
+        )
+
+        is MedicinePreparation.Capsule -> base.copy(
+            pillStrengthMg = displayDoseUnit.fromMg(strengthMgPerCapsule).toEditableString(),
         )
 
         is MedicinePreparation.InjectionSingleUseVial -> base.copy(
@@ -848,6 +858,10 @@ private fun MedicinePreparationDraftUiState.toPreparationOrNull(): MedicinePrepa
         when (preparationType) {
             MedicinePreparationType.PILL -> MedicinePreparation.Pill(
                 strengthMgPerTablet = toMg(pillStrengthMg.toPositiveDoubleOrThrow()),
+            )
+
+            MedicinePreparationType.CAPSULE -> MedicinePreparation.Capsule(
+                strengthMgPerCapsule = toMg(pillStrengthMg.toPositiveDoubleOrThrow()),
             )
 
             MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->

@@ -422,16 +422,25 @@ private fun NewMedicinePreparationForm(
     }
     val doseAssistPresets = medicineDraft.activeDoseAssistPresets()
     when (medicineDraft.inferredOrSelectedPreparationType() ?: return) {
-        MedicinePreparationType.PILL -> {
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE -> {
+            val isCapsule = medicineDraft.inferredOrSelectedPreparationType() == MedicinePreparationType.CAPSULE
+            val strengthErrorRes = if (isCapsule) {
+                R.string.validation_capsule_strength_required
+            } else {
+                R.string.validation_pill_strength_required
+            }
             NumericField(
                 value = medicineDraft.pillStrengthMg,
-                label = fieldLabelWithUnit(R.string.field_pill_strength_mg, rawMassUnit),
+                label = fieldLabelWithUnit(
+                    if (isCapsule) R.string.field_capsule_strength_mg else R.string.field_pill_strength_mg,
+                    rawMassUnit,
+                ),
                 leadingIconRes = R.drawable.ic_medication,
                 enabled = enabled,
                 readOnly = readOnly,
-                isError = errorMessageRes == R.string.validation_pill_strength_required,
-                errorMessageRes = R.string.validation_pill_strength_required
-                    .takeIf { errorMessageRes == it },
+                isError = errorMessageRes == strengthErrorRes,
+                errorMessageRes = strengthErrorRes.takeIf { errorMessageRes == it },
                 onValueChange = { value ->
                     onMedicineDraftChange { it.copy(pillStrengthMg = value) }
                 },
@@ -934,7 +943,8 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         fields += CreateMedicineField.DISPLAY_NAME
     }
     when (draft.inferredOrSelectedPreparationType()) {
-        MedicinePreparationType.PILL -> fields += CreateMedicineField.PILL_STRENGTH
+        MedicinePreparationType.PILL,
+        MedicinePreparationType.CAPSULE -> fields += CreateMedicineField.PILL_STRENGTH
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             fields += CreateMedicineField.VIAL_STRENGTH
         MedicinePreparationType.INJECTION_MULTI_USE_VIAL -> {

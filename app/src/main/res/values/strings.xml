@@ -334,6 +334,7 @@
     <string name="validation_count_required">Enter a valid count.</string>
     <string name="validation_preparation_type_required">Select a preparation type.</string>
     <string name="validation_pill_strength_required">Enter a valid tablet strength.</string>
+    <string name="validation_capsule_strength_required">Enter a valid capsule strength.</string>
     <string name="validation_vial_strength_required">Enter a valid vial strength.</string>
     <string name="validation_concentration_required">Enter a valid concentration.</string>
     <string name="validation_vial_volume_required">Enter a valid vial volume.</string>
@@ -347,6 +348,7 @@
     <string name="field_preparation_type">Preparation type</string>
     <string name="field_strength_unit">Strength unit</string>
     <string name="field_pill_strength_mg">Tablet strength</string>
+    <string name="field_capsule_strength_mg">Capsule strength</string>
     <string name="field_single_use_vial_strength_mg">Vial strength</string>
     <string name="field_concentration_mg_per_ml">Concentration</string>
     <string name="field_vial_volume_ml">Vial volume</string>
@@ -362,6 +364,7 @@
     <string name="field_dose_weight_grams">Weight per dose</string>
     <string name="field_dose_tablet_fraction">Tablets per dose</string>
     <string name="preparation_type_pill">Tablet</string>
+    <string name="preparation_type_capsule">Capsule</string>
     <string name="preparation_type_injection_single_use_vial">Single-use vial</string>
     <string name="preparation_type_injection_multi_use_vial">Multi-use vial</string>
     <string name="preparation_type_gel_sachet">Sachet</string>
@@ -373,6 +376,8 @@
     <string name="medicine_picker_change_medicine">Change medicine</string>
     <string name="medication_preparation_summary_pill">Tablet · %1$s mg</string>
     <string name="medication_preparation_summary_pill_with_unit">Tablet · %1$s %2$s</string>
+    <string name="medication_preparation_summary_capsule">Capsule · %1$s mg</string>
+    <string name="medication_preparation_summary_capsule_with_unit">Capsule · %1$s %2$s</string>
     <string name="medication_preparation_summary_single_use_vial">Single-use vial · %1$s mg</string>
     <string name="medication_preparation_summary_single_use_vial_with_unit">Single-use vial · %1$s %2$s</string>
     <string name="medication_preparation_summary_multi_use_vial">Multi-use vial · %1$s mg/mL · %2$s mL</string>

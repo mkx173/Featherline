@@ -1187,6 +1187,9 @@ private fun savePreparation(preparation: MedicinePreparation): ArrayList<Any?> {
         is MedicinePreparation.Pill ->
             arrayListOf(preparation.type.name, preparation.strengthMgPerTablet)
 
+        is MedicinePreparation.Capsule ->
+            arrayListOf(preparation.type.name, preparation.strengthMgPerCapsule)
+
         is MedicinePreparation.InjectionSingleUseVial ->
             arrayListOf(preparation.type.name, preparation.strengthMgPerVial)
 
@@ -1227,6 +1230,9 @@ private fun restorePreparation(saved: Any): MedicinePreparation {
     return when (MedicinePreparationType.fromStorageValue(list[0] as String)) {
         MedicinePreparationType.PILL ->
             MedicinePreparation.Pill(strengthMgPerTablet = list[1] as Double)
+
+        MedicinePreparationType.CAPSULE ->
+            MedicinePreparation.Capsule(strengthMgPerCapsule = list[1] as Double)
 
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL ->
             MedicinePreparation.InjectionSingleUseVial(strengthMgPerVial = list[1] as Double)

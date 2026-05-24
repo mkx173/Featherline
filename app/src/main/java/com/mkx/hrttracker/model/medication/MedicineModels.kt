@@ -5,6 +5,7 @@ import java.util.UUID
 
 enum class MedicinePreparationType {
     PILL,
+    CAPSULE,
     INJECTION_SINGLE_USE_VIAL,
     INJECTION_MULTI_USE_VIAL,
     GEL_SACHET,
@@ -58,6 +59,14 @@ sealed interface MedicinePreparation {
         }
 
         override val type: MedicinePreparationType = MedicinePreparationType.PILL
+    }
+
+    data class Capsule(val strengthMgPerCapsule: Double) : MedicinePreparation {
+        init {
+            require(strengthMgPerCapsule.isFinitePositive())
+        }
+
+        override val type: MedicinePreparationType = MedicinePreparationType.CAPSULE
     }
 
     data class InjectionSingleUseVial(val strengthMgPerVial: Double) : MedicinePreparation {

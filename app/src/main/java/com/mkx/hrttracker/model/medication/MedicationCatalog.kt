@@ -263,6 +263,67 @@ object MedicationCatalog {
         return catalogFor(category, applicationType).entries.first()
     }
 
+    fun preparationFormsFor(category: MedicationCategory): List<MedicinePreparationForm> {
+        val forms = applicationTypesFor(category)
+            .flatMap { applicationType -> applicationType.preparationForms() }
+        val capsuleForms = if (category == MedicationCategory.CUSTOM) {
+            listOf(MedicinePreparationForm.CAPSULE)
+        } else {
+            emptyList()
+        }
+
+        return (forms + capsuleForms).distinct()
+    }
+
+    fun entriesForForm(
+        category: MedicationCategory,
+        form: MedicinePreparationForm,
+    ): List<MedicationCatalogEntry> {
+        if (form == MedicinePreparationForm.CAPSULE) {
+            return if (category == MedicationCategory.CUSTOM) {
+                listOf(MedicationCatalogEntry(medicationKey = null))
+            } else {
+                emptyList()
+            }
+        }
+
+        val entries = applicationTypesFor(category)
+            .filter { applicationType -> form in applicationType.preparationForms() }
+            .flatMap { applicationType ->
+                catalogFor(
+                    category = category,
+                    applicationType = applicationType,
+                ).entries
+            }
+
+        return mergeCatalogEntries(entries)
+    }
+
+    private fun mergeCatalogEntries(entries: List<MedicationCatalogEntry>): List<MedicationCatalogEntry> {
+        return entries
+            .groupBy(MedicationCatalogEntry::medicationKey)
+            .map { (medicationKey, entriesForMedication) ->
+                MedicationCatalogEntry(
+                    medicationKey = medicationKey,
+                    doseAssistPresets = mergeDoseAssistPresets(
+                        entriesForMedication.map(MedicationCatalogEntry::doseAssistPresets),
+                    ),
+                )
+            }
+    }
+
+    private fun mergeDoseAssistPresets(
+        presetMaps: List<Map<MedicinePreparationType, List<MedicationDoseAssistPreset>>>,
+    ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
+        return presetMaps
+            .flatMap { presetsByPreparation -> presetsByPreparation.entries }
+            .groupBy(
+                keySelector = { entry -> entry.key },
+                valueTransform = { entry -> entry.value },
+            )
+            .mapValues { (_, presetLists) -> presetLists.flatten().distinct() }
+    }
+
     private fun pillMgDoseAssistPresets(
         vararg valuesMg: String,
     ): Map<MedicinePreparationType, List<MedicationDoseAssistPreset>> {
@@ -307,5 +368,17 @@ object MedicationCatalog {
                 MedicationDoseAssistPreset.PatchTotalMg("0.72"),
             ),
         )
+    }
+}
+
+fun MedicationApplicationType.preparationForms(): List<MedicinePreparationForm> {
+    return when (this) {
+        MedicationApplicationType.ORAL,
+        MedicationApplicationType.SUBLINGUAL,
+        -> listOf(MedicinePreparationForm.TABLET)
+        MedicationApplicationType.INJECTION -> listOf(MedicinePreparationForm.INJECTION)
+        MedicationApplicationType.GEL -> listOf(MedicinePreparationForm.GEL)
+        MedicationApplicationType.PATCH_ON -> listOf(MedicinePreparationForm.PATCH)
+        MedicationApplicationType.PATCH_OFF -> emptyList()
     }
 }

@@ -90,6 +90,11 @@ internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFi
             strengthMgPerTablet = strengthMgPerTablet,
         )
 
+        is MedicinePreparation.Capsule -> MedicinePreparationStorageFields(
+            preparationType = type.name,
+            strengthMgPerTablet = strengthMgPerCapsule,
+        )
+
         is MedicinePreparation.InjectionSingleUseVial -> MedicinePreparationStorageFields(
             preparationType = type.name,
             strengthMgPerVial = strengthMgPerVial,
@@ -206,6 +211,13 @@ private fun MedicineEntity.toMedicinePreparation(): MedicinePreparation {
             requireOnlyPreparationFields("strengthMgPerTablet")
             MedicinePreparation.Pill(
                 strengthMgPerTablet = checkNotNull(strengthMgPerTablet)
+            )
+        }
+
+        MedicinePreparationType.CAPSULE -> {
+            requireOnlyPreparationFields("strengthMgPerTablet")
+            MedicinePreparation.Capsule(
+                strengthMgPerCapsule = checkNotNull(strengthMgPerTablet)
             )
         }
 

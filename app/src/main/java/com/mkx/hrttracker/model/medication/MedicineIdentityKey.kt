@@ -56,6 +56,9 @@ object MedicineIdentityKey {
             is MedicinePreparation.Pill -> {
                 appendField("strengthMgPerTablet", preparation.strengthMgPerTablet)
             }
+            is MedicinePreparation.Capsule -> {
+                appendField("strengthMgPerTablet", preparation.strengthMgPerCapsule)
+            }
             is MedicinePreparation.InjectionSingleUseVial -> {
                 appendField("strengthMgPerVial", preparation.strengthMgPerVial)
             }

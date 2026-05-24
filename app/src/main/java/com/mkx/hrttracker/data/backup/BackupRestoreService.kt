@@ -958,6 +958,10 @@ private fun MedicinePreparationType.toValidatedPreparation(
             requireFieldsOnly("strengthMgPerTablet")
             MedicinePreparation.Pill(strengthMgPerTablet = checkNotNull(strengthMgPerTablet))
         }
+        MedicinePreparationType.CAPSULE -> {
+            requireFieldsOnly("strengthMgPerTablet")
+            MedicinePreparation.Capsule(strengthMgPerCapsule = checkNotNull(strengthMgPerTablet))
+        }
         MedicinePreparationType.INJECTION_SINGLE_USE_VIAL -> {
             requireFieldsOnly("strengthMgPerVial")
             MedicinePreparation.InjectionSingleUseVial(
