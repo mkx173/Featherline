@@ -428,6 +428,8 @@
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/天</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>
     <string name="medication_editor_dose_assist_grams">%1$sg</string>
+    <string name="medication_editor_dose_assist_mg_per_ml">%1$s mg/mL</string>
+    <string name="medication_editor_dose_assist_ml">%1$s mL</string>
     <string name="group_danger_zone_title">危险操作</string>
     <string name="settings_reminders">用药提醒</string>
     <string name="settings_reminders_summary">控制所有提醒</string>

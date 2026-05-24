@@ -437,6 +437,8 @@
     <string name="medication_editor_dose_assist_mcg_day">%1$s μg/day</string>
     <string name="medication_editor_dose_assist_percent">%1$s%%</string>
     <string name="medication_editor_dose_assist_grams">%1$sg</string>
+    <string name="medication_editor_dose_assist_mg_per_ml">%1$s mg/mL</string>
+    <string name="medication_editor_dose_assist_ml">%1$s mL</string>
     <string name="group_danger_zone_title">Danger zone</string>
     <string name="settings_reminders">Dose reminders</string>
     <string name="settings_reminders_summary">Controls all reminders.</string>

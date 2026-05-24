@@ -486,6 +486,13 @@ private fun NewMedicinePreparationForm(
                 imeAction = imeActionFor(editableFields, CreateMedicineField.CONCENTRATION_MG_PER_ML),
                 onImeNext = onImeNextFor(CreateMedicineField.CONCENTRATION_MG_PER_ML),
             )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl>(),
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
+            )
             Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
             NumericField(
                 value = medicineDraft.vialVolumeMl,
@@ -502,6 +509,13 @@ private fun NewMedicinePreparationForm(
                 focusRequester = focusRequesters.getValue(CreateMedicineField.VIAL_VOLUME_ML),
                 imeAction = imeActionFor(editableFields, CreateMedicineField.VIAL_VOLUME_ML),
                 onImeNext = onImeNextFor(CreateMedicineField.VIAL_VOLUME_ML),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.MultiUseVialVolumeMl>(),
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
             )
         }
 
@@ -595,6 +609,13 @@ private fun NewMedicinePreparationForm(
                 focusRequester = focusRequesters.getValue(CreateMedicineField.CONTAINER_WEIGHT),
                 imeAction = imeActionFor(editableFields, CreateMedicineField.CONTAINER_WEIGHT),
                 onImeNext = onImeNextFor(CreateMedicineField.CONTAINER_WEIGHT),
+            )
+            DoseAssistPresetRow(
+                presets = doseAssistPresets
+                    .filterIsInstance<MedicationDoseAssistPreset.GelContainerSizeGrams>(),
+                onPresetClick = { preset ->
+                    onMedicineDraftChange { it.applyDoseAssistPreset(preset) }
+                },
             )
         }
 

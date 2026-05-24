@@ -265,7 +265,6 @@ class MedicationEditorModelsTest {
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("1"),
                 MedicationDoseAssistPreset.MgAsMedicine("2"),
-                MedicationDoseAssistPreset.MgAsMedicine("3"),
             ),
             draft.activeDoseAssistPresets(),
         )
@@ -287,16 +286,21 @@ class MedicationEditorModelsTest {
 
         assertEquals(
             listOf(
-                MedicationDoseAssistPreset.MgAsMedicine("6.25"),
-                MedicationDoseAssistPreset.MgAsMedicine("12.5"),
-                MedicationDoseAssistPreset.MgAsMedicine("25"),
+                MedicationDoseAssistPreset.MgAsMedicine("50"),
+                MedicationDoseAssistPreset.MgAsMedicine("100"),
             ),
             draft.activeDoseAssistPresets(),
         )
     }
 
     @Test
-    fun gel_weight_assist_chip_fills_container_dose_instruction_and_round_trips() {
+    fun gel_weight_preset_still_round_trips_to_container_dose_instruction() {
+        // GelWeightGrams moved to sachet-only at the catalog level so the new
+        // GelContainerSizeGrams chip can sit on the container-size field at
+        // create time without leaking into the per-dose log chip row. The
+        // catalog-driven per-dose row is therefore empty for GEL_CONTAINER;
+        // the applier itself still writes weightGrams for any GelWeightGrams
+        // preset reached through a non-catalog path.
         val medicineDraft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.GEL,
@@ -304,10 +308,7 @@ class MedicationEditorModelsTest {
         val doseDraft = medicineDraft.toDoseInstructionDraft()
 
         assertEquals(
-            listOf(
-                MedicationDoseAssistPreset.GelWeightGrams("1.25"),
-                MedicationDoseAssistPreset.GelWeightGrams("2.5"),
-            ),
+            emptyList<MedicationDoseAssistPreset>(),
             activeDoseAssistPresets(
                 medicineDraft = medicineDraft,
                 doseInstructionDraft = doseDraft,

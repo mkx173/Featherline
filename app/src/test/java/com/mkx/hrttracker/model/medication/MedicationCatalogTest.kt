@@ -62,12 +62,11 @@ class MedicationCatalogTest {
     }
 
     @Test
-    fun catalog_preserves_old_mg_assist_values_on_raw_mass_preparations() {
+    fun catalog_exposes_curated_mg_assist_values_on_raw_mass_preparations() {
         assertEquals(
             listOf(
                 MedicationDoseAssistPreset.MgAsMedicine("1"),
                 MedicationDoseAssistPreset.MgAsMedicine("2"),
-                MedicationDoseAssistPreset.MgAsMedicine("3"),
             ),
             catalogEntry(
                 category = MedicationCategory.ESTRADIOL,
@@ -89,11 +88,53 @@ class MedicationCatalogTest {
     }
 
     @Test
-    fun antiandrogen_catalog_preserves_old_assist_values_per_catalog_medicine() {
+    fun estradiol_injection_catalog_includes_multi_use_vial_assist_values() {
         assertEquals(
             listOf(
+                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
+                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
+                MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
+                MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.ESTRADIOL_VALERATE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_MULTI_USE_VIAL),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("20"),
+                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("40"),
+                MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl("50"),
+                MedicationDoseAssistPreset.MultiUseVialVolumeMl("5"),
+                MedicationDoseAssistPreset.MultiUseVialVolumeMl("10"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.ESTRADIOL_ENANTHATE,
+            ).doseAssistPresets.getValue(MedicinePreparationType.INJECTION_MULTI_USE_VIAL),
+        )
+        // Benzoate has no homebrew references; the multi-use map omits it.
+        assertEquals(
+            null,
+            catalogEntry(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.INJECTION,
+                medicationKey = MedicationKey.ESTRADIOL_BENZOATE,
+            ).doseAssistPresets[MedicinePreparationType.INJECTION_MULTI_USE_VIAL],
+        )
+    }
+
+    @Test
+    fun antiandrogen_catalog_exposes_curated_assist_values_per_catalog_medicine() {
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.MgAsMedicine("20"),
+                MedicationDoseAssistPreset.MgAsMedicine("25"),
+                MedicationDoseAssistPreset.MgAsMedicine("50"),
                 MedicationDoseAssistPreset.MgAsMedicine("100"),
-                MedicationDoseAssistPreset.MgAsMedicine("200"),
             ),
             catalogEntry(
                 category = MedicationCategory.ANTIANDROGEN,
@@ -103,9 +144,8 @@ class MedicationCatalogTest {
         )
         assertEquals(
             listOf(
-                MedicationDoseAssistPreset.MgAsMedicine("6.25"),
-                MedicationDoseAssistPreset.MgAsMedicine("12.5"),
-                MedicationDoseAssistPreset.MgAsMedicine("25"),
+                MedicationDoseAssistPreset.MgAsMedicine("50"),
+                MedicationDoseAssistPreset.MgAsMedicine("100"),
             ),
             catalogEntry(
                 category = MedicationCategory.ANTIANDROGEN,
@@ -115,7 +155,6 @@ class MedicationCatalogTest {
         )
         assertEquals(
             listOf(
-                MedicationDoseAssistPreset.MgAsMedicine("25"),
                 MedicationDoseAssistPreset.MgAsMedicine("50"),
             ),
             catalogEntry(
@@ -127,12 +166,33 @@ class MedicationCatalogTest {
     }
 
     @Test
-    fun gel_and_patch_catalog_preserve_old_assist_values_without_patch_off_presets() {
+    fun gel_and_patch_catalog_expose_curated_assist_values_without_patch_off_presets() {
+        // Container surfaces the GelContainerSizeGrams chip at create time so
+        // users typing a Sandrena/Divigel/DIY container size get a preset; the
+        // GelWeightGrams chips stay sachet-only so they don't leak into the
+        // log editor as per-dose suggestions.
         assertEquals(
             listOf(
                 MedicationDoseAssistPreset.GelPercent("0.06"),
+                MedicationDoseAssistPreset.GelPercent("0.1"),
                 MedicationDoseAssistPreset.GelPercent("0.3"),
                 MedicationDoseAssistPreset.GelPercent("0.6"),
+                MedicationDoseAssistPreset.GelContainerSizeGrams("80"),
+            ),
+            catalogEntry(
+                category = MedicationCategory.ESTRADIOL,
+                applicationType = MedicationApplicationType.GEL,
+                medicationKey = MedicationKey.ESTRADIOL_GEL,
+            ).doseAssistPresets.getValue(MedicinePreparationType.GEL_CONTAINER),
+        )
+        assertEquals(
+            listOf(
+                MedicationDoseAssistPreset.GelPercent("0.06"),
+                MedicationDoseAssistPreset.GelPercent("0.1"),
+                MedicationDoseAssistPreset.GelPercent("0.3"),
+                MedicationDoseAssistPreset.GelPercent("0.6"),
+                MedicationDoseAssistPreset.GelWeightGrams("0.5"),
+                MedicationDoseAssistPreset.GelWeightGrams("1.0"),
                 MedicationDoseAssistPreset.GelWeightGrams("1.25"),
                 MedicationDoseAssistPreset.GelWeightGrams("2.5"),
             ),
@@ -140,7 +200,7 @@ class MedicationCatalogTest {
                 category = MedicationCategory.ESTRADIOL,
                 applicationType = MedicationApplicationType.GEL,
                 medicationKey = MedicationKey.ESTRADIOL_GEL,
-            ).doseAssistPresets.getValue(MedicinePreparationType.GEL_CONTAINER),
+            ).doseAssistPresets.getValue(MedicinePreparationType.GEL_SACHET),
         )
         assertEquals(
             listOf(

@@ -399,6 +399,15 @@ fun MedicinePickerUiState.applyDoseAssistPreset(
             else -> this
         }
 
+        is MedicationDoseAssistPreset.GelContainerSizeGrams ->
+            copy(containerWeightGrams = preset.weightGrams)
+
+        is MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl ->
+            copy(concentrationMgPerMl = preset.mgPerMl)
+
+        is MedicationDoseAssistPreset.MultiUseVialVolumeMl ->
+            copy(vialVolumeMl = preset.volumeMl)
+
         is MedicationDoseAssistPreset.PatchTotalMg -> copy(
             patchSpecKind = PatchSpecKind.TOTAL_MG,
             patchTotalMg = preset.valueMg,
@@ -424,6 +433,9 @@ fun DoseInstructionDraftUiState.applyDoseAssistPreset(
 
         is MedicationDoseAssistPreset.MgAsMedicine,
         is MedicationDoseAssistPreset.GelPercent,
+        is MedicationDoseAssistPreset.GelContainerSizeGrams,
+        is MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl,
+        is MedicationDoseAssistPreset.MultiUseVialVolumeMl,
         is MedicationDoseAssistPreset.PatchTotalMg,
         is MedicationDoseAssistPreset.PatchReleaseRateMcgPerDay -> this
     }

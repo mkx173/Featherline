@@ -1186,9 +1186,15 @@ internal fun DoseAssistPresetRow(
             LocalMinimumInteractiveComponentSize provides Dp.Unspecified,
         ) {
             presets.forEach { preset ->
+                val label = doseAssistPresetLabel(preset)
                 AssistChip(
                     onClick = { onPresetClick(preset) },
-                    label = { Text(text = doseAssistPresetLabel(preset)) },
+                    label = {
+                        Text(
+                            text = label,
+                            modifier = Modifier.cjkTextOffset(label),
+                        )
+                    },
                 )
             }
         }
@@ -1211,6 +1217,21 @@ private fun doseAssistPresetLabel(preset: MedicationDoseAssistPreset): String {
         is MedicationDoseAssistPreset.GelWeightGrams -> stringResource(
             R.string.medication_editor_dose_assist_grams,
             preset.weightGrams,
+        )
+
+        is MedicationDoseAssistPreset.GelContainerSizeGrams -> stringResource(
+            R.string.medication_editor_dose_assist_grams,
+            preset.weightGrams,
+        )
+
+        is MedicationDoseAssistPreset.MultiUseVialConcentrationMgPerMl -> stringResource(
+            R.string.medication_editor_dose_assist_mg_per_ml,
+            preset.mgPerMl,
+        )
+
+        is MedicationDoseAssistPreset.MultiUseVialVolumeMl -> stringResource(
+            R.string.medication_editor_dose_assist_ml,
+            preset.volumeMl,
         )
 
         is MedicationDoseAssistPreset.PatchTotalMg -> stringResource(
