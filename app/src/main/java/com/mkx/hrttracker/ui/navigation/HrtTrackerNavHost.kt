@@ -64,8 +64,9 @@ import com.mkx.hrttracker.ui.main.MainEditEntryRequest
 import com.mkx.hrttracker.ui.main.MainScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailScreen
 import com.mkx.hrttracker.ui.medicine.MedicineDetailViewModel
-import com.mkx.hrttracker.ui.medicine.MedicineSlotDraftMode
+import com.mkx.hrttracker.ui.medicine.MedicineManagerLaunchMode
 import com.mkx.hrttracker.ui.medicine.MedicinesScreen
+import com.mkx.hrttracker.ui.medicine.medicineManagerLaunchMode
 import com.mkx.hrttracker.ui.plan.ArchivedMedicationGroupsScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorViewModel
@@ -770,7 +771,11 @@ fun HrtTrackerNavHost(
                             ?: Screen.Plan.route
                     val slotResultKey =
                         backStackEntry.arguments?.getString(SLOT_RESULT_KEY_ARG)
-                    val isManualLogFlow = slotResultKey == ADD_ENTRY_SLOT_RESULT_KEY
+                    val launchMode = medicineManagerLaunchMode(
+                        slotResultKey = slotResultKey,
+                        manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
+                    )
+                    val isManualLogFlow = launchMode == MedicineManagerLaunchMode.ManualLog
                     MedicinesScreen(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStackSafely() },
@@ -788,19 +793,13 @@ fun HrtTrackerNavHost(
                                 )
                             }
                         },
-                        slotResultKey = slotResultKey,
-                        slotDraftMode = if (isManualLogFlow) {
-                            MedicineSlotDraftMode.MANUAL_LOG
-                        } else {
-                            MedicineSlotDraftMode.GROUP_SLOT
-                        },
+                        launchMode = launchMode,
                         onSlotResolved = { slotResult ->
-                            if (slotResultKey == null || isManualLogFlow) {
-                                return@MedicinesScreen
-                            }
+                            val groupSlotMode = launchMode as? MedicineManagerLaunchMode.GroupSlot
+                                ?: return@MedicinesScreen
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set(slotResultKey, slotResult.toBundle())
+                                ?.set(groupSlotMode.resultKey, slotResult.toBundle())
                             navController.popBackStackSafely()
                         },
                         onManualLogSaved = {

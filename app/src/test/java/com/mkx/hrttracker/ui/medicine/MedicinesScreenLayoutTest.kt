@@ -25,4 +25,52 @@ class MedicinesScreenLayoutTest {
         assertEquals(4, MedicineManagerSectionHeaderTopPaddingDp)
         assertEquals(10, MedicineManagerSectionHeaderBottomPaddingDp)
     }
+
+    @Test
+    fun medicineManagerLaunchMode_resolvesManagerWithoutResultKey() {
+        assertEquals(
+            MedicineManagerLaunchMode.Manager,
+            medicineManagerLaunchMode(slotResultKey = null, manualLogResultKey = "manual"),
+        )
+    }
+
+    @Test
+    fun medicineManagerLaunchMode_resolvesManualLogForManualResultKey() {
+        assertEquals(
+            MedicineManagerLaunchMode.ManualLog,
+            medicineManagerLaunchMode(slotResultKey = "manual", manualLogResultKey = "manual"),
+        )
+    }
+
+    @Test
+    fun medicineManagerLaunchMode_resolvesGroupSlotForOtherResultKey() {
+        assertEquals(
+            MedicineManagerLaunchMode.GroupSlot("group-slot-1"),
+            medicineManagerLaunchMode(slotResultKey = "group-slot-1", manualLogResultKey = "manual"),
+        )
+    }
+
+    @Test
+    fun medicineManagerAddNewTarget_usesCreateSheetOnlyForManagerMode() {
+        assertEquals(
+            MedicineManagerAddNewTarget.CreateMedicine,
+            medicineManagerAddNewTarget(MedicineManagerLaunchMode.Manager),
+        )
+    }
+
+    @Test
+    fun medicineManagerAddNewTarget_usesCombinedSheetForGroupSlotMode() {
+        assertEquals(
+            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.GROUP_SLOT),
+            medicineManagerAddNewTarget(MedicineManagerLaunchMode.GroupSlot("group-slot-1")),
+        )
+    }
+
+    @Test
+    fun medicineManagerAddNewTarget_usesCombinedSheetForManualLogMode() {
+        assertEquals(
+            MedicineManagerAddNewTarget.NewMedicineSlot(NewMedicineSlotSheetMode.MANUAL_LOG),
+            medicineManagerAddNewTarget(MedicineManagerLaunchMode.ManualLog),
+        )
+    }
 }
