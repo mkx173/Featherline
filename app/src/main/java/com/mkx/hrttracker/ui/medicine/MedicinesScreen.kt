@@ -134,10 +134,9 @@ internal fun MedicinesScreen(
     val newMedicineSlotUiState by newMedicineSlotViewModel.uiState.collectAsStateWithLifecycle()
     val isManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
         (slotDraftUiState.isSaving || slotDraftUiState.isSaved)
-    val isNewManualSlotLocked = launchMode == MedicineManagerLaunchMode.ManualLog &&
-        (newMedicineSlotUiState.isSaving || newMedicineSlotUiState.isSaved)
+    val isNewSlotLocked = newMedicineSlotUiState.isSaving || newMedicineSlotUiState.isSaved
     val isManualSlotLockedState = rememberUpdatedState(isManualSlotLocked)
-    val isNewManualSlotLockedState = rememberUpdatedState(isNewManualSlotLocked)
+    val isNewSlotLockedState = rememberUpdatedState(isNewSlotLocked)
     val allowManualSlotCompletionHideState = remember { mutableStateOf(false) }
     var showCreateMedicineSheet by rememberSaveable { mutableStateOf(false) }
     var showNewMedicineSlotSheet by rememberSaveable { mutableStateOf(false) }
@@ -160,7 +159,7 @@ internal fun MedicinesScreen(
         confirmValueChange = { value ->
             canHideNewMedicineSlotSheet(
                 value = value,
-                isManualLogLocked = isNewManualSlotLockedState.value,
+                isSlotLocked = isNewSlotLockedState.value,
                 allowCompletionHide = allowManualSlotCompletionHideState.value,
             )
         },
@@ -235,10 +234,10 @@ internal fun MedicinesScreen(
         NewMedicineSlotSheet(
             sheetState = newMedicineSlotSheetState,
             onDismissRequest = {
-                if (!isNewManualSlotLockedState.value) showNewMedicineSlotSheet = false
+                if (!isNewSlotLockedState.value) showNewMedicineSlotSheet = false
             },
             onCloseClick = {
-                if (!isNewManualSlotLockedState.value) {
+                if (!isNewSlotLockedState.value) {
                     hideBottomSheet(scope, newMedicineSlotSheetState) {
                         showNewMedicineSlotSheet = false
                     }

@@ -55,7 +55,7 @@ class MedicineSlotDraftSheetTest {
         assertTrue(
             canHideNewMedicineSlotSheet(
                 value = SheetValue.Hidden,
-                isManualLogLocked = true,
+                isSlotLocked = true,
                 allowCompletionHide = true,
             )
         )
@@ -66,7 +66,7 @@ class MedicineSlotDraftSheetTest {
         assertFalse(
             canHideNewMedicineSlotSheet(
                 value = SheetValue.Hidden,
-                isManualLogLocked = true,
+                isSlotLocked = true,
                 allowCompletionHide = false,
             )
         )
@@ -77,7 +77,7 @@ class MedicineSlotDraftSheetTest {
         assertTrue(
             canHideNewMedicineSlotSheet(
                 value = SheetValue.Hidden,
-                isManualLogLocked = false,
+                isSlotLocked = false,
                 allowCompletionHide = false,
             )
         )
@@ -88,7 +88,7 @@ class MedicineSlotDraftSheetTest {
         assertTrue(
             canHideNewMedicineSlotSheet(
                 value = SheetValue.Expanded,
-                isManualLogLocked = true,
+                isSlotLocked = true,
                 allowCompletionHide = false,
             )
         )

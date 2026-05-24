@@ -168,10 +168,10 @@ enum class NewMedicineSlotSheetMode {
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun canHideNewMedicineSlotSheet(
     value: SheetValue,
-    isManualLogLocked: Boolean,
+    isSlotLocked: Boolean,
     allowCompletionHide: Boolean,
 ): Boolean {
     return value != SheetValue.Hidden ||
-        !isManualLogLocked ||
+        !isSlotLocked ||
         allowCompletionHide
 }
