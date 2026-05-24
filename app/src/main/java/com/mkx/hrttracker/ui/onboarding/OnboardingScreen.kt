@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -52,12 +53,16 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -96,6 +101,11 @@ import com.mkx.hrttracker.reminder.shouldShowNotificationPermissionRecoveryToast
 import com.mkx.hrttracker.ui.components.EditorSegmentedListItem
 import com.mkx.hrttracker.ui.components.WeightDialog
 import com.mkx.hrttracker.ui.components.cjkTextOffset
+import com.mkx.hrttracker.ui.hideBottomSheet
+import com.mkx.hrttracker.ui.medicine.NewMedicineSlotSheet
+import com.mkx.hrttracker.ui.medicine.NewMedicineSlotSheetMode
+import com.mkx.hrttracker.ui.medicine.NewMedicineSlotViewModel
+import com.mkx.hrttracker.ui.medicine.canHideNewMedicineSlotSheet
 import com.mkx.hrttracker.ui.navigation.sharedAxisXEnterTransition
 import com.mkx.hrttracker.ui.navigation.sharedAxisXExitTransition
 import com.mkx.hrttracker.ui.plan.MedicationGroupEditorScreen
@@ -408,6 +418,9 @@ fun OnboardingScreen(
     ) {
         val editorViewModel: MedicationGroupEditorViewModel =
             hiltViewModel(key = "onboarding-group-editor-$groupEditorOpenCount")
+        var pendingNewMedicineSlotLocalId by rememberSaveable {
+            mutableStateOf<String?>(null)
+        }
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.surface,
@@ -417,9 +430,84 @@ fun OnboardingScreen(
                 onGroupSaved = { showGroupEditor = false },
                 drawBehindNavigationBar = true,
                 viewModel = editorViewModel,
+                // Onboarding has no medicine catalog yet, so we skip the
+                // (necessarily empty) medicine manager and open the
+                // create-medicine-and-dose sheet directly.
+                onOpenMedicinePicker = { localId ->
+                    pendingNewMedicineSlotLocalId = localId
+                },
             )
         }
+        OnboardingNewMedicineSlotHost(
+            pendingLocalId = pendingNewMedicineSlotLocalId,
+            slotInstanceKey = "onboarding-new-medicine-slot-$groupEditorOpenCount",
+            onDismiss = { pendingNewMedicineSlotLocalId = null },
+            onSlotResolved = { localId, slot ->
+                editorViewModel.addCompletedMedicationSlot(
+                    localId = localId,
+                    slot = slot,
+                )
+            },
+        )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OnboardingNewMedicineSlotHost(
+    pendingLocalId: String?,
+    slotInstanceKey: String,
+    onDismiss: () -> Unit,
+    onSlotResolved: (
+        localId: String,
+        slot: com.mkx.hrttracker.ui.medicine.MedicineSlotResult,
+    ) -> Unit,
+) {
+    if (pendingLocalId == null) return
+    val viewModel: NewMedicineSlotViewModel = hiltViewModel(key = slotInstanceKey)
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isSlotLocked = uiState.isSaving || uiState.isSaved
+    val isSlotLockedState = rememberUpdatedState(isSlotLocked)
+    val allowCompletionHideState = remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { value ->
+            canHideNewMedicineSlotSheet(
+                value = value,
+                isSlotLocked = isSlotLockedState.value,
+                allowCompletionHide = allowCompletionHideState.value,
+            )
+        },
+    )
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(pendingLocalId) { viewModel.reset() }
+
+    NewMedicineSlotSheet(
+        sheetState = sheetState,
+        onDismissRequest = {
+            if (!isSlotLockedState.value) onDismiss()
+        },
+        onCloseClick = {
+            if (!isSlotLockedState.value) {
+                hideBottomSheet(scope, sheetState) { onDismiss() }
+            }
+        },
+        onGroupSlotResolved = { slotResult, consumeSavedState ->
+            // Append the medication synchronously so the editor underneath
+            // reflects it while the sheet is still sliding away, instead of
+            // popping in after the dismiss animation completes.
+            onSlotResolved(pendingLocalId, slotResult)
+            allowCompletionHideState.value = true
+            hideBottomSheet(scope, sheetState) {
+                allowCompletionHideState.value = false
+                consumeSavedState()
+                onDismiss()
+            }
+        },
+        mode = NewMedicineSlotSheetMode.GROUP_SLOT,
+        viewModel = viewModel,
+    )
 }
 
 @Composable
