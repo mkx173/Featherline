@@ -15,9 +15,11 @@ import org.junit.Test
 class CreateMedicineFieldsTest {
 
     // The ordered field list drives IME Next/Done routing in the sheet.
-    // Catalog pill: just the strength field, then the display-name override.
+    // Catalog pill: display-name override sits in the identity section, so it
+    // precedes the preparation strength field — mirrors where CUSTOM_NAME
+    // appears for custom medicines.
     @Test
-    fun editableFields_forCatalogPill_ordersStrengthThenDisplayName() {
+    fun editableFields_forCatalogPill_ordersDisplayNameThenStrength() {
         val draft = defaultMedicineDraft(
             category = MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
@@ -25,8 +27,8 @@ class CreateMedicineFieldsTest {
 
         assertEquals(
             listOf(
-                CreateMedicineField.PILL_STRENGTH,
                 CreateMedicineField.DISPLAY_NAME,
+                CreateMedicineField.PILL_STRENGTH,
             ),
             editableFields(draft),
         )

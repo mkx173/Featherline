@@ -234,6 +234,27 @@ internal fun CreateMedicineForm(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
     }
 
+    // Display-name override sits in the identity section for catalog medicines,
+    // mirroring where the custom-name field appears for custom medicines.
+    if (medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
+        !medicineDraft.requiresCustomName()
+    ) {
+        DisplayNameField(
+            medicineDraft = medicineDraft,
+            onMedicineDraftChange = onMedicineDraftChange,
+            readOnly = readOnly,
+            enabled = enabled,
+            focusRequester = focusRequesters.getValue(CreateMedicineField.DISPLAY_NAME),
+            imeAction = imeActionFor(editableFields, CreateMedicineField.DISPLAY_NAME),
+            onImeNext = {
+                nextField(editableFields, CreateMedicineField.DISPLAY_NAME)
+                    ?.let { focusRequesters.getValue(it).requestFocus() }
+                    ?: focusManager.clearFocus()
+            },
+        )
+        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
+    }
+
     if (medicineDraft.requiresCustomName()) {
         val customNameIme = imeActionFor(editableFields, CreateMedicineField.CUSTOM_NAME)
         OutlinedTextField(
@@ -287,22 +308,6 @@ internal fun CreateMedicineForm(
         focusRequesters = focusRequesters,
         editableFields = editableFields,
     )
-
-    // Custom medicines already have a user-typed name; the display-name field
-    // only makes sense for catalog medicines whose default name is the
-    // catalog key label.
-    if (medicineDraft.selectionKind == MedicationSelectionKind.CATALOG &&
-        !medicineDraft.requiresCustomName()
-    ) {
-        Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
-        DisplayNameField(
-            medicineDraft = medicineDraft,
-            onMedicineDraftChange = onMedicineDraftChange,
-            readOnly = readOnly,
-            enabled = enabled,
-            focusRequester = focusRequesters.getValue(CreateMedicineField.DISPLAY_NAME),
-        )
-    }
 }
 
 @Composable
@@ -312,6 +317,8 @@ private fun DisplayNameField(
     readOnly: Boolean,
     enabled: Boolean,
     focusRequester: FocusRequester,
+    imeAction: ImeAction = ImeAction.Done,
+    onImeNext: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val displayNameState = rememberTextFieldState(initialText = medicineDraft.displayName)
@@ -358,8 +365,14 @@ private fun DisplayNameField(
             .fillMaxWidth()
             .focusRequester(focusRequester),
         lineLimits = TextFieldLineLimits.SingleLine,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        onKeyboardAction = { focusManager.clearFocus() },
+        keyboardOptions = KeyboardOptions(imeAction = imeAction),
+        onKeyboardAction = {
+            if (imeAction == ImeAction.Next) {
+                onImeNext?.invoke() ?: focusManager.clearFocus()
+            } else {
+                focusManager.clearFocus()
+            }
+        },
     )
 }
 
@@ -896,6 +909,7 @@ private fun NumericField(
 // where to jump on Next.
 internal enum class CreateMedicineField {
     CUSTOM_NAME,
+    DISPLAY_NAME,
     PILL_STRENGTH,
     VIAL_STRENGTH,
     CONCENTRATION_MG_PER_ML,
@@ -905,7 +919,6 @@ internal enum class CreateMedicineField {
     CONTAINER_WEIGHT,
     PATCH_TOTAL_MG,
     PATCH_RELEASE_RATE,
-    DISPLAY_NAME,
 }
 
 internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineField> {
@@ -915,6 +928,10 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
     val fields = mutableListOf<CreateMedicineField>()
     if (draft.requiresCustomName()) {
         fields += CreateMedicineField.CUSTOM_NAME
+    } else if (draft.selectionKind == MedicationSelectionKind.CATALOG) {
+        // Display-name override sits in the identity section alongside (and
+        // mutually exclusive with) the custom-name field.
+        fields += CreateMedicineField.DISPLAY_NAME
     }
     when (draft.inferredOrSelectedPreparationType()) {
         MedicinePreparationType.PILL -> fields += CreateMedicineField.PILL_STRENGTH
@@ -940,13 +957,6 @@ internal fun editableFields(draft: MedicinePickerUiState): List<CreateMedicineFi
         // surfaces it, so there are no editable fields for it.
         MedicinePreparationType.PATCH_OFF -> Unit
         null -> Unit
-    }
-    // The display-name override is the last field — only rendered for catalog
-    // medicines (custom medicines already carry a user-typed name).
-    if (draft.selectionKind == MedicationSelectionKind.CATALOG &&
-        !draft.requiresCustomName()
-    ) {
-        fields += CreateMedicineField.DISPLAY_NAME
     }
     return fields
 }
