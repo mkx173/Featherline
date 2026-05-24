@@ -3049,6 +3049,7 @@ private fun MainTodayDoseRow(
     val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
+        medicationCountIndicatorText(row.medication.count),
         doseText,
     ).joinToString(separator = " · ")
     val entryEditorIds = mainTodayEntryEditorIds(row)
