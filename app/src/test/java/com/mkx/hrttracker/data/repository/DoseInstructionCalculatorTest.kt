@@ -138,6 +138,97 @@ class DoseInstructionCalculatorTest {
     }
 
     @Test
+    fun pillBranchPreservesPrecisionUnderFractionReorder() {
+        // strengthMgPerTablet * numerator must promote before integer division,
+        // otherwise 3 * 1 / 4 truncates to 0.
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 3.0),
+        )
+
+        val result = DoseInstructionCalculator.perUnitAmountMg(
+            medicine = medicine,
+            doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 4),
+        )
+
+        assertEquals(0.75, requireNotNull(result), 1e-9)
+    }
+
+    @Test
+    fun patchReleaseRateReturnsNullForPerUnitMg() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+            preparation = MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = 100.0,
+                ),
+            ),
+        )
+
+        assertNull(
+            DoseInstructionCalculator.perUnitAmountMg(
+                medicine = medicine,
+                doseInstruction = DoseInstruction.WholeUnit,
+            )
+        )
+    }
+
+    @Test
+    fun perUnitReleaseRateReturnsValueForReleaseRatePatchWholeUnit() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+            preparation = MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay(
+                    valueMcgPerDay = 100.0,
+                ),
+            ),
+        )
+
+        assertEquals(
+            100.0,
+            requireNotNull(
+                DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(
+                    medicine = medicine,
+                    doseInstruction = DoseInstruction.WholeUnit,
+                )
+            ),
+            1e-9,
+        )
+    }
+
+    @Test
+    fun perUnitReleaseRateReturnsNullForTotalMgPatch() {
+        val medicine = medicine(
+            selection = MedicineSelection.Catalog(MedicationKey.ESTRADIOL_PATCH),
+            preparation = MedicinePreparation.Patch(
+                specification = MedicinePreparation.PatchSpecification.TotalMg(valueMg = 1.56),
+            ),
+        )
+
+        assertNull(
+            DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(
+                medicine = medicine,
+                doseInstruction = DoseInstruction.WholeUnit,
+            )
+        )
+    }
+
+    @Test
+    fun perUnitReleaseRateReturnsNullForNonPatchPreparation() {
+        val medicine = medicine(
+            selection = MedicineSelection.Custom(medicationName = "Custom"),
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 50.0),
+        )
+
+        assertNull(
+            DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(
+                medicine = medicine,
+                doseInstruction = DoseInstruction.WholeUnit,
+            )
+        )
+    }
+
+    @Test
     fun catalogMedicineRejectsCategoryMismatch() {
         assertThrows(IllegalArgumentException::class.java) {
             medicine(

@@ -2638,11 +2638,10 @@ private fun MainAntiandrogenMedicationSubCard(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = card.groupColorKey)
     val medicationName = medicationEntryTitle(displayedMedicine, displayedApplicationType)
     val routeLabel = stringResource(displayedApplicationType.labelRes)
-    val doseSummary = displayedMedicine?.let { doseInstructionSummary(displayedDoseInstruction) }
+    val doseSummary = displayedMedicine?.let { doseInstructionSummary(it, displayedDoseInstruction) }
     val summaryText = listOfNotNull(
+        medicationCountIndicatorText(card.medication.count),
         doseSummary,
-        medicationCountIndicatorText(card.medication.count)
-            .takeIf { card.medication.count > 1 },
     ).joinToString(separator = " · ")
     val supportingText = listOfNotNull(
         routeLabel,
@@ -3047,7 +3046,7 @@ private fun MainTodayDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
-    val doseText = medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) }
+    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
         doseText,
@@ -3202,11 +3201,11 @@ private fun MainUpcomingDoseRow(
     val groupColorScheme = rememberMedicationGroupColorScheme(colorKey = row.groupColorKey)
     val headline = medicationEntryTitle(medication.medicine, medication.applicationType)
     val routeLabel = stringResource(medication.applicationType.labelRes)
-    val doseText = medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) }
+    val doseText = medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) }
     val supportingText = listOfNotNull(
         routeLabel,
+        medicationCountIndicatorText(row.medication.count),
         doseText,
-        medicationCountIndicatorText(row.medication.count).takeIf { row.medication.count > 1 },
     ).joinToString(separator = " · ")
     val timeLabel = row.scheduledAt.toLocalTime().format(timeFormatter)
     val rowShape = segmentedListItemShape(index = index, count = itemCount)

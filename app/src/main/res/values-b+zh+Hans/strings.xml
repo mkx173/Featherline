@@ -385,9 +385,11 @@
     <string name="medication_preparation_summary_patch_total_with_unit">贴片 · %1$s %2$s</string>
     <string name="medication_preparation_summary_patch_release_rate">贴片 · %1$s μg/天</string>
     <string name="dose_instruction_summary_tablet_fraction">%1$s 片</string>
-    <string name="dose_instruction_summary_whole_unit">1 单位</string>
     <string name="dose_instruction_summary_volume_ml">%1$s mL</string>
     <string name="dose_instruction_summary_weight_grams">%1$s g</string>
+    <string name="dose_instruction_summary_active_amount">%1$s %2$s</string>
+    <string name="dose_instruction_summary_patch_release_rate">%1$s μg/天</string>
+    <string name="medication_count_multiplicity">%1$dx</string>
     <string name="default_group_name_format">分组 %1$d</string>
     <string name="medication_dose_with_unit">%1$s %2$s</string>
     <string name="medication_dose_mg_e2">%1$s mg E2</string>

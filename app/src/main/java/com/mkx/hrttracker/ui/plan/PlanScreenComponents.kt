@@ -626,9 +626,8 @@ internal fun RegimenGroupCard(
             ) {
                 group.medications.forEach { medication ->
                     val doseSummary = listOfNotNull(
-                        medication.medicine?.let { doseInstructionSummary(medication.doseInstruction) },
-                        medicationCountIndicatorText(medication.count)
-                            .takeIf { medication.count > 1 },
+                        medicationCountIndicatorText(medication.count),
+                        medication.medicine?.let { doseInstructionSummary(it, medication.doseInstruction) },
                     ).joinToString(separator = " · ")
                     RegimenMedicationChip(
                         groupColorScheme = groupColorScheme,

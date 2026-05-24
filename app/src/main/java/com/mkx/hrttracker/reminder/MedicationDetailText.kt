@@ -3,6 +3,7 @@ package com.mkx.hrttracker.reminder
 import android.content.Context
 import com.mkx.hrttracker.model.medication.MedicationGroupMedication
 import com.mkx.hrttracker.util.doseInstructionText
+import com.mkx.hrttracker.util.medicationCountIndicatorText
 import com.mkx.hrttracker.util.medicationEntryTitle
 import com.mkx.hrttracker.util.medicationRouteLabel
 
@@ -15,18 +16,8 @@ fun medicationDetailLine(
     val name = medicationEntryTitle(medication.medicine, medication.applicationType, context)
     val appType = medicationRouteLabel(medication.applicationType, context)
     val doseText = doseInstructionText(context, medication.medicine, medication.doseInstruction)
-    val countText = if (medication.count > 1) " · ${medication.count}x" else ""
+    val countText = medicationCountIndicatorText(context = context, count = medication.count)
 
-    return buildString {
-        append(groupName)
-        append(" · ")
-        append(name)
-        append(" · ")
-        append(appType)
-        if (doseText != null) {
-            append(" · ")
-            append(doseText)
-        }
-        append(countText)
-    }
+    return listOfNotNull(groupName, name, appType, countText, doseText)
+        .joinToString(separator = " · ")
 }

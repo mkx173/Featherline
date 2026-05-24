@@ -176,24 +176,24 @@ class HistoryUiModelsTest {
     }
 
     @Test
-    fun historyEntrySupportingText_includes_plain_count_text_between_primary_text_and_group_name() {
+    fun historyEntrySupportingText_renders_count_before_primary_text() {
         assertEquals(
-            "1mg \u00B7 2x \u00B7 Nightly estradiol",
+            "2x \u00B7 1mg \u00B7 Nightly estradiol",
             historyEntrySupportingText(
                 primaryText = "1mg",
-                count = 2,
+                countText = "2x",
                 groupName = "Nightly estradiol"
             )
         )
     }
 
     @Test
-    fun historyEntrySupportingText_omits_count_when_single_entry() {
+    fun historyEntrySupportingText_omits_count_when_null() {
         assertEquals(
             "1mg \u00B7 Nightly estradiol",
             historyEntrySupportingText(
                 primaryText = "1mg",
-                count = 1,
+                countText = null,
                 groupName = "Nightly estradiol"
             )
         )

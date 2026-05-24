@@ -41,6 +41,10 @@ class MedicationDetailTextTest {
         every {
             context.getString(R.string.dose_instruction_summary_tablet_fraction, "1")
         } returns "1 tablet"
+        every { context.getString(R.string.unit_mg) } returns "mg"
+        every {
+            context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
+        } returns "2 mg"
 
         val medication = testMedicationGroupMedication(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL_VALERATE),
@@ -51,11 +55,11 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Estrogens", medication)
 
-        assertEquals("Estrogens · Estradiol valerate · Oral · 1 tablet", result)
+        assertEquals("Estrogens · Estradiol valerate · Oral · 1 tablet · 2 mg", result)
     }
 
     @Test
-    fun medicationDetailLine_appendsCountWhenGreaterThanOne() {
+    fun medicationDetailLine_prependsCountWhenGreaterThanOne() {
         every {
             context.getString(R.string.medication_name_spironolactone)
         } returns "Spironolactone"
@@ -63,6 +67,13 @@ class MedicationDetailTextTest {
         every {
             context.getString(R.string.dose_instruction_summary_tablet_fraction, "1")
         } returns "1 tablet"
+        every { context.getString(R.string.unit_mg) } returns "mg"
+        every {
+            context.getString(R.string.dose_instruction_summary_active_amount, "2", "mg")
+        } returns "2 mg"
+        every {
+            context.getString(R.string.medication_count_multiplicity, 2)
+        } returns "2x"
 
         val medication = testMedicationGroupMedication(
             medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
@@ -73,7 +84,30 @@ class MedicationDetailTextTest {
 
         val result = medicationDetailLine(context, "Hormones", medication)
 
-        assertEquals("Hormones · Spironolactone · Oral · 1 tablet · 2x", result)
+        assertEquals("Hormones · Spironolactone · Oral · 2x · 1 tablet · 2 mg", result)
+    }
+
+    @Test
+    fun medicationDetailLine_capsulePreparationRendersActiveOnlyAtSingleCount() {
+        every { context.getString(R.string.medication_application_oral) } returns "Oral"
+        every { context.getString(R.string.unit_mg) } returns "mg"
+        every {
+            context.getString(R.string.dose_instruction_summary_active_amount, "100", "mg")
+        } returns "100 mg"
+
+        val medication = testMedicationGroupMedication(
+            medicine = testCustomMedicine(
+                medicationName = "Progesterone",
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            ),
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.WholeUnit,
+            count = 1,
+        )
+
+        val result = medicationDetailLine(context, "Progesterone", medication)
+
+        assertEquals("Progesterone · Progesterone · Oral · 100 mg", result)
     }
 
     @Test

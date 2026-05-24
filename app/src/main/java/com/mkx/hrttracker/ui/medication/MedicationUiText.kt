@@ -3,6 +3,7 @@ package com.mkx.hrttracker.ui.medication
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
@@ -92,38 +93,54 @@ fun medicinePreparationSummary(medicine: Medicine): String {
 }
 
 @Composable
-fun doseInstructionSummary(instruction: DoseInstruction): String? {
+fun doseInstructionSummary(
+    medicine: Medicine,
+    instruction: DoseInstruction,
+): String? {
     val appLocale = rememberAppLocale()
-    return when (instruction) {
+    val portion = when (instruction) {
         is DoseInstruction.TabletFraction -> stringResource(
             R.string.dose_instruction_summary_tablet_fraction,
-            formatTabletFraction(instruction, appLocale),
+            formatTabletFraction(instruction),
         )
-
-        DoseInstruction.WholeUnit -> stringResource(R.string.dose_instruction_summary_whole_unit)
-
         is DoseInstruction.VolumeMl -> stringResource(
             R.string.dose_instruction_summary_volume_ml,
             instruction.valueMl.formatDose(appLocale),
         )
-
         is DoseInstruction.WeightGrams -> stringResource(
             R.string.dose_instruction_summary_weight_grams,
             instruction.valueGrams.formatDose(appLocale),
         )
-
-        DoseInstruction.Noop -> null
+        DoseInstruction.WholeUnit, DoseInstruction.Noop -> null
     }
+
+    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, instruction)?.let { rate ->
+        stringResource(
+            R.string.dose_instruction_summary_patch_release_rate,
+            rate.formatDose(appLocale),
+        )
+    } ?: DoseInstructionCalculator.perUnitAmountMg(medicine, instruction)?.let { perUnitMg ->
+        val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+            medicine.displayDoseUnit
+        } else {
+            MedicineDisplayDoseUnit.MG
+        }
+        stringResource(
+            R.string.dose_instruction_summary_active_amount,
+            displayUnit.fromMg(perUnitMg).formatDose(appLocale),
+            stringResource(displayUnit.shortLabelRes()),
+        )
+    }
+
+    val parts = listOfNotNull(portion, active)
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
 }
 
-private fun formatTabletFraction(
-    fraction: DoseInstruction.TabletFraction,
-    appLocale: java.util.Locale,
-): String {
+internal fun formatTabletFraction(fraction: DoseInstruction.TabletFraction): String {
     return if (fraction.denominator == 1) {
         fraction.numerator.toString()
     } else {
-        (fraction.numerator.toDouble() / fraction.denominator.toDouble()).formatDose(appLocale)
+        "${fraction.numerator}/${fraction.denominator}"
     }
 }
 
@@ -157,20 +174,23 @@ fun medicationEntrySupportingText(
                 applicationType = applicationType,
             )
         }
-    val doseText = if (medicine != null) {
-        doseInstructionSummary(doseInstruction)
-    } else {
-        null
-    }
+    val doseText = medicine?.let { doseInstructionSummary(it, doseInstruction) }
     return listOfNotNull(
         applicationTypeLabel,
+        medicationCountIndicatorText(count),
         doseText,
-        medicationCountIndicatorText(count).takeIf { count > 1 },
         extraSupportingText?.takeIf(String::isNotBlank),
     ).joinToString(separator = " · ")
 }
 
-fun medicationCountIndicatorText(count: Int): String = "${count}x"
+@Composable
+fun medicationCountIndicatorText(count: Int): String? {
+    return if (count > 1) {
+        stringResource(R.string.medication_count_multiplicity, count)
+    } else {
+        null
+    }
+}
 
 internal fun shouldUseApplicationTypeAsMedicationEntryTitle(
     hasMedicine: Boolean,

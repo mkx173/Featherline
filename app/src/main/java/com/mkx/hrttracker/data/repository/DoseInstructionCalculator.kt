@@ -31,7 +31,7 @@ object DoseInstructionCalculator {
         return when (val preparation = medicine.preparation) {
             is MedicinePreparation.Pill -> {
                 val fraction = doseInstruction as? DoseInstruction.TabletFraction ?: return null
-                preparation.strengthMgPerTablet * fraction.numerator / fraction.denominator
+                preparation.strengthMgPerTablet * fraction.numerator.toDouble() / fraction.denominator
             }
             is MedicinePreparation.Capsule -> {
                 if (doseInstruction == DoseInstruction.WholeUnit) {
@@ -86,6 +86,17 @@ object DoseInstructionCalculator {
     ): Double? {
         require(count > 0)
         return perUnitAmountMg?.let { it * count }
+    }
+
+    fun perUnitReleaseRateMcgPerDay(
+        medicine: Medicine,
+        doseInstruction: DoseInstruction,
+    ): Double? {
+        if (doseInstruction != DoseInstruction.WholeUnit) return null
+        val patch = medicine.preparation as? MedicinePreparation.Patch ?: return null
+        val rate = patch.specification as? MedicinePreparation.PatchSpecification.ReleaseRateMcgPerDay
+            ?: return null
+        return rate.valueMcgPerDay
     }
 
     fun perUnitEquivalentE2Mg(

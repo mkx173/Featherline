@@ -2,9 +2,11 @@ package com.mkx.hrttracker.util
 
 import android.content.Context
 import com.mkx.hrttracker.R
+import com.mkx.hrttracker.data.repository.DoseInstructionCalculator
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicineDisplayDoseUnit
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.formatDose
@@ -89,7 +91,7 @@ fun medicinePreparationSummary(medicine: Medicine, context: Context): String {
     }
 }
 
-// Returns null for a PATCH_OFF entry (null medicine) or a Noop dose.
+// Returns null for a PATCH_OFF entry (null medicine) or a Noop/empty dose.
 fun doseInstructionText(
     context: Context,
     medicine: Medicine?,
@@ -99,36 +101,68 @@ fun doseInstructionText(
         return null
     }
     val locale = Locale.getDefault()
-    return when (doseInstruction) {
+    val portion = when (doseInstruction) {
         is DoseInstruction.TabletFraction -> context.getString(
             R.string.dose_instruction_summary_tablet_fraction,
-            formatTabletFraction(doseInstruction, locale),
+            formatTabletFraction(doseInstruction),
         )
-
-        DoseInstruction.WholeUnit ->
-            context.getString(R.string.dose_instruction_summary_whole_unit)
-
         is DoseInstruction.VolumeMl -> context.getString(
             R.string.dose_instruction_summary_volume_ml,
             doseInstruction.valueMl.formatDose(locale),
         )
-
         is DoseInstruction.WeightGrams -> context.getString(
             R.string.dose_instruction_summary_weight_grams,
             doseInstruction.valueGrams.formatDose(locale),
         )
+        DoseInstruction.WholeUnit, DoseInstruction.Noop -> null
+    }
 
-        DoseInstruction.Noop -> null
+    val active = DoseInstructionCalculator.perUnitReleaseRateMcgPerDay(medicine, doseInstruction)
+        ?.let { rate ->
+            context.getString(
+                R.string.dose_instruction_summary_patch_release_rate,
+                rate.formatDose(locale),
+            )
+        }
+        ?: DoseInstructionCalculator.perUnitAmountMg(medicine, doseInstruction)?.let { perUnitMg ->
+            val displayUnit = if (medicine.selection is MedicineSelection.Custom) {
+                medicine.displayDoseUnit
+            } else {
+                MedicineDisplayDoseUnit.MG
+            }
+            context.getString(
+                R.string.dose_instruction_summary_active_amount,
+                displayUnit.fromMg(perUnitMg).formatDose(locale),
+                context.getString(displayUnit.shortLabelStringRes()),
+            )
+        }
+
+    val parts = listOfNotNull(portion, active)
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(separator = " · ")
+}
+
+fun medicationCountIndicatorText(
+    context: Context,
+    count: Int,
+): String? {
+    return if (count > 1) {
+        context.getString(R.string.medication_count_multiplicity, count)
+    } else {
+        null
     }
 }
 
-private fun formatTabletFraction(
-    fraction: DoseInstruction.TabletFraction,
-    locale: Locale,
-): String {
+@androidx.annotation.StringRes
+private fun MedicineDisplayDoseUnit.shortLabelStringRes(): Int = when (this) {
+    MedicineDisplayDoseUnit.MG -> R.string.unit_mg
+    MedicineDisplayDoseUnit.MCG -> R.string.unit_mcg
+    MedicineDisplayDoseUnit.G -> R.string.unit_grams
+}
+
+internal fun formatTabletFraction(fraction: DoseInstruction.TabletFraction): String {
     return if (fraction.denominator == 1) {
         fraction.numerator.toString()
     } else {
-        (fraction.numerator.toDouble() / fraction.denominator.toDouble()).formatDose(locale)
+        "${fraction.numerator}/${fraction.denominator}"
     }
 }

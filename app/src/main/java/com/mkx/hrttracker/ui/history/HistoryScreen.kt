@@ -123,6 +123,7 @@ import com.mkx.hrttracker.ui.components.appContentPaddingValues
 import com.mkx.hrttracker.ui.components.cjkTextOffset
 import com.mkx.hrttracker.ui.components.topAppBarScrollToTop
 import com.mkx.hrttracker.ui.medication.doseInstructionSummary
+import com.mkx.hrttracker.ui.medication.medicationCountIndicatorText
 import com.mkx.hrttracker.ui.plan.PlanCalendarDayStatus
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.util.calendarMonthTitleFormatter
@@ -2139,31 +2140,30 @@ private fun buildHistoryEntrySupportingText(
     count: Int,
     groupName: String?
 ): String {
-    val doseText = entry.medicine?.let { doseInstructionSummary(entry.doseInstruction) }
+    val doseText = entry.medicine?.let { doseInstructionSummary(it, entry.doseInstruction) }
+    val countText = medicationCountIndicatorText(count)
     val fallbackText = stringResource(entry.applicationType.labelRes)
     return historyEntrySupportingText(
         primaryText = doseText ?: fallbackText,
-        count = count,
+        countText = countText,
         groupName = groupName
     )
 }
 
 internal fun historyEntrySupportingText(
     primaryText: String,
-    count: Int,
+    countText: String?,
     groupName: String?
 ): String {
     val parts = buildList {
+        countText?.let(::add)
         add(primaryText)
-        historyEntryCountText(count)?.let(::add)
         if (!groupName.isNullOrBlank()) {
             add(groupName)
         }
     }
     return parts.joinToString(" \u00B7 ")
 }
-
-internal fun historyEntryCountText(count: Int): String? = count.takeIf { it > 1 }?.let { "${it}x" }
 
 @Preview(
     name = "History Month",
