@@ -1,5 +1,7 @@
 package com.mkx.hrttracker.data.repository
+
 import com.mkx.hrttracker.data.local.DatabaseHolder
+import com.mkx.hrttracker.data.local.HrtTrackerDatabase
 import com.mkx.hrttracker.data.local.MedicationGroupEntity
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
 import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
@@ -12,6 +14,7 @@ import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationGroup
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -220,8 +223,9 @@ class MedicationGroupRepository @Inject constructor(
                 val isExistingRecreatedGroup = existingGroupRow?.recreatedFromGroupUuid != null
                 val hasExistingRecords = existingGroupRow != null &&
                     database.medicationLogDao().getEntryCountForGroup(groupUuid.toString()) > 0
-                if (hasExistingRecords && existingGroup != null) {
-                    val existingMedicineUuidsByItemUuid = existingGroup.items.associate { item ->
+                if (hasExistingRecords) {
+                    val lockedExistingGroup = checkNotNull(existingGroup)
+                    val existingMedicineUuidsByItemUuid = lockedExistingGroup.items.associate { item ->
                         item.uuid to item.medicineUuid
                     }
                     medications.forEach { medication ->
@@ -261,6 +265,9 @@ class MedicationGroupRepository @Inject constructor(
                     ?.scheduleTimes
                     ?.associateBy(MedicationGroupScheduleTimeEntity::uuid)
                     .orEmpty()
+                val preparationTypesByMedicineUuid = database.resolvePreparationTypesByMedicineUuid(
+                    medications = medications,
+                )
 
                 dao.upsertGroupWithItems(
                     group = MedicationGroupEntity(
@@ -280,6 +287,14 @@ class MedicationGroupRepository @Inject constructor(
                         recreatedFromGroupUuid = resolvedRecreatedFromGroupUuid,
                     ),
                     items = medications.mapIndexed { index, medication ->
+                        val preparationType = medication.medicineUuid
+                            ?.let(preparationTypesByMedicineUuid::get)
+                        validateMedicationCompatibility(
+                            fieldPrefix = "medication group item ${medication.medicineUuid}",
+                            applicationType = medication.applicationType,
+                            doseInstruction = medication.doseInstruction,
+                            preparationType = preparationType,
+                        )
                         val doseInstructionFields = medication.doseInstruction.toStorageFields()
                         MedicationGroupItemEntity(
                             uuid = (medication.uuid ?: UUID.randomUUID()).toString(),
@@ -358,6 +373,27 @@ class MedicationGroupRepository @Inject constructor(
         }
 
         return groupUuid
+    }
+
+    private suspend fun HrtTrackerDatabase.resolvePreparationTypesByMedicineUuid(
+        medications: List<MedicationGroupMedicationInput>,
+    ): Map<UUID, MedicinePreparationType> {
+        val medicineUuids = medications
+            .mapNotNull(MedicationGroupMedicationInput::medicineUuid)
+            .distinct()
+        if (medicineUuids.isEmpty()) {
+            return emptyMap()
+        }
+
+        val medicineEntitiesByUuid = medicineDao()
+            .getByUuids(medicineUuids.map(UUID::toString))
+            .associateBy { entity -> entity.uuid }
+        return medicineUuids.associateWith { uuid ->
+            val entity = checkNotNull(medicineEntitiesByUuid[uuid.toString()]) {
+                "Medicine $uuid was not found."
+            }
+            enumValueOf<MedicinePreparationType>(entity.preparationType)
+        }
     }
 
     private suspend fun deleteGroupInternal(

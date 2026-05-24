@@ -288,6 +288,122 @@ class BackupRestoreValidationTest {
     }
 
     @Test
+    fun toValidatedSnapshot_rejectsCapsuleGroupItemWithSublingualApplicationType() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c0")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c1")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c2")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                baselineMedicationGroupSnapshot(
+                    groupUuid = groupUuid,
+                    item = capsuleWholeUnitGroupItemSnapshot(
+                        itemUuid = itemUuid,
+                        medicineUuid = medicineUuid,
+                        applicationType = "SUBLINGUAL",
+                    ),
+                )
+            ),
+            medicationLogs = emptyList(),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject sublingual capsule rows.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals(
+                "medication group item $itemUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+                error.message,
+            )
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_rejectsCapsuleLogWithSublingualApplicationType() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c4")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006c5")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(capsuleMedicineSnapshot(medicineUuid)),
+            medicationGroups = emptyList(),
+            medicationLogs = listOf(
+                capsuleWholeUnitLogSnapshot(
+                    logUuid = logUuid,
+                    medicineUuid = medicineUuid,
+                    applicationType = "SUBLINGUAL",
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        try {
+            snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+            fail("Expected validation to reject a sublingual capsule log.")
+        } catch (error: IllegalArgumentException) {
+            assertEquals(
+                "medication log $logUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+                error.message,
+            )
+        }
+    }
+
+    @Test
+    fun toValidatedSnapshot_normalizesLegacyPillWholeUnitMedicationRowsToTabletFraction() {
+        val medicineUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d0")
+        val groupUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d1")
+        val itemUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d2")
+        val logUuid = UUID.fromString("00000000-0000-0000-0000-0000000006d3")
+        val snapshot = BackupSnapshot(
+            snapshotVersion = 3,
+            exportedAtEpochMillis = 0L,
+            app = BackupAppSnapshot(packageName = "com.mkx.hrttracker"),
+            settings = baselineSettings(),
+            userProfile = baselineUserProfile(),
+            medicines = listOf(catalogMedicineSnapshot(medicineUuid)),
+            medicationGroups = listOf(
+                baselineMedicationGroupSnapshot(
+                    groupUuid = groupUuid,
+                    item = pillWholeUnitGroupItemSnapshot(
+                        itemUuid = itemUuid,
+                        medicineUuid = medicineUuid,
+                    ),
+                )
+            ),
+            medicationLogs = listOf(
+                pillWholeUnitLogSnapshot(
+                    logUuid = logUuid,
+                    medicineUuid = medicineUuid,
+                )
+            ),
+            customBloodAnalytes = emptyList(),
+            bloodTestPanels = emptyList(),
+        )
+
+        val validatedSnapshot = snapshot.toValidatedSnapshot(expectedPackageName = "com.mkx.hrttracker")
+
+        val restoredItem = validatedSnapshot.medicationGroupItems.single()
+        assertEquals("TABLET_FRACTION", restoredItem.doseInstructionKind)
+        assertEquals(1, restoredItem.tabletFractionNumerator)
+        assertEquals(1, restoredItem.tabletFractionDenominator)
+        val restoredLog = validatedSnapshot.medicationLogs.single()
+        assertEquals("TABLET_FRACTION", restoredLog.doseInstructionKind)
+        assertEquals(1, restoredLog.tabletFractionNumerator)
+        assertEquals(1, restoredLog.tabletFractionDenominator)
+    }
+
+    @Test
     fun toValidatedSnapshot_rejectsV1BackupVersion() {
         // v1 backups carry MedicationDetails-shaped fields the new restore
         // path cannot map. Surface the version mismatch instead of silently
@@ -699,6 +815,95 @@ class BackupRestoreValidationTest {
             createdAtEpochMillis = 0L,
             updatedAtEpochMillis = 0L,
             archivedAtEpochMillis = null,
+        )
+    }
+
+    private fun baselineMedicationGroupSnapshot(
+        groupUuid: UUID,
+        item: BackupMedicationGroupItemSnapshot,
+    ): BackupMedicationGroupSnapshot {
+        return BackupMedicationGroupSnapshot(
+            uuid = groupUuid.toString(),
+            name = "Group",
+            colorKey = "ROSE",
+            notificationsEnabled = false,
+            schedule = BackupMedicationGroupScheduleSnapshot(
+                type = "DAILY",
+                interval = 1,
+                sinceEpochDay = LocalDate.of(2026, 4, 1).toEpochDay(),
+                weeklyDaysOfWeek = emptyList(),
+                times = listOf(BackupMedicationGroupScheduleTimeSnapshot(9, 0)),
+            ),
+            medications = listOf(item),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
+        )
+    }
+
+    private fun pillWholeUnitGroupItemSnapshot(
+        itemUuid: UUID,
+        medicineUuid: UUID,
+    ): BackupMedicationGroupItemSnapshot {
+        return capsuleWholeUnitGroupItemSnapshot(
+            itemUuid = itemUuid,
+            medicineUuid = medicineUuid,
+            applicationType = "ORAL",
+        )
+    }
+
+    private fun capsuleWholeUnitGroupItemSnapshot(
+        itemUuid: UUID,
+        medicineUuid: UUID,
+        applicationType: String,
+    ): BackupMedicationGroupItemSnapshot {
+        return BackupMedicationGroupItemSnapshot(
+            uuid = itemUuid.toString(),
+            count = 1,
+            medicineUuid = medicineUuid.toString(),
+            applicationType = applicationType,
+            doseInstructionKind = "WHOLE_UNIT",
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+        )
+    }
+
+    private fun pillWholeUnitLogSnapshot(
+        logUuid: UUID,
+        medicineUuid: UUID,
+    ): BackupMedicationLogSnapshot {
+        return capsuleWholeUnitLogSnapshot(
+            logUuid = logUuid,
+            medicineUuid = medicineUuid,
+            applicationType = "ORAL",
+        )
+    }
+
+    private fun capsuleWholeUnitLogSnapshot(
+        logUuid: UUID,
+        medicineUuid: UUID,
+        applicationType: String,
+    ): BackupMedicationLogSnapshot {
+        return BackupMedicationLogSnapshot(
+            uuid = logUuid.toString(),
+            category = "CUSTOM",
+            medicineUuid = medicineUuid.toString(),
+            applicationType = applicationType,
+            doseInstructionKind = "WHOLE_UNIT",
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            gelApplicationArea = "DEFAULT",
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 200L,
+            appliedAtTimeZoneId = "Asia/Tokyo",
+            scheduledForIso = null,
+            count = 1,
         )
     }
 

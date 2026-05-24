@@ -8,6 +8,8 @@ import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicationGelApplicationArea
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
+import com.mkx.hrttracker.model.medication.isCompatibleWith
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -299,6 +301,12 @@ class MedicationLogRepository @Inject constructor(
                 "Medicine $medicineUuid was not found."
             }.toMedicineModel()
         }
+        validateMedicationCompatibility(
+            fieldPrefix = "medication log",
+            applicationType = applicationType,
+            doseInstruction = doseInstruction,
+            preparationType = medicine?.preparation?.type,
+        )
         val category = medicine?.category ?: MedicationCategory.ESTRADIOL
         val equivalentE2Mg = medicine?.let {
             DoseInstructionCalculator.perUnitEquivalentE2Mg(
@@ -326,6 +334,20 @@ class MedicationLogRepository @Inject constructor(
             count = count.coerceAtLeast(1),
             gelApplicationArea = MedicationGelApplicationArea.DEFAULT.name,
         )
+    }
+}
+
+internal fun validateMedicationCompatibility(
+    fieldPrefix: String,
+    applicationType: MedicationApplicationType,
+    doseInstruction: DoseInstruction,
+    preparationType: MedicinePreparationType?,
+) {
+    require(applicationType.isCompatibleWith(preparationType)) {
+        "$fieldPrefix applicationType=$applicationType is not compatible with preparation=$preparationType."
+    }
+    require(doseInstruction.isCompatibleWith(preparationType)) {
+        "$fieldPrefix doseInstruction=${doseInstruction.kind} is not compatible with preparation=$preparationType."
     }
 }
 

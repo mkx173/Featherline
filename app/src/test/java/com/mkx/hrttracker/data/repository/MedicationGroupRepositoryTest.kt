@@ -9,11 +9,17 @@ import com.mkx.hrttracker.data.local.MedicationGroupScheduleTimeEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWeeklyDayEntity
 import com.mkx.hrttracker.data.local.MedicationGroupWithItemsEntity
 import com.mkx.hrttracker.data.local.MedicationLogDao
+import com.mkx.hrttracker.data.local.MedicineDao
+import com.mkx.hrttracker.data.local.MedicineEntity
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.DoseInstructionKind
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationGroupColorKey
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
+import com.mkx.hrttracker.model.medication.MedicationKey
+import com.mkx.hrttracker.model.medication.MedicationSelectionKind
+import com.mkx.hrttracker.model.medication.MedicineIdentityKey
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -47,6 +53,7 @@ class MedicationGroupRepositoryTest {
     private val database: HrtTrackerDatabase = mockk()
     private val medicationGroupDao: MedicationGroupDao = mockk(relaxed = true)
     private val medicationLogDao: MedicationLogDao = mockk(relaxed = true)
+    private val medicineDao: MedicineDao = mockk(relaxed = true)
     private val homeSnapshotRepository: HomeSnapshotRepository = mockk(relaxed = true)
 
     private lateinit var repository: MedicationGroupRepository
@@ -57,6 +64,16 @@ class MedicationGroupRepositoryTest {
         every { databaseHolder.get() } returns database
         every { database.medicationGroupDao() } returns medicationGroupDao
         every { database.medicationLogDao() } returns medicationLogDao
+        every { database.medicineDao() } returns medicineDao
+        coEvery { medicineDao.getByUuids(any()) } answers {
+            firstArg<List<String>>().map { uuid ->
+                testMedicineEntity(
+                    uuid = uuid,
+                    medicationKey = MedicationKey.ESTRADIOL,
+                    preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+                )
+            }
+        }
         coEvery { homeSnapshotRepository.runHomeDataMutation<Unit>(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
@@ -266,6 +283,96 @@ class MedicationGroupRepositoryTest {
         assertEquals(savedGroupUuid.toString(), savedTimes.captured.single().groupUuid)
         assertEquals(now.atZone(ZoneId.systemDefault()).toLocalDateTime().toString(), savedTimes.captured.single().effectiveFromLocalIso)
         assertEquals(savedGroupUuid.toString(), savedWeeklyDays.captured.single().groupUuid)
+    }
+
+    @Test
+    fun saveGroup_rejectsIncompatibleApplicationTypeBeforeUpsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } returns listOf(
+            testMedicineEntity(
+                uuid = medicineUuid.toString(),
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+            )
+        )
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        medicineUuid = medicineUuid,
+                        applicationType = MedicationApplicationType.SUBLINGUAL,
+                        doseInstruction = DoseInstruction.WholeUnit,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication group item $medicineUuid applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun saveGroup_rejectsPillWholeUnitBeforeUpsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery { medicineDao.getByUuids(listOf(medicineUuid.toString())) } returns listOf(
+            testMedicineEntity(
+                uuid = medicineUuid.toString(),
+                medicationKey = MedicationKey.ESTRADIOL,
+                preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+            )
+        )
+        coEvery {
+            databaseHolder.withTransaction<Unit>(any())
+        } coAnswers {
+            firstArg<suspend (HrtTrackerDatabase) -> Unit>().invoke(database)
+        }
+
+        val thrown = runCatching {
+            repository.saveGroup(
+                uuid = null,
+                name = "Group",
+                colorKey = MedicationGroupColorKey.ROSE,
+                schedule = MedicationGroupScheduleInput(
+                    type = MedicationGroupScheduleType.DAILY,
+                    interval = 1,
+                    since = LocalDate.of(2026, 4, 1),
+                    weeklyDaysOfWeek = emptySet(),
+                    times = listOf(LocalTime.of(8, 0)),
+                ),
+                medications = listOf(
+                    MedicationGroupMedicationInput(
+                        medicineUuid = medicineUuid,
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.WholeUnit,
+                    )
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication group item $medicineUuid doseInstruction=WHOLE_UNIT is not compatible with preparation=PILL.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { medicationGroupDao.upsertGroupWithItems(any(), any(), any(), any()) }
     }
 
     @Test
@@ -1243,6 +1350,37 @@ class MedicationGroupRepositoryTest {
                     medicineUuid = medicineUuid.toString(),
                 ),
             ),
+        )
+    }
+
+    private fun testMedicineEntity(
+        uuid: String,
+        medicationKey: MedicationKey,
+        preparation: MedicinePreparation,
+    ): MedicineEntity {
+        val fields = preparation.toStorageFields()
+        return MedicineEntity(
+            uuid = uuid,
+            selectionKind = MedicationSelectionKind.CATALOG.name,
+            medicationKey = medicationKey.name,
+            customMedicationName = null,
+            customMedicationNameNormalized = null,
+            category = medicationKey.category.name,
+            preparationType = fields.preparationType,
+            strengthMgPerTablet = fields.strengthMgPerTablet,
+            strengthMgPerVial = fields.strengthMgPerVial,
+            concentrationMgPerMl = fields.concentrationMgPerMl,
+            vialVolumeMl = fields.vialVolumeMl,
+            concentrationPercent = fields.concentrationPercent,
+            sachetWeightGrams = fields.sachetWeightGrams,
+            containerWeightGrams = fields.containerWeightGrams,
+            patchTotalMg = fields.patchTotalMg,
+            patchReleaseRateMcgPerDay = fields.patchReleaseRateMcgPerDay,
+            displayName = null,
+            identityKey = MedicineIdentityKey.catalog(medicationKey, preparation),
+            createdAtEpochMillis = 0L,
+            updatedAtEpochMillis = 0L,
+            archivedAtEpochMillis = null,
         )
     }
 

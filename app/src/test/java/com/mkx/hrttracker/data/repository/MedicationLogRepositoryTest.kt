@@ -213,6 +213,64 @@ class MedicationLogRepositoryTest {
     }
 
     @Test
+    fun saveEntry_rejectsIncompatibleApplicationTypeBeforeInsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+        )
+
+        val thrown = runCatching {
+            repository.saveEntry(
+                uuid = null,
+                medicineUuid = medicineUuid,
+                applicationType = MedicationApplicationType.SUBLINGUAL,
+                doseInstruction = DoseInstruction.WholeUnit,
+                sourceGroupUuid = null,
+                appliedAt = Instant.parse("2026-05-22T08:00:00Z"),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication log applicationType=SUBLINGUAL is not compatible with preparation=CAPSULE.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { dao.insertEntry(any()) }
+    }
+
+    @Test
+    fun saveEntry_rejectsPillWholeUnitBeforeInsert() = runTest {
+        val medicineUuid = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000000")
+        coEvery {
+            medicineDao.getByUuid(medicineUuid.toString())
+        } returns testMedicineEntity(
+            uuid = medicineUuid.toString(),
+            medicationKey = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+
+        val thrown = runCatching {
+            repository.saveEntry(
+                uuid = null,
+                medicineUuid = medicineUuid,
+                applicationType = MedicationApplicationType.ORAL,
+                doseInstruction = DoseInstruction.WholeUnit,
+                sourceGroupUuid = null,
+                appliedAt = Instant.parse("2026-05-22T08:00:00Z"),
+            )
+        }.exceptionOrNull()
+
+        assertEquals(
+            "medication log doseInstruction=WHOLE_UNIT is not compatible with preparation=PILL.",
+            thrown?.message,
+        )
+        coVerify(exactly = 0) { dao.insertEntry(any()) }
+    }
+
+    @Test
     fun getObservedLatestEstradiolEntryOnOrBefore_returnsLatestObservedEntryAtOrBeforeTarget() = runTest {
         val target = Instant.parse("2026-04-30T00:00:00Z")
         val medicineUuid = "aaaaaaaa-0000-0000-0000-000000000000"
