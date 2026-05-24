@@ -873,9 +873,13 @@ private fun RegimenMedicationChip(
                 contentDescription = applicationTypeLabel,
                 modifier = Modifier.size(14.dp),
             )
-            val medicationString =
-                listOfNotNull(medicationName, applicationTypeLabel, doseSummary.takeIf { it.isNotBlank() })
-                .joinToString(" · ")
+            // For PATCH_OFF (and any other null-medicine route) the title falls back
+            // to the route name, so the label would duplicate it — drop it then.
+            val medicationString = listOfNotNull(
+                medicationName,
+                applicationTypeLabel.takeIf { it != medicationName },
+                doseSummary.takeIf { it.isNotBlank() },
+            ).joinToString(" · ")
             Text(
                 text = medicationString,
                 style = MaterialTheme.typography.labelMedium,
