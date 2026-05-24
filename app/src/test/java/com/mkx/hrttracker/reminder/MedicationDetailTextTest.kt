@@ -13,9 +13,73 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDateTime
+import java.util.UUID
 
 class MedicationDetailTextTest {
     private val context: Context = mockk()
+
+    @Test
+    fun buildExpandedDetailLines_belowCap_keepsAllLines() {
+        val result = buildExpandedDetailLines(
+            items = bundleItems(groupCount = 1, medicationsPerGroup = 3),
+        ) { groupName, medication -> "$groupName · ${medication.uuid}" }
+
+        assertEquals(3, result.visibleLines.size)
+        assertEquals(0, result.hiddenCount)
+    }
+
+    @Test
+    fun buildExpandedDetailLines_atCap_keepsAllLines() {
+        val result = buildExpandedDetailLines(
+            items = bundleItems(groupCount = 1, medicationsPerGroup = REMINDER_DETAIL_MAX_LINES),
+        ) { groupName, medication -> "$groupName · ${medication.uuid}" }
+
+        assertEquals(REMINDER_DETAIL_MAX_LINES, result.visibleLines.size)
+        assertEquals(0, result.hiddenCount)
+    }
+
+    @Test
+    fun buildExpandedDetailLines_aboveCap_truncatesAndReportsRemainder() {
+        // Mix multiple groups so the cap respects the flat across-groups order.
+        val result = buildExpandedDetailLines(
+            items = bundleItems(groupCount = 2, medicationsPerGroup = 3),
+        ) { groupName, medication -> "$groupName/${medication.uuid}" }
+
+        assertEquals(REMINDER_DETAIL_MAX_LINES, result.visibleLines.size)
+        assertEquals(6 - REMINDER_DETAIL_MAX_LINES, result.hiddenCount)
+    }
+
+    @Test
+    fun buildExpandedDetailLines_empty_yieldsEmpty() {
+        val result = buildExpandedDetailLines(items = emptyList()) { _, _ -> "" }
+
+        assertEquals(emptyList<String>(), result.visibleLines)
+        assertEquals(0, result.hiddenCount)
+    }
+
+    private fun bundleItems(
+        groupCount: Int,
+        medicationsPerGroup: Int,
+    ): List<MedicationReminderBundleItem> {
+        return (0 until groupCount).map { groupIndex ->
+            MedicationReminderBundleItem(
+                slot = MedicationReminderSlot(
+                    groupUuid = UUID.randomUUID(),
+                    scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0),
+                    scheduleTimeUuid = UUID.randomUUID(),
+                ),
+                groupName = "Group$groupIndex",
+                medications = (0 until medicationsPerGroup).map {
+                    testMedicationGroupMedication(
+                        medicine = testMedicine(),
+                        applicationType = MedicationApplicationType.ORAL,
+                        doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    )
+                },
+            )
+        }
+    }
 
     @Test
     fun capsulePreparationSummaryUsesCapsuleStrength() {

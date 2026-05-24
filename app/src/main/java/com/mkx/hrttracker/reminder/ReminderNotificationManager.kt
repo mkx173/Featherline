@@ -118,11 +118,7 @@ class ReminderNotificationManager @Inject constructor(
                     if (hideMedicationDetails) {
                         bundle.items.joinToString(separator = " · ") { it.groupName }
                     } else {
-                        bundle.items.joinToString(separator = "\n") { item ->
-                            item.medications.joinToString(separator = "\n") { medication ->
-                                medicationDetailLine(context, item.groupName, medication)
-                            }
-                        }
+                        buildExpandedNotificationBody(context, bundle.items)
                     }
                 )
             )
@@ -285,6 +281,28 @@ class ReminderNotificationManager @Inject constructor(
     private fun showToast(message: String) {
         Handler(Looper.getMainLooper()).post {
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+private fun buildExpandedNotificationBody(
+    context: Context,
+    items: List<MedicationReminderBundleItem>,
+): String {
+    val expanded = buildExpandedDetailLines(items) { groupName, medication ->
+        medicationDetailLine(context, groupName, medication)
+    }
+    return buildString {
+        append(expanded.visibleLines.joinToString(separator = "\n"))
+        if (expanded.hiddenCount > 0) {
+            if (expanded.visibleLines.isNotEmpty()) append('\n')
+            append(
+                context.resources.getQuantityString(
+                    R.plurals.reminder_notification_more_medications,
+                    expanded.hiddenCount,
+                    expanded.hiddenCount,
+                )
+            )
         }
     }
 }

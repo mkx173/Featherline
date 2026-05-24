@@ -640,6 +640,9 @@
     <plurals name="reminder_notification_more_groups">
         <item quantity="other">%1$s、%2$s 和 %3$d 个其他分组</item>
     </plurals>
+    <plurals name="reminder_notification_more_medications">
+        <item quantity="other">...和 %1$d 个其他药物</item>
+    </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="other">已添加 %1$d 条记录</item>
     </plurals>

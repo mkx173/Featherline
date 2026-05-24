@@ -22,3 +22,31 @@ fun medicationDetailLine(
     return listOfNotNull(groupName, name, appType.takeIf { it != name }, countText, doseText)
         .joinToString(separator = " · ")
 }
+
+internal data class ExpandedDetailLines(
+    val visibleLines: List<String>,
+    val hiddenCount: Int,
+)
+
+// Cap on visible medication lines in the expanded notification body. Beyond
+// this we append a localized "...and N more" suffix instead of letting the
+// system silently truncate at MAX_CHARSEQUENCE_LENGTH (1024 chars in AOSP).
+internal const val REMINDER_DETAIL_MAX_LINES = 3
+
+internal fun buildExpandedDetailLines(
+    items: List<MedicationReminderBundleItem>,
+    maxLines: Int = REMINDER_DETAIL_MAX_LINES,
+    renderLine: (groupName: String, medication: MedicationGroupMedication) -> String,
+): ExpandedDetailLines {
+    val allLines = items.flatMap { item ->
+        item.medications.map { medication -> renderLine(item.groupName, medication) }
+    }
+    return if (allLines.size <= maxLines) {
+        ExpandedDetailLines(visibleLines = allLines, hiddenCount = 0)
+    } else {
+        ExpandedDetailLines(
+            visibleLines = allLines.take(maxLines),
+            hiddenCount = allLines.size - maxLines,
+        )
+    }
+}

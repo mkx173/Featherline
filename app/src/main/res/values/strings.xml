@@ -654,6 +654,10 @@
         <item quantity="one">%1$s, %2$s, and %3$d more group</item>
         <item quantity="other">%1$s, %2$s, and %3$d more groups</item>
     </plurals>
+    <plurals name="reminder_notification_more_medications">
+        <item quantity="one">...and %1$d more medication</item>
+        <item quantity="other">...and %1$d more medications</item>
+    </plurals>
     <plurals name="reminder_notification_entries_added">
         <item quantity="one">Added %1$d entry.</item>
         <item quantity="other">Added %1$d entries.</item>
