@@ -365,7 +365,7 @@ class MedicationGroupSlotFulfillmentTest {
             medicine = medicine,
             category = medicine?.category ?: MedicationCategory.ESTRADIOL,
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = null,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),
@@ -383,7 +383,7 @@ class MedicationGroupSlotFulfillmentTest {
             uuid = uuid,
             medicine = medicine,
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             count = count
         )
     }

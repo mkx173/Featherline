@@ -116,7 +116,7 @@ class BuildMissingScheduledLogEntriesTest {
                 testMedicationGroupMedication(
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = medicationCount,
                 )
             ),

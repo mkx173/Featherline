@@ -151,7 +151,7 @@ class CalibrationEditorViewModelTest {
         val observedEntry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = Instant.EPOCH,
@@ -573,7 +573,7 @@ class CalibrationEditorViewModelTest {
         } returns testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = 2.0,
             sourceGroupUuid = null,
             appliedAt = selectedCollectedAt.minus(Duration.ofHours(9).plusMinutes(30)),

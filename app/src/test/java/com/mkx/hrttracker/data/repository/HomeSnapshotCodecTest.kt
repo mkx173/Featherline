@@ -56,7 +56,7 @@ class HomeSnapshotCodecTest {
             uuid = UUID.fromString("b14559ed-9f8a-4e81-8b63-e4e1ab9e1102"),
             medicine = antiandrogenMedicine,
             category = MedicationCategory.ANTIANDROGEN,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = null,
         )
         val group = MedicationGroup(

@@ -1,13 +1,18 @@
 package com.mkx.hrttracker.data.repository
 
 import com.mkx.hrttracker.data.local.MedicationGroupItemEntity
+import com.mkx.hrttracker.data.local.MedicationLogEntryEntity
 import com.mkx.hrttracker.model.medication.DoseInstruction
+import com.mkx.hrttracker.model.medication.DoseInstructionKind
+import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.MedicationCategory
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.medication.testCustomMedicine
+import com.mkx.hrttracker.model.medication.testMedicine
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.UUID
 
 class MedicationEntityMappersTest {
     @Test
@@ -40,6 +45,49 @@ class MedicationEntityMappersTest {
             val entity = groupItemEntity(index, instruction)
             assertEquals(instruction, entity.toDoseInstruction())
         }
+    }
+
+    @Test
+    fun groupItemModel_coercesLegacyPillWholeUnitToWholeTabletFraction() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000"),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val entity = groupItemEntity(0, DoseInstruction.WholeUnit)
+
+        val model = entity.toMedicationGroupMedicationModel(
+            medicinesByUuid = mapOf(medicine.uuid.toString() to medicine),
+        )
+
+        assertEquals(DoseInstruction.TabletFraction(1, 1), model.doseInstruction)
+    }
+
+    @Test
+    fun logEntryModel_coercesLegacyPillWholeUnitToWholeTabletFraction() {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000000"),
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        val entity = MedicationLogEntryEntity(
+            uuid = "aaaaaaaa-0000-0000-0000-000000000010",
+            category = MedicationCategory.ESTRADIOL.name,
+            medicineUuid = medicine.uuid.toString(),
+            applicationType = MedicationApplicationType.ORAL.name,
+            doseInstructionKind = DoseInstructionKind.WHOLE_UNIT.name,
+            tabletFractionNumerator = null,
+            tabletFractionDenominator = null,
+            doseVolumeMl = null,
+            doseWeightGrams = null,
+            equivalentE2Mg = null,
+            sourceGroupUuid = null,
+            appliedAtEpochMillis = 0L,
+        )
+
+        val model = entity.toMedicationLogEntryModel(
+            medicinesByUuid = mapOf(medicine.uuid.toString() to medicine),
+        )
+
+        assertEquals(DoseInstruction.TabletFraction(1, 1), model.doseInstruction)
     }
 
     private fun groupItemEntity(index: Int, doseInstruction: DoseInstruction): MedicationGroupItemEntity {

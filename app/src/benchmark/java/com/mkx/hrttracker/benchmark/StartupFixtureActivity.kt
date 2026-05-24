@@ -253,7 +253,7 @@ class StartupFixtureActivity : AppCompatActivity() {
                 times = listOf(LocalTime.of(8, 0), LocalTime.of(20, 0)),
                 medicine = medicines.getValue("oral-e2"),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt,
             ),
             benchmarkGroup(
@@ -293,7 +293,7 @@ class StartupFixtureActivity : AppCompatActivity() {
                 times = listOf(LocalTime.of(22, 0)),
                 medicine = medicines.getValue("spiro"),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt.plusSeconds(180),
             ),
             benchmarkGroup(
@@ -306,7 +306,7 @@ class StartupFixtureActivity : AppCompatActivity() {
                 times = listOf(LocalTime.of(7, 30)),
                 medicine = medicines.getValue("archived"),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(numerator = 1, denominator = 1),
                 createdAt = createdAt.minusSeconds(60),
                 archivedAt = archivedAt,
             ),

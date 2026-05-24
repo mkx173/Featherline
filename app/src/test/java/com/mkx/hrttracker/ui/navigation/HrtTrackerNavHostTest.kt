@@ -238,24 +238,62 @@ class HrtTrackerNavHostTest {
     @Test
     fun addEntrySheetRequestSaver_roundTripsQuickLogRequestForEveryDoseShape() {
         // Cover every DoseInstruction branch so future additions break the test.
-        val doseInstructions = listOf(
-            DoseInstruction.TabletFraction(1, 2),
-            DoseInstruction.WholeUnit,
-            DoseInstruction.VolumeMl(0.5),
-            DoseInstruction.WeightGrams(1.25),
-            DoseInstruction.Noop,
+        val doseCases = listOf(
+            Triple(
+                DoseInstruction.TabletFraction(1, 2),
+                testMedicine(
+                    uuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001"),
+                    key = MedicationKey.ESTRADIOL,
+                ),
+                MedicationApplicationType.ORAL,
+            ),
+            Triple(
+                DoseInstruction.WholeUnit,
+                testCustomMedicine(
+                    uuid = UUID.fromString("dddddddd-0000-0000-0000-000000000010"),
+                    medicationName = "Capsule med",
+                    preparation = MedicinePreparation.Capsule(strengthMgPerCapsule = 100.0),
+                ),
+                MedicationApplicationType.ORAL,
+            ),
+            Triple(
+                DoseInstruction.VolumeMl(0.5),
+                testMedicine(
+                    uuid = UUID.fromString("dddddddd-0000-0000-0000-000000000011"),
+                    key = MedicationKey.ESTRADIOL_VALERATE,
+                    preparation = MedicinePreparation.InjectionMultiUseVial(
+                        concentrationMgPerMl = 10.0,
+                        vialVolumeMl = 5.0,
+                    ),
+                ),
+                MedicationApplicationType.INJECTION,
+            ),
+            Triple(
+                DoseInstruction.WeightGrams(1.25),
+                testMedicine(
+                    uuid = UUID.fromString("dddddddd-0000-0000-0000-000000000012"),
+                    key = MedicationKey.ESTRADIOL_GEL,
+                    preparation = MedicinePreparation.GelContainer(
+                        concentrationPercent = 0.06,
+                        containerWeightGrams = 80.0,
+                    ),
+                ),
+                MedicationApplicationType.GEL,
+            ),
+            Triple(
+                DoseInstruction.Noop,
+                null,
+                MedicationApplicationType.PATCH_OFF,
+            ),
         )
-        doseInstructions.forEach { doseInstruction ->
+        doseCases.forEach { (doseInstruction, medicine, applicationType) ->
             val request = AddEntrySheetRequest(
                 quickLogRequest = AddEntryQuickLogRequest(
                     groupId = UUID.fromString("33333333-3333-3333-3333-333333333333"),
                     scheduleTimeUuid = UUID.fromString("44444444-4444-4444-4444-444444444444"),
                     scheduledFor = LocalDateTime.of(2026, 5, 11, 9, 30),
-                    medicine = testMedicine(
-                        uuid = UUID.fromString("dddddddd-0000-0000-0000-000000000001"),
-                        key = MedicationKey.ESTRADIOL,
-                    ),
-                    applicationType = MedicationApplicationType.ORAL,
+                    medicine = medicine,
+                    applicationType = applicationType,
                     doseInstruction = doseInstruction,
                     medicationCount = 1,
                 ),
@@ -295,7 +333,7 @@ class HrtTrackerNavHostTest {
                     preparation = MedicinePreparation.Pill(strengthMgPerTablet = 0.25),
                 ),
                 applicationType = MedicationApplicationType.SUBLINGUAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 medicationCount = 2,
             ),
         )

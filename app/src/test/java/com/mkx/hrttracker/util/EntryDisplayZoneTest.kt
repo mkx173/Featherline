@@ -19,7 +19,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -32,7 +32,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Not/A_Zone"
@@ -46,7 +46,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -60,7 +60,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "America/Toronto"
@@ -73,7 +73,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = LocalDateTime.of(2026, 4, 15, 9, 0)
                 .atZone(ZoneId.of("Asia/Tokyo"))
@@ -88,7 +88,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = testInstant(LocalDateTime.of(2026, 4, 15, 9, 0)),
             appliedAtTimeZoneId = "Not/A_Zone"
@@ -104,7 +104,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = instant,
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -123,7 +123,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = instant,
             appliedAtTimeZoneId = "Asia/Tokyo"
@@ -184,7 +184,7 @@ class EntryDisplayZoneTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = LocalDateTime.of(2026, 4, 15, 9, 5).atZone(tokyo).toInstant(),
             appliedAtTimeZoneId = "Asia/Tokyo",

@@ -237,13 +237,13 @@ class PlanDayOccurrenceTest {
                     uuid = olderFirstMedicationUuid,
                     medicine = testMedicine(key = MedicationKey.SPIRONOLACTONE),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
                 testMedicationGroupMedication(
                     uuid = olderSecondMedicationUuid,
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             )
         )
@@ -256,7 +256,7 @@ class PlanDayOccurrenceTest {
                     uuid = newerMedicationUuid,
                     medicine = testMedicine(key = MedicationKey.CYPROTERONE_ACETATE),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             )
         )
@@ -294,7 +294,7 @@ class PlanDayOccurrenceTest {
                     uuid = eveningEntryUuid,
                     medicine = sharedMedicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     equivalentE2Mg = 2.0,
                     sourceGroupUuid = null,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 21, 0).atZone(zoneId).toInstant(),
@@ -304,7 +304,7 @@ class PlanDayOccurrenceTest {
                     uuid = morningEntryUuid,
                     medicine = sharedMedicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     equivalentE2Mg = 2.0,
                     sourceGroupUuid = null,
                     appliedAt = LocalDateTime.of(2026, 4, 18, 8, 0).atZone(zoneId).toInstant(),
@@ -586,13 +586,13 @@ class PlanDayOccurrenceTest {
                     uuid = UUID.fromString("43f8f777-86eb-4193-94b8-cf5a3441bc3f"),
                     medicine = sharedMedicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 ),
                 testMedicationGroupMedication(
                     uuid = UUID.fromString("37d67438-f3a9-42ba-a3b8-57a005063b0f"),
                     medicine = sharedMedicine,
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -628,7 +628,7 @@ class PlanDayOccurrenceTest {
                     uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = 2
                 )
             ),
@@ -715,7 +715,7 @@ class PlanDayOccurrenceTest {
                 uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
                 medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 count = 2
             ),
             fulfillingEntryUuids = listOf(countedEntryId),
@@ -740,7 +740,7 @@ class PlanDayOccurrenceTest {
                 uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
                 medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit
+                doseInstruction = DoseInstruction.TabletFraction(1, 1)
             ),
             fulfillingEntryUuids = emptyList(),
             outsideScheduleWindowEntryUuids = listOf(outsideWindowEntryId),
@@ -763,7 +763,7 @@ class PlanDayOccurrenceTest {
                     uuid = UUID.fromString("258ae865-c7d2-44ef-8cf2-3257451f57d1"),
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

@@ -701,9 +701,9 @@ class HomeSnapshotRepositoryTest {
                     count = 1,
                     medicineUuid = medicineUuid.toString(),
                     applicationType = MedicationApplicationType.ORAL.name,
-                    doseInstructionKind = DoseInstructionKind.WHOLE_UNIT.name,
-                    tabletFractionNumerator = null,
-                    tabletFractionDenominator = null,
+                    doseInstructionKind = DoseInstructionKind.TABLET_FRACTION.name,
+                    tabletFractionNumerator = 1,
+                    tabletFractionDenominator = 1,
                     doseVolumeMl = null,
                     doseWeightGrams = null,
                 )

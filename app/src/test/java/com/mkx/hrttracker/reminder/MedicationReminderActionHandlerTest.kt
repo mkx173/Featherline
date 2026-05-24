@@ -303,7 +303,7 @@ class MedicationReminderActionHandlerTest {
                 testMedicationGroupMedication(
                     medicine = testMedicine(key = medicationKey),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     count = medicationCount,
                 )
             ),

@@ -152,7 +152,7 @@ class MedicationReminderBundlePlannerTest {
                         key = MedicationKey.ESTRADIOL,
                     ),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = true,
@@ -172,7 +172,7 @@ class MedicationReminderBundlePlannerTest {
                 key = MedicationKey.ESTRADIOL,
             ),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(appliedAt),

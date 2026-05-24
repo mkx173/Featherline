@@ -57,7 +57,7 @@ class BloodTestRepositoryTest {
             testMedicationLogEntry(
                 medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                 applicationType = MedicationApplicationType.ORAL,
-                doseInstruction = DoseInstruction.WholeUnit,
+                doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 sourceGroupUuid = null,
                 appliedAt = Instant.ofEpochMilli(1_699_999_000_000L)
             )

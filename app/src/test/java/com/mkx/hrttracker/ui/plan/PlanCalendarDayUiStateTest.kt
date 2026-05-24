@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationKey
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
 import com.mkx.hrttracker.model.medication.isEntryWithinScheduleFulfillmentWindow
 import com.mkx.hrttracker.model.medication.planCalendarDate
@@ -587,7 +588,12 @@ class PlanCalendarDayUiStateTest {
             medications = listOf(
                 MedicationGroupMedication(
                     uuid = UUID.fromString("3de7dca1-d35f-48e9-a6d0-f1ba2e7fe41a"),
-                    medicine = testMedicine(key = MedicationKey.ESTRADIOL_PATCH),
+                    medicine = testMedicine(
+                        key = MedicationKey.ESTRADIOL_PATCH,
+                        preparation = MedicinePreparation.Patch(
+                            specification = MedicinePreparation.PatchSpecification.TotalMg(valueMg = 4.0),
+                        ),
+                    ),
                     applicationType = MedicationApplicationType.PATCH_ON,
                     doseInstruction = DoseInstruction.WholeUnit,
                 )
@@ -945,7 +951,7 @@ class PlanCalendarDayUiStateTest {
         return TestMedicationDetails(
             medicine = testMedicine(uuid = uuid, key = key),
             applicationType = applicationType,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = equivalent,
         )
     }
@@ -958,7 +964,7 @@ class PlanCalendarDayUiStateTest {
                 category = MedicationCategory.CUSTOM,
             ),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             // Custom medicines have no PK ester data, so equivalent stays null
             // here regardless of the requested dose; the parameter is kept for
             // call-site symmetry with estradiolDetails.

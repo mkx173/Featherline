@@ -19,6 +19,7 @@ import com.mkx.hrttracker.model.medication.MedicationGroupScheduleTime
 import com.mkx.hrttracker.model.medication.MedicationGroupScheduleType
 import com.mkx.hrttracker.model.medication.MedicationLogEntry
 import com.mkx.hrttracker.model.medication.Medicine
+import com.mkx.hrttracker.model.medication.MedicinePreparationType
 import com.mkx.hrttracker.model.personalization.UserProfile
 import com.mkx.hrttracker.model.personalization.WeightUnit
 import java.time.DayOfWeek
@@ -77,11 +78,13 @@ internal fun MedicationGroupItemEntity.toMedicationGroupMedicationModel(
             "Missing medicine $uuid for medication group item $uuid."
         }
     }
+    val doseInstruction = toDoseInstruction()
+        .normalizeLegacyStoredDose(medicine?.preparation?.type)
     return MedicationGroupMedication(
         uuid = UUID.fromString(uuid),
         medicine = medicine,
         applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-        doseInstruction = toDoseInstruction(),
+        doseInstruction = doseInstruction,
         count = count.coerceAtLeast(1),
     )
 }
@@ -95,12 +98,14 @@ internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(
             "Missing medicine $uuid for medication log ${this.uuid}."
         }
     }
+    val doseInstruction = toDoseInstruction()
+        .normalizeLegacyStoredDose(medicine?.preparation?.type)
     return MedicationLogEntry(
         uuid = UUID.fromString(uuid),
         medicine = medicine,
         category = MedicationCategory.fromStorageValue(category),
         applicationType = MedicationApplicationType.fromStorageValue(applicationType),
-        doseInstruction = toDoseInstruction(),
+        doseInstruction = doseInstruction,
         equivalentE2Mg = equivalentE2Mg,
         sourceGroupUuid = sourceGroupUuid?.let(UUID::fromString),
         scheduleTimeUuid = scheduleTimeUuid?.let(UUID::fromString),
@@ -109,6 +114,19 @@ internal fun MedicationLogEntryEntity.toMedicationLogEntryModel(
         scheduledFor = scheduledForIso?.let(LocalDateTime::parse),
         count = count.coerceAtLeast(1),
     )
+}
+
+private fun DoseInstruction.normalizeLegacyStoredDose(
+    preparationType: MedicinePreparationType?,
+): DoseInstruction {
+    return if (
+        preparationType == MedicinePreparationType.PILL &&
+        this == DoseInstruction.WholeUnit
+    ) {
+        DoseInstruction.TabletFraction(numerator = 1, denominator = 1)
+    } else {
+        this
+    }
 }
 
 /**

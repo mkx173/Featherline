@@ -370,7 +370,7 @@ class PlanViewModelTest {
                     uuid = UUID.fromString("3f7a3c0b-c104-45cf-a0c1-ea95fd9871a8"),
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),

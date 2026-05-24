@@ -128,7 +128,7 @@ class PlanUpcomingOccurrencesTest {
                         key = MedicationKey.ESTRADIOL,
                     ),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = Instant.parse("2026-04-01T00:00:00Z"),
@@ -147,7 +147,7 @@ class PlanUpcomingOccurrencesTest {
                 key = MedicationKey.ESTRADIOL,
             ),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             equivalentE2Mg = 2.0,
             sourceGroupUuid = groupUuid,
             appliedAt = testInstant(scheduledFor),

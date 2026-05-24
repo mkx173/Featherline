@@ -373,7 +373,7 @@ class MedicationReminderSchedulerTest {
                     uuid = UUID.fromString("aa111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             notificationsEnabled = notificationsEnabled,

@@ -79,7 +79,7 @@ class HistoryViewModelTest {
                 testMedicationLogEntry(
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     sourceGroupUuid = null,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -123,7 +123,7 @@ class HistoryViewModelTest {
                 testMedicationLogEntry(
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                     sourceGroupUuid = null,
                     appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
                 )
@@ -160,7 +160,7 @@ class HistoryViewModelTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -204,7 +204,7 @@ class HistoryViewModelTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -243,7 +243,7 @@ class HistoryViewModelTest {
         val entry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -351,7 +351,7 @@ class HistoryViewModelTest {
         val visibleEntry = testMedicationLogEntry(
             medicine = testMedicine(key = MedicationKey.ESTRADIOL),
             applicationType = MedicationApplicationType.ORAL,
-            doseInstruction = DoseInstruction.WholeUnit,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
             sourceGroupUuid = null,
             appliedAt = Instant.parse("2026-04-26T00:00:00Z"),
         )
@@ -568,7 +568,7 @@ class HistoryViewModelTest {
                 testMedicationGroupMedication(
                     medicine = testMedicine(key = MedicationKey.ESTRADIOL),
                     applicationType = MedicationApplicationType.ORAL,
-                    doseInstruction = DoseInstruction.WholeUnit,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
                 )
             ),
             createdAt = testInstant(since.atStartOfDay()),
