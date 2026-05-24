@@ -20,7 +20,6 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicinePreparationType
-import com.mkx.hrttracker.ui.components.MedicalDisclaimerSets
 import com.mkx.hrttracker.ui.medication.DoseInstructionDraftUiState
 import com.mkx.hrttracker.ui.medication.MedicationEditorContent
 import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
@@ -116,7 +115,10 @@ fun MedicineSlotDraftSheet(
         onCloseClick = onCloseClick,
         fillAvailableHeight = false,
         isSaving = isSaving,
-        disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
+        // Identity is locked here and the dose-instruction form exposes no
+        // preset chips, so the medication-editor disclaimer about preset
+        // values being illustrative has nothing to caveat in this sheet.
+        disclaimerKinds = emptyList(),
         onConfirm = {
             val preparationType = medicine.preparation.type
             val error = medicineDraft.selectedMedicineValidationErrorRes()
