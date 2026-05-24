@@ -874,7 +874,7 @@ internal fun MedicationLogEntryLinkedMedicationSummary(
         Spacer(modifier = Modifier.height(dimensionResource(R.dimen.list_segment_gap)))
     }
 
-    com.mkx.hrttracker.ui.components.MedicationCard(
+    MedicationCard(
         medicine = lockedMedicine,
         doseInstruction = doseInstruction
             ?: com.mkx.hrttracker.model.medication.DoseInstruction.Noop,

@@ -3095,14 +3095,6 @@ private fun MainTodayDoseRow(
             count = itemCount,
             onClick = onStatusClick,
             modifier = modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
-            trailingContent = {
-                MainTodayTrailingContent(
-                    row = row,
-                    now = now,
-                    timeFormatter = timeFormatter,
-                    onStatusClick = onStatusClick
-                )
-            }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -3144,11 +3136,16 @@ private fun MainTodayDoseRow(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
+
+                MainTodayTrailingContent(
+                    row = row,
+                    now = now,
+                    timeFormatter = timeFormatter,
+                    onStatusClick = onStatusClick
+                )
             }
         }
         if (flashAlpha > 0f) {

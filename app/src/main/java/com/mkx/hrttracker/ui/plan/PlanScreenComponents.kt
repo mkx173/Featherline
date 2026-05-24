@@ -355,8 +355,6 @@ private fun SelectedDayRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f).alignByBaseline().cjkTextOffset(supportingText),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

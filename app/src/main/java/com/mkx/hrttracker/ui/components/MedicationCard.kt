@@ -184,8 +184,7 @@ internal fun MedicationCard(
         count = itemCount,
         modifier = modifier,
         enabled = enabled,
-        containerColor = containerColor,
-        trailingContent = resolvedTrailingContent
+        containerColor = containerColor
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -241,9 +240,11 @@ internal fun MedicationCard(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.cjkTextOffset(supportingText),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
+            }
+            resolvedTrailingContent?.let {
+                Spacer(modifier = Modifier.width(12.dp))
+                it.invoke()
             }
         }
     }
