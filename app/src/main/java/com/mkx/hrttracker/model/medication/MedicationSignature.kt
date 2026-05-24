@@ -65,5 +65,39 @@ data class MedicationSignature(
                 doseWeightGrams = (doseInstruction as? DoseInstruction.WeightGrams)?.valueGrams,
             )
         }
+
+        // Pipe-delimited 7-field encoding used to ship signatures across
+        // process boundaries (PendingIntent extras). Empty fields stand in
+        // for null. Pipe is safe: enum names, UUIDs, doubles, and integers
+        // never produce one.
+        internal fun fromStorageValue(value: String): MedicationSignature? {
+            val parts = value.split("|", limit = 7)
+            if (parts.size != 7) {
+                return null
+            }
+            return runCatching {
+                MedicationSignature(
+                    medicineUuid = parts[0].takeIf(String::isNotEmpty),
+                    applicationType = parts[1],
+                    doseInstructionKind = parts[2].takeIf(String::isNotEmpty),
+                    tabletFractionNumerator = parts[3].takeIf(String::isNotEmpty)?.toInt(),
+                    tabletFractionDenominator = parts[4].takeIf(String::isNotEmpty)?.toInt(),
+                    doseVolumeMl = parts[5].takeIf(String::isNotEmpty)?.toDouble(),
+                    doseWeightGrams = parts[6].takeIf(String::isNotEmpty)?.toDouble(),
+                )
+            }.getOrNull()
+        }
     }
+}
+
+internal fun MedicationSignature.toStorageValue(): String {
+    return listOf(
+        medicineUuid.orEmpty(),
+        applicationType,
+        doseInstructionKind.orEmpty(),
+        tabletFractionNumerator?.toString().orEmpty(),
+        tabletFractionDenominator?.toString().orEmpty(),
+        doseVolumeMl?.toString().orEmpty(),
+        doseWeightGrams?.toString().orEmpty(),
+    ).joinToString(separator = "|")
 }

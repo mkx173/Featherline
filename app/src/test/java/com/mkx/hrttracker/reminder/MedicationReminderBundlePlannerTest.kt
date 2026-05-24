@@ -129,6 +129,67 @@ class MedicationReminderBundlePlannerTest {
         )
     }
 
+    @Test
+    fun buildMedicationReminderBundle_drops_already_logged_medication_from_displayed_list() {
+        val scheduledAt = LocalDateTime.of(2026, 4, 20, 9, 0)
+        val spiroUuid = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val group = MedicationGroup(
+            uuid = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            name = "Morning",
+            schedule = MedicationGroupSchedule(
+                type = MedicationGroupScheduleType.DAILY,
+                interval = 1,
+                since = LocalDate.of(2026, 4, 1),
+                weeklyDaysOfWeek = emptySet(),
+                times = listOf(LocalTime.of(9, 0)),
+            ),
+            medications = listOf(
+                testMedicationGroupMedication(
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL,
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+                testMedicationGroupMedication(
+                    medicine = testMedicine(
+                        uuid = spiroUuid,
+                        key = MedicationKey.SPIRONOLACTONE,
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                ),
+            ),
+            notificationsEnabled = true,
+            createdAt = Instant.parse("2026-04-01T00:00:00Z"),
+            updatedAt = Instant.parse("2026-04-01T00:00:00Z"),
+        )
+
+        val bundle = buildMedicationReminderBundle(
+            scheduledAt = scheduledAt,
+            groups = listOf(group),
+            entries = listOf(
+                testMedicationLogEntry(
+                    medicine = testMedicine(
+                        uuid = estradiolMedicineUuid,
+                        key = MedicationKey.ESTRADIOL,
+                    ),
+                    applicationType = MedicationApplicationType.ORAL,
+                    doseInstruction = DoseInstruction.TabletFraction(1, 1),
+                    equivalentE2Mg = 2.0,
+                    sourceGroupUuid = group.uuid,
+                    appliedAt = testInstant(scheduledAt.minusMinutes(10)),
+                    scheduledFor = scheduledAt,
+                ),
+            ),
+        )
+
+        val medications = bundle?.items?.single()?.medications.orEmpty()
+        assertEquals(1, medications.size)
+        assertEquals(spiroUuid, medications.single().medicineUuid)
+    }
+
     private fun medicationGroup(
         uuid: UUID,
         name: String,

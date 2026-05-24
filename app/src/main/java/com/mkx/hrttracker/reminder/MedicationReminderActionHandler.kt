@@ -11,6 +11,7 @@ import com.mkx.hrttracker.model.medication.isActive
 import com.mkx.hrttracker.model.medication.MedicationGroupSlotKey
 import com.mkx.hrttracker.model.medication.isEntryFulfillingPlanSlot
 import com.mkx.hrttracker.model.medication.isSlotFulfilled
+import com.mkx.hrttracker.model.medication.isSlotFulfilledForMedication
 import com.mkx.hrttracker.util.AppDiagnosticsLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -30,6 +31,7 @@ class MedicationReminderActionHandler @Inject constructor(
 ) {
     suspend fun logNow(
         slots: List<MedicationReminderSlot>,
+        logTargets: List<MedicationReminderLogTarget>?,
         notificationTag: String?,
         now: LocalDateTime = LocalDateTime.now(),
     ) {
@@ -37,7 +39,8 @@ class MedicationReminderActionHandler @Inject constructor(
         diagnosticsLogger.info(
             TAG,
             "reminder_action_log_now_start slots=${normalizedSlots.size} " +
-                "rawSlots=${slots.size} notificationTag=${notificationTag.orEmpty()} now=$now"
+                "rawSlots=${slots.size} logTargets=${logTargets?.size ?: -1} " +
+                "notificationTag=${notificationTag.orEmpty()} now=$now"
         )
         if (normalizedSlots.isEmpty()) {
             diagnosticsLogger.info(TAG, "reminder_action_log_now_skipped reason=empty_slots")
@@ -49,13 +52,30 @@ class MedicationReminderActionHandler @Inject constructor(
             normalizedSlots.minOf(MedicationReminderSlot::scheduledAt)
         )
         val groupsByUuid = loadRepresentedGroups(normalizedSlots)
+        // null logTargets = legacy pending intent posted before the shipping
+        // format existed; preserve the previous "log everything missing"
+        // behaviour for that case so the action still does something useful.
+        val restrictionBySlot: Map<MedicationReminderSlot, Set<MedicationSignature>>? =
+            logTargets?.groupBy(MedicationReminderLogTarget::slot)
+                ?.mapValues { (_, targets) ->
+                    targets.mapTo(mutableSetOf(), MedicationReminderLogTarget::signature)
+                }
         val entriesToSave = normalizedSlots.flatMap { slot ->
             val group = groupsByUuid[slot.groupUuid] ?: return@flatMap emptyList()
+            // With current-format extras present, a slot missing from the map
+            // means every target for it failed to parse — restrict to nothing
+            // so we don't silently write the legacy "everything missing" set.
+            val restriction = if (restrictionBySlot != null) {
+                restrictionBySlot[slot] ?: emptySet()
+            } else {
+                null
+            }
             buildMissingReminderLogEntries(
                 group = group,
                 slot = slot,
                 entries = entries,
                 appliedAt = now,
+                restrictToSignatures = restriction,
             )
         }
 
@@ -174,30 +194,50 @@ class MedicationReminderActionHandler @Inject constructor(
             return
         }
 
-        val unfulfilledSlots = currentlyUnfulfilledSlots(normalizedSlots)
-        if (unfulfilledSlots.isEmpty()) {
-            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots")
+        val groupsByUuid = loadRepresentedGroups(normalizedSlots)
+        if (groupsByUuid.isEmpty()) {
+            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_groups")
             notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
 
-        val groupsByUuid = loadRepresentedGroups(unfulfilledSlots)
-        val bundleItems = unfulfilledSlots
+        val entries = medicationLogRepository.getScheduledGroupEntriesSince(
+            normalizedSlots.minOf(MedicationReminderSlot::scheduledAt)
+        )
+        val bundleItems = normalizedSlots
             .mapNotNull { slot ->
-                groupsByUuid[slot.groupUuid]?.let { group -> group to slot }
+                val group = groupsByUuid[slot.groupUuid] ?: return@mapNotNull null
+                val planSlot = slot.toMedicationGroupSlotKey()
+                if (isSlotFulfilled(group, planSlot, entries)) {
+                    return@mapNotNull null
+                }
+                val displayedMedications = group.medications.filterNot { medication ->
+                    isSlotFulfilledForMedication(
+                        group = group,
+                        slot = planSlot,
+                        medication = medication,
+                        entries = entries,
+                    )
+                }
+                if (displayedMedications.isEmpty()) {
+                    return@mapNotNull null
+                }
+                Triple(group, slot, displayedMedications)
             }
-            .sortedBy { (group, _) -> group.createdAt }
-            .map { (group, slot) ->
+            .sortedBy { (group, _, _) -> group.createdAt }
+            .map { (group, slot, medications) ->
                 MedicationReminderBundleItem(
                     slot = slot,
                     groupName = group.name,
-                    medications = group.medications,
+                    medications = medications,
                 )
             }
         if (bundleItems.isEmpty()) {
-            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_bundle_items")
+            diagnosticsLogger.info(TAG, "reminder_action_show_snoozed_skipped reason=no_unfulfilled_slots")
+            notificationTag?.let(reminderNotificationManager::cancelDoseReminderNotification)
             return
         }
+        val unfulfilledSlots = bundleItems.map(MedicationReminderBundleItem::slot)
 
         val recordsBySlot = medicationReminderSnoozeScheduler.getSnoozeRecords()
             .associateBy(MedicationReminderSnoozeRecord::slot)
@@ -271,11 +311,12 @@ internal fun buildMissingReminderLogEntries(
     entries: List<MedicationLogEntry>,
     appliedAt: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    restrictToSignatures: Set<MedicationSignature>? = null,
 ): List<MedicationLogEntryInput> {
     if (!group.isActive() || !group.notificationsEnabled || group.medications.isEmpty()) {
         return emptyList()
     }
-    return buildMissingScheduledLogEntries(group, slot, entries, appliedAt, zoneId)
+    return buildMissingScheduledLogEntries(group, slot, entries, appliedAt, zoneId, restrictToSignatures)
 }
 
 internal fun buildMissingScheduledLogEntries(
@@ -284,8 +325,23 @@ internal fun buildMissingScheduledLogEntries(
     entries: List<MedicationLogEntry>,
     appliedAt: LocalDateTime,
     zoneId: ZoneId = ZoneId.systemDefault(),
+    restrictToSignatures: Set<MedicationSignature>? = null,
 ): List<MedicationLogEntryInput> {
     if (!group.isActive() || group.medications.isEmpty()) {
+        return emptyList()
+    }
+
+    // When the caller pins the writable set (notification "Log all" with
+    // shipped signatures), trim to medications the user actually saw. Null =
+    // no restriction → log everything missing.
+    val candidateMedications = if (restrictToSignatures == null) {
+        group.medications
+    } else {
+        group.medications.filter { medication ->
+            MedicationSignature.fromGroupMedication(medication) in restrictToSignatures
+        }
+    }
+    if (candidateMedications.isEmpty()) {
         return emptyList()
     }
 
@@ -298,14 +354,14 @@ internal fun buildMissingScheduledLogEntries(
             zoneId = zoneId,
         )
     }
-    val requiredCounts = group.medications
+    val requiredCounts = candidateMedications
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapValues { (_, medications) -> medications.sumOf { medication -> medication.count } }
     val loggedCounts = slotLogs
         .groupBy(MedicationSignature::fromLogEntry)
         .mapValues { (_, logs) -> logs.sumOf(MedicationLogEntry::count) }
 
-    return group.medications
+    return candidateMedications
         .groupBy(MedicationSignature::fromGroupMedication)
         .mapNotNull { (signature, medications) ->
             val missingCount = requiredCounts.getValue(signature) -

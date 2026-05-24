@@ -244,6 +244,15 @@ class ReminderNotificationManager @Inject constructor(
                 EXTRA_REMINDER_SLOTS,
                 ArrayList(bundle.slots.map(MedicationReminderSlot::toStorageValue)),
             )
+            // Log-now uses targets to restrict writes to medications shown in
+            // the notification body. Snooze / remind-later operate at slot
+            // level, so targets would just be dead weight.
+            if (action == ACTION_MEDICATION_REMINDER_LOG_NOW) {
+                putStringArrayListExtra(
+                    EXTRA_REMINDER_LOG_TARGETS,
+                    ArrayList(bundle.logTargets.map(MedicationReminderLogTarget::toStorageValue)),
+                )
+            }
             putExtra(EXTRA_NOTIFICATION_TAG, notificationTag)
         }
 

@@ -41,11 +41,30 @@ class MedicationReminderActionReceiver : BroadcastReceiver() {
             "reminder_action_receiver_received action=${intent.action} " +
                 "slots=${slots.size} notificationTag=${notificationTag.orEmpty()}"
         )
+        // Log targets are only shipped for log-now; absent extras come from a
+        // pre-upgrade notification posted before the shipping format existed.
+        // Fall back to null so the handler can take the legacy "log everything
+        // missing" path. When extras are present, count parse failures so a
+        // silent encoding bug doesn't masquerade as an empty restriction.
+        val logTargets = intent.getStringArrayListExtra(EXTRA_REMINDER_LOG_TARGETS)
+            ?.let { rawTargets ->
+                val parsed = rawTargets.mapNotNull(::medicationReminderLogTargetFromStorageValue)
+                val dropped = rawTargets.size - parsed.size
+                if (dropped > 0) {
+                    diagnosticsLogger.warning(
+                        TAG,
+                        "reminder_action_receiver_log_targets_drop dropped=$dropped " +
+                            "raw=${rawTargets.size} action=${intent.action}"
+                    )
+                }
+                parsed
+            }
         appScope.launch {
             runCatching {
                 when (intent.action) {
                     ACTION_MEDICATION_REMINDER_LOG_NOW -> actionHandler.logNow(
                         slots = slots,
+                        logTargets = logTargets,
                         notificationTag = notificationTag,
                     )
 
@@ -88,4 +107,5 @@ const val ACTION_MEDICATION_REMINDER_REMIND_LATER =
 const val ACTION_MEDICATION_REMINDER_SNOOZE_ALARM =
     "com.mkx.hrttracker.action.MEDICATION_REMINDER_SNOOZE_ALARM"
 const val EXTRA_REMINDER_SLOTS = "reminderSlots"
+const val EXTRA_REMINDER_LOG_TARGETS = "reminderLogTargets"
 const val EXTRA_NOTIFICATION_TAG = "notificationTag"
