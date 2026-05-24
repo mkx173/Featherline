@@ -243,9 +243,12 @@ internal fun MedicinesScreen(
                     }
                 }
             },
-            onGroupSlotResolved = { slotResult ->
+            onGroupSlotResolved = { slotResult, consumeSavedState ->
+                allowManualSlotCompletionHideState.value = true
                 hideBottomSheet(scope, newMedicineSlotSheetState) {
                     showNewMedicineSlotSheet = false
+                    allowManualSlotCompletionHideState.value = false
+                    consumeSavedState()
                     onSlotResolved(slotResult)
                 }
             },

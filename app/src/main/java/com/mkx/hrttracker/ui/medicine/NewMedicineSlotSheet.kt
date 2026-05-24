@@ -34,7 +34,7 @@ fun NewMedicineSlotSheet(
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
     onCloseClick: () -> Unit,
-    onGroupSlotResolved: (MedicineSlotResult) -> Unit,
+    onGroupSlotResolved: (MedicineSlotResult, () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
     mode: NewMedicineSlotSheetMode = NewMedicineSlotSheetMode.GROUP_SLOT,
     onManualLogSaved: (() -> Unit) -> Unit = { consumeSavedState -> consumeSavedState() },
@@ -54,8 +54,7 @@ fun NewMedicineSlotSheet(
     LaunchedEffect(isManualLogMode, uiState.slotResult) {
         if (!isManualLogMode) {
             uiState.slotResult?.let { slotResult ->
-                onGroupSlotResolved(slotResult)
-                viewModel.consumeSavedState()
+                onGroupSlotResolved(slotResult, viewModel::consumeSavedState)
             }
         }
     }
