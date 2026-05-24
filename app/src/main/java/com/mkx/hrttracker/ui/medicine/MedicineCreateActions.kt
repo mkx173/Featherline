@@ -10,6 +10,7 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.toNewMedicineRequest
 import com.mkx.hrttracker.ui.medication.validationErrorRes
+import kotlinx.coroutines.CancellationException
 
 internal sealed interface MedicineCreateResult {
     data class Success(val medicine: Medicine) : MedicineCreateResult
@@ -51,6 +52,9 @@ internal suspend fun createMedicineFromDraft(
     }.fold(
         onSuccess = { medicine -> MedicineCreateResult.Success(medicine) },
         onFailure = { error ->
+            if (error is CancellationException) {
+                throw error
+            }
             MedicineCreateResult.SaveFailure(
                 when (error) {
                     is MedicineIdentityCollisionException ->

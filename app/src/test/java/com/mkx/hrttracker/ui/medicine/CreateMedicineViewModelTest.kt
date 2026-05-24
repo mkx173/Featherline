@@ -15,8 +15,10 @@ import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -24,6 +26,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -317,6 +320,32 @@ class CreateMedicineViewModelTest {
 
         assertNull(createdUuid)
         assertEquals(CreateMedicineSaveResult.FAILURE_OTHER, viewModel.uiState.value.saveResult)
+    }
+
+    @Test
+    fun create_whenReturnedJobIsCancelledDuringRepositoryCreateClearsSavingState() = runTest {
+        val createStarted = CompletableDeferred<Unit>()
+        val neverCompletes = CompletableDeferred<com.mkx.hrttracker.model.medication.Medicine>()
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(any(), any(), any())
+        } coAnswers {
+            createStarted.complete(Unit)
+            neverCompletes.await()
+        }
+        val viewModel = CreateMedicineViewModel(medicineRepository)
+        viewModel.updateDraft { it.copy(pillStrengthMg = "2") }
+        var createdUuid: UUID? = null
+
+        val job = checkNotNull(viewModel.create { createdUuid = it })
+        advanceUntilIdle()
+        createStarted.await()
+        job.cancelAndJoin()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertNull(createdUuid)
+        assertNull(viewModel.uiState.value.saveResult)
+        assertNull(viewModel.uiState.value.errorMessageRes)
     }
 
     // The sheet host shares a single VM across opens; reset must wipe both the

@@ -11,9 +11,11 @@ import com.mkx.hrttracker.model.medication.testMedicine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.fail
 import org.junit.Test
 import java.util.UUID
 
@@ -90,5 +92,25 @@ class MedicineCreateActionsTest {
             CreateMedicineSaveResult.FAILURE_IDENTITY_COLLISION,
             (result as MedicineCreateResult.SaveFailure).saveResult,
         )
+    }
+
+    @Test
+    fun createMedicineFromDraft_repositoryCancellationIsRethrown() = runTest {
+        val cancellation = CancellationException("cancelled")
+        coEvery {
+            medicineRepository.findOrCreateForCatalog(any(), any(), any())
+        } throws cancellation
+
+        try {
+            createMedicineFromDraft(
+                medicineRepository = medicineRepository,
+                draft = com.mkx.hrttracker.ui.medication.defaultMedicineDraft().copy(
+                    pillStrengthMg = "2",
+                ),
+            )
+            fail("Expected CancellationException")
+        } catch (exception: CancellationException) {
+            assertSame(cancellation, exception)
+        }
     }
 }

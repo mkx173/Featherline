@@ -7,6 +7,7 @@ import com.mkx.hrttracker.data.repository.MedicineRepository
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.defaultMedicineDraft
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,11 +24,13 @@ class CreateMedicineViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(CreateMedicineUiState())
     val uiState: StateFlow<CreateMedicineUiState> = _uiState.asStateFlow()
+    private var createGeneration = 0
 
     // Sheet hosts share a single VM instance and can reopen the sheet multiple
     // times in one composition; reset clears the previous attempt so the next
     // open starts from a clean draft.
     fun reset() {
+        createGeneration += 1
         _uiState.value = CreateMedicineUiState()
     }
 
@@ -59,47 +62,79 @@ class CreateMedicineViewModel @Inject constructor(
             }
             return null
         }
+        val operationGeneration = nextCreateGeneration()
 
         _uiState.update {
             it.copy(isSaving = true, errorMessageRes = null, saveResult = null)
         }
         return viewModelScope.launch {
-            when (
-                val result = createMedicineFromDraft(
-                    medicineRepository = medicineRepository,
-                    draft = draft,
-                )
-            ) {
-                is MedicineCreateResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            errorMessageRes = null,
-                            saveResult = CreateMedicineSaveResult.SUCCESS,
-                        )
+            try {
+                when (
+                    val result = createMedicineFromDraft(
+                        medicineRepository = medicineRepository,
+                        draft = draft,
+                    )
+                ) {
+                    is MedicineCreateResult.Success -> {
+                        if (isCurrentCreate(operationGeneration)) {
+                            _uiState.update {
+                                it.copy(
+                                    isSaving = false,
+                                    errorMessageRes = null,
+                                    saveResult = CreateMedicineSaveResult.SUCCESS,
+                                )
+                            }
+                            onCreated(result.medicine.uuid)
+                        }
                     }
-                    onCreated(result.medicine.uuid)
-                }
 
-                is MedicineCreateResult.ValidationError -> {
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            errorMessageRes = result.messageRes,
-                            saveResult = null,
-                        )
+                    is MedicineCreateResult.ValidationError -> {
+                        updateIfCurrent(operationGeneration) {
+                            it.copy(
+                                isSaving = false,
+                                errorMessageRes = result.messageRes,
+                                saveResult = null,
+                            )
+                        }
                     }
-                }
 
-                is MedicineCreateResult.SaveFailure -> {
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            saveResult = result.saveResult,
-                        )
+                    is MedicineCreateResult.SaveFailure -> {
+                        updateIfCurrent(operationGeneration) {
+                            it.copy(
+                                isSaving = false,
+                                saveResult = result.saveResult,
+                            )
+                        }
                     }
                 }
+            } catch (exception: CancellationException) {
+                clearSavingIfCurrent(operationGeneration)
+                throw exception
             }
+        }
+    }
+
+    private fun nextCreateGeneration(): Int {
+        createGeneration += 1
+        return createGeneration
+    }
+
+    private fun isCurrentCreate(operationGeneration: Int): Boolean {
+        return operationGeneration == createGeneration
+    }
+
+    private fun updateIfCurrent(
+        operationGeneration: Int,
+        transform: (CreateMedicineUiState) -> CreateMedicineUiState,
+    ) {
+        if (isCurrentCreate(operationGeneration)) {
+            _uiState.update(transform)
+        }
+    }
+
+    private fun clearSavingIfCurrent(operationGeneration: Int) {
+        updateIfCurrent(operationGeneration) {
+            it.copy(isSaving = false)
         }
     }
 }

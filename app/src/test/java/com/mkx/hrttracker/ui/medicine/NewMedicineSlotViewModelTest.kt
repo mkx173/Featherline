@@ -270,6 +270,56 @@ class NewMedicineSlotViewModelTest {
     }
 
     @Test
+    fun saveGroupSlot_whenReturnedJobIsCancelledDuringMedicineCreateClearsSavingState() = runTest {
+        val createStarted = CompletableDeferred<Unit>()
+        val neverCompletes = CompletableDeferred<com.mkx.hrttracker.model.medication.Medicine>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            createStarted.complete(Unit)
+            neverCompletes.await()
+        }
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        val job = checkNotNull(viewModel.saveGroupSlot())
+        advanceUntilIdle()
+        createStarted.await()
+        job.cancelAndJoin()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.slotResult)
+        assertNull(viewModel.uiState.value.createSaveResult)
+    }
+
+    @Test
+    fun saveManualLog_whenReturnedJobIsCancelledDuringMedicineCreateClearsSavingState() = runTest {
+        val createStarted = CompletableDeferred<Unit>()
+        val neverCompletes = CompletableDeferred<com.mkx.hrttracker.model.medication.Medicine>()
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } coAnswers {
+            createStarted.complete(Unit)
+            neverCompletes.await()
+        }
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        val job = checkNotNull(viewModel.saveManualLog())
+        advanceUntilIdle()
+        createStarted.await()
+        job.cancelAndJoin()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.slotResult)
+        assertNull(viewModel.uiState.value.createSaveResult)
+        assertNull(viewModel.uiState.value.manualLogSaveResult)
+        coVerify(exactly = 0) {
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Test
     fun saveGroupSlot_whenSaveAlreadyInFlightDoesNotStartSecondRepositoryCall() = runTest {
         val medicine = testMedicine(
             uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000306"),
