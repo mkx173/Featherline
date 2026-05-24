@@ -71,4 +71,26 @@ class MedicineSlotDraftSheetTest {
             )
         )
     }
+
+    @Test
+    fun canHideNewMedicineSlotSheet_allowsUserHideWhileUnlocked() {
+        assertTrue(
+            canHideNewMedicineSlotSheet(
+                value = SheetValue.Hidden,
+                isManualLogLocked = false,
+                allowCompletionHide = false,
+            )
+        )
+    }
+
+    @Test
+    fun canHideNewMedicineSlotSheet_allowsNonHiddenTransitionsWhileLocked() {
+        assertTrue(
+            canHideNewMedicineSlotSheet(
+                value = SheetValue.Expanded,
+                isManualLogLocked = true,
+                allowCompletionHide = false,
+            )
+        )
+    }
 }

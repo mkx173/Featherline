@@ -43,6 +43,7 @@ fun NewMedicineSlotSheet(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isManualLogMode = mode == NewMedicineSlotSheetMode.MANUAL_LOG
+    val isSheetLocked = uiState.isSaving || uiState.isSaved
     val appLocale = rememberAppLocale()
     val today = remember { LocalDate.now() }
     val dateFormatter = remember(appLocale, today) {
@@ -50,10 +51,12 @@ fun NewMedicineSlotSheet(
     }
     val timeFormatter = rememberLocalizedShortTimeFormatter(appLocale)
 
-    LaunchedEffect(uiState.slotResult) {
-        uiState.slotResult?.let { slotResult ->
-            onGroupSlotResolved(slotResult)
-            viewModel.consumeSavedState()
+    LaunchedEffect(isManualLogMode, uiState.slotResult) {
+        if (!isManualLogMode) {
+            uiState.slotResult?.let { slotResult ->
+                onGroupSlotResolved(slotResult)
+                viewModel.consumeSavedState()
+            }
         }
     }
 
@@ -81,7 +84,7 @@ fun NewMedicineSlotSheet(
         onDismissRequest = onDismissRequest,
         onCloseClick = onCloseClick,
         fillAvailableHeight = true,
-        isSaving = uiState.isSaving,
+        isSaving = isSheetLocked,
         disclaimerKinds = MedicalDisclaimerSets.medicationEditor,
         onConfirm = {
             when (mode) {
@@ -95,7 +98,7 @@ fun NewMedicineSlotSheet(
             medicineDraft = uiState.medicineDraft,
             onMedicineDraftChange = viewModel::updateMedicineDraft,
             errorMessageRes = uiState.errorMessageRes,
-            readOnly = uiState.isSaving,
+            readOnly = isSheetLocked,
         )
 
         if (
@@ -107,7 +110,7 @@ fun NewMedicineSlotSheet(
                 doseInstructionDraft = uiState.doseInstructionDraft,
                 onDoseInstructionDraftChange = viewModel::updateDoseInstructionDraft,
                 errorMessageRes = uiState.errorMessageRes,
-                enabled = !uiState.isSaving,
+                enabled = !isSheetLocked,
             )
         }
 
@@ -134,7 +137,7 @@ fun NewMedicineSlotSheet(
                         ).toString(),
                     )
                 },
-                enabled = !uiState.isSaving,
+                enabled = !isSheetLocked,
                 errorMessageRes = uiState.errorMessageRes
                     ?.takeIf { it == R.string.validation_count_required },
             )
@@ -150,6 +153,7 @@ fun NewMedicineSlotSheet(
                 appliedZoneId = uiState.appliedZoneId,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
+                enabled = !isSheetLocked,
             )
         }
     }

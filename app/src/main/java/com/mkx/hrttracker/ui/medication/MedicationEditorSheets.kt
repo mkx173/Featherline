@@ -54,6 +54,7 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -676,6 +677,7 @@ internal fun DoseInstructionForm(
                 },
                 layout = ConnectedButtonGroupLayout.ROW,
                 expandOptions = true,
+                enabled = enabled,
             )
         }
 
@@ -693,6 +695,7 @@ internal fun DoseInstructionForm(
             isError = errorMessageRes == R.string.validation_dose_volume_required,
             errorMessageRes = R.string.validation_dose_volume_required
                 .takeIf { errorMessageRes == it },
+            enabled = enabled,
             onValueChange = { value ->
                 onDoseInstructionDraftChange { it.copy(volumeMl = value) }
             },
@@ -707,6 +710,7 @@ internal fun DoseInstructionForm(
                 isError = errorMessageRes == R.string.validation_dose_weight_required,
                 errorMessageRes = R.string.validation_dose_weight_required
                     .takeIf { errorMessageRes == it },
+                enabled = enabled,
                 onValueChange = { value ->
                     onDoseInstructionDraftChange { it.copy(weightGrams = value) }
                 },
@@ -835,12 +839,21 @@ internal fun MedicationLogAppliedAtFields(
     appliedZoneId: ZoneId = ZoneId.systemDefault(),
     onAppliedDateChange: (LocalDate) -> Unit,
     onAppliedTimeChange: (LocalTime) -> Unit,
+    enabled: Boolean = true,
 ) {
     val uses24HourFormat = rememberUses24HourTimeFormat()
     val focusManager = LocalFocusManager.current
     var showDatePickerModal by remember { mutableStateOf(false) }
+    var showTimePickerModal by remember { mutableStateOf(false) }
 
-    if (showDatePickerModal) {
+    LaunchedEffect(enabled) {
+        if (!enabled) {
+            showDatePickerModal = false
+            showTimePickerModal = false
+        }
+    }
+
+    if (showDatePickerModal && enabled) {
         DatePickerModal(
             onDateSelected = onAppliedDateChange,
             onDismiss = {
@@ -858,11 +871,11 @@ internal fun MedicationLogAppliedAtFields(
         label = { Text(stringResource(R.string.field_date_of_application)) },
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(appliedDate) {
+            .pointerInput(appliedDate, enabled) {
                 awaitEachGesture {
                     awaitFirstDown(pass = PointerEventPass.Initial)
                     val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                    if (upEvent != null) {
+                    if (upEvent != null && enabled) {
                         showDatePickerModal = true
                     }
                 }
@@ -873,14 +886,13 @@ internal fun MedicationLogAppliedAtFields(
                 contentDescription = stringResource(R.string.select_date),
             )
         },
+        enabled = enabled,
         singleLine = true,
     )
 
     Spacer(modifier = Modifier.height(dimensionResource(R.dimen.padding_small)))
 
-    var showTimePickerModal by remember { mutableStateOf(false) }
-
-    if (showTimePickerModal) {
+    if (showTimePickerModal && enabled) {
         TimePickerModal(
             onTimeSelected = { selectedTime ->
                 onAppliedTimeChange(selectedTime)
@@ -902,11 +914,11 @@ internal fun MedicationLogAppliedAtFields(
         label = { Text(stringResource(R.string.field_time_of_application)) },
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(appliedTime) {
+            .pointerInput(appliedTime, enabled) {
                 awaitEachGesture {
                     awaitFirstDown(pass = PointerEventPass.Initial)
                     val upEvent = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                    if (upEvent != null) {
+                    if (upEvent != null && enabled) {
                         showTimePickerModal = true
                     }
                 }
@@ -917,6 +929,7 @@ internal fun MedicationLogAppliedAtFields(
                 contentDescription = stringResource(R.string.select_time),
             )
         },
+        enabled = enabled,
         singleLine = true,
     )
 
@@ -1196,14 +1209,17 @@ internal fun MedicationCountTextField(
             ) {
                 IconButton(
                     onClick = { if (enabled) onDecreaseClick() },
-                    enabled = stepBaseCount > 1,
+                    enabled = enabled && stepBaseCount > 1,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Remove,
                         contentDescription = stringResource(R.string.decrease_medication_count),
                     )
                 }
-                IconButton(onClick = { if (enabled) onIncreaseClick() }) {
+                IconButton(
+                    onClick = { if (enabled) onIncreaseClick() },
+                    enabled = enabled,
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
                         contentDescription = stringResource(R.string.increase_medication_count),
@@ -1220,6 +1236,7 @@ internal fun MedicationCountTextField(
             }
         },
         modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Number,

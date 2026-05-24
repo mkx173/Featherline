@@ -89,6 +89,25 @@ class NewMedicineSlotViewModelTest {
     }
 
     @Test
+    fun consumeSavedState_afterGroupSaveClearsPublishedSlotResult() = runTest {
+        val medicine = testMedicine(
+            uuid = UUID.fromString("cccccccc-0000-0000-0000-000000000308"),
+            key = MedicationKey.ESTRADIOL,
+            preparation = MedicinePreparation.Pill(strengthMgPerTablet = 2.0),
+        )
+        coEvery { medicineRepository.findOrCreateForCatalog(any(), any(), any()) } returns medicine
+        val viewModel = newViewModel()
+        viewModel.updateMedicineDraft { it.copy(pillStrengthMg = "2") }
+
+        viewModel.saveGroupSlot()
+        advanceUntilIdle()
+        viewModel.consumeSavedState()
+
+        assertFalse(viewModel.uiState.value.isSaved)
+        assertNull(viewModel.uiState.value.slotResult)
+    }
+
+    @Test
     fun saveGroupSlot_validatesInputBeforeCreatingMedicine() = runTest {
         val viewModel = newViewModel()
         viewModel.updateMedicineDraft {

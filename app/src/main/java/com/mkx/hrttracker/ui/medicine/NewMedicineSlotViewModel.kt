@@ -272,7 +272,12 @@ class NewMedicineSlotViewModel @Inject constructor(
     }
 
     fun consumeSavedState() {
-        _uiState.update { it.copy(isSaved = false) }
+        _uiState.update {
+            it.copy(
+                isSaved = false,
+                slotResult = null,
+            )
+        }
     }
 
     fun consumeManualLogSaveResult() {
