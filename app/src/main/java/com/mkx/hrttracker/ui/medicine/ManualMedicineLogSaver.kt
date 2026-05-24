@@ -4,6 +4,7 @@ import com.mkx.hrttracker.data.repository.MedicationLogRepository
 import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -33,7 +34,7 @@ internal suspend fun saveManualMedicineLog(
         doseInstruction
     }
 
-    val saveResult = runCatching {
+    val saveResult = try {
         medicationLogRepository.saveEntry(
             uuid = null,
             medicineUuid = medicineUuid,
@@ -46,10 +47,12 @@ internal suspend fun saveManualMedicineLog(
             count = count.coerceAtLeast(1),
             appliedAtTimeZoneId = appliedZoneId.id,
         )
-    }.fold(
-        onSuccess = { null },
-        onFailure = { MedicineSlotDraftSaveResult.FAILURE },
-    )
+        null
+    } catch (exception: CancellationException) {
+        throw exception
+    } catch (_: Exception) {
+        MedicineSlotDraftSaveResult.FAILURE
+    }
     if (saveResult == null) {
         withContext(NonCancellable) {
             runCatching { medicationReminderScheduler.rescheduleAll() }
