@@ -596,6 +596,7 @@ private fun MedicationSummaryHeader(
             // (preparation summary) instead of the in-flight entry (route +
             // dose + count). The dose form below covers the rest.
             supportingTextOverride = medicinePreparationSummary(medicine),
+            leadingIconAsForm = true,
         )
     } else {
         EditorSegmentedListItem(

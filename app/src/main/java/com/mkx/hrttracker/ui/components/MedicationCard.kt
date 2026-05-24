@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
@@ -46,8 +47,10 @@ import com.mkx.hrttracker.model.medication.Medicine
 import com.mkx.hrttracker.model.medication.MedicineIdentityKey
 import com.mkx.hrttracker.model.medication.MedicinePreparation
 import com.mkx.hrttracker.model.medication.MedicineSelection
+import com.mkx.hrttracker.model.medication.form
 import com.mkx.hrttracker.ui.medication.MedicationApplicationIcon
 import com.mkx.hrttracker.ui.medication.medicationEntrySupportingText
+import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
 import com.mkx.hrttracker.ui.medication.medicationEntryTitle
 import com.mkx.hrttracker.ui.theme.HrtTrackerTheme
 import com.mkx.hrttracker.ui.theme.rememberMedicationGroupColorScheme
@@ -97,6 +100,11 @@ internal fun MedicationCard(
     isSelected: Boolean = false,
     onLeadingIconClick: (() -> Unit)? = null,
     leadingIconContentDescription: String? = null,
+    // Medicine-identity surfaces (medicine manager, medicine detail header,
+    // editor summary) opt into the preparation-form glyph so a tablet reads
+    // the same regardless of whether the current entry is oral or sublingual.
+    // Dose surfaces leave this off and keep the per-route icon.
+    leadingIconAsForm: Boolean = false,
     enabled: Boolean = true,
     index: Int = 0,
     itemCount: Int = 1
@@ -197,6 +205,14 @@ internal fun MedicationCard(
                             imageVector = Icons.Rounded.Check,
                             contentDescription = leadingIconContentDescription,
                             modifier = Modifier.size(20.dp)
+                        )
+                    } else if (leadingIconAsForm && medicine != null) {
+                        Icon(
+                            painter = painterResource(
+                                medicinePreparationFormIconRes(medicine.preparation.type.form()),
+                            ),
+                            contentDescription = leadingIconContentDescription ?: applicationTypeLabel,
+                            modifier = Modifier.size(20.dp),
                         )
                     } else {
                         MedicationApplicationIcon(

@@ -557,6 +557,7 @@ private fun MedicineRow(
         onClick = onClick,
         supportingTextOverride = medicinePreparationSummary(medicine),
         trailingContent = trailingContent,
+        leadingIconAsForm = true,
         index = index,
         itemCount = itemCount,
         modifier = modifier,

@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.mkx.hrttracker.R
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
+import com.mkx.hrttracker.model.medication.MedicinePreparationForm
 
 @Composable
 internal fun rememberMedicationApplicationIcons(
@@ -70,6 +71,22 @@ internal fun medicationApplicationIconRes(applicationType: MedicationApplication
         MedicationApplicationType.GEL -> R.drawable.ic_water_drops
         MedicationApplicationType.PATCH_ON -> R.drawable.ic_sticker_add
         MedicationApplicationType.PATCH_OFF -> R.drawable.ic_tab_close_inactive
+    }
+}
+
+// Preparation-form icons describe the physical medicine (tablet, capsule, …)
+// rather than the per-dose route. Medicine-identity surfaces (the medicine
+// manager card, the medicine detail header, the editor summary) use these
+// instead of route icons so the glyph stays stable across oral/sublingual
+// usage of the same tablet.
+@DrawableRes
+internal fun medicinePreparationFormIconRes(form: MedicinePreparationForm): Int {
+    return when (form) {
+        MedicinePreparationForm.TABLET -> R.drawable.ic_control_point_duplicate
+        MedicinePreparationForm.CAPSULE -> R.drawable.ic_pill
+        MedicinePreparationForm.INJECTION -> R.drawable.ic_syringe
+        MedicinePreparationForm.GEL -> R.drawable.ic_water_drops
+        MedicinePreparationForm.PATCH -> R.drawable.ic_sticker_add
     }
 }
 

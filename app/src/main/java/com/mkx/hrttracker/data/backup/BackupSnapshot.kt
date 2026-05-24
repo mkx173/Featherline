@@ -64,6 +64,9 @@ data class BackupMedicineSnapshot(
     val customMedicationNameNormalized: String?,
     val category: String,
     val preparationType: String,
+    // Dual-purpose: holds per-tablet mg for PILL and per-capsule mg for
+    // CAPSULE. Reusing the field avoids a backup-schema rename; the encode
+    // path picks the right source via MedicinePreparation.toStorageFields.
     val strengthMgPerTablet: Double?,
     val strengthMgPerVial: Double?,
     val concentrationMgPerMl: Double?,
@@ -203,4 +206,8 @@ data class BackupBloodTestResultSnapshot(
 // fields (e.g., BackupMedicineSnapshot.displayDoseUnit, added when the custom-
 // medicine unit picker shipped) are additive and don't require a bump; missing
 // values fall through their defaults on restore.
+//
+// The 2→3 bump added the CAPSULE preparationType enum value. Older apps
+// coerce unknown preparationType strings to PILL on restore, which would
+// silently misclassify capsules — non-additive, hence the bump.
 const val CURRENT_BACKUP_SNAPSHOT_VERSION = 3

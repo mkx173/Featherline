@@ -137,6 +137,10 @@ internal fun MedicinePreparation.toStorageFields(): MedicinePreparationStorageFi
     }
 }
 
+// The strengthMgPerTablet column / field is dual-purpose: it stores per-tablet
+// mg for PILL and per-capsule mg for CAPSULE. Reusing the column avoids a Room
+// migration; encode/decode branches above route the value into the right
+// MedicinePreparation variant based on preparationType.
 internal data class MedicinePreparationStorageFields(
     val preparationType: String,
     val strengthMgPerTablet: Double? = null,

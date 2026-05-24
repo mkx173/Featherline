@@ -371,6 +371,7 @@ private fun MedicineHeaderCard(medicine: Medicine) {
         groupColorKey = null,
         onClick = null,
         extraSupportingText = medicinePreparationSummary(medicine),
+        leadingIconAsForm = true,
     )
 }
 

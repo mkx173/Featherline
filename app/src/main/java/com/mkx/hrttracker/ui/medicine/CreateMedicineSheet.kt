@@ -62,6 +62,7 @@ import com.mkx.hrttracker.ui.medication.MedicationEditorSheetScaffold
 import com.mkx.hrttracker.ui.medication.MedicinePickerUiState
 import com.mkx.hrttracker.ui.medication.PatchSpecKind
 import com.mkx.hrttracker.ui.medication.activeDoseAssistPresets
+import com.mkx.hrttracker.ui.medication.medicinePreparationFormIconRes
 import com.mkx.hrttracker.ui.medication.applyDoseAssistPreset
 import com.mkx.hrttracker.ui.medication.shortLabelRes
 import com.mkx.hrttracker.ui.medication.showsCustomDoseUnitPicker
@@ -721,7 +722,7 @@ private fun PreparationFormButtonGroup(
         optionLabel = { form -> stringResource(preparationFormLabelRes(form)) },
         optionLeadingContent = { form ->
             Icon(
-                painter = painterResource(preparationFormIconRes(form)),
+                painter = painterResource(medicinePreparationFormIconRes(form)),
                 contentDescription = null,
             )
         },
@@ -738,17 +739,6 @@ private fun preparationFormLabelRes(form: MedicinePreparationForm): Int {
         MedicinePreparationForm.INJECTION -> R.string.medicine_preparation_form_injection
         MedicinePreparationForm.GEL -> R.string.medicine_preparation_form_gel
         MedicinePreparationForm.PATCH -> R.string.medicine_preparation_form_patch
-    }
-}
-
-@DrawableRes
-private fun preparationFormIconRes(form: MedicinePreparationForm): Int {
-    return when (form) {
-        MedicinePreparationForm.TABLET -> R.drawable.ic_control_point_duplicate
-        MedicinePreparationForm.CAPSULE -> R.drawable.ic_pill
-        MedicinePreparationForm.INJECTION -> R.drawable.ic_syringe
-        MedicinePreparationForm.GEL -> R.drawable.ic_water_drops
-        MedicinePreparationForm.PATCH -> R.drawable.ic_sticker_add
     }
 }
 
