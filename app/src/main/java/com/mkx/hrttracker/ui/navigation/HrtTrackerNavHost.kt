@@ -775,7 +775,6 @@ fun HrtTrackerNavHost(
                         slotResultKey = slotResultKey,
                         manualLogResultKey = ADD_ENTRY_SLOT_RESULT_KEY,
                     )
-                    val isManualLogFlow = launchMode == MedicineManagerLaunchMode.ManualLog
                     MedicinesScreen(
                         modifier = modifier,
                         onNavigateBack = { navController.popBackStackSafely() },
@@ -784,7 +783,7 @@ fun HrtTrackerNavHost(
                             // sheet itself and returns the completed slot via
                             // onSlotResolved below — don't open the detail
                             // screen in that case.
-                            if (slotResultKey == null) {
+                            if (launchMode == MedicineManagerLaunchMode.Manager) {
                                 navController.navigate(
                                     Screen.MedicineDetail.createRoute(
                                         medicineId = medicineId.toString(),
