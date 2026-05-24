@@ -7,6 +7,7 @@ import com.mkx.hrttracker.model.medication.DoseInstruction
 import com.mkx.hrttracker.model.medication.MedicationApplicationType
 import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,20 +44,28 @@ class MedicineSlotDraftViewModel @Inject constructor(
     }
 
     fun updateAppliedDate(appliedDate: LocalDate) {
-        _uiState.update {
-            it.copy(
-                appliedDate = appliedDate,
-                saveResult = null,
-            )
+        _uiState.update { state ->
+            if (state.isLockedForUpdates()) {
+                state
+            } else {
+                state.copy(
+                    appliedDate = appliedDate,
+                    saveResult = null,
+                )
+            }
         }
     }
 
     fun updateAppliedTime(appliedTime: LocalTime) {
-        _uiState.update {
-            it.copy(
-                appliedTime = appliedTime.withSecond(0).withNano(0),
-                saveResult = null,
-            )
+        _uiState.update { state ->
+            if (state.isLockedForUpdates()) {
+                state
+            } else {
+                state.copy(
+                    appliedTime = appliedTime.withSecond(0).withNano(0),
+                    saveResult = null,
+                )
+            }
         }
     }
 
@@ -78,23 +87,28 @@ class MedicineSlotDraftViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val saveResult = saveManualMedicineLog(
-                medicationLogRepository = medicationLogRepository,
-                medicationReminderScheduler = medicationReminderScheduler,
-                medicineUuid = medicineUuid,
-                applicationType = applicationType,
-                doseInstruction = doseInstruction,
-                count = count,
-                appliedDate = currentState.appliedDate,
-                appliedTime = currentState.appliedTime,
-                appliedZoneId = currentState.appliedZoneId,
-            )
-            _uiState.update {
-                it.copy(
-                    isSaving = false,
-                    isSaved = saveResult == null,
-                    saveResult = saveResult,
+            try {
+                val saveResult = saveManualMedicineLog(
+                    medicationLogRepository = medicationLogRepository,
+                    medicationReminderScheduler = medicationReminderScheduler,
+                    medicineUuid = medicineUuid,
+                    applicationType = applicationType,
+                    doseInstruction = doseInstruction,
+                    count = count,
+                    appliedDate = currentState.appliedDate,
+                    appliedTime = currentState.appliedTime,
+                    appliedZoneId = currentState.appliedZoneId,
                 )
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        isSaved = saveResult == null,
+                        saveResult = saveResult,
+                    )
+                }
+            } catch (exception: CancellationException) {
+                _uiState.update { it.copy(isSaving = false) }
+                throw exception
             }
         }
     }
@@ -105,6 +119,10 @@ class MedicineSlotDraftViewModel @Inject constructor(
 
     fun consumeSaveResult() {
         _uiState.update { it.copy(saveResult = null) }
+    }
+
+    private fun MedicineSlotDraftUiState.isLockedForUpdates(): Boolean {
+        return isSaving || isSaved
     }
 }
 

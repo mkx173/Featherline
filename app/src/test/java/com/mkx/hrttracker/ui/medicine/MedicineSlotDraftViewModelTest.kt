@@ -7,6 +7,7 @@ import com.mkx.hrttracker.reminder.MedicationReminderScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -15,6 +16,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -99,5 +102,60 @@ class MedicineSlotDraftViewModelTest {
         coVerify(exactly = 1) {
             medicationReminderScheduler.rescheduleAll(any())
         }
+    }
+
+    @Test
+    fun updateAppliedDateTime_afterSuccessfulSaveBeforeConsumptionAreIgnored() = runTest {
+        val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f033")
+        val appliedDate = LocalDate.of(2026, 5, 18)
+        val appliedTime = LocalTime.of(22, 45)
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        coEvery { medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns Unit
+        coEvery { medicationReminderScheduler.rescheduleAll(any()) } returns Unit
+        val viewModel = MedicineSlotDraftViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            initialAppliedZoneId = zoneId,
+        )
+        viewModel.updateAppliedDate(appliedDate)
+        viewModel.updateAppliedTime(appliedTime)
+
+        viewModel.saveManualLog(
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            count = 1,
+        )
+        advanceUntilIdle()
+        viewModel.updateAppliedDate(LocalDate.of(2026, 5, 19))
+        viewModel.updateAppliedTime(LocalTime.of(8, 15))
+
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertEquals(appliedDate, viewModel.uiState.value.appliedDate)
+        assertEquals(appliedTime, viewModel.uiState.value.appliedTime)
+    }
+
+    @Test
+    fun saveManualLog_whenCancelledClearsSavingState() = runTest {
+        val medicineUuid = UUID.fromString("7f3c6db0-6589-48fb-929d-84d7e0c3f034")
+        coEvery {
+            medicationLogRepository.saveEntry(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws CancellationException("cancelled")
+        val viewModel = MedicineSlotDraftViewModel(
+            medicationLogRepository = medicationLogRepository,
+            medicationReminderScheduler = medicationReminderScheduler,
+            initialAppliedZoneId = ZoneId.of("Asia/Tokyo"),
+        )
+
+        viewModel.saveManualLog(
+            medicineUuid = medicineUuid,
+            applicationType = MedicationApplicationType.ORAL,
+            doseInstruction = DoseInstruction.TabletFraction(1, 1),
+            count = 1,
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(viewModel.uiState.value.isSaved)
     }
 }

@@ -217,6 +217,7 @@ fun MedicineSlotDraftSheet(
                 appliedZoneId = manualLogUiState.appliedZoneId,
                 onAppliedDateChange = viewModel::updateAppliedDate,
                 onAppliedTimeChange = viewModel::updateAppliedTime,
+                enabled = !isSaving,
             )
         }
     }
